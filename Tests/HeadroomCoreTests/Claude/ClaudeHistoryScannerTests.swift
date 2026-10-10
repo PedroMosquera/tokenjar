@@ -102,6 +102,23 @@ struct ClaudeHistoryScannerTests {
         #expect(oneHour.cacheReadTokens == 20)
     }
 
+    /// Haiku 5.5 bills every token of a request whose prompt (input plus cache reads and writes) is over 100,000 tokens
+    /// at a higher rate, so such a request is recorded under that tier's own price id.
+    @Test(arguments: [
+        (150_000, 0, 0, "claude-haiku-5-5>100k"),
+        (90_000, 0, 0, "claude-haiku-5-5"),
+        (0, 60_000, 50_000, "claude-haiku-5-5>100k"),
+    ])
+    func longHaikuPromptsUseTheLongPromptTier(cacheRead: Int, write5m: Int, write1h: Int, expected: String) {
+        let line = #"{"type":"assistant","message":{"id":"msg_L","model":"claude-haiku-5-5","usage":{"input_tokens":20,"cache_read_input_tokens":\#(cacheRead),"cache_creation_input_tokens":\#(write5m + write1h),"cache_creation":{"ephemeral_5m_input_tokens":\#(write5m),"ephemeral_1h_input_tokens":\#(write1h)},"output_tokens":5}},"requestId":"req_L","timestamp":"2026-10-09T13:00:00.000Z","sessionId":"SESSION_A"}"#
+        var events: [UsageEvent] = []
+
+        _ = ClaudeHistoryScanner.parse(Data((line + "\n").utf8), accountID: "a", home: URL(fileURLWithPath: "/Users/PLACEHOLDER"), decoder: JSONDecoder(), into: &events)
+
+        #expect(events.map(\.model) == [expected])
+        #expect(events.map(\.cacheReadTokens) == [cacheRead])
+    }
+
     @Test func streamingChunksCollapseToTheLargestCountsInTheStore() throws {
         let box = try TranscriptHome()
         defer { box.remove() }

@@ -54,6 +54,12 @@ struct StoredIdentifierTests {
         #expect(storedKeys.count == 9)
         #expect(storedPaths.allSatisfy(isDigest), "\(storedPaths)")
         #expect(storedKeys.allSatisfy(isDigest), "\(storedKeys)")
+        // Every column and page, not only the two above, including what is still in the write-ahead log.
+        let bytes = try ["", "-wal", "-shm"].map { URL(fileURLWithPath: url.path + $0) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+            .reduce(into: Data()) { $0 += try Data(contentsOf: $1) }
+        #expect(bytes.range(of: Data(home.path.utf8)) == nil, "the home folder path is stored")
+        #expect(bytes.range(of: Data("SESSION_A".utf8)) == nil, "a raw session id is stored")
         // Digest keys still resume each scan where it stopped.
         #expect(try scanAll() == 1, "only opencode re-reads the row on its checkpoint boundary")
     }
