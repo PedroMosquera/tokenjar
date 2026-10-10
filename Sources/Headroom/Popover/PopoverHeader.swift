@@ -17,13 +17,35 @@ struct PopoverHeader: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(summary.text)
-                Text(updatedText)
+                caption(others: summary.others)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
             Spacer(minLength: 8)
             RefreshButton()
+        }
+    }
+
+    /// The other accounts share the update line when both fit, else get a line of their own above it, so the
+    /// names are not cut short just to keep the header one line shorter.
+    @ViewBuilder
+    private func caption(others: [String]) -> some View {
+        if others.isEmpty {
+            Text(updatedText)
+        } else {
+            let list = "Also: \(others.joined(separator: ", "))"
+            ViewThatFits(in: .horizontal) {
+                Text("\(list) · \(updatedText)")
+                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(list)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(updatedText)
+                }
+            }
+            .help(list)
         }
     }
 

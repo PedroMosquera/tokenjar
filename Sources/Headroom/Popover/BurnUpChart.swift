@@ -16,9 +16,13 @@ struct BurnUpChart: View {
     var points: [Point]
     var tint: Color
 
-    /// The weekly window, else the longest one; nil when no window has a known cycle.
-    static func chartWindow(in windows: [UsageWindow]) -> UsageWindow? {
+    /// The window the verdict line judges when it lasts a day or more, so the chart never contradicts the line
+    /// above it. Otherwise the weekly window, else the longest one; nil when no window has a known cycle.
+    static func chartWindow(in windows: [UsageWindow], verdictWindowID: String? = nil) -> UsageWindow? {
         let candidates = windows.filter { !$0.notStarted && $0.resetsAt != nil && ($0.windowMinutes ?? 0) > 0 }
+        if let verdictWindowID, let judged = candidates.first(where: { $0.id == verdictWindowID && ($0.windowMinutes ?? 0) >= 1_440 }) {
+            return judged
+        }
         return candidates.first { $0.id == "weekly" } ?? candidates.max { ($0.windowMinutes ?? 0) < ($1.windowMinutes ?? 0) }
     }
 

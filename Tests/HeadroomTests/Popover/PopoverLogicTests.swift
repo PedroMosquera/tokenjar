@@ -89,6 +89,30 @@ struct PaceVerdictTests {
         #expect(Severity.of(window, config: MenuBarConfig(), now: now) == .ok)
     }
 
+    @Test func aWindowThatRunsOutOutranksAnAheadWindowOfEqualSeverity() throws {
+        // Both are warnings: the 5-hour runs out 50 m early, the week is past warnAt but only 6 % elapsed, so it can
+        // only be "ahead". The run-out has to win over the higher used %.
+        let windows = [
+            window("session", "5-hour", used: 60, resetIn: 150 * 60),
+            window("weekly", "Week", used: 85, minutes: 10_080, resetIn: 0.94 * 604_800),
+        ]
+        let verdict = try #require(PaceVerdict.make(windows: windows, config: MenuBarConfig(), now: now))
+        #expect(verdict.window.label == "5-hour")
+        #expect(verdict.text == "Runs out ~50m before reset")
+    }
+
+    @Test func aRunOutVerdictIsAtLeastAWarning() {
+        let calm = window("session", "5-hour", used: 40, resetIn: 150 * 60)
+        #expect(PaceVerdict(window: calm, kind: .runsOut(1_000)).severity(config: MenuBarConfig(), now: now) == .warning)
+        #expect(PaceVerdict(window: calm, kind: .ahead(20)).severity(config: MenuBarConfig(), now: now) == .ok)
+        let full = window("session", "5-hour", used: 100, resetIn: 25 * 60)
+        #expect(PaceVerdict(window: full, kind: .exhausted(1_500)).severity(config: MenuBarConfig(), now: now) == .critical)
+    }
+
+    @Test func theWindowLabelWrapsAsOneUnit() {
+        #expect(VerdictLine.windowSuffix("Claude and GPT · Week") == "·\u{00A0}Claude\u{00A0}and\u{00A0}GPT\u{00A0}·\u{00A0}Week")
+    }
+
     @Test func noVerdictWithoutAPace() {
         #expect(PaceVerdict.make(windows: [window("session", "5-hour", used: 10, resetIn: nil)], config: MenuBarConfig(), now: now) == nil)
         #expect(PaceVerdict.make(windows: [], config: MenuBarConfig(), now: now) == nil)
@@ -154,6 +178,35 @@ struct PopoverSummaryTests {
         #expect(summary == PopoverSummary(tone: .problem, text: "1 account needs attention"))
     }
 
+    @Test func listsTheOtherAccountsThatAreLowInConfigOrder() {
+        let accounts = [
+            AccountConfig(id: "work", provider: .claude, label: "Work"),
+            AccountConfig(id: "go", provider: .opencodeGo, label: "Go"),
+            AccountConfig(id: "personal", provider: .claude, label: "Personal"),
+            AccountConfig(id: "agy", provider: .antigravity, label: "Google"),
+        ]
+        let statuses = [
+            "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
+            "go": AccountStatus(snapshot: snapshot("go", [window("monthly", "Month", used: 61, minutes: 43_200, resetIn: 12 * 86_400)])),
+            "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 42, resetIn: 130 * 60)])),
+            "agy": AccountStatus(snapshot: snapshot("agy", [window("pool:weekly", "Pool · Week", used: 71, minutes: 10_080, resetIn: 4 * 86_400)])),
+        ]
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        #expect(summary.text == "Claude · Work: 5-hour at 88%")
+        // Only accounts that share a provider need their label to tell them apart.
+        #expect(summary.others == ["OpenCode Go", "Antigravity"])
+    }
+
+    @Test func aFailingAccountIsListedBesideAWarning() {
+        let statuses = [
+            "personal": AccountStatus(error: .notSignedIn),
+            "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
+        ]
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        #expect(summary.tone == .warning)
+        #expect(summary.others == ["Claude · Personal"])
+    }
+
     @Test func emptyStates() {
         #expect(PopoverSummary.make(accounts: [], statuses: [:], config: MenuBarConfig(), now: now) == PopoverSummary(tone: .empty, text: "No accounts yet"))
         #expect(PopoverSummary.make(accounts: accounts, statuses: [:], config: MenuBarConfig(), now: now) == PopoverSummary(tone: .empty, text: "Waiting for usage data"))
@@ -206,6 +259,18 @@ struct BurnUpChartTests {
         let idleWeekly = window("weekly", "Week", used: 0, minutes: 10_080, resetIn: 7 * 86_400, notStarted: true)
         #expect(BurnUpChart.chartWindow(in: [session, idleWeekly])?.id == "session")
     }
+
+    @Test func chartsTheWindowTheVerdictJudgesWhenItIsADayOrLonger() {
+        let session = window("session", "5-hour", used: 10, resetIn: 3600)
+        let weekly = window("weekly", "Week", used: 45, minutes: 10_080, resetIn: 86_400)
+        let monthly = window("monthly", "Month", used: 61, minutes: 43_200, resetIn: 12 * 86_400)
+        #expect(BurnUpChart.chartWindow(in: [session, weekly, monthly], verdictWindowID: "monthly")?.id == "monthly")
+        // A 5-hour cycle is too short for a burn-up, so a verdict about it leaves the week on the chart.
+        #expect(BurnUpChart.chartWindow(in: [session, weekly, monthly], verdictWindowID: "session")?.id == "weekly")
+        let gemini = window("gemini:weekly", "Gemini · Week", used: 38, minutes: 10_080, resetIn: 4 * 86_400)
+        let pooled = window("claude-and-gpt:weekly", "Claude and GPT · Week", used: 71, minutes: 10_080, resetIn: 4 * 86_400)
+        #expect(BurnUpChart.chartWindow(in: [gemini, pooled], verdictWindowID: "claude-and-gpt:weekly")?.id == "claude-and-gpt:weekly")
+    }
 }
 
 @MainActor
@@ -256,6 +321,27 @@ struct StatusIconRendererTests {
         #expect(color(warning) == NSColor.systemOrange.withAlphaComponent(0.5))
     }
 
+    @Test func staleDataDimsTheLogo() {
+        for mode in [MenuBarMode.worst, .icon] {
+            let fresh = StatusIconRenderer.render(state([entry("a", used: 42)], mode: mode))
+            let stale = StatusIconRenderer.render(state([entry("a", used: 42, stale: true)], mode: mode))
+            #expect(abs(peakAlpha(fresh.image) - 1) < 0.02)
+            #expect(abs(peakAlpha(stale.image) - 0.5) < 0.02)
+        }
+    }
+
+    private func peakAlpha(_ image: NSImage?) -> Double {
+        guard let cgImage = image?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return -1 }
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        var peak = 0.0
+        for x in 0..<rep.pixelsWide {
+            for y in 0..<rep.pixelsHigh {
+                peak = max(peak, Double(rep.colorAt(x: x, y: y)?.alphaComponent ?? 0))
+            }
+        }
+        return peak
+    }
+
     @Test func errorAddsADotBesideTheGlyph() {
         let plain = StatusIconRenderer.render(state([entry("a", used: 42)]))
         let failing = StatusIconRenderer.render(state([entry("a", used: 42, error: true)]))
@@ -288,5 +374,15 @@ struct StatusIconRendererTests {
     @Test func toolTipListsEveryAccount() {
         let tip = StatusIconRenderer.render(state([entry("Personal", used: 42), entry("Work", used: nil, error: true)])).toolTip ?? ""
         #expect(tip == "Claude · Personal: 5-hour 42%, resets in 50m\nClaude · Work: no data (last check failed)")
+    }
+}
+
+@MainActor
+struct SignInCommandDisplayTests {
+    @Test func previewRendersNeverShowThisMacsHomeFolder() throws {
+        let account = AccountConfig(id: "claude-work", provider: .claude, label: "Work", profileDir: "~/.claude-work")
+        let command = try #require(AccountDetailView.signInCommand(for: account, cliPaths: [:], paths: AppPaths(), previewMode: true))
+        #expect(command == "CLAUDE_CONFIG_DIR=/Users/you/.claude-work claude auth login")
+        #expect(!command.contains(NSHomeDirectory()))
     }
 }

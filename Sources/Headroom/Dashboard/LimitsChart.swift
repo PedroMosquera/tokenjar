@@ -27,7 +27,7 @@ struct LimitsChart: View {
             }
             threshold(warnAt, severity: .warning)
             threshold(criticalAt, severity: .critical)
-            ForEach(content.points) { point in
+            ForEach(content.linePoints) { point in
                 LineMark(
                     x: .value("Time", point.date),
                     y: .value("Used", point.usedPercent),
@@ -35,6 +35,13 @@ struct LimitsChart: View {
                 )
                 .foregroundStyle(by: .value("Series", point.label))
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            }
+            // A line between per-cycle peaks would draw a trend that never happened, and its last segment would
+            // dive to the live value of a cycle that has only just started.
+            ForEach(content.peakPoints) { point in
+                PointMark(x: .value("Time", point.date), y: .value("Used", point.usedPercent))
+                    .foregroundStyle(by: .value("Series", point.label))
+                    .symbolSize(16)
             }
             if let hover, domain.contains(hover) {
                 RuleMark(x: .value("Hover", hover))
@@ -47,7 +54,8 @@ struct LimitsChart: View {
         }
         .chartForegroundStyleScale(domain: content.series.map(\.label), range: content.series.map { DashboardPalette.series($0.colorIndex) })
         .chartYScale(domain: 0...100)
-        .chartXScale(domain: domain)
+        // Hour labels are centred on their tick; without room past "now" the plot clips the last one.
+        .chartXScale(domain: domain, range: .plotDimension(endPadding: range == .day ? 12 : 0))
         .chartYAxis {
             AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
                 AxisGridLine().foregroundStyle(Color.primary.opacity(0.08))

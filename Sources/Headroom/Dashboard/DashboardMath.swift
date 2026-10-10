@@ -299,6 +299,22 @@ nonisolated enum DashboardMath {
         return (max(range.sampleBucket, length), true)
     }
 
+    /// The window the All chart draws for one account: the tightest of those long enough to show as a line at
+    /// `range`, else the tightest of all. Without the filter a busy 5-hour window wins and turns the overview into
+    /// a zigzag of per-cycle peaks, and the chosen window would flip with the time of day.
+    static func overviewWindow(of snapshot: UsageSnapshot, range: DashboardRange) -> UsageWindow? {
+        var readable = snapshot
+        readable.windows = snapshot.windows.filter { !sampling(for: range, windowMinutes: $0.windowMinutes).peaksOnly }
+        return readable.windows.isEmpty ? snapshot.tightestWindow : readable.tightestWindow
+    }
+
+    /// One color slot per account for both dashboard charts. Accounts with limit windows come first in config
+    /// order, so a spend-only account (OpenCode Zen) never leaves a gap between the drawn lines.
+    static func colorSlots(accountIDs: [String], withWindows: Set<String>) -> [String: Int] {
+        let ordered = accountIDs.filter(withWindows.contains) + accountIDs.filter { !withWindows.contains($0) }
+        return Dictionary(ordered.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+    }
+
     /// One chart series: thinned, clamped to 0...100, and split wherever consecutive samples are more than `maxGap` apart.
     static func limitPoints(
         seriesID: String, label: String, samples: [WindowSample], bucket: TimeInterval, maxGap: TimeInterval
