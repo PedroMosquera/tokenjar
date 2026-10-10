@@ -6,6 +6,16 @@ struct ClaudeGlobalConfig: Decodable, Sendable {
     private var oauthAccount: OAuthAccount?
     private var cachedUsageUtilization: CachedUsage?
 
+    private enum CodingKeys: String, CodingKey { case oauthAccount, cachedUsageUtilization }
+
+    /// Keys decode independently: a shape change in the undocumented usage cache must not also lose the account,
+    /// which carries the plan label and sign-in detection.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        oauthAccount = try? c.decodeIfPresent(OAuthAccount.self, forKey: .oauthAccount)
+        cachedUsageUtilization = try? c.decodeIfPresent(CachedUsage.self, forKey: .cachedUsageUtilization)
+    }
+
     /// `<configDir>/.config.json` (legacy) wins over `.claude.json`. Without a profile dir the global file is
     /// `~/.claude.json`, outside `~/.claude`.
     static func file(configDir: URL?, home: URL) -> URL {

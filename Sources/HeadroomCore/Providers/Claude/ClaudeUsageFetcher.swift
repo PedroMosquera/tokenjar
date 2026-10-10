@@ -2,11 +2,13 @@ import Foundation
 
 /// Reads limits by running the user's own `claude -p /usage`, which Claude Code answers locally with the
 /// account's rate limits. The CLI keeps its credentials to itself; Headroom never sees or refreshes a token.
-/// When the CLI is missing or fails, falls back to the limits Claude Code cached in `.claude.json`.
+/// When the CLI is missing or fails, falls back to the limits Claude Code cached in `.claude.json`, except when
+/// the run spent tokens: that throws `.unsupported` so it cannot go unnoticed.
 public struct ClaudeUsageFetcher: UsageFetcher {
     public static let source = "claude CLI"
     public static let cacheSource = "Claude Code cache"
     public static let noLimitsNote = "No plan limits for this login"
+    public static let modelTurnMessage = "claude CLI ran /usage as a prompt, which spends tokens. Disable this account until Headroom is updated."
 
     static let arguments = [
         "-p", "/usage", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
@@ -19,10 +21,6 @@ public struct ClaudeUsageFetcher: UsageFetcher {
         let configDir = account.profileDir.map(context.paths.expand)
         let config = ClaudeGlobalConfig.load(configDir: configDir, home: context.paths.home)
         let now = context.now()
-
-        func snapshot(windows: [UsageWindow], money: [MoneyLine], notes: [String] = []) -> UsageSnapshot {
-            UsageSnapshot(accountID: account.id, provider: .claude, plan: config?.plan, windows: windows, money: money, fetchedAt: now, source: Self.source, notes: notes)
-        }
 
         /// The CLI could not answer: use Claude Code's own cache if it is usable, else surface `error`.
         func fallback(_ error: FetchError) throws -> UsageSnapshot {
@@ -52,19 +50,30 @@ public struct ClaudeUsageFetcher: UsageFetcher {
         }
         if result.timedOut { return try fallback(.timeout) }
 
-        switch ClaudeUsageOutput.parse(result.stdout) {
+        let output = ClaudeUsageOutput.parse(result.stdout)
+        // API key usage is billed outside the subscription, so the plan saved in .claude.json does not describe this login.
+        let plan = output.usesAPIKey ? nil : config?.plan
+
+        func snapshot(windows: [UsageWindow], money: [MoneyLine], notes: [String] = []) -> UsageSnapshot {
+            UsageSnapshot(accountID: account.id, provider: .claude, plan: plan, windows: windows, money: money, fetchedAt: now, source: Self.source, notes: notes)
+        }
+
+        switch output.kind {
         case .report(let limits):
             let windows = limits?.windows ?? []
-            if windows.isEmpty, config?.planHasLimits == true { return try fallback(.parse("usage report has no limits")) }
+            if windows.isEmpty, !output.usesAPIKey, config?.planHasLimits == true { return try fallback(.parse("usage report has no limits")) }
             return snapshot(windows: windows, money: limits?.money ?? [], notes: windows.isEmpty ? [Self.noLimitsNote] : [])
-        case .noReport(let apiKeySource):
-            let usesAPIKey = apiKeySource.map { $0 != "none" } ?? false
-            if !usesAPIKey, config?.isSignedIn != true,
+        case .noReport:
+            if output.usesAPIKey { return snapshot(windows: [], money: [], notes: [Self.noLimitsNote]) }
+            if config?.isSignedIn != true,
                ClaudeProviderSettings.load(configDir: configDir, home: context.paths.home)?.usesThirdPartyProvider != true {
                 throw FetchError.notSignedIn
             }
             if config?.planHasLimits == true { return try fallback(.parse("usage report missing")) }
             return snapshot(windows: [], money: [], notes: [Self.noLimitsNote])
+        case .modelTurn:
+            // No cache fallback: it would hide that every refresh now spends tokens.
+            throw FetchError.unsupported(Self.modelTurnMessage)
         case .unrecognized:
             return try fallback(.parse("unrecognized /usage output, exit \(result.exitCode)"))
         }
@@ -72,13 +81,26 @@ public struct ClaudeUsageFetcher: UsageFetcher {
 }
 
 /// What one `claude -p /usage --output-format stream-json` run said, reduced to what decides the snapshot.
-enum ClaudeUsageOutput {
-    /// A plan usage report; `nil` limits when the report carried no `rate_limits`.
-    case report(ClaudeRateLimits?)
-    /// `/usage` ran but printed only the local cost summary, which is what signed-out, API-key, Bedrock and
-    /// Vertex logins all get. `apiKeySource` from the init line tells an API key apart ("none" otherwise).
-    case noReport(apiKeySource: String?)
-    case unrecognized
+struct ClaudeUsageOutput {
+    enum Kind {
+        /// A plan usage report; `nil` limits when the report carried no `rate_limits`.
+        case report(ClaudeRateLimits?)
+        /// `/usage` ran but printed only the local cost summary, which is what signed-out, API-key, Bedrock and
+        /// Vertex logins all get.
+        case noReport
+        /// The CLI sent `/usage` to the model instead of answering it locally, so the run spent tokens.
+        case modelTurn
+        case unrecognized
+    }
+
+    var kind: Kind
+    /// From the init line's `apiKeySource`, which is "none" when no API key is in use.
+    var usesAPIKey: Bool
+
+    private init(_ kind: Kind, apiKeySource: String?) {
+        self.kind = kind
+        usesAPIKey = apiKeySource.map { $0 != "none" } ?? false
+    }
 
     static func parse(_ stdout: Data) -> ClaudeUsageOutput {
         let decoder = JSONDecoder()
@@ -90,14 +112,15 @@ enum ClaudeUsageOutput {
             case "system":
                 apiKeySource = event.apiKeySource ?? apiKeySource
             case "assistant":
-                if let report = event.usageReport { return .report(report.rateLimits) }
+                if let report = event.usageReport { return Self(.report(report.rateLimits), apiKeySource: apiKeySource) }
             case "result":
+                if (event.numTurns ?? 0) > 0 || (event.totalCostUSD ?? 0) > 0 { return Self(.modelTurn, apiKeySource: apiKeySource) }
                 if event.localCommand == "usage", event.isError != true { ranUsage = true }
             default:
                 break
             }
         }
-        return ranUsage ? .noReport(apiKeySource: apiKeySource) : .unrecognized
+        return Self(ranUsage ? .noReport : .unrecognized, apiKeySource: apiKeySource)
     }
 
     private struct StreamLine: Decodable {
@@ -106,12 +129,16 @@ enum ClaudeUsageOutput {
         var usageReport: UsageReport?
         var localCommand: String?
         var isError: Bool?
+        var numTurns: Int?
+        var totalCostUSD: Double?
 
         enum CodingKeys: String, CodingKey {
             case type, apiKeySource
             case usageReport = "usage_report"
             case localCommand = "local_command"
             case isError = "is_error"
+            case numTurns = "num_turns"
+            case totalCostUSD = "total_cost_usd"
         }
     }
 

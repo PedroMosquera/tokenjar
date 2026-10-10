@@ -113,6 +113,13 @@ struct ClaudeUsageFetcherTests {
         #expect(ClaudeRateLimits.minorUnitDigits("KWD") == 3)
     }
 
+    @Test func decimalPlacesOverridesTheCurrencyDefault() throws {
+        let json = #"{"extra_usage":{"is_enabled":true,"used_credits":1234,"monthly_limit":5000,"currency":"USD","decimal_places":0}}"#
+        let limits = try JSONDecoder().decode(ClaudeRateLimits.self, from: Data(json.utf8))
+
+        #expect(limits.money == [MoneyLine(label: "Extra usage", amount: 1234, limit: 5000, currency: "USD")])
+    }
+
     @Test func unknownLimitKindKeepsItsKindAsID() async throws {
         let box = try Sandbox()
         defer { box.remove() }
@@ -155,9 +162,11 @@ struct ClaudeUsageFetcherTests {
         }
     }
 
-    @Test func apiKeyLoginHasNoPlanLimits() async throws {
+    @Test(arguments: [nil, "claude-json-max.json"])
+    func apiKeyLoginHasNoPlanLimits(globalConfig: String?) async throws {
         let box = try Sandbox()
         defer { box.remove() }
+        if let globalConfig { try box.install(globalConfig, as: ".claude.json") }
         let runner = FakeClaude(stdout: try fixture("stream-api-key.jsonl"))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
@@ -165,7 +174,55 @@ struct ClaudeUsageFetcherTests {
         #expect(snapshot.windows.isEmpty)
         #expect(snapshot.notes == ["No plan limits for this login"])
         #expect(snapshot.source == "claude CLI")
-        #expect(snapshot.plan == nil)
+        #expect(snapshot.plan == nil, "an API key does not bill the subscription saved in .claude.json")
+    }
+
+    @Test func apiKeyReportWithoutRateLimitsIgnoresTheSubscriptionCache() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("claude-json-max.json", as: ".claude.json")
+        let stream = String(decoding: try fixture("stream-plan-limits.jsonl"), as: UTF8.self)
+            .replacingOccurrences(of: #""apiKeySource":"none""#, with: #""apiKeySource":"apiKeyHelper""#)
+            .replacingOccurrences(of: #""rate_limits":"#, with: #""rate_limits_removed":"#)
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeClaude(stdout: Data(stream.utf8)), now: now))
+
+        #expect(snapshot.windows.isEmpty)
+        #expect(snapshot.notes == ["No plan limits for this login"])
+        #expect(snapshot.source == "claude CLI")
+    }
+
+    @Test func malformedUsageCacheKeepsPlanAndSignIn() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise"},"cachedUsageUtilization":{"fetchedAtMs":"soon"}}"#, to: ".claude.json")
+
+        let reported = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeClaude(stdout: try fixture("stream-plan-limits.jsonl")), now: now))
+        #expect(reported.plan == "Enterprise")
+
+        let unreported = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeClaude(stdout: try fixture("stream-signed-out.jsonl")), now: now))
+        #expect(unreported.plan == "Enterprise")
+        #expect(unreported.notes == ["No plan limits for this login"])
+    }
+
+    @Test(arguments: [
+        #""num_turns":1,"total_cost_usd":0.0123"#,
+        #""num_turns":1,"total_cost_usd":0"#,
+        #""num_turns":0,"total_cost_usd":0.0123"#,
+    ])
+    func usageAnsweredByAModelTurnFailsInsteadOfServingTheCache(resultFields: String) async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("claude-json-max.json", as: ".claude.json")
+        let stream = """
+        {"type":"system","subtype":"init","apiKeySource":"none","model":"claude-opus-5-5"}
+        {"type":"assistant","message":{"model":"claude-opus-5-5","content":[{"type":"text","text":"MODEL_TEXT"}],"usage":{"input_tokens":12,"output_tokens":40}}}
+        {"type":"result","subtype":"success","is_error":false,\(resultFields),"result":"MODEL_TEXT"}
+        """
+
+        await #expect(throws: FetchError.unsupported(ClaudeUsageFetcher.modelTurnMessage)) {
+            try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeClaude(stdout: Data(stream.utf8)), now: now))
+        }
     }
 
     @Test func usageBasedEnterpriseSeatHasNoPlanLimits() async throws {
