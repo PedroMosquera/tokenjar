@@ -51,7 +51,14 @@ struct CodexBarImportTests {
         let home = try TempHome()
         defer { home.remove() }
         let preview = CodexBarImport.preview(paths: AppPaths(home: home.url), environment: [:], defaults: FakeDefaults(["refreshFrequency": "twoMinutes"]))
-        #expect(preview == CodexBarImportPreview(enabledProviders: [], refreshMinutes: 2))
+        #expect(preview == CodexBarImportPreview(refreshMinutes: 2))
+    }
+
+    @Test func configWithNoneOfOurProvidersPreviewsAnEmptyList() throws {
+        let home = try TempHome()
+        defer { home.remove() }
+        try home.write(".config/codexbar/config.json", #"{"providers":[{"id":"cursor","enabled":true},{"id":"claude","enabled":false}]}"#)
+        #expect(CodexBarImport.preview(paths: AppPaths(home: home.url), environment: [:], defaults: FakeDefaults())?.enabledProviders == [])
     }
 
     @Test func findsConfigUnderXDGAndLegacyPaths() throws {
@@ -86,7 +93,7 @@ struct CodexBarImportTests {
         let preview = CodexBarImport.preview(
             paths: AppPaths(home: home.url), environment: [:], defaults: FakeDefaults(["quotaWarningThresholds": [0], "quotaWarningNotificationsEnabled": false])
         )
-        #expect(preview == CodexBarImportPreview(enabledProviders: [], notificationsEnabled: false))
+        #expect(preview == CodexBarImportPreview(notificationsEnabled: false))
     }
 
     @Test func geminiAndAntigravityCollapseIntoOneProvider() {
@@ -99,12 +106,21 @@ struct CodexBarImportTests {
 
     // MARK: apply
 
-    let discovered = [
-        AccountConfig(id: "claude", provider: .claude, label: "Work"),
-        AccountConfig(id: "codex", provider: .codex, label: "ChatGPT"),
-        AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go"),
-        AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen", showInMenuBar: false),
-    ]
+    let paths = AppPaths(home: URL(fileURLWithPath: "/Users/test"))
+    let authFile = "~/.local/share/opencode/auth.json"
+
+    var discovered: [AccountConfig] {
+        [
+            AccountConfig(id: "claude", provider: .claude, label: "Work"),
+            AccountConfig(id: "codex", provider: .codex, label: "ChatGPT"),
+            AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go", credential: .file(path: authFile, key: "opencode-go")),
+            AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen", credential: .file(path: authFile, key: "opencode"), showInMenuBar: false),
+        ]
+    }
+
+    func apply(_ preview: CodexBarImportPreview, to config: AppConfig, discovered: [AccountConfig]? = nil) -> AppConfig {
+        CodexBarImport.apply(preview, to: config, discovered: discovered ?? self.discovered, paths: paths, environment: [:])
+    }
 
     @Test func applyMirrorsProvidersAndCopiesSettings() {
         let custom = AccountConfig(id: "claude-personal", provider: .claude, label: "Personal", profileDir: "~/.claude-personal")
@@ -113,7 +129,7 @@ struct CodexBarImportTests {
         let config = AppConfig(accounts: [claudeEdited, discovered[2], custom])
         let preview = CodexBarImportPreview(enabledProviders: [.claude, .codex], thresholdsUsed: [50, 80], refreshMinutes: 5, notificationsEnabled: false)
 
-        let applied = CodexBarImport.apply(preview, to: config, discovered: discovered)
+        let applied = apply(preview, to: config)
 
         #expect(applied.accounts.map(\.id) == ["claude", "opencode-go", "claude-personal", "codex", "opencode-zen"])
         #expect(applied.accounts.map(\.enabled) == [true, false, true, true, false])
@@ -124,9 +140,45 @@ struct CodexBarImportTests {
         #expect(applied.alerts.enabled == false)
     }
 
-    @Test func applyLeavesAccountsAloneWithoutProviderList() {
+    @Test func applyMatchesTheSameLoginUnderAnotherID() {
+        let config = AppConfig(accounts: [
+            AccountConfig(id: "claude-personal", provider: .claude, label: "Personal"),
+            AccountConfig(id: "claude-work", provider: .claude, label: "Work", profileDir: "~/.claude-work"),
+            AccountConfig(id: "plus", provider: .codex, label: "Plus", profileDir: "/Users/test/.codex/"),
+            AccountConfig(id: "go", provider: .opencodeGo, label: "Go", credential: .file(path: "/Users/test/.local/share/opencode/auth.json", key: "opencode-go")),
+            AccountConfig(id: "zen", provider: .opencodeZen, label: "Zen"),
+            AccountConfig(id: "google", provider: .antigravity, label: "Google"),
+        ])
+        let discovered = discovered + [AccountConfig(id: "antigravity", provider: .antigravity, label: "Google")]
+
+        let applied = apply(CodexBarImportPreview(enabledProviders: [.codex, .antigravity]), to: config, discovered: discovered)
+
+        #expect(applied.accounts.map(\.id) == config.accounts.map(\.id))
+        #expect(applied.accounts.map(\.enabled) == [false, true, true, false, false, true])
+    }
+
+    @Test func applyAddsAnotherLoginUnderAFreeID() throws {
+        let config = AppConfig(accounts: [
+            AccountConfig(id: "claude", provider: .claude, label: "Work", profileDir: "~/.claude-work"),
+            AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Pasted", credential: .keychain(account: "opencode-go")),
+            AccountConfig(id: "opencode-go-2", provider: .opencodeGo, label: "Zen key", credential: .file(path: authFile, key: "opencode")),
+        ])
+
+        let applied = apply(CodexBarImportPreview(enabledProviders: [.claude, .opencodeGo]), to: config, discovered: [discovered[0], discovered[2]])
+
+        try #require(applied.accounts.map(\.id) == ["claude", "opencode-go", "opencode-go-2", "claude-2", "opencode-go-3"])
+        #expect(applied.accounts[3].profileDir == nil)
+        #expect(applied.accounts[4].credential == discovered[2].credential)
+    }
+
+    @Test func applyMirrorsAConfigWithNoneOfOurProvidersOn() {
+        let applied = apply(CodexBarImportPreview(enabledProviders: []), to: AppConfig(accounts: discovered))
+        #expect(applied.accounts.map(\.enabled) == [false, false, false, false])
+    }
+
+    @Test func applyLeavesAccountsAloneWithoutCodexBarConfig() {
         let config = AppConfig(accounts: discovered)
-        let applied = CodexBarImport.apply(CodexBarImportPreview(enabledProviders: [], refreshMinutes: 2), to: config, discovered: discovered)
+        let applied = apply(CodexBarImportPreview(refreshMinutes: 2), to: config)
         #expect(applied.accounts == discovered)
         #expect(applied.refreshMinutes == 2)
         #expect(applied.alerts == AlertConfig())

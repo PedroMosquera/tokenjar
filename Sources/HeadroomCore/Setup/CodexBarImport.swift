@@ -1,12 +1,14 @@
 import Foundation
 
 public struct CodexBarImportPreview: Equatable, Sendable {
-    public var enabledProviders: [ProviderID]
+    /// nil when no CodexBar config.json was found; empty when one was found with none of Headroom's providers enabled.
+    public var enabledProviders: [ProviderID]?
+    /// From CodexBar's global warning list only. Its per-window session and weekly lists are not read.
     public var thresholdsUsed: [Int]?
     public var refreshMinutes: Int?
     public var notificationsEnabled: Bool?
 
-    public init(enabledProviders: [ProviderID], thresholdsUsed: [Int]? = nil, refreshMinutes: Int? = nil, notificationsEnabled: Bool? = nil) {
+    public init(enabledProviders: [ProviderID]? = nil, thresholdsUsed: [Int]? = nil, refreshMinutes: Int? = nil, notificationsEnabled: Bool? = nil) {
         self.enabledProviders = enabledProviders
         self.thresholdsUsed = thresholdsUsed
         self.refreshMinutes = refreshMinutes
@@ -41,22 +43,27 @@ public enum CodexBarImport {
         let notifications = reader?.object(forKey: "quotaWarningNotificationsEnabled") as? Bool
         if providers == nil, thresholds == nil, refresh == nil, notifications == nil { return nil }
         return CodexBarImportPreview(
-            enabledProviders: providers ?? [], thresholdsUsed: thresholds, refreshMinutes: refresh, notificationsEnabled: notifications
+            enabledProviders: providers, thresholdsUsed: thresholds, refreshMinutes: refresh, notificationsEnabled: notifications
         )
     }
 
-    /// Mirrors CodexBar's provider choices onto the discovered accounts: each is enabled exactly when CodexBar had its
-    /// provider on, and added when the config lacks it. Accounts that were not discovered are left alone, and so are
-    /// all accounts when the preview names no providers (CodexBar's config.json was missing).
-    public static func apply(_ preview: CodexBarImportPreview, to config: AppConfig, discovered: [AccountConfig]) -> AppConfig {
+    /// Mirrors CodexBar's provider choices onto the discovered accounts. Configured accounts that are the same login as a
+    /// discovered one, whatever their id, are enabled exactly when CodexBar had the provider on; a discovered login the
+    /// config lacks is added, under a free id. Accounts that match nothing discovered are left alone, and so are all
+    /// accounts when `enabledProviders` is nil.
+    public static func apply(
+        _ preview: CodexBarImportPreview, to config: AppConfig, discovered: [AccountConfig],
+        paths: AppPaths, environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> AppConfig {
         var out = config
-        if !preview.enabledProviders.isEmpty {
+        if let providers = preview.enabledProviders {
             for account in discovered {
-                let enabled = preview.enabledProviders.contains(account.provider)
-                if let index = out.accounts.firstIndex(where: { $0.id == account.id }) {
-                    out.accounts[index].enabled = enabled
-                } else {
+                let enabled = providers.contains(account.provider)
+                let matches = out.accounts.indices.filter { isSameLogin(out.accounts[$0], account, paths: paths, environment: environment) }
+                for index in matches { out.accounts[index].enabled = enabled }
+                if matches.isEmpty {
                     var added = account
+                    added.id = freeID(account.id, taken: Set(out.accounts.map(\.id)))
                     added.enabled = enabled
                     out.accounts.append(added)
                 }
@@ -66,6 +73,24 @@ public enum CodexBarImport {
         if let minutes = preview.refreshMinutes { out.refreshMinutes = minutes }
         if let enabled = preview.notificationsEnabled { out.alerts.enabled = enabled }
         return out
+    }
+
+    /// Same provider and same profile dir or credential file. Antigravity has one login per Mac. Two entries of one
+    /// auth.json are different logins, but an account without a credential uses the key discovery would pick.
+    static func isSameLogin(_ a: AccountConfig, _ b: AccountConfig, paths: AppPaths, environment: [String: String]) -> Bool {
+        guard a.provider == b.provider else { return false }
+        if a.provider == .antigravity { return true }
+        guard let locationA = AccountDiscovery.location(of: a, paths: paths, environment: environment),
+              let locationB = AccountDiscovery.location(of: b, paths: paths, environment: environment),
+              locationA.standardizedFileURL.path == locationB.standardizedFileURL.path
+        else { return false }
+        if case .file(_, let keyA) = a.credential, case .file(_, let keyB) = b.credential { return keyA == keyB }
+        return true
+    }
+
+    private static func freeID(_ id: String, taken: Set<String>) -> String {
+        guard taken.contains(id) else { return id }
+        return (2...).lazy.map { "\(id)-\($0)" }.first { !taken.contains($0) }!
     }
 
     /// $XDG_CONFIG_HOME/codexbar when set, else ~/.config/codexbar, then the legacy ~/.codexbar.

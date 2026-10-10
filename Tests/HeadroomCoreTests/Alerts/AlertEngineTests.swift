@@ -151,6 +151,33 @@ struct AlertEngineTests {
         #expect(again.id != before.id)
     }
 
+    @Test func aPollWithoutResetTimeKeepsTheLastOne() throws {
+        // A cycle that ends under the 30-point drop can only be detected through the reset time moving forward.
+        var state = AlertState()
+        let low = AccountConfig(id: "claude-work", provider: .claude, label: "Work", alertThresholds: [20])
+        let resetsAt = now.addingTimeInterval(3600), next = resetsAt.addingTimeInterval(5 * 3600)
+        _ = run(&state, ok(session(10, resetsAt: resetsAt)), account: low)
+        let before = try #require(run(&state, ok(session(25, resetsAt: resetsAt)), account: low).events.first)
+
+        #expect(run(&state, ok(session(0, resetsAt: nil)), account: low, at: resetsAt.addingTimeInterval(60)) == AlertOutcome())
+        let reset = run(&state, ok(session(5, resetsAt: next)), account: low, at: resetsAt.addingTimeInterval(120))
+        #expect(reset.withdrawals == [before.id])
+        let after = run(&state, ok(session(30, resetsAt: next)), account: low, at: resetsAt.addingTimeInterval(3600))
+        #expect(after.events.map(\.kind) == [.threshold(20)])
+    }
+
+    @Test func windowsWhoseResetHasPassedAreIgnored() throws {
+        // A stale fallback snapshot from a finished cycle alternating with live polls.
+        var state = AlertState()
+        let current = now.addingTimeInterval(4 * 3600), finished = now.addingTimeInterval(-600)
+        _ = run(&state, ok(session(10, resetsAt: current)))
+        #expect(run(&state, ok(session(85, resetsAt: finished))) == AlertOutcome())
+        #expect(run(&state, ok(session(11, resetsAt: current))) == AlertOutcome())
+        #expect(run(&state, ok(session(85, resetsAt: finished))) == AlertOutcome())
+        #expect(run(&state, ok(session(85, resetsAt: now))) == AlertOutcome())
+        #expect(run(&state, ok(session(82, resetsAt: current))).events.map(\.kind) == [.threshold(80)])
+    }
+
     @Test func resetAlertNeedsTheSettingAndAHighPreviousCycle() throws {
         var config = thresholdsOnly
         config.alerts.windowResets = true
@@ -279,11 +306,23 @@ struct AlertEngineTests {
         #expect(run(&state, ok(session(96, resetsAt: resetsAt)), config: AppConfig()).events.map(\.kind) == [.threshold(95)])
     }
 
-    @Test func notStartedWindowsNeverAlert() {
+    @Test func notStartedWindowsNeverCrossThresholdsOrProject() {
         var state = AlertState()
         let resetsAt = now.addingTimeInterval(5 * 3600)
         _ = run(&state, ok(session(0, resetsAt: resetsAt, notStarted: true)), config: AppConfig())
         #expect(run(&state, ok(session(97, resetsAt: resetsAt, notStarted: true)), config: AppConfig()) == AlertOutcome())
+    }
+
+    @Test func aResetIntoAnIdleWindowStillAlerts() throws {
+        // OpenCode Go reports a window that just reset as 0 % and not started.
+        var config = thresholdsOnly
+        config.alerts.windowResets = true
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(3600), after = resetsAt.addingTimeInterval(60)
+        _ = run(&state, ok(session(10, resetsAt: resetsAt)), config: config)
+        _ = run(&state, ok(session(85, resetsAt: resetsAt)), config: config)
+        let reset = run(&state, ok(session(0, resetsAt: after.addingTimeInterval(5 * 3600), notStarted: true)), config: config, at: after)
+        #expect(reset.events.map(\.body) == ["5-hour limit reset · now at 0%"])
     }
 
     @Test func durationsMatchTheAppCountdowns() {

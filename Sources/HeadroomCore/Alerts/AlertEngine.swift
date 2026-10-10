@@ -50,7 +50,7 @@ public struct AlertState: Codable, Equatable, Sendable {
     /// Not persisted: every launch re-baselines, so nothing fires on the first poll after launch.
     public var baselinedAccounts: Set<String>
     public var failingAccounts: Set<String>
-    /// Last seen reset per "accountID|windowID", to detect resets.
+    /// Last known reset per "accountID|windowID", to detect resets. A poll without a reset time keeps the previous one.
     public var lastResetsAt: [String: Date]
     public var lastUsedPercent: [String: Double]
     /// Cycle id per "accountID|windowID": the reset time, rounded to 10 minutes, when the cycle was first seen.
@@ -96,6 +96,8 @@ public enum AlertEngine {
     /// disabled the state keeps tracking the same way, so turning alerts on does not replay old crossings.
     /// Network errors, timeouts and rate limiting never open a source-problem episode: they usually mean the Mac
     /// went offline, and would otherwise notify once per account.
+    /// Windows whose reset time has passed are skipped. A not-started window never fires a threshold or a projection,
+    /// but can still get a reset alert, because OpenCode Go reports a window that just reset as not started.
     /// `clock` formats the reset time in projection alerts; tests pass a fixed locale and time zone.
     public static func evaluate(
         account: AccountConfig, result: Result<UsageSnapshot, FetchError>, config: AppConfig,
@@ -139,11 +141,13 @@ public enum AlertEngine {
         _ window: UsageWindow, account: AccountConfig, config: AppConfig, silent: Bool,
         state: inout AlertState, now: Date, clock: Date.FormatStyle, into outcome: inout AlertOutcome
     ) {
+        // A finished cycle's numbers, e.g. from a stale fallback snapshot, would fire into the current cycle.
+        if let resetsAt = window.resetsAt, resetsAt <= now { return }
         let windowKey = "\(account.id)|\(window.id)"
         let previousUsed = state.lastUsedPercent[windowKey]
         let isReset = previousUsed.map { isNewCycle(window, previousUsed: $0, previousReset: state.lastResetsAt[windowKey]) } ?? false
         state.lastUsedPercent[windowKey] = window.usedPercent
-        state.lastResetsAt[windowKey] = window.resetsAt
+        if let resetsAt = window.resetsAt { state.lastResetsAt[windowKey] = resetsAt }
 
         if isReset || state.cycles[windowKey] == nil {
             let stale = state.firedKeys.filter { $0.hasPrefix(windowKey + "|") }

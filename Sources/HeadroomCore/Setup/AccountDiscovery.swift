@@ -37,19 +37,29 @@ public enum AccountDiscovery {
     public static func isAvailable(
         _ account: AccountConfig, paths: AppPaths, environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Bool {
+        guard let location = location(of: account, paths: paths, environment: environment) else { return true }
+        switch account.provider {
+        case .claude, .codex: return isDirectory(location)
+        case .opencodeGo, .opencodeZen, .antigravity: return FileManager.default.fileExists(atPath: location.path)
+        }
+    }
+
+    /// The profile dir or credential file the account reads on this Mac. nil for Antigravity and for a key in the app's
+    /// own Keychain, which have no file of their own.
+    static func location(of account: AccountConfig, paths: AppPaths, environment: [String: String]) -> URL? {
         switch account.provider {
         case .claude:
-            return isDirectory(account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".claude"))
+            account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".claude")
         case .codex:
-            return isDirectory(account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".codex"))
+            account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".codex")
         case .opencodeGo, .opencodeZen:
             switch account.credential {
-            case .file(let path, _): return FileManager.default.fileExists(atPath: paths.expand(path).path)
-            case .keychain: return true
-            case nil: return FileManager.default.fileExists(atPath: openCodeAuthFile(paths: paths, environment: environment).path)
+            case .file(let path, _): paths.expand(path)
+            case .keychain: nil
+            case nil: openCodeAuthFile(paths: paths, environment: environment)
             }
         case .antigravity:
-            return true
+            nil
         }
     }
 
