@@ -239,7 +239,7 @@ struct AccountDetailView: View {
 
     private var removeMessage: String {
         var text = "It is removed from config.json. Its history stays in the local database."
-        if case .keychain = account.credential { text += " Its saved API key is deleted from the Keychain." }
+        if case .keychain = account.credential { text += " Its pasted API key is deleted from this Mac's Keychain." }
         return text
     }
 
