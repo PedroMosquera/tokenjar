@@ -1,0 +1,38 @@
+{
+  "numStartups": 12,
+  "oauthAccount": {
+    "accountUuid": "ACCOUNT_UUID_A",
+    "emailAddress": "EMAIL_PLACEHOLDER",
+    "fullName": "NAME_PLACEHOLDER",
+    "displayName": "NAME_PLACEHOLDER",
+    "organizationUuid": "ORG_UUID_PLACEHOLDER",
+    "organizationName": "ORG_NAME_PLACEHOLDER",
+    "organizationRole": "admin",
+    "organizationType": "claude_max",
+    "organizationRateLimitTier": "default_claude_max_20x",
+    "userRateLimitTier": null,
+    "billingType": "stripe_subscription",
+    "seatTier": null,
+    "hasExtraUsageEnabled": true
+  },
+  "cachedUsageUtilization": {
+    "fetchedAtMs": 1791661279383,
+    "accountUuid": "ACCOUNT_UUID_A",
+    "utilization": {
+      "five_hour": {"utilization": 17, "resets_at": "2026-10-10T22:20:00.429375+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null},
+      "seven_day": {"utilization": 14, "resets_at": "2026-10-12T09:00:00.429396+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null},
+      "seven_day_opus": null,
+      "seven_day_sonnet": null,
+      "seven_day_cowork": null,
+      "limits": [
+        {"kind": "session", "group": "session", "percent": 17, "severity": "normal", "resets_at": "2026-10-10T22:20:00.429375+00:00", "scope": null, "is_active": true},
+        {"kind": "weekly_all", "group": "weekly", "percent": 14, "severity": "normal", "resets_at": "2026-10-12T09:00:00.429396+00:00", "scope": null, "is_active": false},
+        {"kind": "weekly_scoped", "group": "weekly", "percent": 3, "severity": "normal", "resets_at": "2026-10-12T09:00:00+00:00", "scope": {"model": {"id": null, "display_name": "Fable"}, "surface": null}, "is_active": false}
+      ],
+      "extra_usage": {"is_enabled": true, "monthly_limit": 5000, "used_credits": 2500, "utilization": 50, "currency": "USD", "decimal_places": 2, "disabled_reason": null, "user_disabled": false, "spend_limit_reached": false, "credits_ever_enabled": true, "daily": null, "weekly": null},
+      "spend": {"used": {"amount": 0}, "limit": null, "percent": 0, "enabled": false},
+      "weekly_scoped_shares": []
+    }
+  },
+  "projects": {"/Users/PLACEHOLDER/work/demo": {"allowedTools": []}}
+}
