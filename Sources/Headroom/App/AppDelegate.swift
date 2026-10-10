@@ -11,6 +11,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
+        let args = CommandLine.arguments
+        if let flag = args.firstIndex(of: "--render-snapshots"), flag + 1 < args.count {
+            SnapshotRenderer.run(outputDirectory: URL(fileURLWithPath: args[flag + 1]))
+            exit(0)
+        }
+        if args.contains("--probe") || args.contains("--scan") {
+            Task {
+                _ = await DevCommands.handle(args)
+                exit(0)
+            }
+            return
+        }
+
         model.presenter = .init(
             showDashboard: { [weak self] accountID in self?.showDashboard(accountID: accountID) },
             showSettings: { [weak self] accountID in self?.showSettings(accountID: accountID) },

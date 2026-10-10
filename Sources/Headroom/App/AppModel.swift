@@ -44,10 +44,12 @@ final class AppModel {
     @ObservationIgnored var store: (any UsageStore)?
     @ObservationIgnored var priceTable = PriceTable()
     @ObservationIgnored private var ticker: Timer?
+    /// Set by `AppModel.preview()`: shows every configured account regardless of what exists on this Mac.
+    @ObservationIgnored var previewMode = false
 
     /// Accounts to show on this Mac: enabled, and with their profile dir or credential present.
     var accounts: [AccountConfig] {
-        config.accounts.filter { $0.enabled && AccountDiscovery.isAvailable($0, paths: paths) }
+        config.accounts.filter { $0.enabled && (previewMode || AccountDiscovery.isAvailable($0, paths: paths)) }
     }
 
     func status(for account: AccountConfig) -> AccountStatus {
