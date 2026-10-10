@@ -24,7 +24,8 @@ struct AccountDetailView: View {
                         Button("Test") { model.refresh(accountID: account.id) }
                             .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
                             .help(testBlocker ?? "Fetch this account's usage now")
-                        Button("Open Dashboard") { model.openProviderDashboard(account) }
+                        Button("Open Usage Page") { model.openProviderDashboard(account) }
+                            .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
                     }
                 }
                 generalSection
@@ -72,8 +73,8 @@ struct AccountDetailView: View {
     }
 
     private var subtitle: String {
-        let plan = model.status(for: account).snapshot?.plan
-        return [account.provider.displayName, plan].compactMap { $0 }.joined(separator: " \u{00B7} ")
+        let title = AccountTitle(provider: account.provider, label: account.label, plan: model.status(for: account).snapshot?.plan)
+        return [account.provider.displayName, title.plan].compactMap { $0 }.joined(separator: " \u{00B7} ")
     }
 
     private var statusLine: some View {
@@ -143,10 +144,15 @@ struct AccountDetailView: View {
     private var signInSection: some View {
         Section {
             if let command = signInCommand {
+                // One line: wrapping breaks at the hyphen in a profile path and reads like two paths. Copy Command
+                // copies it whole, and the tooltip shows it whole.
                 Text(command)
                     .font(.system(.callout, design: .monospaced))
                     .textSelection(.enabled)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .help(command)
                 HStack {
                     if let signInError {
                         Text(signInError).font(.callout).foregroundStyle(.red)
@@ -167,7 +173,7 @@ struct AccountDetailView: View {
             Text("Sign in")
         } footer: {
             if account.provider == .claude {
-                HelpText.footer("Runs the provider's own login in Terminal. With an older claude that has no auth command, run claude and type /login.")
+                HelpText.footer("Runs the provider's own login in Terminal. With an older claude that has no auth command, run claude and type /\u{2060}login.")
             } else if signInCommand != nil {
                 HelpText.footer("Runs the provider's own login in Terminal. Headroom never sees the credentials.")
             }
@@ -191,8 +197,8 @@ struct AccountDetailView: View {
                     model.updateAccount(account.id) { $0.alertThresholds = values }
                 }
             }
-            LabeledContent("Dashboard URL") {
-                CommittingTextField(title: "Dashboard URL", prompt: account.provider.defaultDashboardURL.absoluteString, value: account.dashboardURL ?? "") { text in
+            LabeledContent("Usage page URL") {
+                CommittingTextField(title: "Usage page URL", prompt: account.provider.defaultDashboardURL.absoluteString, value: account.dashboardURL ?? "") { text in
                     switch SettingsLogic.dashboardURL(from: text) {
                     case .providerDefault:
                         dashboardError = false
@@ -215,9 +221,16 @@ struct AccountDetailView: View {
     // MARK: Actions
 
     private var signInCommand: String? {
-        let cli = CLILocator(overrides: model.config.cliPaths)
-        return SignInCommand.command(for: account, paths: model.paths) { name in
-            model.previewMode ? name : (cli.locate(name)?.path ?? name)
+        Self.signInCommand(for: account, cliPaths: model.config.cliPaths, paths: model.paths, previewMode: model.previewMode)
+    }
+
+    /// Preview renders become review images that get pasted into PRs, so they use a stand-in home folder and bare
+    /// CLI names instead of this Mac's paths.
+    static func signInCommand(for account: AccountConfig, cliPaths: [String: String], paths: AppPaths, previewMode: Bool) -> String? {
+        let cli = CLILocator(overrides: cliPaths)
+        let paths = previewMode ? AppPaths(home: URL(fileURLWithPath: "/Users/you")) : paths
+        return SignInCommand.command(for: account, paths: paths) { name in
+            previewMode ? name : (cli.locate(name)?.path ?? name)
         }
     }
 

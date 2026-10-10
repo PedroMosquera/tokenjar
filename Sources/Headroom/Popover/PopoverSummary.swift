@@ -31,6 +31,9 @@ struct PopoverSummary: Equatable {
 
     var tone: Tone
     var text: String
+    /// When an account is named, the other accounts with a window above ok or a failed check, in config order.
+    /// Cards keep config order, so this is how an at-risk account below the fold still reaches the header.
+    var others: [String] = []
 
     static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: MenuBarConfig, now: Date) -> PopoverSummary {
         guard !accounts.isEmpty else { return PopoverSummary(tone: .empty, text: "No accounts yet") }
@@ -38,9 +41,13 @@ struct PopoverSummary: Equatable {
         var nextReset: Date?
         var failing = 0
         var withData = 0
+        var needsALook: [AccountConfig] = []
         for account in accounts {
             let status = statuses[account.id] ?? AccountStatus()
             if status.error != nil { failing += 1 }
+            if status.error != nil || Severity.worst(of: status.snapshot?.windows ?? [], config: config, now: now) > .ok {
+                needsALook.append(account)
+            }
             guard let snapshot = status.snapshot else { continue }
             withData += 1
             for window in snapshot.windows {
@@ -62,7 +69,12 @@ struct PopoverSummary: Equatable {
             } else {
                 detail = "\(window.label) at \(Format.percent(window.usedPercent))"
             }
-            return PopoverSummary(tone: worst.severity == .critical ? .critical : .warning, text: "\(name): \(detail)")
+            // The caption has room for a few words: the provider alone names an account unless another account shares it.
+            let others = needsALook.filter { $0.id != worst.account.id }.map { account in
+                let shared = accounts.contains { $0.id != account.id && $0.provider == account.provider }
+                return shared ? AccountTitle(provider: account.provider, label: account.label).name : account.provider.displayName
+            }
+            return PopoverSummary(tone: worst.severity == .critical ? .critical : .warning, text: "\(name): \(detail)", others: others)
         }
         if failing > 0 {
             return PopoverSummary(tone: .problem, text: failing == 1 ? "1 account needs attention" : "\(failing) accounts need attention")
@@ -125,6 +137,14 @@ struct PaceVerdict: Equatable {
         if pace.delta >= tolerance { return .ahead(pace.delta) }
         if pace.delta <= -tolerance { return .under(-pace.delta) }
         return .onPace
+    }
+
+    /// A projected or actual run-out is at least a warning even below `warnAt`, so the line explains an orange bar.
+    func severity(config: MenuBarConfig, now: Date) -> Severity {
+        switch kind {
+        case .onPace, .ahead, .under: .ok
+        case .runsOut, .exhausted: max(.warning, Severity.of(window, config: config, now: now))
+        }
     }
 
     var text: String {

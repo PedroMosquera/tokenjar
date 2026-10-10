@@ -97,7 +97,7 @@ private struct AccountMenu: View {
 
     var body: some View {
         Menu {
-            Button("Open Usage Dashboard") {
+            Button("Open Usage Page") {
                 model.openProviderDashboard(account)
                 model.closePopover()
             }
@@ -176,10 +176,12 @@ private struct SnapshotBody: View {
                     }
                 }
             }
-            if let verdict = PaceVerdict.make(windows: snapshot.windows, config: model.config.menuBar, now: now) {
-                VerdictLine(verdict: verdict, severity: verdictSeverity(verdict))
+            let verdict = PaceVerdict.make(windows: snapshot.windows, config: model.config.menuBar, now: now)
+            if let verdict {
+                VerdictLine(verdict: verdict, severity: verdict.severity(config: model.config.menuBar, now: now))
+                    .font(.callout)
             }
-            chart(now: now)
+            chart(now: now, verdictWindowID: verdict?.window.id)
             if !snapshot.money.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(snapshot.money.enumerated()), id: \.offset) { _, line in
@@ -201,16 +203,9 @@ private struct SnapshotBody: View {
         }
     }
 
-    private func verdictSeverity(_ verdict: PaceVerdict) -> Severity {
-        switch verdict.kind {
-        case .onPace, .ahead, .under: .ok
-        case .runsOut, .exhausted: max(.warning, Severity.of(verdict.window, config: model.config.menuBar, now: model.now))
-        }
-    }
-
     @ViewBuilder
-    private func chart(now: Date) -> some View {
-        if let window = BurnUpChart.chartWindow(in: snapshot.windows), let start = BurnUpChart.cycleStart(of: window) {
+    private func chart(now: Date, verdictWindowID: String?) -> some View {
+        if let window = BurnUpChart.chartWindow(in: snapshot.windows, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
             let samples = model.samples(accountID: account.id, windowID: window.id, since: start)
             let points = BurnUpChart.points(samples: samples, window: window, start: start, now: now)
             if points.count >= 2 {
@@ -220,21 +215,31 @@ private struct SnapshotBody: View {
     }
 }
 
-private struct VerdictLine: View {
+struct VerdictLine: View {
     var verdict: PaceVerdict
     var severity: Severity
+    /// Off where the window is already named, such as a dashboard tile titled with it.
+    var showsWindow = true
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             Image(systemName: symbol)
                 .foregroundStyle(severity == .ok ? AnyShapeStyle(.secondary) : AnyShapeStyle(severity.color))
-            Text(verdict.text)
-                .foregroundStyle(severity == .ok ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
-            Text("· \(verdict.window.label)")
-                .foregroundStyle(.secondary)
+            message
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .font(.callout)
-        .lineLimit(1)
+    }
+
+    /// One Text, so a long window label wraps to a second line instead of truncating the verdict's number.
+    private var message: Text {
+        let text = Text(verdict.text).foregroundStyle(severity == .ok ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+        guard showsWindow else { return text }
+        return Text("\(text) \(Text(Self.windowSuffix(verdict.window.label)).foregroundStyle(.secondary))")
+    }
+
+    /// Non-breaking spaces, so a wrap moves the whole label to the next line rather than splitting it.
+    static func windowSuffix(_ label: String) -> String {
+        "·\u{00A0}" + label.replacingOccurrences(of: " ", with: "\u{00A0}")
     }
 
     private var symbol: String {

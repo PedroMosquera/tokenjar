@@ -5,16 +5,16 @@ import SwiftUI
 /// against white and #1E1E1E cards. Slot order is what keeps series apart under color blindness, so assign
 /// slots in order and never cycle: extra series get `other`.
 enum DashboardPalette {
-    /// For accounts and limit windows. Lines cross, so the first four are chosen to stay apart as a set,
-    /// not only as neighbours (blue next to violet fails that in dark mode, so violet comes fifth). No red
-    /// or orange, so a series never reads as the critical threshold; yellow relies on the dashed, labelled
-    /// warn rule to stay distinct from warning amber.
+    /// For accounts and limit windows. Lines cross, so the first five stay apart as a set (`--pairs all`), not only
+    /// as neighbours; dark violet is saturated because a soft one sits too close to blue. No sixth dark color passed
+    /// a sweep, so aqua stays too close to green and magenta. No red or orange, so a series never reads as the
+    /// critical threshold; yellow relies on the dashed, labelled warn rule to stay distinct from warning amber.
     static let series: [Color] = [
         pair(0x2A78D6, 0x3987E5), // blue
         pair(0xE87BA4, 0xD55181), // magenta
         pair(0x008300, 0x008300), // green
         pair(0xEDA100, 0xC98500), // yellow
-        pair(0x4A3AA7, 0x9085E9), // violet
+        pair(0x4A3AA7, 0x9030F0), // violet
         pair(0x1BAF7A, 0x199E70), // aqua
     ]
 

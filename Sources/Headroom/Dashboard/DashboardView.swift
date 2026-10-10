@@ -33,12 +33,21 @@ struct DashboardView: View {
             Divider().ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    let sections = DashboardSections.make(
+                        account: account, accounts: model.accounts, snapshot: account.flatMap { model.status(for: $0).snapshot }
+                    )
                     header
-                    kpis
+                    if sections.history { kpis }
                     if let account { windowTiles(account) }
-                    limitsCard
-                    spendCard
-                    projectsCard
+                    if sections.limits { limitsCard }
+                    if sections.history {
+                        spendCard
+                        projectsCard
+                    } else {
+                        Label(noHistoryMessage, systemImage: "info.circle")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(20)
                 .opacity(content.key == loadKey ? 1 : 0.6)
@@ -65,11 +74,12 @@ struct DashboardView: View {
                     .frame(width: 30, height: 30)
             }
             VStack(alignment: .leading, spacing: 2) {
+                let title = account.map { AccountTitle(provider: $0.provider, label: $0.label, plan: model.status(for: $0).snapshot?.plan) }
                 HStack(spacing: 8) {
-                    Text(account?.displayName ?? "All accounts")
+                    Text(title?.name ?? "All accounts")
                         .font(.title2.weight(.semibold))
                         .lineLimit(1)
-                    if let plan = account.flatMap({ model.status(for: $0).snapshot?.plan }) {
+                    if let plan = title?.plan {
                         PlanPill(plan)
                     }
                 }
@@ -79,6 +89,16 @@ struct DashboardView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 16)
+            if let account {
+                // Icon only: a titled button truncates the account name at the window's 760 pt minimum width.
+                Button {
+                    model.openProviderDashboard(account)
+                } label: {
+                    Label("Open Usage Page", systemImage: "arrow.up.forward.square")
+                }
+                .labelStyle(.iconOnly)
+                .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
+            }
             Picker("Range", selection: rangeState.projectedValue) {
                 ForEach(DashboardRange.allCases) { Text($0.rawValue).tag($0) }
             }
@@ -107,11 +127,6 @@ struct DashboardView: View {
 
     // MARK: KPIs
 
-    private var hasHistorySource: Bool {
-        if let account { return account.provider.harness != nil }
-        return model.accounts.contains { $0.provider.harness != nil }
-    }
-
     /// Wraps to more rows instead of squeezing values when the window is narrow.
     private let tileColumns = [GridItem(.adaptive(minimum: 130), spacing: 10)]
 
@@ -120,13 +135,8 @@ struct DashboardView: View {
             costTile("Today", content.costToday, caption: "since midnight")
             costTile("7 days", content.costLastSevenDays, caption: "including today")
             costTile("This month", content.costThisMonth, caption: content.periods.thisMonth.formatted(.dateTime.month(.wide)))
-            if hasHistorySource {
-                KPITile(title: "Tokens", value: Format.tokens(content.totals.tokens), caption: range.dayCaption)
-                KPITile(title: "Requests", value: content.totals.requests.formatted(), caption: range.dayCaption)
-            } else {
-                KPITile(title: "Tokens", value: "No history", caption: "no local usage logs", valueStyle: .secondary)
-                KPITile(title: "Requests", value: "No history", caption: "no local usage logs", valueStyle: .secondary)
-            }
+            KPITile(title: "Tokens", value: Format.tokens(content.totals.tokens), caption: range.dayCaption)
+            KPITile(title: "Requests", value: content.totals.requests.formatted(), caption: range.dayCaption)
         }
     }
 
@@ -141,10 +151,6 @@ struct DashboardView: View {
             value = "No prices"
             detail = "models unpriced"
             style = .secondary
-        } else if !hasHistorySource {
-            value = "No history"
-            detail = "no local usage logs"
-            style = .secondary
         } else {
             value = Format.money(0)
         }
@@ -155,9 +161,15 @@ struct DashboardView: View {
     private func windowTiles(_ account: AccountConfig) -> some View {
         let windows = model.status(for: account).snapshot?.windows ?? []
         if !windows.isEmpty {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: min(windows.count, 4)), spacing: 10) {
-                ForEach(windows) { window in
-                    WindowTile(window: window, severity: Severity.of(window, config: model.config.menuBar, now: model.now), now: model.now)
+            let columns = min(windows.count, 4)
+            // Grid rather than LazyVGrid, so a tile whose verdict wraps does not leave its neighbours shorter.
+            Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+                ForEach(Array(stride(from: 0, to: windows.count, by: columns)), id: \.self) { start in
+                    GridRow {
+                        ForEach(windows[start..<min(start + columns, windows.count)]) { window in
+                            WindowTile(window: window, config: model.config.menuBar, now: model.now)
+                        }
+                    }
                 }
             }
         }
@@ -168,7 +180,7 @@ struct DashboardView: View {
     private var limitsCard: some View {
         DashboardCard(
             title: "Limits over time",
-            subtitle: account == nil ? "Tightest window of each account" : "Used % per window, faint rules mark resets"
+            subtitle: limitsSubtitle
         ) {
             Group {
                 if let message = limitsEmptyMessage {
@@ -181,19 +193,17 @@ struct DashboardView: View {
         }
     }
 
+    private var limitsSubtitle: String {
+        if account != nil { return "Used % per window, faint rules mark resets" }
+        return range == .day ? "Tightest window of each account" : "Tightest window of each account, skipping windows too short for this range"
+    }
+
     private var limitsEmptyMessage: String? {
         guard content.key != nil, content.points.isEmpty else { return nil }
-        if let account {
-            let status = model.status(for: account)
-            guard let snapshot = status.snapshot else {
-                if let error = status.error { return "No limits yet. Last check: \(error.userMessage)." }
-                return "No limits yet. They appear after the first refresh."
-            }
-            if snapshot.windows.isEmpty { return "This account reports no plan limits, only spend." }
-        } else if !model.accounts.contains(where: { !(model.status(for: $0).snapshot?.windows.isEmpty ?? true) }) {
-            return "No account reports plan limits yet."
-        }
-        return "No limit history yet. A sample is saved on every refresh."
+        return DashboardSections.limitsEmptyMessage(
+            status: account.map { model.status(for: $0) },
+            anyAccountHasWindows: model.accounts.contains { !(model.status(for: $0).snapshot?.windows.isEmpty ?? true) }
+        )
     }
 
     private var groupingOptions: [UsageGrouping] {
@@ -242,14 +252,13 @@ struct DashboardView: View {
             : "Cost per day, \(range.dayCaption)"
     }
 
-    private var noHistoryMessage: String? {
-        guard let account, account.provider.harness == nil else { return nil }
-        return "\(account.provider.displayName) keeps no local usage logs, so there is no history to show."
+    private var noHistoryMessage: String {
+        guard let account else { return "None of these accounts keeps local usage logs, so there is no cost or token history to show." }
+        return "\(account.provider.displayName) keeps no local usage logs, so there is no cost or token history to show."
     }
 
     private var spendEmptyMessage: String? {
         guard content.key != nil else { return nil }
-        if let noHistoryMessage { return noHistoryMessage }
         if !breakdown.hasUsage { return "No local usage \(range.inRangePhrase)." }
         if breakdown.segments.isEmpty {
             return "No prices for these models: \(breakdown.unpricedModels.joined(separator: ", "))."
@@ -259,10 +268,9 @@ struct DashboardView: View {
 
     /// Accounts keep the color they have in the limits chart; other groupings color by rank in the legend.
     private var spendColors: [Color] {
-        let indexByName = Dictionary(model.accounts.enumerated().map { ($1.displayName, $0) }, uniquingKeysWith: { a, _ in a })
-        return breakdown.groups.enumerated().map { index, group in
+        breakdown.groups.enumerated().map { index, group in
             if group == DashboardMath.otherGroup { return DashboardPalette.other }
-            if grouping == .account { return DashboardPalette.series(indexByName[group] ?? .max) }
+            if grouping == .account { return DashboardPalette.series(content.accountSlotByName[group] ?? .max) }
             return DashboardPalette.spend(index)
         }
     }
@@ -270,7 +278,7 @@ struct DashboardView: View {
     private var projectsCard: some View {
         DashboardCard(title: "Top projects", subtitle: "By cost, \(range.dayCaption)") {
             if content.key != nil, content.projects.isEmpty {
-                DashboardEmptyState(systemImage: "folder", message: noHistoryMessage ?? "No project activity \(range.inRangePhrase).")
+                DashboardEmptyState(systemImage: "folder", message: "No project activity \(range.inRangePhrase).")
                     .frame(height: 90)
             } else {
                 TopProjectsTable(projects: content.projects)
@@ -281,10 +289,11 @@ struct DashboardView: View {
 
 private struct WindowTile: View {
     var window: UsageWindow
-    var severity: Severity
+    var config: MenuBarConfig
     var now: Date
 
     var body: some View {
+        let severity = Severity.of(window, config: config, now: now)
         VStack(alignment: .leading, spacing: 5) {
             Text(window.label)
                 .font(.caption)
@@ -294,25 +303,33 @@ private struct WindowTile: View {
                 .font(.title3.weight(.semibold))
                 .monospacedDigit()
                 .foregroundStyle(severity == .ok ? Color.primary : severity.color)
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.primary.opacity(0.08))
-                    Capsule()
-                        .fill(severity.color)
-                        .frame(width: proxy.size.width * min(1, max(0, window.usedPercent / 100)))
-                }
-            }
-            .frame(height: 4)
+            UsageBar(
+                fraction: window.notStarted ? 0 : window.usedPercent / 100,
+                paceFraction: Pace.compute(window, now: now).map { $0.expectedPercent / 100 },
+                tint: severity.color
+            )
             Text(resetText)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
                 .lineLimit(1)
+            // Its own line, not appended to the countdown: at three or four tiles a row the gap would truncate.
+            if let verdict {
+                VerdictLine(verdict: verdict, severity: verdict.severity(config: config, now: now), showsWindow: false)
+                    .font(.caption)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .dashboardSurface()
+    }
+
+    /// None for a full window: "Limit reached, resets in" would only repeat the countdown above it.
+    private var verdict: PaceVerdict? {
+        guard let verdict = PaceVerdict.make(windows: [window], config: config, now: now) else { return nil }
+        if case .exhausted = verdict.kind { return nil }
+        return verdict
     }
 
     private var resetText: String {
