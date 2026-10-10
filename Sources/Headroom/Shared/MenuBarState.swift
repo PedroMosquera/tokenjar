@@ -35,7 +35,8 @@ struct MenuBarState: Equatable {
                 provider: account.provider,
                 label: account.label,
                 tightest: tightest,
-                severity: tightest.map { Severity.of($0, config: config.menuBar, now: now) } ?? .ok,
+                // Every window counts: a lower window projected to run out still needs to color the menu bar.
+                severity: Severity.worst(of: status.snapshot?.windows ?? [], config: config.menuBar, now: now),
                 isStale: status.isStale(now: now, refreshMinutes: account.refreshMinutes ?? config.refreshMinutes),
                 hasError: status.error != nil
             )

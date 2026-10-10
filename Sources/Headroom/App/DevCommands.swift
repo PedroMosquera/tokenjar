@@ -76,6 +76,16 @@ enum DevCommands {
                 print("  \(model): \(v.0), \(v.1), \(v.2), \(v.3), \(String(format: "%.4f", v.4))")
             }
             print("projects: \(Set(rows.compactMap(\.project)).count), days with usage: \(Set(rows.map(\.day)).count)")
+            let prices = PriceTable.load(bundled: ProviderLogo.resourceURL("pricing.json"), override: AppPaths().pricingOverrideFile)
+            var costByModel: [String: Double] = [:]
+            var unpriced = Set<String>()
+            for row in rows {
+                let priced = prices.priced(row)
+                if let cost = priced.costUSD { costByModel[row.model, default: 0] += cost } else { unpriced.insert(row.model) }
+            }
+            print("API-equivalent cost, last \(days)d: \(String(format: "%.2f", costByModel.values.reduce(0, +))) USD")
+            for (model, cost) in costByModel.sorted(by: { $0.value > $1.value }) { print("  \(model): \(String(format: "%.2f", cost))") }
+            if !unpriced.isEmpty { print("no price for: \(unpriced.sorted().joined(separator: ", "))") }
         } catch {
             print("scan error: \(error)")
         }

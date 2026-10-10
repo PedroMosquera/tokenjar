@@ -1,6 +1,13 @@
 import Foundation
 
 public enum DateParsing {
+    // ISO8601DateFormatter is thread-safe; building one per call cost about 25 us, which dominated history scans.
+    nonisolated(unsafe) private static let internetDateTime: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
     /// Accepts ISO-8601 with or without fractional seconds (any number of digits) and with `Z` or `±hh:mm`.
     /// Providers mix `2026-10-10T22:19:59.526764+00:00` and `2026-10-12T09:00:00+00:00` in one response.
     public static func iso8601(_ string: String) -> Date? {
@@ -14,9 +21,7 @@ public enum DateParsing {
             fraction = Double("0" + s[dot..<end]) ?? 0
             main = String(s[..<dot]) + String(s[end...])
         }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        guard let base = formatter.date(from: main) else { return nil }
+        guard let base = internetDateTime.date(from: main) else { return nil }
         return base.addingTimeInterval(fraction)
     }
 

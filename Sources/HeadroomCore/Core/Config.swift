@@ -165,14 +165,28 @@ public struct ConfigStore: Sendable {
         if old.accounts != new.accounts {
             let oldByID = Dictionary(old.accounts.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             let baseByID = Dictionary(base.accounts.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-            out.accounts = new.accounts.compactMap { account in
-                if let before = oldByID[account.id], before == account { return baseByID[account.id] ?? account }
-                return account
+            out.accounts = new.accounts.map { account in
+                guard let before = oldByID[account.id], let shared = baseByID[account.id] else { return account }
+                return Self.applyEditedFields(from: before, to: account, onto: shared)
             }
             // Accounts that exist only in base (hidden by a local override) are kept.
             let newIDs = Set(new.accounts.map(\.id)), oldIDs = Set(old.accounts.map(\.id))
             out.accounts += base.accounts.filter { !newIDs.contains($0.id) && !oldIDs.contains($0.id) }
         }
+        return out
+    }
+
+    /// Copies only the fields the user changed, so values a machine's config.local.json overrides stay local.
+    static func applyEditedFields(from before: AccountConfig, to after: AccountConfig, onto shared: AccountConfig) -> AccountConfig {
+        var out = shared
+        if before.label != after.label { out.label = after.label }
+        if before.enabled != after.enabled { out.enabled = after.enabled }
+        if before.profileDir != after.profileDir { out.profileDir = after.profileDir }
+        if before.credential != after.credential { out.credential = after.credential }
+        if before.showInMenuBar != after.showInMenuBar { out.showInMenuBar = after.showInMenuBar }
+        if before.refreshMinutes != after.refreshMinutes { out.refreshMinutes = after.refreshMinutes }
+        if before.alertThresholds != after.alertThresholds { out.alertThresholds = after.alertThresholds }
+        if before.dashboardURL != after.dashboardURL { out.dashboardURL = after.dashboardURL }
         return out
     }
 

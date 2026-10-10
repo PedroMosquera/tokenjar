@@ -22,7 +22,7 @@ struct DashboardView: View {
     }
 
     private var loadKey: DashboardLoadKey {
-        DashboardLoadKey(accountIDs: account.map { [$0.id] } ?? model.accounts.map(\.id), range: range, refreshedAt: model.lastRefreshAt)
+        DashboardLoadKey(accountIDs: account.map { [$0.id] } ?? model.accounts.map(\.id), range: range, historyRevision: model.historyRevision)
     }
 
     var body: some View {

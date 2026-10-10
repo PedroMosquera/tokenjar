@@ -83,15 +83,10 @@ struct PaceVerdictTests {
         #expect(verdict.kind == .exhausted(2 * 86_400))
     }
 
-    @Test func severityBreaksATieBetweenWindowsOnPace() throws {
-        // Both are on pace, but the 5-hour window is amber: it would run out 9 m before its reset.
-        let windows = [
-            window("session", "5-hour", used: 55, resetIn: 140 * 60),
-            window("weekly", "Week", used: 60, minutes: 10_080, resetIn: 2 * 86_400 + 12 * 3_600),
-        ]
-        let verdict = try #require(PaceVerdict.make(windows: windows, config: MenuBarConfig(), now: now))
-        #expect(verdict.window.label == "5-hour")
-        #expect(verdict.kind == .onPace)
+    /// A projection that runs out less than 15 minutes early is noise; it must not turn a bar amber.
+    @Test func shortProjectedShortfallIsNotAmber() {
+        let window = window("session", "5-hour", used: 55, resetIn: 140 * 60)
+        #expect(Severity.of(window, config: MenuBarConfig(), now: now) == .ok)
     }
 
     @Test func noVerdictWithoutAPace() {

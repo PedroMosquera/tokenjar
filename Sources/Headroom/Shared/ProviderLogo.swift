@@ -41,20 +41,34 @@ enum ProviderLogo {
 struct ProviderLogoView: View {
     var provider: ProviderID
     var size: CGFloat = 16
-    var template = false
+    /// Logos ship as single-color glyphs; nil tints them with the provider's brand color.
+    var tint: Color?
 
     var body: some View {
-        if let image = ProviderLogo.image(provider, template: template) {
+        if let image = ProviderLogo.image(provider, template: true) {
             Image(nsImage: image)
+                .renderingMode(.template)
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
+                .foregroundStyle(tint ?? provider.brandColor)
                 .frame(width: size, height: size)
         } else {
             Text(String(provider.displayName.prefix(1)))
                 .font(.system(size: size * 0.6, weight: .bold))
                 .frame(width: size, height: size)
                 .background(Circle().fill(.quaternary))
+        }
+    }
+}
+
+extension ProviderID {
+    /// Brand hues from docs/logos.md. Monochrome marks (OpenAI, OpenCode) follow the text color so they read in dark mode.
+    var brandColor: Color {
+        switch self {
+        case .claude: Color(red: 0xD9 / 255, green: 0x77 / 255, blue: 0x57 / 255)
+        case .antigravity: Color(red: 0x8E / 255, green: 0x75 / 255, blue: 0xB2 / 255)
+        case .codex, .opencodeGo, .opencodeZen: .primary
         }
     }
 }

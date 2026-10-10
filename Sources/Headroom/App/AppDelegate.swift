@@ -40,8 +40,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.animates = true
         popover.contentViewController = NSHostingController(rootView: PopoverView().environment(model))
 
+        let notifications = NotificationManager()
+        notifications.onOpenDashboard = { [weak self] accountID in self?.showDashboard(accountID: accountID) }
+        notifications.activate()
+        model.notifications = notifications
+
         observeIcon()
         model.start()
+        if model.config.alerts.enabled { model.requestNotificationPermission(prominent: false) }
     }
 
     @objc private func togglePopover(_ sender: NSStatusBarButton) {

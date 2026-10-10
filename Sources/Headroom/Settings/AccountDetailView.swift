@@ -21,8 +21,8 @@ struct AccountDetailView: View {
                     statusLine
                     HStack {
                         Spacer()
-                        Button("Test") { model.refresh(force: true) }
-                            .disabled(testBlocker != nil || model.isRefreshing)
+                        Button("Test") { model.refresh(accountID: account.id) }
+                            .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
                             .help(testBlocker ?? "Fetch this account's usage now")
                         Button("Open Dashboard") { model.openProviderDashboard(account) }
                     }

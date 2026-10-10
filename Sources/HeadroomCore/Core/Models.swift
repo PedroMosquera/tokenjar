@@ -75,7 +75,9 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
     public var provider: ProviderID
     public var label: String
     public var enabled: Bool
-    /// CLAUDE_CONFIG_DIR for Claude, CODEX_HOME for Codex. `nil` means the CLI default (~/.claude, ~/.codex).
+    /// CLAUDE_CONFIG_DIR for Claude, CODEX_HOME for Codex, opencode's data directory (holding auth.json and
+    /// opencode.db) for OpenCode. `nil` means the default: ~/.claude, ~/.codex, $XDG_DATA_HOME/opencode or
+    /// ~/.local/share/opencode.
     public var profileDir: String?
     public var credential: CredentialRef?
     public var showInMenuBar: Bool
@@ -117,13 +119,19 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
 
     public var displayName: String { "\(provider.displayName) · \(label)" }
 
+    /// Only http(s) overrides are honored: config.json syncs between Macs, and NSWorkspace would happily open
+    /// file:// or custom-scheme URLs from it.
     public var resolvedDashboardURL: URL {
-        dashboardURL.flatMap(URL.init(string:)) ?? provider.defaultDashboardURL
+        if let override = dashboardURL.flatMap(URL.init(string:)), ["http", "https"].contains(override.scheme?.lowercased()) {
+            return override
+        }
+        return provider.defaultDashboardURL
     }
 }
 
 public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
-    /// Stable key: `session`, `weekly`, `weekly:<model>`, `monthly`, or `<limitId>:<window>` for extra Codex limits.
+    /// Stable key: `session`, `weekly`, `weekly:<model>`, `monthly`, `<limitId>:<window>` for extra Codex limits,
+    /// `spend-cap` for a Codex workspace cap, or `<pool>:session` / `<pool>:weekly` for Antigravity's quota pools.
     public var id: String
     public var label: String
     /// 0...100, may exceed 100 when a provider reports overage.

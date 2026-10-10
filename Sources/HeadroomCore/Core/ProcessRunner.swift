@@ -46,7 +46,9 @@ public struct FoundationProcessRunner: ProcessRunning {
         errPipe.fileHandleForReading.readabilityHandler = { err.append($0.availableData) }
 
         try process.run()
-        if let stdin { inPipe.fileHandleForWriting.write(stdin) }
+        // A CLI that exits before reading stdin would otherwise raise SIGPIPE and kill the whole menu bar app.
+        _ = fcntl(inPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+        if let stdin { try? inPipe.fileHandleForWriting.write(contentsOf: stdin) }
         try? inPipe.fileHandleForWriting.close()
 
         let timedOut = await withTaskGroup(of: Bool.self) { group in

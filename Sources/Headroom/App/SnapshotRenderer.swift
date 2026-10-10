@@ -13,11 +13,18 @@ enum SnapshotRenderer {
 
             let model = AppModel.preview()
             render(PopoverView().environment(model), size: nil, width: 360, appearance: appearance, to: outputDirectory.appending(path: "popover-\(suffix).png"))
+            render(PopoverView(maxCardsHeight: 4000).environment(model), size: nil, width: 360, appearance: appearance, to: outputDirectory.appending(path: "popover-full-\(suffix).png"))
+            let states = AppModel.previewStates()
+            render(PopoverView(maxCardsHeight: 4000).environment(states), size: nil, width: 360, appearance: appearance, to: outputDirectory.appending(path: "popover-states-\(suffix).png"))
+            renderStatusIcon(states.menuBarState, appearance: appearance, to: outputDirectory.appending(path: "menubar-states-\(suffix).png"))
 
             model.dashboardSelection = nil
             render(DashboardView().environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-all-\(suffix).png"))
             model.dashboardSelection = "claude-work"
             render(DashboardView().environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-account-\(suffix).png"))
+            render(DashboardView(range: .month, grouping: .project).environment(model), size: NSSize(width: 980, height: 1400), appearance: appearance, to: outputDirectory.appending(path: "dashboard-account-tall-\(suffix).png"))
+            model.dashboardSelection = nil
+            render(DashboardView(range: .month, grouping: .harness).environment(model), size: NSSize(width: 980, height: 1400), appearance: appearance, to: outputDirectory.appending(path: "dashboard-all-tall-\(suffix).png"))
 
             model.settingsSelection = nil
             render(SettingsView().environment(model), size: NSSize(width: 760, height: 560), appearance: appearance, to: outputDirectory.appending(path: "settings-general-\(suffix).png"))
@@ -67,6 +74,8 @@ enum SnapshotRenderer {
         button.isBordered = false
         button.appearance = appearance
         button.image = rendered.image
+        // An off-screen NSButton draws template images mid-gray; the real status bar draws them at label contrast.
+        button.contentTintColor = .labelColor
         button.imagePosition = .imageLeading
         if rendered.attributedTitle.length > 0 { button.attributedTitle = rendered.attributedTitle } else { button.title = rendered.title }
         button.sizeToFit()

@@ -4,8 +4,8 @@ import HeadroomCore
 struct DashboardLoadKey: Hashable {
     var accountIDs: [String]
     var range: DashboardRange
-    /// A finished refresh means new samples and possibly new usage rows.
-    var refreshedAt: Date?
+    /// Bumped by the model after a refresh records samples or a scan stores usage rows.
+    var historyRevision: Int
 }
 
 /// Everything the detail pane draws from history. Built in `task(id:)` when the selection, range or data

@@ -49,7 +49,6 @@ extension AppModel {
                     window("session", "5-hour", 8, 300, resetIn: 4 * 3600 + 20 * 60),
                     window("weekly", "Week", 34, 10_080, resetIn: 5 * 86_400 + 2 * 3600),
                 ],
-                money: [MoneyLine(label: "Credits", amount: 0)],
                 fetchedAt: now.addingTimeInterval(-80), source: "codex app-server"
             ),
             UsageSnapshot(
@@ -68,30 +67,51 @@ extension AppModel {
                 notes: ["Balance needs a console sign-in; showing local spend only."]
             ),
         ]
-        for snapshot in snapshots {
+        let antigravity = UsageSnapshot(
+            accountID: "antigravity", provider: .antigravity,
+            windows: [
+                window("gemini:session", "Gemini · 5-hour", 22, 300, resetIn: 3 * 3600 + 5 * 60),
+                window("gemini:weekly", "Gemini · Week", 38, 10_080, resetIn: 4 * 86_400),
+                window("claude-and-gpt:weekly", "Claude and GPT · Week", 71, 10_080, resetIn: 4 * 86_400),
+            ],
+            fetchedAt: now.addingTimeInterval(-300), source: "agy CLI"
+        )
+        for snapshot in snapshots + [antigravity] {
             model.statuses[snapshot.accountID] = AccountStatus(snapshot: snapshot, error: nil, lastAttempt: snapshot.fetchedAt)
         }
-        model.statuses["antigravity"] = AccountStatus(snapshot: nil, error: .cliNotFound("agy"), lastAttempt: now.addingTimeInterval(-60))
 
         let store = InMemoryUsageStore()
         var rng = PreviewRandom(seed: 7)
-        // Window history: a sawtooth per window that resets at each window boundary, sampled every 15 minutes for 30 days.
-        for snapshot in snapshots {
+        // Window history for 30 days at 15-minute samples. Usage only grows inside a cycle and drops at each reset;
+        // the current cycle ends exactly at the snapshot's value.
+        for snapshot in snapshots + [antigravity] {
             for w in snapshot.windows {
                 guard let minutes = w.windowMinutes, let resetsAt = w.resetsAt else { continue }
                 let length = Double(minutes) * 60
+                let start = now.addingTimeInterval(-30 * 86_400)
+                var cycleEnd = resetsAt
+                while cycleEnd.addingTimeInterval(-length) > start { cycleEnd = cycleEnd.addingTimeInterval(-length) }
                 var samples: [WindowSample] = []
-                var t = now.addingTimeInterval(-30 * 86_400)
-                while t <= now {
-                    let untilReset = resetsAt.timeIntervalSince(t).truncatingRemainder(dividingBy: length)
-                    let cycleReset = t.addingTimeInterval(untilReset < 0 ? untilReset + length : untilReset)
-                    let elapsed = 1 - cycleReset.timeIntervalSince(t) / length
-                    let target = w.usedPercent / max(0.05, 1 - resetsAt.timeIntervalSince(now) / length)
-                    let used = min(100, max(0, elapsed * target * (0.85 + rng.next() * 0.3)))
-                    samples.append(WindowSample(accountID: snapshot.accountID, windowID: w.id, timestamp: t, usedPercent: used, resetsAt: cycleReset))
-                    t = t.addingTimeInterval(15 * 60)
+                while cycleEnd.addingTimeInterval(-length) <= now {
+                    let cycleStart = cycleEnd.addingTimeInterval(-length)
+                    let isCurrent = cycleEnd > now
+                    let last = isCurrent ? now : cycleEnd
+                    var times: [Date] = []
+                    var t = max(cycleStart, start)
+                    while t <= last { times.append(t); t = t.addingTimeInterval(15 * 60) }
+                    let increments = times.map { time -> Double in
+                        let hour = Calendar.current.component(.hour, from: time)
+                        return (9...19).contains(hour) ? 0.4 + rng.next() * 1.2 : rng.next() * 0.1
+                    }
+                    let total = max(increments.reduce(0, +), 0.0001)
+                    let peak = isCurrent ? w.usedPercent : min(96, 25 + rng.next() * 60)
+                    var running = 0.0
+                    for (time, increment) in zip(times, increments) {
+                        running += increment
+                        samples.append(WindowSample(accountID: snapshot.accountID, windowID: w.id, timestamp: time, usedPercent: running / total * peak, resetsAt: cycleEnd))
+                    }
+                    cycleEnd = cycleEnd.addingTimeInterval(length)
                 }
-                if let last = samples.indices.last { samples[last].usedPercent = w.usedPercent }
                 store.addSamples(samples)
             }
         }
@@ -135,6 +155,47 @@ extension AppModel {
             "claude-sonnet-5-5": ModelPrice(input: 3, output: 15, cacheRead: 0.3, cacheWrite5m: 3.75, cacheWrite1h: 6, source: "preview placeholder", asOf: "preview"),
             "gpt-5.5-codex": ModelPrice(input: 1.25, output: 10, cacheRead: 0.125, cacheWrite5m: 1.25, cacheWrite1h: 1.25, source: "preview placeholder", asOf: "preview"),
         ])
+        return model
+    }
+}
+
+extension AppModel {
+    /// Edge states for visual review: stale, refreshing, full window, signed out, no subscription, network error.
+    static func previewStates(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = AppModel()
+        model.previewMode = true
+        model.now = now
+        model.lastRefreshAt = now.addingTimeInterval(-40)
+        model.config = AppConfig(accounts: [
+            AccountConfig(id: "full", provider: .claude, label: "Personal"),
+            AccountConfig(id: "stale", provider: .codex, label: "Plus"),
+            AccountConfig(id: "refreshing", provider: .claude, label: "Work"),
+            AccountConfig(id: "signed-out", provider: .codex, label: "Work"),
+            AccountConfig(id: "no-sub", provider: .opencodeGo, label: "Go"),
+            AccountConfig(id: "offline", provider: .claude, label: "Team"),
+            AccountConfig(id: "no-limits", provider: .claude, label: "API"),
+        ])
+        func window(_ id: String, _ label: String, _ used: Double, _ minutes: Int, resetIn: TimeInterval) -> UsageWindow {
+            UsageWindow(id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: now.addingTimeInterval(resetIn))
+        }
+        model.statuses = [
+            "full": AccountStatus(snapshot: UsageSnapshot(accountID: "full", provider: .claude, plan: "Pro", windows: [
+                window("session", "5-hour", 100, 300, resetIn: 47 * 60), window("weekly", "Week", 58, 10_080, resetIn: 3 * 86_400),
+            ], fetchedAt: now.addingTimeInterval(-60), source: "claude CLI")),
+            "stale": AccountStatus(snapshot: UsageSnapshot(accountID: "stale", provider: .codex, plan: "Plus", windows: [
+                window("session", "5-hour", 31, 300, resetIn: 2 * 3600), window("weekly", "Week", 12, 10_080, resetIn: 6 * 86_400),
+            ], fetchedAt: now.addingTimeInterval(-3 * 3600), source: "Codex session log")),
+            "refreshing": AccountStatus(snapshot: UsageSnapshot(accountID: "refreshing", provider: .claude, plan: "Enterprise", windows: [
+                window("session", "5-hour", 54, 300, resetIn: 3600), window("weekly", "Week", 81, 10_080, resetIn: 86_400),
+            ], fetchedAt: now.addingTimeInterval(-600), source: "claude CLI"), isRefreshing: true),
+            "signed-out": AccountStatus(error: .notSignedIn, lastAttempt: now.addingTimeInterval(-30)),
+            "no-sub": AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"), lastAttempt: now.addingTimeInterval(-30)),
+            "offline": AccountStatus(snapshot: UsageSnapshot(accountID: "offline", provider: .claude, plan: "Team", windows: [
+                window("session", "5-hour", 12, 300, resetIn: 4 * 3600),
+            ], fetchedAt: now.addingTimeInterval(-50 * 60), source: "Claude Code cache"), error: .network("offline"), lastAttempt: now.addingTimeInterval(-20)),
+            "no-limits": AccountStatus(snapshot: UsageSnapshot(accountID: "no-limits", provider: .claude, fetchedAt: now.addingTimeInterval(-60), source: "claude CLI", notes: ["No plan limits for this login"])),
+        ]
+        model.store = InMemoryUsageStore()
         return model
     }
 }
