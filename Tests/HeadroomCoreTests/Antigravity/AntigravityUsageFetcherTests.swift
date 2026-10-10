@@ -76,8 +76,11 @@ final class AntigravityUsageFetcherTests {
     @Test func runsReadOnlyUsageCommandFromTheProbeDirectory() async throws {
         let runner = try FakeAgy(usage: output(fixture("usage-snake.json")))
         let context = try context(runner)
+        try makeWorldReadableDirectory(context.paths.supportDirectory)
         _ = try await AntigravityUsageFetcher().fetch(account, context: context)
 
+        #expect(try posixMode(context.paths.supportDirectory) == 0o700)
+        #expect(try posixMode(context.paths.probeDirectory) == 0o700)
         #expect(runner.calls.map(\.arguments) == [["--version"], ["-p", "/usage", "--output-format", "json"]])
         let usage = try #require(runner.calls.last)
         #expect(usage.executable.path == home.appending(path: "bin/agy").path)
@@ -206,6 +209,26 @@ final class AntigravityUsageFetcherTests {
         #expect(snapshot.windows.isEmpty)
         #expect(snapshot.notes == ["No usage limits reported for this account"])
         #expect(snapshot.source == "agy CLI")
+    }
+
+    /// "No limits" needs positive evidence, so a renamed field shows as a broken source instead of a blank account.
+    @Test(arguments: [
+        #"{"command":{"data":{"pools":[{"name":"Gemini models","buckets":[{"window":"weekly","remaining_fraction":0.5}]}]}}}"#,
+        #"{"command":{"data":{}}}"#,
+        #"{}"#,
+    ])
+    func outputWithoutGroupsOrAReasonIsAParseError(stdout: String) async throws {
+        let runner = FakeAgy(usage: output(stdout))
+        await #expect(throws: FetchError.parse("agy /usage has no groups")) { try await self.fetch(runner) }
+    }
+
+    @Test(arguments: [
+        #"{"type":"result","response":"Sure, here is a summary of your usage.","stats":{"tokens":812}}"#,
+        #"{"response":"Here is your usage.","stats":{"models":{"gemini-3-pro":{"tokens":{"total":640}}}}}"#,
+    ])
+    func aModelReplySaysTheProbeSpentQuota(stdout: String) async throws {
+        let runner = FakeAgy(usage: output(stdout))
+        await #expect(throws: FetchError.unsupported(AntigravityUsageFetcher.modelTurnMessage)) { try await self.fetch(runner) }
     }
 
     @Test func nonJSONOutputIsAParseError() async throws {

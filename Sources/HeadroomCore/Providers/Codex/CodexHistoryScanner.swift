@@ -20,13 +20,18 @@ public struct CodexHistoryScanner: HistoryScanner {
         var events: [UsageEvent] = []
         var next: ScanCheckpoints = [:]
         for url in files {
-            let key = url.path
-            do {
-                let (fileEvents, checkpoint) = try Self.scanFile(url, from: checkpoints[key].flatMap(Checkpoint.init), accountID: account.id)
-                events += fileEvents
-                next[key] = checkpoint.encoded
-            } catch {
-                if let previous = checkpoints[key] { next[key] = previous }
+            let key = sha256Hex(url.path)
+            // scanFile reads with readToEnd, whose autoreleased NSData would otherwise live until the whole scan returns.
+            autoreleasepool {
+                do {
+                    let (fileEvents, checkpoint) = try Self.scanFile(
+                        url, from: checkpoints[key].flatMap(Checkpoint.init), accountID: account.id, home: paths.home
+                    )
+                    events += fileEvents
+                    next[key] = checkpoint.encoded
+                } catch {
+                    if let previous = checkpoints[key] { next[key] = previous }
+                }
             }
         }
         return ScanResult(events: events, checkpoints: next)
@@ -49,7 +54,7 @@ public struct CodexHistoryScanner: HistoryScanner {
         var recordsStarted = false
     }
 
-    static func scanFile(_ url: URL, from checkpoint: Checkpoint?, accountID: String) throws -> ([UsageEvent], Checkpoint) {
+    static func scanFile(_ url: URL, from checkpoint: Checkpoint?, accountID: String, home: URL) throws -> ([UsageEvent], Checkpoint) {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         let inode = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0
         let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
@@ -65,7 +70,7 @@ public struct CodexHistoryScanner: HistoryScanner {
         try handle.seek(toOffset: UInt64(resume.offset))
         let tail = try handle.readToEnd() ?? Data()
 
-        var reader = FileReader(fileName: url.lastPathComponent, accountID: accountID, context: resume.context)
+        var reader = FileReader(fileName: url.lastPathComponent, accountID: accountID, home: home, context: resume.context)
         var end = resume.offset
         for range in CodexRollouts.lineRanges(in: tail) {
             reader.read(tail[range], at: resume.offset + range.lowerBound)
@@ -78,12 +83,14 @@ public struct CodexHistoryScanner: HistoryScanner {
     struct FileReader {
         let fileName: String
         let accountID: String
+        let home: URL
         var context: Context
         var events: [UsageEvent] = []
 
-        init(fileName: String, accountID: String, context: Context = Context()) {
+        init(fileName: String, accountID: String, home: URL, context: Context = Context()) {
             self.fileName = fileName
             self.accountID = accountID
+            self.home = home
             self.context = context
         }
 
@@ -95,10 +102,10 @@ public struct CodexHistoryScanner: HistoryScanner {
 
             switch decoded.type {
             case "session_meta":
-                if let cwd = payload.cwd { context.project = Self.projectName(cwd) }
+                if let cwd = payload.cwd { context.project = UsageEvent.project(fromWorkingDirectory: cwd, home: home) }
             case "turn_context":
                 if let model = payload.model, !model.isEmpty { context.model = model }
-                if let cwd = payload.cwd { context.project = Self.projectName(cwd) }
+                if let cwd = payload.cwd { context.project = UsageEvent.project(fromWorkingDirectory: cwd, home: home) }
             case "token_usage_record":
                 context.recordsStarted = true
                 guard let usage = payload.usage else { return }
@@ -127,19 +134,15 @@ public struct CodexHistoryScanner: HistoryScanner {
         private mutating func append(_ usage: CodexTokenUsage, key: String, at date: Date?) {
             guard let model = context.model, let date else { return }
             let cached = max(0, usage.cachedInputTokens)
-            let input = max(0, usage.inputTokens - cached)
+            let written = max(0, usage.cacheWriteInputTokens)
+            let input = max(0, usage.inputTokens - cached - written)
             let output = max(0, usage.outputTokens)
-            guard input + cached + output > 0 else { return }
+            guard input + cached + written + output > 0 else { return }
             events.append(UsageEvent(
                 dedupeKey: key, timestamp: date, accountID: accountID, harness: .codex, model: model, project: context.project,
-                inputTokens: input, outputTokens: output, cacheReadTokens: cached,
+                inputTokens: input, outputTokens: output, cacheReadTokens: cached, cacheWrite5mTokens: written,
                 reasoningTokens: max(0, usage.reasoningOutputTokens)
             ))
-        }
-
-        static func projectName(_ cwd: String) -> String? {
-            let name = URL(fileURLWithPath: cwd).lastPathComponent
-            return name.isEmpty || name == "/" ? nil : name
         }
     }
 }

@@ -10,7 +10,8 @@ public struct SQLiteError: Error, CustomStringConvertible {
 
 /// SQLite-backed `UsageStore`, normally at `AppPaths.databaseFile`. Same contract as `InMemoryUsageStore`, plus:
 /// `record` skips a window sample identical to the previous one when it is less than `sampleDedupeInterval` newer,
-/// and deletes samples older than `sampleRetention` at most once a day.
+/// and deletes samples older than `sampleRetention` at most once a day. Dedupe keys are stored as `sha256Hex` digests,
+/// since they carry provider message, request and session ids; nothing reads them back.
 ///
 /// `@unchecked Sendable`: the store owns one connection, and every use of it and of `lastPrune` holds `lock`.
 public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
@@ -28,7 +29,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
     /// the same path at once, including for the first time. `calendar` decides which local day an event falls on in `dailyUsage`.
     public init(url: URL, calendar: Calendar = .current) throws {
         let fm = FileManager.default
-        try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try AppPaths.createOwnerOnlyDirectory(url.deletingLastPathComponent())
         // SQLite creates new files 0644 and gives the -wal and -shm files the main file's mode, so create it 0600 first.
         // O_EXCL rather than FileManager.createFile, which replaces the path and so orphans a concurrent opener's file.
         let fd = open(url.path, O_CREAT | O_EXCL | O_RDWR, 0o600)
@@ -49,6 +50,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         try enableWAL()
         try exec("PRAGMA synchronous = NORMAL")
         try registerDayFunction(calendar)
+        try registerDigestFunction()
         try migrate()
     }
 
@@ -116,7 +118,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                 )
                 for e in events {
                     try statement.bind([
-                        .text(e.dedupeKey), .real(e.timestamp.timeIntervalSince1970), .text(e.accountID), .text(e.harness.rawValue),
+                        .text(sha256Hex(e.dedupeKey)), .real(e.timestamp.timeIntervalSince1970), .text(e.accountID), .text(e.harness.rawValue),
                         .text(e.model), e.project.map(SQLValue.text) ?? .null,
                         .int(e.inputTokens), .int(e.outputTokens), .int(e.cacheReadTokens), .int(e.cacheWrite5mTokens),
                         .int(e.cacheWrite1hTokens), .int(e.reasoningTokens), e.reportedCostUSD.map(SQLValue.real) ?? .null,
@@ -266,6 +268,12 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
             PRIMARY KEY (scanner, account_id, path)
         );
         """,
+        // Builds before this one stored raw dedupe keys and raw log paths. Scanners now key checkpoints by digest, so the
+        // old rows could never match again; dropping them costs one full rescan, which merges into the rehashed events.
+        """
+        UPDATE usage_events SET dedupe_key = headroom_sha256(dedupe_key);
+        DELETE FROM scan_state;
+        """,
     ]
 
     /// Switching a new file to WAL upgrades a read lock to a write lock, where SQLite returns SQLITE_BUSY at once instead of
@@ -315,6 +323,19 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
             nil, nil,
             // SQLite calls this when the connection closes, and also when registration fails.
             { user in if let user { Unmanaged<CalendarBox>.fromOpaque(user).release() } }
+        )
+        try check(rc)
+    }
+
+    /// `headroom_sha256(text)`: `sha256Hex`, for migrations that rewrite stored identifiers.
+    private func registerDigestFunction() throws {
+        let rc = sqlite3_create_function_v2(
+            db, "headroom_sha256", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nil,
+            { context, _, arguments in
+                guard let context, let argument = arguments?[0], let text = sqlite3_value_text(argument) else { return }
+                sqlite3_result_text(context, sha256Hex(String(cString: text)), -1, Statement.transient)
+            },
+            nil, nil, nil
         )
         try check(rc)
     }
@@ -436,6 +457,6 @@ private final class Statement {
         sqlite3_column_type(handle, column) == SQLITE_NULL ? nil : text(column)
     }
 
-    /// SQLITE_TRANSIENT, which the C macro cannot express in Swift: SQLite copies the bytes before the bind call returns.
-    private static var transient: sqlite3_destructor_type { unsafeBitCast(-1, to: sqlite3_destructor_type.self) }
+    /// SQLITE_TRANSIENT, which the C macro cannot express in Swift: SQLite copies the bytes before the call returns.
+    static var transient: sqlite3_destructor_type { unsafeBitCast(-1, to: sqlite3_destructor_type.self) }
 }

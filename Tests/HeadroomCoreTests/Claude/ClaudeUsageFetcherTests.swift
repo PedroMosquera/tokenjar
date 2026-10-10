@@ -120,6 +120,14 @@ struct ClaudeUsageFetcherTests {
         #expect(limits.money == [MoneyLine(label: "Extra usage", amount: 1234, limit: 5000, currency: "USD")])
     }
 
+    /// Only an explicit `is_enabled: true` shows money; a capture without the flag is not evidence extra usage is on.
+    @Test func extraUsageWithoutTheEnabledFlagIsHidden() throws {
+        let json = #"{"extra_usage":{"used_credits":100,"monthly_limit":500,"currency":"USD"}}"#
+        let limits = try JSONDecoder().decode(ClaudeRateLimits.self, from: Data(json.utf8))
+
+        #expect(limits.money.isEmpty)
+    }
+
     @Test func unknownLimitKindKeepsItsKindAsID() async throws {
         let box = try Sandbox()
         defer { box.remove() }
@@ -273,6 +281,19 @@ struct ClaudeUsageFetcherTests {
         #expect(calls[0].stdin == nil)
         #expect(calls[0].timeout == 45)
         #expect(calls[0].outputLimit == 2 * 1024 * 1024)
+    }
+
+    @Test func probeFolderAndItsParentAreOwnerOnlyEvenIfTheyExisted() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        let paths = AppPaths(home: box.home)
+        try makeWorldReadableDirectory(paths.probeDirectory)
+        try makeWorldReadableDirectory(paths.supportDirectory)
+
+        _ = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeClaude(stdout: try fixture("stream-plan-limits.jsonl")), now: now))
+
+        #expect(try posixMode(paths.supportDirectory) == 0o700)
+        #expect(try posixMode(paths.probeDirectory) == 0o700)
     }
 
     @Test func profileDirReadsItsOwnConfigAndLegacyFileWins() async throws {

@@ -4,8 +4,8 @@ import Foundation
 /// Each response is written on several lines while it streams; every line becomes an event with the same
 /// dedupe key and the store keeps the largest count per field.
 ///
-/// Checkpoints are `"<inode>:<offset>"` per file. A file is rescanned from the start when its inode changes or it
-/// shrinks below the offset, and a trailing line without a newline is left for the next scan.
+/// Checkpoints are `"<inode>:<offset>"` per file, keyed by `sha256Hex` of its path. A file is rescanned from the start
+/// when its inode changes or it shrinks below the offset, and a trailing line without a newline is left for the next scan.
 public struct ClaudeHistoryScanner: HistoryScanner {
     public let name = "claude-transcripts"
 
@@ -16,24 +16,28 @@ public struct ClaudeHistoryScanner: HistoryScanner {
         var events: [UsageEvent] = []
         var next: ScanCheckpoints = [:]
         for file in Self.roots(account, paths: paths).flatMap(Self.transcripts) {
-            let path = file.path
-            var info = stat()
-            guard stat(path, &info) == 0 else { continue }
-            let inode = UInt64(info.st_ino), size = UInt64(info.st_size)
-            var offset: UInt64 = 0
-            if let previous = checkpoints[path].flatMap(Checkpoint.init), previous.inode == inode, previous.offset <= size {
-                offset = previous.offset
+            // readToEnd returns autoreleased NSData. Without a pool per file, every transcript stays in memory until the
+            // whole first scan returns, which is the size of the projects folder.
+            autoreleasepool {
+                let path = file.path, key = sha256Hex(path)
+                var info = stat()
+                guard stat(path, &info) == 0 else { return }
+                let inode = UInt64(info.st_ino), size = UInt64(info.st_size)
+                var offset: UInt64 = 0
+                if let previous = checkpoints[key].flatMap(Checkpoint.init), previous.inode == inode, previous.offset <= size {
+                    offset = previous.offset
+                }
+                guard offset < size else {
+                    next[key] = Checkpoint(inode: inode, offset: offset).description
+                    return
+                }
+                guard let data = Self.read(file, from: offset) else {
+                    if let previous = checkpoints[key] { next[key] = previous }
+                    return
+                }
+                let consumed = Self.parse(data, accountID: account.id, home: paths.home, decoder: decoder, into: &events)
+                next[key] = Checkpoint(inode: inode, offset: offset + UInt64(consumed)).description
             }
-            guard offset < size else {
-                next[path] = Checkpoint(inode: inode, offset: offset).description
-                continue
-            }
-            guard let data = Self.read(file, from: offset) else {
-                if let previous = checkpoints[path] { next[path] = previous }
-                continue
-            }
-            let consumed = Self.parse(data, accountID: account.id, decoder: decoder, into: &events)
-            next[path] = Checkpoint(inode: inode, offset: offset + UInt64(consumed)).description
         }
         return ScanResult(events: events, checkpoints: next)
     }
@@ -61,7 +65,7 @@ public struct ClaudeHistoryScanner: HistoryScanner {
 
     /// Appends one event per assistant usage line in `data` and returns how many bytes were consumed, which is
     /// everything up to and including the last newline.
-    static func parse(_ data: Data, accountID: String, decoder: JSONDecoder, into events: inout [UsageEvent]) -> Int {
+    static func parse(_ data: Data, accountID: String, home: URL, decoder: JSONDecoder, into events: inout [UsageEvent]) -> Int {
         let marker = Array(#""usage""#.utf8)
         return data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Int in
             guard let base = buffer.baseAddress else { return 0 }
@@ -72,7 +76,7 @@ public struct ClaudeHistoryScanner: HistoryScanner {
                 // Most lines are prompts and tool output; skipping them before JSON decoding keeps a full scan fast.
                 if memmem(line.baseAddress, line.count, marker, marker.count) != nil,
                    let entry = try? decoder.decode(TranscriptLine.self, from: Data(line)),
-                   let event = entry.event(accountID: accountID) {
+                   let event = entry.event(accountID: accountID, home: home) {
                     events.append(event)
                 }
                 start = end + 1
@@ -197,7 +201,7 @@ public struct ClaudeHistoryScanner: HistoryScanner {
             }
         }
 
-        func event(accountID: String) -> UsageEvent? {
+        func event(accountID: String, home: URL) -> UsageEvent? {
             guard type == "assistant", let message, let id = message.id, let usage = message.usage,
                   let model = message.model, model != "<synthetic>",
                   let timestamp = timestamp.flatMap(ClaudeHistoryScanner.timestamp)
@@ -210,10 +214,9 @@ public struct ClaudeHistoryScanner: HistoryScanner {
                 write5m = usage.cacheCreationInputTokens ?? 0
                 write1h = 0
             }
-            let project = cwd.map { ($0 as NSString).lastPathComponent }.flatMap { $0.isEmpty || $0 == "/" ? nil : $0 }
             return UsageEvent(
                 dedupeKey: "claude:\(id):\(requestId ?? sessionId ?? "")", timestamp: timestamp, accountID: accountID,
-                harness: .claudeCode, model: model, project: project,
+                harness: .claudeCode, model: model, project: UsageEvent.project(fromWorkingDirectory: cwd, home: home),
                 inputTokens: usage.inputTokens ?? 0, outputTokens: usage.outputTokens ?? 0,
                 cacheReadTokens: usage.cacheReadInputTokens ?? 0, cacheWrite5mTokens: write5m, cacheWrite1hTokens: write1h
             )

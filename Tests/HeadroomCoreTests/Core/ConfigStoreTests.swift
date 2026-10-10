@@ -50,6 +50,83 @@ struct ConfigStoreTests {
         #expect(shared.refreshMinutes == AppConfig().refreshMinutes)
     }
 
+    /// `apply` remaps every account once any account changes, so the untouched `claude` entry still goes through the
+    /// per-field copy. Comparing whole structs also covers fields added later.
+    @Test func savingOneEditLeavesEveryLocallyOverriddenFieldOutOfTheSharedFile() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"{"accounts": [{"id": "claude", "provider": "claude", "label": "Personal"}, {"id": "codex", "provider": "codex", "label": "Plus"}]}"#, to: paths.configFile)
+        try write(#"""
+            {"version": 2, "refreshMinutes": 2, "launchAtLogin": true, "cliPaths": {"claude": "/opt/claude"},
+             "menuBar": {"mode": "bars", "warnAt": 60, "criticalAt": 90, "showResetCountdownWhenFull": false},
+             "alerts": {"enabled": false, "thresholds": [50], "projectedExhaustion": false, "windowResets": true, "sourceProblems": false},
+             "accounts": [{"id": "claude", "label": "Work", "enabled": false, "profileDir": "~/.claude-alt",
+                           "credential": {"keychain": {"account": "x"}}, "showInMenuBar": false, "refreshMinutes": 1,
+                           "alertThresholds": [50], "dashboardURL": "https://x.example"}]}
+            """#, to: paths.localConfigFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        edited.accounts[1].label = "Pro"
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        var expected = loaded.base
+        expected.accounts[1].label = "Pro"
+        #expect(try JSONDecoder().decode(AppConfig.self, from: Data(contentsOf: paths.configFile)) == expected)
+    }
+
+    /// Settings binds single fields (Amber at, one alert toggle, one CLI path). Saving one must not carry the sibling
+    /// fields config.local.json sets into the shared file.
+    @Test func editingOneSubfieldWritesOnlyThatSubfield() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"{"cliPaths": {"agy": "/opt/agy"}, "accounts": []}"#, to: paths.configFile)
+        try write(#"{"cliPaths": {"claude": "/opt/work/claude"}, "launchAtLogin": true, "menuBar": {"mode": "bars"}, "alerts": {"thresholds": [50]}}"#, to: paths.localConfigFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        edited.menuBar.warnAt = 70
+        edited.alerts.enabled = false
+        edited.cliPaths["codex"] = "/opt/codex"
+        edited.cliPaths["agy"] = nil
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        let shared = try JSONDecoder().decode(AppConfig.self, from: Data(contentsOf: paths.configFile))
+        #expect(shared.menuBar == MenuBarConfig(warnAt: 70))
+        #expect(shared.alerts == AlertConfig(enabled: false))
+        #expect(shared.cliPaths == ["codex": "/opt/codex"])
+        #expect(shared.launchAtLogin == false)
+    }
+
+    @Test func everyEditedTopLevelFieldIsWritten() {
+        let old = AppConfig()
+        var new = old
+        new.version = 2
+        new.refreshMinutes = 5
+        new.launchAtLogin = true
+        new.cliPaths = ["claude": "/opt/claude"]
+        new.menuBar = MenuBarConfig(mode: .icon, warnAt: 60, criticalAt: 90, showResetCountdownWhenFull: false)
+        new.alerts = AlertConfig(enabled: false, thresholds: [70], projectedExhaustion: false, windowResets: true, sourceProblems: false)
+
+        #expect(ConfigStore.apply(from: old, to: new, onto: old) == new)
+    }
+
+    /// An account a machine's config.local.json hides is in neither merged view, only in config.json.
+    @Test func accountsOnlyInTheSharedFileSurviveAnEdit() {
+        let a = AccountConfig(id: "a", provider: .claude, label: "A")
+        let b = AccountConfig(id: "b", provider: .codex, label: "B")
+        var renamed = a
+        renamed.label = "A2"
+
+        let out = ConfigStore.apply(from: AppConfig(accounts: [a]), to: AppConfig(accounts: [renamed]), onto: AppConfig(accounts: [a, b]))
+
+        #expect(out.accounts == [renamed, b])
+    }
+
     /// The config is meant to be stowed from a dotfiles repo; replacing the symlink would silently stop syncing.
     @Test func writeKeepsAStowSymlinkPointingAtTheRepo() throws {
         let home = try tempHome()

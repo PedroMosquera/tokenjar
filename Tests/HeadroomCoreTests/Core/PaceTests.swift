@@ -22,6 +22,21 @@ struct PaceTests {
         #expect(!pace.runsOutBeforeReset)
     }
 
+    @Test func nothingUsedHasNoExhaustionTime() throws {
+        let window = UsageWindow(id: "session", label: "5-hour", usedPercent: 0, windowMinutes: 300, resetsAt: now.addingTimeInterval(200 * 60))
+        let pace = try #require(Pace.compute(window, now: now))
+        #expect(pace.secondsToExhaustion == nil)
+        #expect(!pace.runsOutBeforeReset)
+    }
+
+    /// Half used at half time runs out exactly at the reset, which is not "before". The values divide exactly in binary.
+    @Test func runningOutExactlyAtTheResetIsNotBeforeIt() throws {
+        let window = UsageWindow(id: "session", label: "5-hour", usedPercent: 50, windowMinutes: 300, resetsAt: now.addingTimeInterval(150 * 60))
+        let pace = try #require(Pace.compute(window, now: now))
+        #expect(pace.secondsToExhaustion == pace.secondsToReset)
+        #expect(!pace.runsOutBeforeReset)
+    }
+
     @Test func hiddenEarlyInWindowAndWhenNotStarted() {
         let early = UsageWindow(id: "session", label: "5-hour", usedPercent: 10, windowMinutes: 300, resetsAt: now.addingTimeInterval(299 * 60))
         #expect(Pace.compute(early, now: now) == nil)

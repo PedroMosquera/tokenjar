@@ -40,8 +40,10 @@ private struct TranscriptHome {
     }
 }
 
-private func assistantLine(id: String, request: String, output: Int, at timestamp: String = "2026-10-09T13:00:00.000Z") -> String {
-    #"{"type":"assistant","message":{"id":"\#(id)","model":"claude-opus-5-5","content":[{"type":"text","text":"OUTPUT_TEXT"}],"usage":{"input_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":\#(output)}},"requestId":"\#(request)","timestamp":"\#(timestamp)","cwd":"/Users/PLACEHOLDER/work/demo","sessionId":"SESSION_A"}"#
+private func assistantLine(
+    id: String, request: String, output: Int, at timestamp: String = "2026-10-09T13:00:00.000Z", cwd: String = "/Users/PLACEHOLDER/work/demo"
+) -> String {
+    #"{"type":"assistant","message":{"id":"\#(id)","model":"claude-opus-5-5","content":[{"type":"text","text":"OUTPUT_TEXT"}],"usage":{"input_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":\#(output)}},"requestId":"\#(request)","timestamp":"\#(timestamp)","cwd":"\#(cwd)","sessionId":"SESSION_A"}"#
 }
 
 struct ClaudeHistoryScannerTests {
@@ -65,6 +67,23 @@ struct ClaudeHistoryScannerTests {
         #expect(agent.project == "demo-agent")
         #expect(agent.timestamp == DateParsing.iso8601("2026-10-09T10:01:05.000Z"))
         #expect(events.first { $0.dedupeKey == "claude:msg_D:SESSION_A" }?.project == nil)
+    }
+
+    @Test func homeFolderIsStoredAsTildeNeverTheAccountName() throws {
+        let box = try TranscriptHome()
+        defer { box.remove() }
+        let session = box.projects.appending(path: "-home/SESSION_H.jsonl")
+        try FileManager.default.createDirectory(at: session.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let lines = [
+            assistantLine(id: "msg_H1", request: "req_H1", output: 1, cwd: box.home.path),
+            assistantLine(id: "msg_H2", request: "req_H2", output: 1, cwd: box.home.path + "/"),
+            assistantLine(id: "msg_H3", request: "req_H3", output: 1, cwd: box.home.appending(path: "work/x").path),
+        ]
+        try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: session)
+
+        let events = try box.scan().events.filter { $0.dedupeKey.hasPrefix("claude:msg_H") }.sorted { $0.dedupeKey < $1.dedupeKey }
+
+        #expect(events.map(\.project) == ["~", "~", "x"])
     }
 
     @Test func cacheWritesSplitByTTLAndDefaultToFiveMinutes() throws {
@@ -108,7 +127,7 @@ struct ClaudeHistoryScannerTests {
 
         let first = try box.scan()
         #expect(first.checkpoints.count == 2)
-        let mainCheckpoint = try #require(first.checkpoints[box.main.path])
+        let mainCheckpoint = try #require(first.checkpoints[sha256Hex(box.main.path)])
         #expect(mainCheckpoint.hasSuffix(":\(try box.size(box.main))"))
 
         let unchanged = try box.scan(first.checkpoints)
@@ -118,7 +137,7 @@ struct ClaudeHistoryScannerTests {
         try box.append(assistantLine(id: "msg_F", request: "req_F", output: 5) + "\n", to: box.main)
         let appended = try box.scan(unchanged.checkpoints)
         #expect(appended.events.map(\.dedupeKey) == ["claude:msg_F:req_F"])
-        #expect(appended.checkpoints[box.subagent.path] == first.checkpoints[box.subagent.path])
+        #expect(appended.checkpoints[sha256Hex(box.subagent.path)] == first.checkpoints[sha256Hex(box.subagent.path)])
     }
 
     @Test func leavesAPartialLastLineForTheNextScan() throws {
@@ -132,7 +151,7 @@ struct ClaudeHistoryScannerTests {
         try box.append(String(line[..<cut]), to: box.main)
         let partial = try box.scan(first.checkpoints)
         #expect(partial.events.isEmpty)
-        #expect(partial.checkpoints[box.main.path]?.hasSuffix(":\(completeSize)") == true)
+        #expect(partial.checkpoints[sha256Hex(box.main.path)]?.hasSuffix(":\(completeSize)") == true)
 
         try box.append(String(line[cut...]) + "\n", to: box.main)
         let completed = try box.scan(partial.checkpoints)
@@ -161,6 +180,21 @@ struct ClaudeHistoryScannerTests {
         #expect(truncated.events.map(\.dedupeKey) == ["claude:msg_H:req_H"])
     }
 
+    /// Dropping it would only cost a full rescan of that file later, but the scan should resume where it left off.
+    @Test func keepsTheCheckpointOfAFileItCannotRead() throws {
+        let box = try TranscriptHome()
+        defer { box.remove() }
+        let first = try box.scan()
+        try box.append(assistantLine(id: "msg_U", request: "req_U", output: 1) + "\n", to: box.main)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: box.main.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: box.main.path) }
+
+        let blocked = try box.scan(first.checkpoints)
+
+        #expect(blocked.events.isEmpty)
+        #expect(blocked.checkpoints[sha256Hex(box.main.path)] == first.checkpoints[sha256Hex(box.main.path)])
+    }
+
     @Test func dropsCheckpointsOfDeletedFiles() throws {
         let box = try TranscriptHome()
         defer { box.remove() }
@@ -169,7 +203,7 @@ struct ClaudeHistoryScannerTests {
         try FileManager.default.removeItem(at: box.subagent)
         let after = try box.scan(first.checkpoints)
 
-        #expect(after.checkpoints.keys.sorted() == [box.main.path])
+        #expect(after.checkpoints.keys.sorted() == [sha256Hex(box.main.path)])
     }
 
     @Test func profileDirScansOnlyItsOwnProjects() throws {

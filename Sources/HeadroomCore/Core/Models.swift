@@ -250,7 +250,7 @@ public struct UsageEvent: Codable, Hashable, Sendable {
     public var accountID: String
     public var harness: Harness
     public var model: String
-    /// Last path component of the working directory, or nil.
+    /// See `project(fromWorkingDirectory:home:)`.
     public var project: String?
     public var inputTokens: Int
     public var outputTokens: Int
@@ -283,6 +283,16 @@ public struct UsageEvent: Codable, Hashable, Sendable {
 
     public var totalTokens: Int {
         inputTokens + outputTokens + cacheReadTokens + cacheWrite5mTokens + cacheWrite1hTokens
+    }
+
+    /// The working directory's last path component, with the home folder itself mapped to "~" so the user's account
+    /// name is never stored. nil for a relative path, the root, or no path. Every history scanner goes through this.
+    static func project(fromWorkingDirectory cwd: String?, home: URL) -> String? {
+        guard let cwd, cwd.hasPrefix("/") else { return nil }
+        let url = URL(fileURLWithPath: cwd).standardizedFileURL
+        if url.path == home.standardizedFileURL.path { return "~" }
+        let last = url.lastPathComponent
+        return last == "/" ? nil : last
     }
 }
 
