@@ -185,6 +185,24 @@ struct DashboardMathTests {
         #expect(DashboardMath.resets(in: samples) == [now.addingTimeInterval(10 * 60)])
     }
 
+    @Test func resetDuringAGapCountsEvenWhenUsageEndsHigher() {
+        // The old cycle ended at minute 60 and the new one was already busier by the next sample.
+        let samples = [sample(0, 10, resetsAt: 60), sample(120, 40, resetsAt: 360)]
+        #expect(DashboardMath.resets(in: samples) == [now.addingTimeInterval(60 * 60)])
+    }
+
+    @Test func idleWindowsAreNotResets() {
+        func idle(_ minutes: Double) -> WindowSample { sample(minutes, 0, resetsAt: minutes + 300) }
+        // Every ~10 minutes for three hours, then the Mac sleeps 3 hours, then 8 hours (longer than the window).
+        let steady = stride(from: 0.0, through: 170, by: 10.03).map(idle)
+        let samples = steady + [idle(360), idle(840)]
+        #expect(DashboardMath.resets(in: samples).isEmpty)
+
+        // The first sample after the overnight gap finds the window in use: it began, nothing reset.
+        let started = steady + [idle(360), sample(840, 20, resetsAt: 1_100)]
+        #expect(DashboardMath.resets(in: started).isEmpty)
+    }
+
     @Test func limitPointsBreakAtGapsAndClampToTheChart() {
         let samples = [sample(0, 10, resetsAt: nil), sample(10, 120, resetsAt: nil), sample(300, 20, resetsAt: nil), sample(310, -5, resetsAt: nil)]
         let points = DashboardMath.limitPoints(seriesID: "s", label: "S", samples: samples, bucket: 0, maxGap: 2 * 3600)

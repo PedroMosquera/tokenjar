@@ -273,13 +273,17 @@ nonisolated enum DashboardMath {
         return out
     }
 
-    /// Times where a window reset, detected as `resetsAt` jumping forward by more than `tolerance`
-    /// (providers report the same reset with a few seconds of jitter). The marker sits at the old reset
+    /// Times where a window in use reset: `resetsAt` jumped forward by more than `tolerance` (providers
+    /// report the same reset with a few seconds of jitter) and either the old reset passed or usage dropped
+    /// (a reset credit). An idle window's synthetic `resetsAt` (sample time + window) jumps on every sample
+    /// and across every gap, so a jump from a sample at 0% never counts. The marker sits at the old reset
     /// time when it falls between the two samples, else at the first sample of the new cycle.
     static func resets(in samples: [WindowSample], tolerance: TimeInterval = 600) -> [Date] {
         var out: [Date] = []
         for (previous, next) in zip(samples, samples.dropFirst()) {
-            guard let before = previous.resetsAt, let after = next.resetsAt, after.timeIntervalSince(before) > tolerance else { continue }
+            guard previous.usedPercent > 0, let before = previous.resetsAt, let after = next.resetsAt,
+                  after.timeIntervalSince(before) > tolerance,
+                  before <= next.timestamp || next.usedPercent < previous.usedPercent else { continue }
             out.append(before > previous.timestamp && before <= next.timestamp ? before : next.timestamp)
         }
         return out

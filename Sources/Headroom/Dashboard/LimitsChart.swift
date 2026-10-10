@@ -25,6 +25,8 @@ struct LimitsChart: View {
                     .foregroundStyle(color(for: marker.seriesID).opacity(0.35))
                     .lineStyle(StrokeStyle(lineWidth: 1))
             }
+            threshold(warnAt, severity: .warning)
+            threshold(criticalAt, severity: .critical)
             ForEach(content.points) { point in
                 LineMark(
                     x: .value("Time", point.date),
@@ -34,9 +36,6 @@ struct LimitsChart: View {
                 .foregroundStyle(by: .value("Series", point.label))
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             }
-            // After the lines so the threshold labels sit on top of them.
-            threshold(warnAt, severity: .warning, name: "warn")
-            threshold(criticalAt, severity: .critical, name: "critical")
             if let hover, domain.contains(hover) {
                 RuleMark(x: .value("Hover", hover))
                     .foregroundStyle(Color.secondary.opacity(0.5))
@@ -54,6 +53,14 @@ struct LimitsChart: View {
                 AxisGridLine().foregroundStyle(Color.primary.opacity(0.08))
                 AxisValueLabel {
                     if let v = value.as(Int.self) { Text("\(v)%").monospacedDigit() }
+                }
+            }
+            // Outside the plot so the labels never cover the newest data at the trailing edge. Warn hangs
+            // below its rule and critical sits above its own, so close thresholds cannot overlap.
+            AxisMarks(position: .trailing, values: [warnAt, criticalAt]) { value in
+                let isCritical = value.as(Int.self) == criticalAt
+                AxisValueLabel(anchor: isCritical ? .bottomLeading : .topLeading) {
+                    if let v = value.as(Int.self) { Text("\(isCritical ? "critical" : "warn") \(v)%").monospacedDigit() }
                 }
             }
         }
@@ -75,18 +82,10 @@ struct LimitsChart: View {
         }
     }
 
-    @ChartContentBuilder
-    private func threshold(_ percent: Int, severity: Severity, name: String) -> some ChartContent {
-        RuleMark(y: .value(name, percent))
+    private func threshold(_ percent: Int, severity: Severity) -> some ChartContent {
+        RuleMark(y: .value("Threshold", percent))
             .foregroundStyle(severity.color.opacity(0.8))
             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-            .annotation(position: .top, alignment: .trailing, spacing: 1) {
-                Text("\(name) \(percent)%")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 4)
-                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.9), in: Capsule())
-            }
     }
 
     private func color(for seriesID: String) -> Color {
