@@ -11,6 +11,8 @@ Provider marks in `Resources/Logos/`, loaded by `ProviderLogo` as `<ProviderID.l
 
 Brand hex values come from `data/simple-icons.json` in the same package version. The files themselves are black, so draw them as templates and tint them at runtime. Drawn as-is they nearly vanish on a dark background.
 
+In the app, `ProviderLogoView` draws each file as a template, tinted `#D97757` for Claude and `#8E75B2` for Antigravity. The OpenAI and OpenCode marks follow the text color instead, so they read in dark mode and their brand hex is unused. The menu bar draws the same files as monochrome templates and tints them only with a severity color. `make app` copies `Resources/Logos/` into `Contents/Resources/Logos`; a binary run from `.build` falls back to the repo's `Resources/Logos/`. `LogoAssetTests.everyProviderHasALoadableLogo` checks that every provider's file loads with `NSImage(contentsOf:)`.
+
 ## Why these versions
 
 - **16.32.0** is the newest release published at least two weeks before 2026-10-10. Versions are pinned exactly, never `latest`.
