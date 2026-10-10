@@ -70,14 +70,24 @@ public struct PriceTable: Sendable {
         return table
     }
 
-    /// Exact id, then alias, then the normalized id (and its alias), then the longest key that prefixes the normalized id.
+    /// Exact id, then alias, then the normalized id (and its alias). Any other spelling is unpriced: sharing a priced
+    /// prefix says nothing about the price (gpt-5.5-pro costs 6x gpt-5.5), so map such an id with an alias instead.
     public func price(for model: String) -> ModelPrice? {
-        if let price = lookup(model) { return price }
-        let normalized = Self.normalize(model)
-        if let price = lookup(normalized) { return price }
-        let prefix = prices.keys.filter { !$0.isEmpty && normalized.hasPrefix($0) }.max { $0.count < $1.count }
-        return prefix.flatMap { prices[$0] }
+        lookup(model) ?? lookup(Self.normalize(model))
     }
+
+    /// The model id to record for one request, so that a daily row never mixes two rates of one model.
+    /// Returns `model` unchanged unless the model bills every token of a request at a higher rate once its prompt is
+    /// over a length; such a request gets that tier's own price table id. `promptTokens` is input plus cache reads and writes.
+    public static func billedModel(_ model: String, promptTokens: Int) -> String {
+        guard let tier = promptLengthTiers[normalize(model)], promptTokens > tier.over else { return model }
+        return tier.model
+    }
+
+    /// https://platform.claude.com/docs/en/about-claude/pricing#long-context-pricing
+    static let promptLengthTiers: [String: (over: Int, model: String)] = [
+        "claude-haiku-5-5": (over: 100_000, model: "claude-haiku-5-5>100k"),
+    ]
 
     public func priced(_ row: DailyUsageRow) -> PricedUsageRow {
         guard let price = price(for: row.model) else {

@@ -14,7 +14,7 @@ struct PriceTableTests {
 
     let table = PriceTable(
         prices: [
-            "claude-opus-5-5": price(4, source: "opus-5-5"),
+            "claude-opus-5-5": ModelPrice(input: 4, output: 20, cacheRead: 0.2, cacheWrite5m: 5, cacheWrite1h: 8, source: "opus-5-5", asOf: "2026-10-10"),
             "claude-opus-5": price(5, source: "opus-5"),
             "claude-haiku-4-5": price(1, source: "haiku-4-5"),
             "gpt-5.5": price(5, source: "gpt-5.5"),
@@ -36,8 +36,6 @@ struct PriceTableTests {
         ("claude-haiku-4-5-20251001", "haiku-4-5"),
         ("claude-opus-5-5[1m]", "opus-5-5"),
         ("gpt-5.5-2026-04-23", "gpt-5.5"),
-        ("claude-opus-5-5-fast", "opus-5-5"),
-        ("gpt-5.5-codex", "gpt-5.5"),
     ])
     func resolvesProviderSpellings(model: String, expected: String) {
         #expect(table.price(for: model)?.source == expected)
@@ -45,6 +43,11 @@ struct PriceTableTests {
 
     @Test(arguments: ["glm-5.2", "<synthetic>", "", "claude-sonnet-5", "gpt-5"])
     func unknownModelsHaveNoPrice(model: String) {
+        #expect(table.price(for: model) == nil)
+    }
+
+    @Test(arguments: ["gpt-5.5-pro", "gpt-5.5-cyber", "gpt-5.5-codex", "claude-opus-5-6", "claude-opus-5-5-fast"])
+    func siblingsOfAPricedModelAreUnpriced(model: String) {
         #expect(table.price(for: model) == nil)
     }
 
@@ -88,10 +91,9 @@ struct PriceTableTests {
     }
 
     @Test func pricesEveryTokenKindPerMillion() throws {
-        // claude-opus-5-5 here: input 4, output 20, cache read 0.4, cache write 5m 5, cache write 1h 8 per million.
         let priced = table.priced(row(input: 1_000_000, output: 500_000, cacheRead: 2_000_000, cacheWrite5m: 100_000, cacheWrite1h: 10_000))
         let cost = try #require(priced.costUSD)
-        #expect(abs(cost - (4 + 10 + 0.8 + 0.5 + 0.08)) < 1e-9)
+        #expect(abs(cost - (1 * 4 + 0.5 * 20 + 2 * 0.2 + 0.1 * 5 + 0.01 * 8)) < 1e-9)
         #expect(priced.isEstimate)
     }
 
@@ -134,11 +136,55 @@ struct PriceTableTests {
             #expect(price.source.hasPrefix("https://"), "\(id) has no source URL")
             #expect(price.asOf.wholeMatch(of: #/\d{4}-\d{2}-\d{2}/#) != nil, "\(id) has no asOf date")
             #expect(price.input > 0 && price.output > price.input, "\(id) input/output look wrong")
-            #expect(price.cacheRead < price.input, "\(id) cache read should be cheaper than input")
+            #expect(price.cacheRead <= price.input, "\(id) cache read should not cost more than input")
             #expect(price.cacheWrite5m >= price.input && price.cacheWrite1h >= price.cacheWrite5m, "\(id) cache writes look wrong")
         }
         for (alias, target) in file.aliases ?? [:] {
             #expect(file.models[target] != nil, "alias \(alias) points at missing \(target)")
+        }
+    }
+
+    /// Anthropic's footnotes under the model table at platform.claude.com/docs/en/about-claude/pricing set cache reads at
+    /// 0.025x input for Fable 5.1 and 0.05x for Opus 5.5 and Sonnet 5.5. OpenAI publishes 0.05x for gpt-6.1-sol and no
+    /// cached rate for gpt-5.5-pro. These look like typos of the usual 0.1x and are not.
+    @Test func bundledCacheReadsKeepThePublishedMultipliers() throws {
+        let file = try PriceFile.decode(Data(contentsOf: Self.bundled))
+        let published: [String: Double] = [
+            "claude-fable-5-1": 0.025, "claude-opus-5-5": 0.05, "claude-sonnet-5-5": 0.05, "gpt-6.1-sol": 0.05, "gpt-5.5-pro": 1,
+        ]
+        for (id, price) in file.models {
+            let expected = published[id] ?? 0.1
+            #expect(abs(price.cacheRead / price.input - expected) < 1e-9, "\(id) cache read is \(price.cacheRead / price.input)x input, published \(expected)x")
+        }
+    }
+
+    @Test func bundledTablePricesGPT55VariantsAtTheirOwnRates() throws {
+        let loaded = PriceTable.load(bundled: Self.bundled, override: nil)
+        let pro = try #require(loaded.price(for: "gpt-5.5-pro"))
+        #expect([pro.input, pro.cacheRead, pro.cacheWrite5m, pro.output] == [30, 30, 30, 180])
+        let cyber = try #require(loaded.price(for: "openai/gpt-5.5-cyber"))
+        #expect([cyber.input, cyber.cacheRead, cyber.cacheWrite5m, cyber.output] == [12.5, 1.25, 12.5, 75])
+    }
+
+    @Test(arguments: [
+        ("claude-haiku-5-5", 100_000, "claude-haiku-5-5"),
+        ("claude-haiku-5-5", 100_001, "claude-haiku-5-5>100k"),
+        ("claude-haiku-5-5-20261001", 50_000, "claude-haiku-5-5-20261001"),
+        ("us.anthropic.claude-haiku-5-5-20261001-v1:0", 150_000, "claude-haiku-5-5>100k"),
+        ("claude-opus-5-5", 900_000, "claude-opus-5-5"),
+        ("glm-5.2", 900_000, "glm-5.2"),
+    ])
+    func billedModelSplitsOnlyModelsPricedByPromptLength(model: String, promptTokens: Int, expected: String) {
+        #expect(PriceTable.billedModel(model, promptTokens: promptTokens) == expected)
+    }
+
+    @Test func bundledTableBillsLongHaiku55PromptsAtFiveTimesEveryRate() throws {
+        let loaded = PriceTable.load(bundled: Self.bundled, override: nil)
+        let short = try #require(loaded.price(for: PriceTable.billedModel("claude-haiku-5-5", promptTokens: 100_000)))
+        let long = try #require(loaded.price(for: PriceTable.billedModel("claude-haiku-5-5", promptTokens: 100_001)))
+        let rates = { (p: ModelPrice) in [p.input, p.output, p.cacheRead, p.cacheWrite5m, p.cacheWrite1h] }
+        for (s, l) in zip(rates(short), rates(long)) {
+            #expect(abs(l - 5 * s) < 1e-12, "long-prompt rate \(l) is not 5x \(s)")
         }
     }
 
