@@ -10,7 +10,7 @@ It never reads or refreshes an OAuth token. Claude, Codex and Antigravity usage 
 - **Popover.** Click the menu bar item. One card per account, in config order: each limit window as a bar with an even-pace tick, used % and time to reset, a verdict line ("On pace", "Ahead of pace +12%", "Runs out ~40m before reset"), a small burn-up chart, and money where it exists (Claude extra usage, OpenCode Zen spend). Command-R refreshes.
 - **Dashboard.** API-equivalent cost today, over 7 days and this month; used % over time per window with reset markers; daily spend by model, harness, project or account; top projects. Ranges: 24h, 7d, 30d.
 - **Settings.** General (launch at login, refresh interval, menu bar), Accounts (one page per account, with Test, Sign In in Terminal and per-account overrides), Alerts, and About (a summary of what the app touches).
-- **Alerts.** Local notifications when a window crosses a threshold (80 % and 95 % by default), when it is on pace to run out, when a source stops working, and optionally when a window resets after reaching 80 %. Apart from a check that spent tokens, nothing fires on the first check after launch. Alerts arrive quietly in Notification Center until you click Allow Banners in Settings > Alerts.
+- **Alerts.** Local notifications when a window crosses a threshold (80 % and 95 % by default), when it is on pace to run out, when a source stops working, and optionally when a window resets after Headroom last saw it at 80 % or more. Until an account's first successful check after launch nothing fires for it, except a check that spent tokens or quota. Alerts arrive quietly in Notification Center until you click Allow Banners in Settings > Alerts.
 
 ## Requirements
 
@@ -28,7 +28,7 @@ make install
 
 This builds a release binary, bundles `Headroom.app`, signs it ad-hoc, copies it to `~/Applications` and launches it. No admin rights, no quarantine flag, no Gatekeeper prompt. Run `make install` again to update. `make install INSTALL_DIR=<folder>` installs somewhere else.
 
-On the first launch with no config file, Headroom writes one with the accounts it finds on this Mac: `~/.claude`, `~/.codex/auth.json`, opencode's API key entries and `agy`. To bring over CodexBar's providers and thresholds, use Settings > General > Import from CodexBar, which lists the changes before applying them.
+On the first launch, when nothing is at the config path (not even a stow link), Headroom writes a `config.json` with default settings and the accounts it finds on this Mac: `~/.claude`, `~/.codex/auth.json`, the `opencode-go` and `opencode` entries of opencode's `auth.json`, and `agy`. To bring over CodexBar's providers and thresholds, use Settings > General > Import from CodexBar, which lists the changes before applying them.
 
 ### Managed Macs
 
@@ -82,9 +82,9 @@ The default `~/.claude` (or `~/.codex`) can be a different login on each Mac: a 
 }
 ```
 
-The plan pill comes from the login itself, so it reads Max on one Mac and Enterprise on the other. A local entry whose `id` is not in `config.json` adds an account, and then needs `provider` too.
+The plan pill comes from the login itself, so it reads Max on one Mac and Enterprise on the other. A local entry whose `id` is not in `config.json` adds an account, and then needs `provider` too. The next time you add, remove or edit any account in Settings, that account is copied into `config.json`, so put accounts in `config.json` when you can.
 
-Accounts whose profile folder or credential file is missing on a Mac are hidden there (Settings lists them as "Not on this Mac"), so one shared file can list `~/.claude-work` and still work on another Mac. Antigravity and accounts with a pasted API key have no file to check; turn one off on a single Mac with `"enabled": false` in that Mac's `config.local.json`.
+Claude and Codex accounts whose profile folder is missing on a Mac, and OpenCode accounts whose credential file (else opencode's default `auth.json`) is missing, are hidden there (Settings lists them as "Not on this Mac"), so one shared file can list `~/.claude-work` and still work on another Mac. Antigravity and accounts with a pasted API key have no file to check; turn one off on a single Mac with `"enabled": false` in that Mac's `config.local.json`.
 
 Settings writes only `config.json`. Editing a field that `config.local.json` overrides changes the shared value for your other Macs, while this Mac keeps its local one, so change such a field in `config.local.json` by hand.
 
@@ -114,9 +114,9 @@ The binary takes three flags that do one job and exit:
 .build/debug/Headroom --render-snapshots <dir>
 ```
 
-- `--probe` runs one live check and prints the snapshot as JSON. It runs the real CLI and ignores the probe latch, so it can spend tokens if `/usage` turns into a model turn.
+- `--probe` runs one live check and prints the snapshot as JSON. It runs the real CLI, ignores the probe latch and does not read `config.json` (so `cliPaths` does not apply), and it can spend tokens if `/usage` turns into a model turn.
 - `--scan` reads the provider's local history from the start and prints totals and an API-equivalent cost for the last N days (default 30). Antigravity has no history to scan.
-- `--render-snapshots` renders every surface to PNG, light and dark, from built-in preview data.
+- `--render-snapshots` renders the popover, the menu bar item, the dashboard and the General and account Settings pages to PNG, light and dark, from built-in preview data.
 
 `<provider>` is one of `claude`, `codex`, `opencode-go`, `opencode-zen`, `antigravity`. None of the three touches `headroom.sqlite` or `config.json`.
 
@@ -126,5 +126,5 @@ The binary takes three flags that do one job and exit:
 - **Signed out.** The card's Sign in button opens the account's Settings page. Sign In in Terminal there runs the provider's own login (`claude auth login`, `codex login`, `opencode auth login`) in Terminal, and Copy Command copies it instead. Headroom never sees your credentials. With an older claude that has no `auth` command, run `claude` and type `/login`.
 - **No notifications.** Alerts need the app bundle, so they never come from `swift run` or a `.build` binary; use the installed copy (`make install`). If they arrive only in Notification Center, click Allow Banners in Settings > Alerts. If macOS has them turned off, the same pane offers Open Notification Settings.
 - **"Checks for this account are paused".** The last `/usage` check ran as a model turn and spent tokens (claude) or quota (agy), so Headroom stopped checking that account. It checks again once by itself when that CLI updates. Click Try once more on the card (Try Once More in Settings) to run one check now; if it repeats, checks stop again. Disable turns the account off.
-- **"Could not read config.json"** (or `config.local.json`). The file is not valid JSON, often a leftover merge conflict. Headroom keeps the last good settings and saves nothing until the file loads again. Fix it and save; the app reloads within 30 seconds, or click Reload in Settings > General. "config.json is missing or its link is broken" means the same for a missing file or a dangling stow link.
+- **"Could not read config.json"** (or `config.local.json`). The file is not valid JSON, often a leftover merge conflict. Headroom keeps the last good settings (none, if the file was already broken at launch) and saves nothing until the file loads again. Fix it and save; the app reloads within 30 seconds, or click Reload in Settings > General. "config.json is missing or its link is broken" means the same for a missing file or a dangling stow link.
 - **Keychain prompt after an update.** The ad-hoc signature changes on every build, so macOS asks again before Headroom can read its own Keychain item. Only API keys you pasted in Settings live there.
