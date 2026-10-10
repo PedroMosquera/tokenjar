@@ -50,7 +50,7 @@ struct GeneralSettingsPane: View {
                     Button("Import from CodexBar\u{2026}", action: prepareImport)
                 } label: {
                     Text("CodexBar")
-                    Text("Copies enabled providers, alert thresholds and refresh interval. Never reads its keys or cookies.")
+                    Text("Read only when you click. Lists the changes before applying them: enabled providers, alert thresholds, refresh interval and whether alerts are on. Never reads its keys or cookies.")
                 }
             }
         }

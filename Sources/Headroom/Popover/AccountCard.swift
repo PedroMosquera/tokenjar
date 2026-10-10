@@ -130,28 +130,31 @@ private struct ErrorRow: View {
     var error: FetchError
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Severity.warning.color)
-            Text(error.userMessage)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 8)
-            if let action {
-                Button(action.title, action: action.run)
-                    .controlSize(.small)
+        let actions = AccountAction.forError(error, account: account, model: model)
+        VStack(alignment: .trailing, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Severity.warning.color)
+                Text(error.userMessage)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                if actions.count == 1 {
+                    buttons(actions)
+                }
+            }
+            // Two buttons beside a long message would squeeze it into a narrow column.
+            if actions.count > 1 {
+                HStack(spacing: 6) { buttons(actions) }
             }
         }
         .font(.callout)
     }
 
-    private var action: (title: String, run: () -> Void)? {
-        switch error {
-        case .cliNotFound: ("Setup", { model.showSettings(accountID: account.id) })
-        case .notSignedIn: ("Sign in", { model.showSettings(accountID: account.id) })
-        case .unauthorized: ("Settings", { model.showSettings(accountID: account.id) })
-        case .network, .timeout, .rateLimited, .parse: ("Retry", { model.refresh(force: true) })
-        case .noSubscription, .unsupported: nil
+    private func buttons(_ actions: [AccountAction]) -> some View {
+        ForEach(actions, id: \.title) { action in
+            Button(action.title, action: action.run)
+                .controlSize(.small)
         }
     }
 }
@@ -252,7 +255,7 @@ struct VerdictLine: View {
     }
 }
 
-private struct MoneyRow: View {
+struct MoneyRow: View {
     var line: MoneyLine
 
     var body: some View {
@@ -261,15 +264,14 @@ private struct MoneyRow: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer(minLength: 8)
-            Group {
-                if let limit = line.limit {
-                    Text("\(Format.money(line.amount, currency: line.currency)) used of \(Format.money(limit, currency: line.currency))")
-                } else {
-                    Text(Format.money(line.amount, currency: line.currency))
-                }
-            }
-            .monospacedDigit()
+            Text(Self.amount(line))
+                .monospacedDigit()
         }
         .font(.callout)
+    }
+
+    static func amount(_ line: MoneyLine, locale: Locale = .autoupdatingCurrent) -> String {
+        guard let limit = line.limit else { return Format.money(line.amount, currency: line.currency, locale: locale) }
+        return Format.moneyUsed(line.amount, of: limit, currency: line.currency, locale: locale)
     }
 }

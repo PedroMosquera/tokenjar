@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import HeadroomCore
 
-/// States exactly what the app touches. Keep it in step with the fetchers, scanners and HTTPClient.allowedHosts.
+/// States exactly what the app touches. Keep it in step with the fetchers, scanners and HTTPClient.allowedEndpoints.
 struct AboutSettingsPane: View {
     @Environment(AppModel.self) private var model
 
@@ -21,19 +21,20 @@ struct AboutSettingsPane: View {
 
     private let reads = [
         Item(what: "~/.claude/projects/**/*.jsonl", why: "Token counts, model ids, timestamps and project folder names. Also ~/.config/claude/projects, or the account's CLAUDE_CONFIG_DIR instead of both."),
-        Item(what: "~/.claude.json", why: "Plan name, and the limits Claude Code last saved, shown when the CLI cannot report. The account id is only compared with the saved limits' so another login's are never shown. The one inside CLAUDE_CONFIG_DIR when the account sets one, or an older .config.json when present."),
+        Item(what: "~/.claude.json", why: "Plan name, and Claude Code's cached limits when the CLI cannot report. Its account id is only compared with the one on the cached limits, so another login's limits are never shown. The one inside CLAUDE_CONFIG_DIR when the account sets one, or an older .config.json when present."),
         Item(what: "~/.claude/settings.json", why: "Only whether Bedrock, Vertex or Foundry is turned on, to tell a cloud login from being signed out. Or the account's CLAUDE_CONFIG_DIR."),
         Item(what: "~/.codex/sessions/**/rollout-*.jsonl", why: "Token counts, model ids, timestamps and project folder names, from archived_sessions too. When the CLI cannot report, the last limits Codex logged. Or the account's CODEX_HOME."),
-        Item(what: "~/.codex/auth.json", why: "Only whether it exists, at first run. Never opened."),
-        Item(what: "~/.local/share/opencode/auth.json", why: "The opencode-go or opencode API key, or the entry the account names, for the OpenCode Go request below. At first run, only which entries exist. Or $XDG_DATA_HOME/opencode, or the account's profile folder."),
+        Item(what: "~/.codex/auth.json", why: "Only whether it exists, at first run and when you click Import from CodexBar. Never opened."),
+        Item(what: "~/.local/share/opencode/auth.json", why: "The opencode-go or opencode API key, or the entry the account names, for the OpenCode Go request below. At first run and on Import from CodexBar, only which entries exist. Or $XDG_DATA_HOME/opencode, or the account's profile folder."),
         Item(what: "~/.local/share/opencode/opencode.db", why: "Read-only: cost and token counts per model. Same folder as auth.json."),
         Item(what: "~/.config/headroom/", why: "config.json, config.local.json and pricing.json."),
-        Item(what: "CodexBar's settings", why: "At first run when there is no config, and when you click Import: enabled providers, thresholds, refresh interval and notification setting. Never its keys or cookies."),
+        Item(what: "CodexBar's settings", why: "Only when you click Import from CodexBar, which lists the changes before applying them: enabled providers, warning thresholds, refresh interval and notification setting. Never its keys or cookies."),
     ]
 
     private let writes = [
         Item(what: "~/.config/headroom/config.json", why: "Settings, through the symlink if it is one."),
-        Item(what: "~/Library/Application Support/Headroom/", why: "headroom.sqlite (usage history), alert-state.json (alerts already sent) and an empty probe folder the CLIs run in."),
+        Item(what: "~/Library/Application Support/Headroom/", why: "headroom.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens, so it is not run again until claude updates or you try once more. probe: an empty folder the CLIs run in."),
+        Item(what: "$TMPDIR/headroom-sign-in-<account>.command", why: "Only when you click Sign In in Terminal: the login command for Terminal to run. It deletes itself when it runs."),
         Item(what: "Keychain: \(AppPaths.keychainService)", why: "Only API keys you paste here."),
     ]
 
