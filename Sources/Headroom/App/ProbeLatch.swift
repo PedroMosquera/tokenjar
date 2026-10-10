@@ -36,6 +36,11 @@ nonisolated struct ProbeLatch: Codable, Equatable {
 
     private var entries: [String: Entry] = [:]
 
+    /// True when a fetch failed because its probe ran as a model turn, whichever CLI it was.
+    static func spentTokens(_ error: FetchError) -> Bool {
+        CLI(modelTurn: error) != nil
+    }
+
     var isEmpty: Bool { entries.isEmpty }
     var accountIDs: [String] { entries.keys.sorted() }
 

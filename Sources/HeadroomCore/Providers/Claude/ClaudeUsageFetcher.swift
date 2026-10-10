@@ -8,7 +8,7 @@ public struct ClaudeUsageFetcher: UsageFetcher {
     public static let source = "claude CLI"
     public static let cacheSource = "Claude Code cache"
     public static let noLimitsNote = "No plan limits for this login"
-    public static let modelTurnMessage = "claude CLI ran /usage as a prompt, which spends tokens. Disable this account until Headroom is updated."
+    public static let modelTurnMessage = "claude CLI ran /usage as a prompt, which spends tokens. Checks for this account are paused until claude updates or you click Try once more."
 
     static let arguments = [
         "-p", "/usage", "--output-format", "stream-json", "--verbose", "--no-session-persistence",

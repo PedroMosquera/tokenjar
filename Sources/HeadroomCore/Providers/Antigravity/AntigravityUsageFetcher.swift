@@ -4,7 +4,7 @@ import Foundation
 /// this never reads its token files or Keychain items and never talks to the Antigravity app.
 public struct AntigravityUsageFetcher: UsageFetcher {
     static let minimumVersion = [1, 1, 11]
-    public static let modelTurnMessage = "agy ran /usage as a prompt, which spends quota. Disable this account until Headroom is updated."
+    public static let modelTurnMessage = "agy ran /usage as a prompt, which spends quota. Checks for this account are paused until agy updates or you click Try once more."
 
     public init() {}
 

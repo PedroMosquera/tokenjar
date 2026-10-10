@@ -241,7 +241,8 @@ final class AppModel {
         }
         configStamp = currentConfigStamp()
         refreshEditedAccounts(from: old.accounts)
-        if new.alerts.enabled, !old.alerts.enabled { requestNotificationPermission(prominent: true) }
+        // Quiet grant only: the Alerts pane's "Allow banners" is the one place the system prompt appears.
+        if new.alerts.enabled, !old.alerts.enabled { requestNotificationPermission(prominent: false) }
     }
 
     private func refreshEditedAccounts(from old: [AccountConfig]) {
@@ -433,7 +434,7 @@ final class AppModel {
         writeOwnerOnly(data, to: probeLatchFile)
     }
 
-    /// The atomic write lands at the umask's 0644 before the chmod; the 0700 folder keeps that moment private.
+    /// A new file lands at the umask's 0644 until the chmod; later atomic rewrites keep 0600. The 0700 folder covers that first moment.
     private func writeOwnerOnly(_ data: Data, to file: URL) {
         try? AppPaths.createOwnerOnlyDirectory(file.deletingLastPathComponent())
         try? data.write(to: file, options: .atomic)
