@@ -37,7 +37,7 @@ public struct ClaudeUsageFetcher: UsageFetcher {
         var environment = context.cli.baseEnvironment()
         if let configDir { environment["CLAUDE_CONFIG_DIR"] = configDir.path }
         let probeDirectory = context.paths.probeDirectory
-        try? context.paths.createProbeDirectory()
+        _ = try? context.paths.createProbeDirectory()
 
         let result: ProcessResult
         do {

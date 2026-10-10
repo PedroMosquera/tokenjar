@@ -12,7 +12,7 @@ public struct AntigravityUsageFetcher: UsageFetcher {
         guard let agy = context.cli.locate("agy") else { throw FetchError.cliNotFound("agy") }
         let environment = context.cli.baseEnvironment()
         let probe = context.paths.probeDirectory
-        try? context.paths.createProbeDirectory()
+        _ = try? context.paths.createProbeDirectory()
 
         let versionRun = try await context.process.run(
             agy, arguments: ["--version"], environment: environment, currentDirectory: probe,
