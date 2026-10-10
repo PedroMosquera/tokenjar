@@ -1,0 +1,5 @@
+{
+  "opencode-go": { "type": "api", "key": "REDACTED" },
+  "opencode": { "type": "api", "key": "REDACTED" },
+  "github-copilot": { "type": "oauth", "refresh": "REDACTED", "access": "REDACTED", "expires": 0 }
+}

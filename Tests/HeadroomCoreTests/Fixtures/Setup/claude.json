@@ -1,0 +1,14 @@
+{
+  "numStartups": 42,
+  "userID": "REDACTED",
+  "projects": { "REDACTED": { "allowedTools": [] } },
+  "oauthAccount": {
+    "accountUuid": "REDACTED",
+    "emailAddress": "REDACTED",
+    "organizationUuid": "REDACTED",
+    "organizationName": "REDACTED",
+    "organizationRole": "user",
+    "organizationType": "claude_enterprise",
+    "displayName": "REDACTED"
+  }
+}
