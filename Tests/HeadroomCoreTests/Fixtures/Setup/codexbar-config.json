@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "providers": [
+    { "id": "codex", "enabled": true, "region": "REDACTED" },
+    { "id": "openai", "enabled": false, "apiKey": "REDACTED" },
+    { "id": "claude", "enabled": true, "cookieHeader": "REDACTED" },
+    { "id": "cursor", "enabled": true, "tokenAccounts": [{ "label": "REDACTED", "token": "REDACTED" }] },
+    { "id": "opencode", "enabled": false, "apiKey": "REDACTED" },
+    { "id": "opencodego", "enabled": true, "apiKey": "REDACTED" },
+    { "id": "gemini", "enabled": true },
+    { "id": "antigravity", "enabled": true },
+    { "id": "zai" }
+  ]
+}
