@@ -1,0 +1,23 @@
+{
+  "type": "result",
+  "result": {
+    "usage": {
+      "groups": [
+        {
+          "displayName": "Gemini models",
+          "buckets": [
+            { "windowId": "5h", "remainingFraction": 0.5, "resetTime": "2026-10-10T22:30:00.250Z" },
+            { "period": "WEEKLY", "remainingFraction": 0.8, "resetsAt": "2026-10-12T00:00:00+00:00" }
+          ]
+        },
+        {
+          "name": "Claude and GPT models",
+          "buckets": [
+            { "windowId": "session", "remainingFraction": 0, "resetsAt": 1791676800 },
+            { "windowId": "weekly", "remainingFraction": 0.4, "disabled": false }
+          ]
+        }
+      ]
+    }
+  }
+}
