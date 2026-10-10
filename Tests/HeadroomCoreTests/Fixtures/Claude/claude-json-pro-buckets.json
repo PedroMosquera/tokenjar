@@ -1,0 +1,22 @@
+{
+  "oauthAccount": {
+    "accountUuid": "ACCOUNT_UUID_B",
+    "emailAddress": "EMAIL_PLACEHOLDER",
+    "organizationType": "claude_pro",
+    "organizationRateLimitTier": "default_claude_pro",
+    "userRateLimitTier": null,
+    "billingType": "stripe_subscription",
+    "seatTier": null
+  },
+  "cachedUsageUtilization": {
+    "fetchedAtMs": 1791658800000,
+    "accountUuid": "ACCOUNT_UUID_B",
+    "utilization": {
+      "five_hour": {"utilization": 55.5, "resets_at": "2026-10-10T21:00:00+00:00"},
+      "seven_day": {"utilization": 40, "resets_at": "2026-10-14T09:00:00.5+00:00"},
+      "seven_day_opus": {"utilization": 12, "resets_at": "2026-10-14T09:00:00+00:00"},
+      "seven_day_sonnet": {"utilization": 90, "resets_at": "2026-10-09T09:00:00+00:00"},
+      "extra_usage": {"is_enabled": false, "monthly_limit": null, "used_credits": null, "utilization": null, "currency": null}
+    }
+  }
+}
