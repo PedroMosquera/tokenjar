@@ -135,6 +135,68 @@ struct AppModelRefreshTests {
         #expect(log.count("claude") == 3)
     }
 
+    /// agy can send `/usage` to the model too. Its latch follows the agy binary, so a claude update does not lift it.
+    @Test func anAntigravityProbeThatSpentQuotaIsLatchedOnTheAgyBinary() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        let agy = try home.makeExecutable("bin/agy")
+        let claude = try home.makeExecutable("bin/claude")
+        let account = AccountConfig(id: "agy", provider: .antigravity, label: "Google", refreshMinutes: 1)
+        try home.writeConfig(AppConfig(accounts: [account], cliPaths: ["agy": agy.path, "claude": claude.path]))
+        let log = FetchLog(), clock = TestClock()
+        let quotaTurn = FetchError.unsupported(AntigravityUsageFetcher.modelTurnMessage)
+        let fetcher: (ProviderID) -> any UsageFetcher = { _ in FakeFetcher(log: log) { _ in .failure(quotaTurn) } }
+        let model = model(home, clock, fetcher)
+
+        await model.refresh(force: true)?.value
+        await model.refresh(force: true)?.value
+        clock.advance(10 * 60)
+        await model.refresh(force: false)?.value
+        await model.refresh(accountID: "agy")?.value
+        #expect(log.count("agy") == 1)
+
+        let relaunched = self.model(home, clock, fetcher)
+        #expect(relaunched.statuses["agy"]?.error == quotaTurn)
+        await relaunched.refresh(force: true)?.value
+        #expect(log.count("agy") == 1)
+
+        try home.makeExecutable("bin/claude", contents: "#!/bin/sh\n# a newer build\nexit 1\n")
+        await relaunched.refresh(force: true)?.value
+        #expect(log.count("agy") == 1)
+
+        try home.makeExecutable("bin/agy", contents: "#!/bin/sh\n# a newer build\nexit 1\n")
+        await relaunched.refresh(force: true)?.value
+        #expect(log.count("agy") == 2)
+        await relaunched.refresh(force: true)?.value
+        #expect(log.count("agy") == 2)
+
+        await relaunched.retryProbe(accountID: "agy")?.value
+        #expect(log.count("agy") == 3)
+        await relaunched.refresh(force: true)?.value
+        #expect(log.count("agy") == 3)
+    }
+
+    /// No store is opened, so nothing else tightens the support folder before the state files are written.
+    @Test func persistedStateIsOwnerOnly() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".claude")
+        let claude = try home.makeExecutable("bin/claude")
+        let account = AccountConfig(id: "claude", provider: .claude, label: "Personal")
+        try home.writeConfig(AppConfig(accounts: [account], cliPaths: ["claude": claude.path]))
+        let support = home.paths.supportDirectory
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o755])
+        let log = FetchLog(), clock = TestClock()
+        let model = AppModel(paths: home.paths, fetcher: { [modelTurn] _ in FakeFetcher(log: log) { _ in .failure(modelTurn) } }, clock: { clock.now })
+        model.loadConfig()
+
+        await model.refresh(force: true)?.value
+
+        #expect(try home.mode(support) == 0o700)
+        #expect(try home.mode(support.appending(path: "alert-state.json")) == 0o600)
+        #expect(try home.mode(support.appending(path: "probe-latch.json")) == 0o600)
+    }
+
     @Test func ticksWaitForTheWakeRefreshAfterSleep() async throws {
         let home = try ModelHome()
         defer { home.remove() }

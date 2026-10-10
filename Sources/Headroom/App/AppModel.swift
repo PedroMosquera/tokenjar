@@ -265,7 +265,8 @@ final class AppModel {
         fetch(accounts.filter { $0.id == accountID && !scheduler.inFlight.contains($0.id) })
     }
 
-    /// The one way to probe an account again after its probe spent tokens: one run, latched again if it repeats.
+    /// The one way to probe an account again after its probe spent tokens or quota: one run, latched again if it
+    /// repeats.
     @discardableResult
     func retryProbe(accountID: String) -> Task<Void, Never>? {
         if probeLatch.release(accountID) { saveProbeLatch() }
@@ -314,14 +315,14 @@ final class AppModel {
     /// the old settings, so it is not shown, stored or alerted on, and the account is due again at once.
     private func apply(_ result: Result<UsageSnapshot, FetchError>, to account: AccountConfig) -> Bool {
         let current = clock()
-        var spentTokens = false, rateLimited = false
+        var modelTurn: ProbeLatch.CLI?, rateLimited = false
         if case .failure(let error) = result {
-            spentTokens = ProbeLatch.spentTokens(error)
+            modelTurn = ProbeLatch.CLI(modelTurn: error)
             if case .rateLimited = error { rateLimited = true }
         }
         let live = config.accounts.first { $0.id == account.id }
-        // A model turn has already spent tokens whatever changed meanwhile, so it always latches.
-        guard live == account || spentTokens else {
+        // A model turn has already spent tokens or quota whatever changed meanwhile, so it always latches.
+        guard live == account || modelTurn != nil else {
             scheduler.finish(account.id, at: current, delay: nil, rateLimited: false)
             statuses[account.id]?.isRefreshing = false
             return false
@@ -344,8 +345,8 @@ final class AppModel {
             lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled, result: result
         )
         scheduler.finish(account.id, at: current, delay: delay, rateLimited: rateLimited)
-        if spentTokens {
-            probeLatch.latch(account.id, binary: ProbeLatch.fingerprint(ofBinaryAt: cliLocator(for: config).locate("claude")))
+        if let modelTurn {
+            probeLatch.latch(account.id, cli: modelTurn, binary: ProbeLatch.fingerprint(ofBinaryAt: cliLocator(for: config).locate(modelTurn.rawValue)))
             saveProbeLatch()
         }
 
@@ -355,11 +356,11 @@ final class AppModel {
         return true
     }
 
-    /// Accounts whose last probe spent tokens stay out, unless the claude binary has changed since.
+    /// Accounts whose last probe spent tokens or quota stay out, unless the binary of the CLI that ran it has changed.
     private func withoutLatchedProbes(_ targets: [AccountConfig]) -> [AccountConfig] {
         guard !probeLatch.isEmpty else { return targets }
-        let binary = ProbeLatch.fingerprint(ofBinaryAt: cliLocator(for: config).locate("claude"))
-        if probeLatch.releaseAll(unlessBinary: binary) { saveProbeLatch() }
+        let locator = cliLocator(for: config)
+        if probeLatch.releaseAll(unlessBinary: { ProbeLatch.fingerprint(ofBinaryAt: locator.locate($0.rawValue)) }) { saveProbeLatch() }
         return targets.filter { !probeLatch.isLatched($0.id) }
     }
 
@@ -415,8 +416,7 @@ final class AppModel {
 
     private func saveAlertState() {
         guard !previewMode, let data = try? JSONEncoder().encode(alertState) else { return }
-        try? FileManager.default.createDirectory(at: paths.supportDirectory, withIntermediateDirectories: true)
-        try? data.write(to: alertStateFile, options: .atomic)
+        writeOwnerOnly(data, to: alertStateFile)
     }
 
     private func loadProbeLatch() {
@@ -424,14 +424,20 @@ final class AppModel {
         probeLatch = latch
         // Nothing probes a latched account, so without this its card would not say why it stopped updating.
         for id in latch.accountIDs {
-            statuses[id, default: AccountStatus()].error = ProbeLatch.error
+            statuses[id, default: AccountStatus()].error = latch.cli(of: id)?.modelTurnError
         }
     }
 
     private func saveProbeLatch() {
         guard !previewMode, let data = try? JSONEncoder().encode(probeLatch) else { return }
-        try? FileManager.default.createDirectory(at: paths.supportDirectory, withIntermediateDirectories: true)
-        try? data.write(to: probeLatchFile, options: .atomic)
+        writeOwnerOnly(data, to: probeLatchFile)
+    }
+
+    /// The atomic write lands at the umask's 0644 before the chmod; the 0700 folder keeps that moment private.
+    private func writeOwnerOnly(_ data: Data, to file: URL) {
+        try? AppPaths.createOwnerOnlyDirectory(file.deletingLastPathComponent())
+        try? data.write(to: file, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
     }
 
     // MARK: Notifications
