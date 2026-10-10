@@ -1,7 +1,14 @@
+import CryptoKit
 import Foundation
 
-/// Opaque per-source progress markers, keyed by file path (byte offsets, inode, last row id). Owned by each scanner.
+/// Opaque per-source progress markers (byte offsets, inode, last row id), keyed by `sha256Hex` of the file path so the
+/// database never holds a path with the home folder name, project paths or session uuids in it. Owned by each scanner.
 public typealias ScanCheckpoints = [String: String]
+
+/// Lowercase hex SHA-256 of the UTF-8 bytes, for identifiers the store keeps only to recognize a file or response again.
+func sha256Hex(_ text: String) -> String {
+    SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+}
 
 public struct ScanResult: Sendable {
     public var events: [UsageEvent]

@@ -47,18 +47,24 @@ struct CodexRolloutLine: Decodable {
     var date: Date? { timestamp.flatMap(DateParsing.iso8601) }
 }
 
-/// Token counts in codex's shape. `cachedInputTokens` is a subset of `inputTokens`, and
-/// `reasoningOutputTokens` a subset of `outputTokens`.
+/// Token counts in codex's shape. `cachedInputTokens` and `cacheWriteInputTokens` are subsets of `inputTokens`, and
+/// `reasoningOutputTokens` a subset of `outputTokens`. Every rollout seen so far logs a cache write of 0, so the subset
+/// reading of `cacheWriteInputTokens` follows `cachedInputTokens` rather than an observed non-zero sample.
 struct CodexTokenUsage: Codable, Sendable, Equatable {
     var inputTokens = 0
     var cachedInputTokens = 0
+    var cacheWriteInputTokens = 0
     var outputTokens = 0
     var reasoningOutputTokens = 0
     var totalTokens = 0
 
-    init(inputTokens: Int = 0, cachedInputTokens: Int = 0, outputTokens: Int = 0, reasoningOutputTokens: Int = 0, totalTokens: Int = 0) {
+    init(
+        inputTokens: Int = 0, cachedInputTokens: Int = 0, cacheWriteInputTokens: Int = 0, outputTokens: Int = 0,
+        reasoningOutputTokens: Int = 0, totalTokens: Int = 0
+    ) {
         self.inputTokens = inputTokens
         self.cachedInputTokens = cachedInputTokens
+        self.cacheWriteInputTokens = cacheWriteInputTokens
         self.outputTokens = outputTokens
         self.reasoningOutputTokens = reasoningOutputTokens
         self.totalTokens = totalTokens
@@ -68,13 +74,14 @@ struct CodexTokenUsage: Codable, Sendable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         inputTokens = c.codexLenient(Int.self, .inputTokens) ?? 0
         cachedInputTokens = c.codexLenient(Int.self, .cachedInputTokens) ?? 0
+        cacheWriteInputTokens = c.codexLenient(Int.self, .cacheWriteInputTokens) ?? 0
         outputTokens = c.codexLenient(Int.self, .outputTokens) ?? 0
         reasoningOutputTokens = c.codexLenient(Int.self, .reasoningOutputTokens) ?? 0
         totalTokens = c.codexLenient(Int.self, .totalTokens) ?? 0
     }
 
     private enum CodingKeys: String, CodingKey {
-        case inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens, totalTokens
+        case inputTokens, cachedInputTokens, cacheWriteInputTokens, outputTokens, reasoningOutputTokens, totalTokens
     }
 
     /// Field-wise `self - earlier`, clamped at zero.
@@ -82,6 +89,7 @@ struct CodexTokenUsage: Codable, Sendable, Equatable {
         CodexTokenUsage(
             inputTokens: max(0, inputTokens - earlier.inputTokens),
             cachedInputTokens: max(0, cachedInputTokens - earlier.cachedInputTokens),
+            cacheWriteInputTokens: max(0, cacheWriteInputTokens - earlier.cacheWriteInputTokens),
             outputTokens: max(0, outputTokens - earlier.outputTokens),
             reasoningOutputTokens: max(0, reasoningOutputTokens - earlier.reasoningOutputTokens),
             totalTokens: max(0, totalTokens - earlier.totalTokens)

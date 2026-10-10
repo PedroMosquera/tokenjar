@@ -45,8 +45,27 @@ struct CodexHistoryScannerTests {
         #expect(events.map(\.timestamp) == [.codexFixture("2026-10-09T10:05:00Z"), .codexFixture("2026-10-09T10:10:00Z"), .codexFixture("2026-10-09T10:20:00.500Z")])
     }
 
+    @Test func homeFolderIsStoredAsTildeNeverTheAccountName() throws {
+        let temp = try CodexTempDirectory()
+        func rollout(cwd: String, response: String) -> String {
+            [
+                #"{"timestamp":"2026-10-09T10:00:00Z","type":"session_meta","payload":{"cwd":"\#(cwd)"}}"#,
+                #"{"timestamp":"2026-10-09T10:00:01Z","type":"turn_context","payload":{"model":"gpt-6.1-sol","cwd":"\#(cwd)"}}"#,
+                #"{"timestamp":"2026-10-09T10:00:02Z","type":"token_usage_record","payload":{"response_id":"\#(response)","usage":{"input_tokens":10,"output_tokens":1,"total_tokens":11}}}"#,
+            ].joined(separator: "\n") + "\n"
+        }
+        try temp.write(rollout(cwd: temp.url.path, response: "resp_home"), to: "codex-home/sessions/2026/10/09/rollout-a.jsonl")
+        try temp.write(rollout(cwd: temp.url.path + "/", response: "resp_slash"), to: "codex-home/sessions/2026/10/09/rollout-b.jsonl")
+        try temp.write(rollout(cwd: temp.url.appending(path: "work/x").path, response: "resp_x"), to: "codex-home/sessions/2026/10/09/rollout-c.jsonl")
+
+        let events = try scan(temp).events
+
+        #expect(events.map(\.dedupeKey) == ["codex:resp_home", "codex:resp_slash", "codex:resp_x"])
+        #expect(events.map(\.project) == ["~", "~", "x"])
+    }
+
     @Test func jumpToTheContextWindowWithoutOutputIsNotUsage() {
-        var reader = CodexHistoryScanner.FileReader(fileName: "f", accountID: "a")
+        var reader = CodexHistoryScanner.FileReader(fileName: "f", accountID: "a", home: URL(fileURLWithPath: "/Users/placeholder"))
         let lines = [
             #"{"timestamp":"2026-10-09T10:00:00Z","type":"turn_context","payload":{"model":"gpt-5.5","cwd":"/x/p"}}"#,
             #"{"timestamp":"2026-10-09T10:01:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1000,"cached_input_tokens":0,"output_tokens":100,"reasoning_output_tokens":0,"total_tokens":1100},"model_context_window":5000}}}"#,
@@ -57,6 +76,23 @@ struct CodexHistoryScannerTests {
 
         #expect(reader.events.map(\.inputTokens) == [1_000, 500])
         #expect(reader.events.map(\.outputTokens) == [100, 50])
+    }
+
+    /// Cache writes are priced at their own rate, and like cached reads they are part of `input_tokens`.
+    @Test func cacheWritesAreSplitOutOfInputInBothFormats() {
+        var reader = CodexHistoryScanner.FileReader(fileName: "f", accountID: "a", home: URL(fileURLWithPath: "/Users/placeholder"))
+        let lines = [
+            #"{"timestamp":"2026-10-09T10:00:00Z","type":"turn_context","payload":{"model":"gpt-6-astra","cwd":"/x/p"}}"#,
+            #"{"timestamp":"2026-10-09T10:01:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10000,"cached_input_tokens":6000,"cache_write_input_tokens":1500,"output_tokens":500,"total_tokens":10500}}}}"#,
+            #"{"timestamp":"2026-10-09T10:02:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":16000,"cached_input_tokens":11000,"cache_write_input_tokens":2000,"output_tokens":800,"total_tokens":16800}}}}"#,
+            #"{"timestamp":"2026-10-09T10:03:00Z","type":"token_usage_record","payload":{"response_id":"resp_w","usage":{"input_tokens":12000,"cached_input_tokens":8000,"cache_write_input_tokens":1000,"output_tokens":900,"total_tokens":12900}}}"#,
+        ]
+        for (index, line) in lines.enumerated() { reader.read(Data(line.utf8), at: index * 1_000) }
+
+        #expect(reader.events.map(\.cacheWrite5mTokens) == [1_500, 500, 1_000])
+        #expect(reader.events.map(\.inputTokens) == [2_500, 500, 3_000])
+        #expect(reader.events.map(\.cacheReadTokens) == [6_000, 5_000, 8_000])
+        #expect(reader.events.allSatisfy { $0.cacheWrite1hTokens == 0 })
     }
 
     @Test func importedSessionsWithoutTurnContextAreNotCodexUsage() throws {
@@ -150,6 +186,23 @@ struct CodexHistoryScannerTests {
         let second = try scan(temp, first.checkpoints)
 
         #expect(second.events.map(\.dedupeKey) == ["codex:rollout-t.jsonl:10500"])
+    }
+
+    @Test func keepsTheCheckpointOfAFileItCannotRead() throws {
+        let temp = try CodexTempDirectory()
+        let lines = try CodexFixtures.lines("rollout-token-count.jsonl")
+        let path = "codex-home/sessions/2026/10/09/rollout-t.jsonl"
+        let file = try temp.write(lines[..<6].joined(separator: "\n") + "\n", to: path)
+        let first = try scan(temp)
+        try temp.write(lines.joined(separator: "\n") + "\n", to: path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path) }
+
+        let blocked = try scan(temp, first.checkpoints)
+
+        #expect(blocked.events.isEmpty)
+        #expect(!first.checkpoints.isEmpty)
+        #expect(blocked.checkpoints == first.checkpoints)
     }
 
     @Test func checkpointsForDeletedFilesAreDropped() throws {

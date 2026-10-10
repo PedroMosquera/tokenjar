@@ -115,8 +115,9 @@ struct AccountDiscoveryTests {
         }
         try home.makeDirectory(".claude")
         try home.makeDirectory(".codex-work")
+        try home.write(".claude-work", "not a profile folder")
         #expect(AccountDiscovery.isAvailable(claude, paths: paths, environment: [:]))
-        #expect(!AccountDiscovery.isAvailable(claudeWork, paths: paths, environment: [:]))
+        #expect(!AccountDiscovery.isAvailable(claudeWork, paths: paths, environment: [:]), "a file at the profile path is not a profile")
         #expect(!AccountDiscovery.isAvailable(codex, paths: paths, environment: [:]))
         #expect(AccountDiscovery.isAvailable(codexWork, paths: paths, environment: [:]))
     }

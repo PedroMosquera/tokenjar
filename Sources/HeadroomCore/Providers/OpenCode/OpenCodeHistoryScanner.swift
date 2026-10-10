@@ -23,7 +23,7 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
         OpenCodeLocalData.databaseFile(in: OpenCodeLocalData.dataDirectory(for: account, paths: paths, environment: environment))
     }
 
-    /// Checkpoints: the largest `time_updated` seen per table, keyed by `<database path>#<table>`. opencode
+    /// Checkpoints: the largest `time_updated` seen per table, keyed by `sha256Hex("<database path>#<table>")`. opencode
     /// rewrites a message row when cost and tokens land on completion, so `time_updated` is what moves.
     /// A missing database is not an error: opencode may not be used on this Mac.
     public func scan(_ account: AccountConfig, checkpoints: ScanCheckpoints, paths: AppPaths) throws -> ScanResult {
@@ -35,7 +35,7 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
         var events: [UsageEvent] = []
         var out = checkpoints
         for table in tables {
-            let key = database.path + "#" + table.rawValue
+            let key = sha256Hex(database.path + "#" + table.rawValue)
             let since = checkpoints[key].flatMap { Int64($0) } ?? 0
             var latest = since
             try readRows(db, table: table, skippingCopiesOfMessageRows: tables.contains(.message), updatedSince: since) { row in
@@ -74,7 +74,7 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
             UsageEvent(
                 dedupeKey: "opencode:\(id)", timestamp: DateParsing.epoch(Double(createdAt)), accountID: accountID,
                 harness: .opencode, model: model ?? "unknown",
-                project: OpenCodeHistoryScanner.project(fromWorkingDirectory: cwd, home: home),
+                project: UsageEvent.project(fromWorkingDirectory: cwd, home: home),
                 inputTokens: Int(input), outputTokens: Int(output), cacheReadTokens: Int(cacheRead),
                 cacheWrite5mTokens: Int(cacheWrite), reasoningTokens: Int(reasoning), reportedCostUSD: cost
             )
@@ -130,14 +130,5 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
                 cwd: r.text(10)
             ))
         }
-    }
-
-    /// Last path component only. The home directory itself maps to "~" so the user's account name is never stored.
-    static func project(fromWorkingDirectory cwd: String?, home: URL) -> String? {
-        guard let cwd, cwd.hasPrefix("/") else { return nil }
-        let url = URL(fileURLWithPath: cwd).standardizedFileURL
-        if url.path == home.standardizedFileURL.path { return "~" }
-        let last = url.lastPathComponent
-        return last == "/" ? nil : last
     }
 }

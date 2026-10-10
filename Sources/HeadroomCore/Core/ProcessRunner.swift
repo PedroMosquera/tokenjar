@@ -41,11 +41,27 @@ public struct FoundationProcessRunner: ProcessRunning {
         process.standardError = errPipe
         process.standardInput = inPipe
 
+        // Output is read only on the readability handlers, each until its own EOF. A second read from this thread
+        // after exit could land before a handler's last chunk and reorder stdout.
         let out = LimitedBuffer(limit: outputLimit), err = LimitedBuffer(limit: outputLimit)
-        outPipe.fileHandleForReading.readabilityHandler = { out.append($0.availableData) }
-        errPipe.fileHandleForReading.readabilityHandler = { err.append($0.availableData) }
+        let drained = DispatchGroup(), exited = DispatchGroup()
+        Self.collect(outPipe.fileHandleForReading, into: out, until: drained)
+        Self.collect(errPipe.fileHandleForReading, into: err, until: drained)
+        // Not waitUntilExit on a GCD thread: it has been seen to miss the exit and never return.
+        exited.enter()
+        process.terminationHandler = { _ in exited.leave() }
 
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            errPipe.fileHandleForReading.readabilityHandler = nil
+            // Balanced so the groups are never released while entered, which some libdispatch versions trap on.
+            if out.finish() { drained.leave() }
+            if err.finish() { drained.leave() }
+            exited.leave()
+            throw error
+        }
         // A CLI that exits before reading stdin would otherwise raise SIGPIPE and kill the whole menu bar app.
         _ = fcntl(inPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
         if let stdin { try? inPipe.fileHandleForWriting.write(contentsOf: stdin) }
@@ -53,12 +69,7 @@ public struct FoundationProcessRunner: ProcessRunning {
 
         let timedOut = await withTaskGroup(of: Bool.self) { group in
             group.addTask {
-                await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-                    DispatchQueue.global().async {
-                        process.waitUntilExit()
-                        c.resume()
-                    }
-                }
+                await exited.done()
                 return false
             }
             group.addTask {
@@ -75,20 +86,33 @@ public struct FoundationProcessRunner: ProcessRunning {
             group.cancelAll()
             return first
         }
-        if timedOut { process.waitUntilExit() }
-
-        outPipe.fileHandleForReading.readabilityHandler = nil
-        errPipe.fileHandleForReading.readabilityHandler = nil
-        out.append(outPipe.fileHandleForReading.readDataToEndOfFile())
-        err.append(errPipe.fileHandleForReading.readDataToEndOfFile())
+        await drained.done()
 
         return ProcessResult(exitCode: process.terminationStatus, stdout: out.data, stderr: err.data, timedOut: timedOut)
+    }
+
+    private static func collect(_ handle: FileHandle, into buffer: LimitedBuffer, until drained: DispatchGroup) {
+        drained.enter()
+        handle.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            guard chunk.isEmpty else { return buffer.append(chunk) }
+            // At EOF the handler fires again and again until removed.
+            handle.readabilityHandler = nil
+            if buffer.finish() { drained.leave() }
+        }
+    }
+}
+
+private extension DispatchGroup {
+    func done() async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in notify(queue: .global()) { c.resume() } }
     }
 }
 
 final class LimitedBuffer: @unchecked Sendable {
     private let lock = NSLock()
     private var storage = Data()
+    private var finished = false
     private let limit: Int
 
     init(limit: Int) { self.limit = limit }
@@ -97,6 +121,14 @@ final class LimitedBuffer: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         let room = limit - storage.count
         if room > 0 { storage.append(chunk.prefix(room)) }
+    }
+
+    /// True only the first time, so an EOF delivered twice cannot leave a DispatchGroup twice.
+    func finish() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        if finished { return false }
+        finished = true
+        return true
     }
 
     var data: Data {

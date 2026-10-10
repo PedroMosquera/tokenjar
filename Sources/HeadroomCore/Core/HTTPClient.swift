@@ -18,19 +18,23 @@ public protocol HTTPTransport: Sendable {
 
 public enum HTTPClientError: Error, Equatable {
     case hostNotAllowed(String)
+    case endpointNotAllowed(String)
     case insecureScheme
     case methodNotAllowed(String)
 }
 
-/// The only way the app talks to the network. GET only, HTTPS only, allowlisted hosts only, no redirects.
-/// Adding a host here is a privacy decision: update docs/privacy.md and the test that pins this set.
+/// The only way the app talks to the network. GET only, HTTPS only, allowlisted endpoints only, no redirects.
+/// Adding an endpoint here is a privacy decision: update docs/privacy.md and the tests that pin this set.
 public struct HTTPClient: Sendable {
-    public static let allowedHosts: Set<String> = ["opencode.ai"]
+    /// Exact paths per host. The Bearer key travels with every request, so a host match alone would let a new caller
+    /// send it to any other path or port on that host.
+    public static let allowedEndpoints: [String: Set<String>] = ["opencode.ai": ["/zen/go/v1/usage"]]
+    public static var allowedHosts: Set<String> { Set(allowedEndpoints.keys) }
 
     let transport: any HTTPTransport
     public var userAgent: String
 
-    public init(transport: any HTTPTransport = URLSessionTransport(), userAgent: String = "Headroom") {
+    public init(transport: any HTTPTransport = URLSessionTransport.shared, userAgent: String = "Headroom") {
         self.transport = transport
         self.userAgent = userAgent
     }
@@ -38,7 +42,10 @@ public struct HTTPClient: Sendable {
     public static func validate(_ url: URL) throws {
         guard url.scheme == "https" else { throw HTTPClientError.insecureScheme }
         let host = url.host()?.lowercased() ?? ""
-        guard allowedHosts.contains(host) else { throw HTTPClientError.hostNotAllowed(host) }
+        guard let paths = allowedEndpoints[host] else { throw HTTPClientError.hostNotAllowed(host) }
+        let path = url.path(percentEncoded: true)
+        guard url.port == nil || url.port == 443, url.user() == nil, url.password() == nil, url.query() == nil, url.fragment() == nil,
+              paths.contains(path) else { throw HTTPClientError.endpointNotAllowed(path) }
     }
 
     public func get(_ url: URL, headers: [String: String] = [:], timeout: TimeInterval = 30) async throws -> HTTPResponse {
@@ -53,6 +60,10 @@ public struct HTTPClient: Sendable {
 }
 
 public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionTaskDelegate, @unchecked Sendable {
+    /// The app's one transport. Its session is never invalidated and so keeps this delegate alive for good, which is
+    /// fine once but leaks a session and its connection pool for every instance a caller creates and drops.
+    public static let shared = URLSessionTransport()
+
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil

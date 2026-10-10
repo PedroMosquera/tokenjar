@@ -36,10 +36,10 @@ public struct CLILocator: Sendable {
             .first { fm.isExecutableFile(atPath: $0.path) }
     }
 
-    /// Environment for spawned CLIs: a PATH covering the search directories plus HOME, USER, LANG.
-    /// Callers add provider variables (CLAUDE_CONFIG_DIR, CODEX_HOME) on top.
-    public func baseEnvironment() -> [String: String] {
-        let inherited = ProcessInfo.processInfo.environment
+    /// Environment for spawned CLIs: only HOME, USER, LOGNAME, LANG, TMPDIR and SHELL from `inherited`, a PATH covering
+    /// the search directories, and NO_COLOR. Nothing else passes through, so a launch environment's API keys or config
+    /// dirs cannot change which login a CLI reports. Callers add provider variables (CLAUDE_CONFIG_DIR, CODEX_HOME) on top.
+    public func baseEnvironment(inherited: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
         var env: [String: String] = [:]
         for key in ["HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL"] {
             if let value = inherited[key] { env[key] = value }

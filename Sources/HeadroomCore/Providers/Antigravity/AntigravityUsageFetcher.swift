@@ -4,6 +4,7 @@ import Foundation
 /// this never reads its token files or Keychain items and never talks to the Antigravity app.
 public struct AntigravityUsageFetcher: UsageFetcher {
     static let minimumVersion = [1, 1, 11]
+    public static let modelTurnMessage = "agy ran /usage as a prompt, which spends quota. Disable this account until Headroom is updated."
 
     public init() {}
 
@@ -11,7 +12,7 @@ public struct AntigravityUsageFetcher: UsageFetcher {
         guard let agy = context.cli.locate("agy") else { throw FetchError.cliNotFound("agy") }
         let environment = context.cli.baseEnvironment()
         let probe = context.paths.probeDirectory
-        try? FileManager.default.createDirectory(at: probe, withIntermediateDirectories: true)
+        try? context.paths.createProbeDirectory()
 
         let versionRun = try await context.process.run(
             agy, arguments: ["--version"], environment: environment, currentDirectory: probe,
@@ -62,8 +63,9 @@ extension AntigravityUsageFetcher {
     // Unverified live: agy was not installed on the build machine. The shape comes from CodexBar's synthetic
     // agy test fixture, {"command":{"data":{"groups":[{"name","buckets":[{"window","remaining_fraction",
     // "reset_time","disabled"}]}]}}}, so `groups` is looked up at any depth and both key casings are accepted.
-    /// An empty result means agy reported no limits. A shape this parser does not know throws instead, so a
-    /// renamed field shows up as a broken source rather than as an account without limits.
+    /// An empty result means agy reported no limits: a `groups` array with no enabled buckets, or a `data.message`
+    /// saying usage is not available. Anything else without `groups` throws, so a renamed field shows up as a broken
+    /// source rather than as an account without limits, and a model reply says the probe spent quota.
     static func windows(fromUsageOutput data: Data) throws -> [UsageWindow] {
         guard let root = jsonRoot(data) else { throw FetchError.parse("agy /usage output is not JSON") }
         guard let groups = firstValue(forKey: "groups", in: root, as: [[String: Any]].self) else {
@@ -71,7 +73,11 @@ extension AntigravityUsageFetcher {
                 if mentionsSignIn(error) { throw FetchError.notSignedIn }
                 throw FetchError.parse("agy /usage reported an error")
             }
-            return []
+            if isModelReply(root) { throw FetchError.unsupported(modelTurnMessage) }
+            if let message = firstValue(forKey: "data", in: root, as: [String: Any].self)?["message"] as? String, !message.isEmpty {
+                return []
+            }
+            throw FetchError.parse("agy /usage has no groups")
         }
         var windows: [UsageWindow] = []
         var seen: Set<String> = []
@@ -111,6 +117,13 @@ extension AntigravityUsageFetcher {
         case "fivehour", "fivehours", "5hour", "5hours", "5h", "session": return ("session", "5-hour", 300)
         default: return (key, raw, nil)
         }
+    }
+
+    /// Any top-level marker of the headless reply agy and Gemini CLI print when a prompt reached the model: `response`
+    /// text, a `stats` object or a `num_turns` count.
+    private static func isModelReply(_ root: Any) -> Bool {
+        guard let object = root as? [String: Any] else { return false }
+        return object["response"] is String || object["stats"] is [String: Any] || object["num_turns"] != nil
     }
 
     static func mentionsSignIn(_ text: String) -> Bool {

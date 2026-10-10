@@ -41,6 +41,16 @@ struct CodexRateLimitMappingTests {
         #expect(!s.windows.contains { $0.id == "session" })
     }
 
+    @Test func fiveHourWindowInTheSecondarySlotIsStillTheSession() {
+        let limits = CodexRateLimitSnapshot(
+            limitId: "codex",
+            primary: .init(usedPercent: 9, windowDurationMins: 10_080, resetsAt: 1_792_150_113),
+            secondary: .init(usedPercent: 3, windowDurationMins: 300, resetsAt: 1_791_670_000)
+        )
+
+        #expect(CodexRateLimitMapping.windows(limits, extraLimitID: nil, now: now).map(\.id) == ["weekly", "session"])
+    }
+
     @Test func extraLimitIdsGetPrefixedWindows() throws {
         let s = try snapshot("rate-limits-pro.json")
         let extra = s.windows.filter { $0.id.hasPrefix("codex_spark:") }

@@ -39,7 +39,7 @@ public struct CodexUsageFetcher: UsageFetcher {
         let directory = context.paths.probeDirectory
 
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try context.paths.createProbeDirectory()
             let line = try await readRateLimits(binary: binary, environment: environment, directory: directory)
             guard let envelope = try? JSONDecoder().decode(Envelope.self, from: line),
                   let snapshot = CodexRateLimitMapping.snapshot(

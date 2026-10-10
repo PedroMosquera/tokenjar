@@ -9,19 +9,23 @@ struct UsageStoreContractTests {
     var dayStart: Date { tokyo.date(from: DateComponents(year: 2026, month: 10, day: 10))! }
     var noon: Date { dayStart.addingTimeInterval(12 * 3600) }
 
+    /// Every field rises on one upsert and falls on another, and each call mixes directions, so neither "last write
+    /// wins", "first write wins" nor a whole-row replace passes.
     @Test(arguments: StoreKind.allCases)
     func upsertKeepsTheLargerValuePerField(kind: StoreKind) throws {
         let store = try kind.make(in: temp.url, calendar: tokyo)
         try store.upsert([usageEvent("k", at: noon, input: 100, output: 10, cacheRead: 7, cacheWrite5m: 5, cacheWrite1h: 1, reasoning: 3)])
         try store.upsert([usageEvent("k", at: noon, input: 90, output: 40, cacheRead: 2, cacheWrite5m: 9, cacheWrite1h: 0, reasoning: 8)])
+        try store.upsert([usageEvent("k", at: noon, input: 120, output: 1, cacheRead: 9, cacheWrite5m: 1, cacheWrite1h: 2, reasoning: 1)])
+        try store.upsert([usageEvent("k", at: noon, input: 1, output: 1, cacheRead: 1, cacheWrite5m: 1, cacheWrite1h: 0, reasoning: 1)])
 
         let row = try #require(store.dailyUsage(accountIDs: nil, since: .distantPast).first)
         #expect(row.requests == 1)
-        #expect(row.inputTokens == 100)
+        #expect(row.inputTokens == 120)
         #expect(row.outputTokens == 40)
-        #expect(row.cacheReadTokens == 7)
+        #expect(row.cacheReadTokens == 9)
         #expect(row.cacheWrite5mTokens == 9)
-        #expect(row.cacheWrite1hTokens == 1)
+        #expect(row.cacheWrite1hTokens == 2)
         #expect(row.reasoningTokens == 8)
     }
 

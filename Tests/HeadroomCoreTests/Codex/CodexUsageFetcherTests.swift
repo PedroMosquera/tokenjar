@@ -25,6 +25,7 @@ struct CodexUsageFetcherTests {
         let binary = try temp.fakeCodexBinary()
         let launcher = RecordingCodexLauncher(.answering(rateLimits: try CodexFixtures.line("rate-limits-plus.json")))
         let fetcher = CodexUsageFetcher(launcher: launcher, clientVersion: "9.9.9")
+        try makeWorldReadableDirectory(AppPaths(home: temp.url).supportDirectory)
 
         let snapshot = try await fetcher.fetch(account(temp), context: context(temp, binary: binary))
 
@@ -39,6 +40,8 @@ struct CodexUsageFetcherTests {
         #expect(launch.currentDirectory == AppPaths(home: temp.url).probeDirectory)
         var isDirectory: ObjCBool = false
         #expect(FileManager.default.fileExists(atPath: launch.currentDirectory.path, isDirectory: &isDirectory) && isDirectory.boolValue)
+        #expect(try posixMode(AppPaths(home: temp.url).supportDirectory) == 0o700)
+        #expect(try posixMode(launch.currentDirectory) == 0o700)
         #expect(launcher.connection.terminated)
     }
 

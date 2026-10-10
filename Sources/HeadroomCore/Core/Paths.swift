@@ -28,6 +28,21 @@ public struct AppPaths: Sendable {
     /// Fixed, empty working directory for CLI probes, so probes never create per-run folders in a CLI's project list.
     public var probeDirectory: URL { supportDirectory.appending(path: "probe") }
 
+    /// Creates the probe directory inside the support directory, both owner-only, and returns it.
+    @discardableResult
+    public func createProbeDirectory() throws -> URL {
+        try Self.createOwnerOnlyDirectory(supportDirectory)
+        try Self.createOwnerOnlyDirectory(probeDirectory)
+        return probeDirectory
+    }
+
+    /// Creates `url` and missing parents at 0700, and also tightens `url` when it exists already: whichever of the
+    /// store, a fetcher or an older build got there first may have left the default 0755.
+    public static func createOwnerOnlyDirectory(_ url: URL) throws {
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+    }
+
     public func expand(_ path: String) -> URL {
         if path == "~" { return home }
         if path.hasPrefix("~/") { return home.appending(path: String(path.dropFirst(2))) }

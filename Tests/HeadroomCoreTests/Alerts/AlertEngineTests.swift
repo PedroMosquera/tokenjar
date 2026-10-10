@@ -114,6 +114,27 @@ struct AlertEngineTests {
 
     // MARK: Resets
 
+    /// Real snapshots carry several windows, and Claude's ids share a prefix (`weekly`, `weekly:Fable`). A reset of one
+    /// window must withdraw and re-arm only that window's alerts, and a first poll must not clear another's baseline.
+    @Test func aResetOnlyRearmsItsOwnWindow() {
+        var state = AlertState()
+        let sessionReset = now.addingTimeInterval(3600)
+        let weeklyReset = now.addingTimeInterval(2 * 86_400), fableReset = now.addingTimeInterval(3 * 86_400)
+        func poll(_ session: Double, _ weekly: Double, _ fable: Double, weeklyResetsAt: Date) -> AlertOutcome {
+            run(&state, ok(
+                self.session(session, resetsAt: sessionReset),
+                UsageWindow(id: "weekly", label: "Week", usedPercent: weekly, windowMinutes: 10_080, resetsAt: weeklyResetsAt),
+                UsageWindow(id: "weekly:Fable", label: "Week · Fable", usedPercent: fable, windowMinutes: 10_080, resetsAt: fableReset)
+            ))
+        }
+
+        #expect(poll(85, 85, 85, weeklyResetsAt: weeklyReset) == AlertOutcome())
+        #expect(poll(86, 86, 86, weeklyResetsAt: weeklyReset) == AlertOutcome())
+        let reset = poll(86, 2, 86, weeklyResetsAt: weeklyReset.addingTimeInterval(7 * 86_400))
+        #expect(reset == AlertOutcome(withdrawals: ["claude-work|weekly|\(AlertEngine.cycleID(weeklyReset))|80"]))
+        #expect(poll(87, 3, 87, weeklyResetsAt: weeklyReset.addingTimeInterval(7 * 86_400)) == AlertOutcome())
+    }
+
     @Test func reArmsAfterAResetAndWithdrawsTheOldCycle() throws {
         var state = AlertState()
         let resetsAt = now.addingTimeInterval(3600)

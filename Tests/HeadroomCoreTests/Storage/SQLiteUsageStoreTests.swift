@@ -6,6 +6,7 @@ import Testing
 struct SQLiteUsageStoreTests {
     let temp = TemporaryDirectory()
     let now = Date(timeIntervalSince1970: 1_791_660_000)
+    let allVersions = SQLiteUsageStore.migrations.indices.map { String($0 + 1) }
 
     @Test func createsAPrivateWALDatabaseInAMissingDirectory() throws {
         let url = temp.url.appending(path: "nested/headroom.sqlite")
@@ -14,7 +15,17 @@ struct SQLiteUsageStoreTests {
         let mode = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
         #expect(mode == 0o600)
         #expect(try query(url, "PRAGMA journal_mode") == ["wal"])
-        #expect(try query(url, "SELECT version FROM schema_version") == ["1"])
+        #expect(try query(url, "SELECT version FROM schema_version") == allVersions)
+    }
+
+    /// A dev probe may have created the support folder first, with the default 0755.
+    @Test func tightensAFolderAnotherWriterCreatedFirst() throws {
+        let folder = temp.url.appending(path: "Headroom")
+        try makeWorldReadableDirectory(folder)
+
+        _ = try SQLiteUsageStore(url: folder.appending(path: "headroom.sqlite"))
+
+        #expect(try posixMode(folder) == 0o700)
     }
 
     @Test func migratesAnEmptyFile() throws {
@@ -46,7 +57,7 @@ struct SQLiteUsageStoreTests {
         #expect(try reopened.checkpoints(scanner: "claude", accountID: "acct") == ["/a.jsonl": "10"])
         #expect(try reopened.latestSnapshots().map(\.accountID) == ["acct"])
         #expect(try reopened.samples(accountID: "acct", windowID: nil, since: .distantPast).count == 1)
-        #expect(try query(url, "SELECT version FROM schema_version") == ["1"])
+        #expect(try query(url, "SELECT version FROM schema_version") == allVersions)
     }
 
     @Test func refusesASchemaNewerThanThisBuild() throws {
@@ -78,6 +89,22 @@ struct SQLiteUsageStoreTests {
         let offsets = try store.samples(accountID: "acct", windowID: "session", since: .distantPast).map { $0.timestamp.timeIntervalSince(now) }
         #expect(offsets == [0, 300, 360, 420, 480])
         #expect(try store.latestSnapshots().first?.fetchedAt == now.addingTimeInterval(540))
+    }
+
+    /// The repeat check compares with the same window's last sample, never another window's with equal values.
+    @Test func windowsWithIdenticalValuesEachKeepTheirSample() throws {
+        let store = try StoreKind.sqlite.make(in: temp.url)
+        let reset = now.addingTimeInterval(86_400)
+        try store.record(UsageSnapshot(
+            accountID: "acct", provider: .claude,
+            windows: [
+                UsageWindow(id: "weekly:Fable", label: "Fable", usedPercent: 0, resetsAt: reset),
+                UsageWindow(id: "weekly:Opus", label: "Opus", usedPercent: 0, resetsAt: reset),
+            ],
+            fetchedAt: now, source: "test"
+        ))
+
+        #expect(try store.samples(accountID: "acct", windowID: nil, since: .distantPast).map(\.windowID) == ["weekly:Fable", "weekly:Opus"])
     }
 
     @Test func prunesSamplesOlderThanTheRetention() throws {
@@ -123,7 +150,7 @@ struct SQLiteUsageStoreTests {
                 try await group.waitForAll()
             }
             #expect(try query(url, "SELECT count(*) FROM usage_events") == ["2"])
-            #expect(try query(url, "SELECT version FROM schema_version") == ["1"])
+            #expect(try query(url, "SELECT version FROM schema_version") == allVersions)
         }
     }
 
@@ -149,7 +176,7 @@ struct SQLiteUsageStoreTests {
         try other.exec(SQLiteUsageStore.migrations[0] + "; INSERT INTO schema_version (version) VALUES (1); COMMIT")
 
         _ = try await opening.value
-        #expect(try query(url, "SELECT version FROM schema_version") == ["1"])
+        #expect(try query(url, "SELECT version FROM schema_version") == allVersions)
     }
 
     /// Reads the database through its own connection, so assertions do not depend on the store's code paths.

@@ -154,14 +154,29 @@ public struct ConfigStore: Sendable {
         try (data + Data("\n".utf8)).write(to: target, options: .atomic)
     }
 
+    /// Copies leaf fields one by one: the merge is deep, so a local override can sit beside a field the user edits in
+    /// the same struct or dictionary, and copying the whole value would write the override into config.json.
     static func apply(from old: AppConfig, to new: AppConfig, onto base: AppConfig) -> AppConfig {
         var out = base
-        if old.version != new.version { out.version = new.version }
-        if old.refreshMinutes != new.refreshMinutes { out.refreshMinutes = new.refreshMinutes }
-        if old.menuBar != new.menuBar { out.menuBar = new.menuBar }
-        if old.alerts != new.alerts { out.alerts = new.alerts }
-        if old.cliPaths != new.cliPaths { out.cliPaths = new.cliPaths }
-        if old.launchAtLogin != new.launchAtLogin { out.launchAtLogin = new.launchAtLogin }
+        // Every leaf of AppConfig except accounts must be listed here; one left out is never saved.
+        func copyIfEdited<T: Equatable>(_ field: WritableKeyPath<AppConfig, T>) {
+            if old[keyPath: field] != new[keyPath: field] { out[keyPath: field] = new[keyPath: field] }
+        }
+        copyIfEdited(\.version)
+        copyIfEdited(\.refreshMinutes)
+        copyIfEdited(\.launchAtLogin)
+        copyIfEdited(\.menuBar.mode)
+        copyIfEdited(\.menuBar.warnAt)
+        copyIfEdited(\.menuBar.criticalAt)
+        copyIfEdited(\.menuBar.showResetCountdownWhenFull)
+        copyIfEdited(\.alerts.enabled)
+        copyIfEdited(\.alerts.thresholds)
+        copyIfEdited(\.alerts.projectedExhaustion)
+        copyIfEdited(\.alerts.windowResets)
+        copyIfEdited(\.alerts.sourceProblems)
+        for name in Set(old.cliPaths.keys).union(new.cliPaths.keys) where old.cliPaths[name] != new.cliPaths[name] {
+            out.cliPaths[name] = new.cliPaths[name]
+        }
         if old.accounts != new.accounts {
             let oldByID = Dictionary(old.accounts.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             let baseByID = Dictionary(base.accounts.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })

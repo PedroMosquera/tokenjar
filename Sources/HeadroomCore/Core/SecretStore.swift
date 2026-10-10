@@ -19,7 +19,7 @@ public struct KeychainSecretStore: SecretStore {
         self.service = service
     }
 
-    private func query(_ account: String) -> [String: Any] {
+    func query(_ account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

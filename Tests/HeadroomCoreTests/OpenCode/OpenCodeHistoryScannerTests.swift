@@ -16,7 +16,7 @@ struct OpenCodeHistoryScannerTests {
 
     private func database(_ dir: OpenCodeTempDirectory) -> URL { dir.url.appending(path: "opencode.db") }
 
-    private func checkpointKey(_ dir: OpenCodeTempDirectory, _ table: String) -> String { database(dir).path + "#" + table }
+    private func checkpointKey(_ dir: OpenCodeTempDirectory, _ table: String) -> String { sha256Hex(database(dir).path + "#" + table) }
 
     @Test func keepsOnlyAssistantRowsOfTheScannedProviders() throws {
         let dir = try OpenCodeTempDirectory()
@@ -163,13 +163,13 @@ struct OpenCodeHistoryScannerTests {
 
     @Test func projectIsTheLastPathComponentAndNeverTheUserName() {
         let home = URL(fileURLWithPath: "/Users/placeholder")
-        #expect(OpenCodeHistoryScanner.project(fromWorkingDirectory: "/Users/placeholder/work/headroom", home: home) == "headroom")
-        #expect(OpenCodeHistoryScanner.project(fromWorkingDirectory: "/Users/placeholder/work/headroom/", home: home) == "headroom")
-        #expect(OpenCodeHistoryScanner.project(fromWorkingDirectory: "/Users/placeholder", home: home) == "~")
-        #expect(OpenCodeHistoryScanner.project(fromWorkingDirectory: "/Users/placeholder/", home: home) == "~")
-        #expect(OpenCodeHistoryScanner.project(fromWorkingDirectory: "/", home: home) == nil)
-        #expect(OpenCodeHistoryScanner.project(fromWorkingDirectory: "relative/dir", home: home) == nil)
-        #expect(OpenCodeHistoryScanner.project(fromWorkingDirectory: nil, home: home) == nil)
+        #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/work/headroom", home: home) == "headroom")
+        #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/work/headroom/", home: home) == "headroom")
+        #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder", home: home) == "~")
+        #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/", home: home) == "~")
+        #expect(UsageEvent.project(fromWorkingDirectory: "/", home: home) == nil)
+        #expect(UsageEvent.project(fromWorkingDirectory: "relative/dir", home: home) == nil)
+        #expect(UsageEvent.project(fromWorkingDirectory: nil, home: home) == nil)
     }
 }
 
