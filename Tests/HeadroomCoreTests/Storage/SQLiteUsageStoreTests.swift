@@ -4,10 +4,11 @@ import Testing
 @testable import HeadroomCore
 
 struct SQLiteUsageStoreTests {
+    let temp = TemporaryDirectory()
     let now = Date(timeIntervalSince1970: 1_791_660_000)
 
     @Test func createsAPrivateWALDatabaseInAMissingDirectory() throws {
-        let url = makeTemporaryDirectory().appending(path: "nested/headroom.sqlite")
+        let url = temp.url.appending(path: "nested/headroom.sqlite")
         _ = try SQLiteUsageStore(url: url)
 
         let mode = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
@@ -17,7 +18,7 @@ struct SQLiteUsageStoreTests {
     }
 
     @Test func migratesAnEmptyFile() throws {
-        let url = makeTemporaryDirectory().appending(path: "headroom.sqlite")
+        let url = temp.url.appending(path: "headroom.sqlite")
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         #expect(FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o644]))
 
@@ -32,7 +33,7 @@ struct SQLiteUsageStoreTests {
     }
 
     @Test func reopeningKeepsDataAndDoesNotMigrateAgain() throws {
-        let url = makeTemporaryDirectory().appending(path: "headroom.sqlite")
+        let url = temp.url.appending(path: "headroom.sqlite")
         do {
             let store = try SQLiteUsageStore(url: url)
             try store.upsert([usageEvent("k", at: now, input: 5)])
@@ -49,7 +50,7 @@ struct SQLiteUsageStoreTests {
     }
 
     @Test func refusesASchemaNewerThanThisBuild() throws {
-        let url = makeTemporaryDirectory().appending(path: "headroom.sqlite")
+        let url = temp.url.appending(path: "headroom.sqlite")
         _ = try SQLiteUsageStore(url: url)
         _ = try query(url, "INSERT INTO schema_version (version) VALUES (99)")
 
@@ -57,7 +58,7 @@ struct SQLiteUsageStoreTests {
     }
 
     @Test func skipsARepeatedSampleWithinFiveMinutes() throws {
-        let store = try StoreKind.sqlite.make()
+        let store = try StoreKind.sqlite.make(in: temp.url)
         let reset = now.addingTimeInterval(3600)
         func record(_ offset: TimeInterval, _ used: Double, _ resetsAt: Date?) throws {
             try store.record(UsageSnapshot(
@@ -80,7 +81,7 @@ struct SQLiteUsageStoreTests {
     }
 
     @Test func prunesSamplesOlderThanTheRetention() throws {
-        let store = try StoreKind.sqlite.make()
+        let store = try StoreKind.sqlite.make(in: temp.url)
         func record(_ at: Date, window: String) throws {
             try store.record(UsageSnapshot(accountID: "acct", provider: .claude, windows: [UsageWindow(id: window, label: window, usedPercent: 1)], fetchedAt: at, source: "test"))
         }
@@ -93,7 +94,7 @@ struct SQLiteUsageStoreTests {
     }
 
     @Test func survivesConcurrentWriters() async throws {
-        let store = try SQLiteUsageStore(url: makeTemporaryDirectory().appending(path: "headroom.sqlite"))
+        let store = try SQLiteUsageStore(url: temp.url.appending(path: "headroom.sqlite"))
         let start = now
         await withTaskGroup(of: Void.self) { group in
             for worker in 0..<8 {
@@ -110,6 +111,47 @@ struct SQLiteUsageStoreTests {
         #expect(try store.latestSnapshots().count == 8)
     }
 
+    /// The app and a dev command can open the same database for the first time at the same moment.
+    @Test func concurrentFirstOpensShareOneDatabase() async throws {
+        let start = now
+        for round in 0..<20 {
+            let url = temp.url.appending(path: "\(round)/headroom.sqlite")
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for opener in 0..<2 {
+                    group.addTask { try SQLiteUsageStore(url: url).upsert([usageEvent("\(opener)", at: start, input: 1)]) }
+                }
+                try await group.waitForAll()
+            }
+            #expect(try query(url, "SELECT count(*) FROM usage_events") == ["2"])
+            #expect(try query(url, "SELECT version FROM schema_version") == ["1"])
+        }
+    }
+
+    /// SQLite skips the busy timeout when switching a new file to WAL collides with another writer.
+    @Test func firstOpenWaitsForAnotherWriterOnTheNewFile() async throws {
+        let url = temp.url.appending(path: "headroom.sqlite")
+        let other = try OtherConnection(url)
+        try other.exec("BEGIN IMMEDIATE")
+        let opening = Task.detached { try SQLiteUsageStore(url: url) }
+        try await Task.sleep(for: .milliseconds(200))
+        try other.exec("COMMIT")
+
+        _ = try await opening.value
+        #expect(try query(url, "PRAGMA journal_mode") == ["wal"])
+    }
+
+    @Test func skipsMigrationsAnotherOpenerAppliedWhileThisOneWaited() async throws {
+        let url = temp.url.appending(path: "headroom.sqlite")
+        let other = try OtherConnection(url)
+        try other.exec("PRAGMA journal_mode = WAL; CREATE TABLE schema_version (version INTEGER NOT NULL); BEGIN IMMEDIATE")
+        let opening = Task.detached { try SQLiteUsageStore(url: url) }
+        try await Task.sleep(for: .milliseconds(200))
+        try other.exec(SQLiteUsageStore.migrations[0] + "; INSERT INTO schema_version (version) VALUES (1); COMMIT")
+
+        _ = try await opening.value
+        #expect(try query(url, "SELECT version FROM schema_version") == ["1"])
+    }
+
     /// Reads the database through its own connection, so assertions do not depend on the store's code paths.
     private func query(_ url: URL, _ sql: String) throws -> [String] {
         var db: OpaquePointer?
@@ -123,5 +165,24 @@ struct SQLiteUsageStoreTests {
             out.append(sqlite3_column_text(statement, 0).map { String(cString: $0) } ?? "")
         }
         return out
+    }
+}
+
+/// Stands in for another process, holding locks the store has to wait for.
+private final class OtherConnection {
+    private var db: OpaquePointer?
+
+    init(_ url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil) == SQLITE_OK else {
+            throw SQLiteError(code: SQLITE_CANTOPEN, message: "open")
+        }
+    }
+
+    deinit { sqlite3_close_v2(db) }
+
+    func exec(_ sql: String) throws {
+        let rc = sqlite3_exec(db, sql, nil, nil, nil)
+        guard rc == SQLITE_OK else { throw SQLiteError(code: rc, message: String(cString: sqlite3_errmsg(db))) }
     }
 }

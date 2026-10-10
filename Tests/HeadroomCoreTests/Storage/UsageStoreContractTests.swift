@@ -4,13 +4,14 @@ import Testing
 
 /// Behavior both `UsageStore` implementations must share. Every test runs once per store.
 struct UsageStoreContractTests {
+    let temp = TemporaryDirectory()
     let tokyo = fixedCalendar("Asia/Tokyo")
     var dayStart: Date { tokyo.date(from: DateComponents(year: 2026, month: 10, day: 10))! }
     var noon: Date { dayStart.addingTimeInterval(12 * 3600) }
 
     @Test(arguments: StoreKind.allCases)
     func upsertKeepsTheLargerValuePerField(kind: StoreKind) throws {
-        let store = try kind.make(calendar: tokyo)
+        let store = try kind.make(in: temp.url, calendar: tokyo)
         try store.upsert([usageEvent("k", at: noon, input: 100, output: 10, cacheRead: 7, cacheWrite5m: 5, cacheWrite1h: 1, reasoning: 3)])
         try store.upsert([usageEvent("k", at: noon, input: 90, output: 40, cacheRead: 2, cacheWrite5m: 9, cacheWrite1h: 0, reasoning: 8)])
 
@@ -27,7 +28,7 @@ struct UsageStoreContractTests {
     /// Claude Code writes one transcript line per content block of a streamed response, each carrying the usage so far.
     @Test(arguments: StoreKind.allCases)
     func chunksOfOneResponseCountOnce(kind: StoreKind) throws {
-        let store = try kind.make(calendar: tokyo)
+        let store = try kind.make(in: temp.url, calendar: tokyo)
         try store.upsert([
             usageEvent("claude:msg_1:req_1", at: noon, input: 3, output: 1, cacheRead: 40_000, cacheWrite5m: 1_200),
             usageEvent("claude:msg_1:req_1", at: noon.addingTimeInterval(2), input: 3, output: 250, cacheRead: 40_000, cacheWrite5m: 1_200),
@@ -46,7 +47,7 @@ struct UsageStoreContractTests {
 
     @Test(arguments: StoreKind.allCases)
     func reportedCostKeepsTheLargerAndIgnoresMissing(kind: StoreKind) throws {
-        let store = try kind.make(calendar: tokyo)
+        let store = try kind.make(in: temp.url, calendar: tokyo)
         try store.upsert([usageEvent("k", at: noon, harness: .opencode, input: 10)])
         try store.upsert([usageEvent("k", at: noon, harness: .opencode, input: 10, cost: 0.5)])
         try store.upsert([usageEvent("k", at: noon, harness: .opencode, input: 10)])
@@ -59,7 +60,7 @@ struct UsageStoreContractTests {
 
     @Test(arguments: StoreKind.allCases)
     func bucketsByLocalDayOfTheInjectedCalendar(kind: StoreKind) throws {
-        let store = try kind.make(calendar: tokyo)
+        let store = try kind.make(in: temp.url, calendar: tokyo)
         try store.upsert([
             usageEvent("before", at: dayStart.addingTimeInterval(-1), input: 1),
             usageEvent("at", at: dayStart, input: 10),
@@ -75,7 +76,7 @@ struct UsageStoreContractTests {
     @Test(arguments: StoreKind.allCases)
     func bucketsAcrossADaylightSavingChange(kind: StoreKind) throws {
         let newYork = fixedCalendar("America/New_York")
-        let store = try kind.make(calendar: newYork)
+        let store = try kind.make(in: temp.url, calendar: newYork)
         // US clocks fall back on 2026-11-01, so that local day is 25 hours long.
         let nov1 = newYork.date(from: DateComponents(year: 2026, month: 11, day: 1))!
         let nov2 = newYork.date(from: DateComponents(year: 2026, month: 11, day: 2))!
@@ -91,9 +92,12 @@ struct UsageStoreContractTests {
 
     @Test(arguments: StoreKind.allCases)
     func splitsReportedAndUnpricedTokensWithinARow(kind: StoreKind) throws {
-        let store = try kind.make(calendar: tokyo)
+        let store = try kind.make(in: temp.url, calendar: tokyo)
         try store.upsert([
-            usageEvent("reported-1", at: noon, harness: .opencode, model: "glm-5.2", input: 100, output: 10, cacheRead: 1_000, cost: 0.25),
+            usageEvent(
+                "reported-1", at: noon, harness: .opencode, model: "glm-5.2", input: 100, output: 10, cacheRead: 1_000, cacheWrite5m: 19, cacheWrite1h: 23,
+                cost: 0.25
+            ),
             usageEvent("reported-2", at: noon, harness: .opencode, model: "glm-5.2", input: 200, output: 20, cost: 0.5),
             usageEvent("unpriced", at: noon, harness: .opencode, model: "glm-5.2", input: 7, output: 3, cacheRead: 11, cacheWrite5m: 13, cacheWrite1h: 17),
             usageEvent("other-model", at: noon, harness: .opencode, model: "kimi-k3", input: 1),
@@ -106,6 +110,8 @@ struct UsageStoreContractTests {
         #expect(mixed.inputTokens == 307)
         #expect(mixed.outputTokens == 33)
         #expect(mixed.cacheReadTokens == 1_011)
+        #expect(mixed.cacheWrite5mTokens == 32)
+        #expect(mixed.cacheWrite1hTokens == 40)
         #expect(mixed.reportedCostUSD == 0.75)
         #expect(mixed.unpricedInputTokens == 7)
         #expect(mixed.unpricedOutputTokens == 3)
@@ -120,7 +126,7 @@ struct UsageStoreContractTests {
 
     @Test(arguments: StoreKind.allCases)
     func groupsByAccountHarnessModelAndProject(kind: StoreKind) throws {
-        let store = try kind.make(calendar: tokyo)
+        let store = try kind.make(in: temp.url, calendar: tokyo)
         try store.upsert([
             usageEvent("1", at: noon, project: nil, input: 1),
             usageEvent("2", at: noon, project: nil, input: 2),
@@ -141,7 +147,7 @@ struct UsageStoreContractTests {
 
     @Test(arguments: StoreKind.allCases)
     func filtersByAccountAndStart(kind: StoreKind) throws {
-        let store = try kind.make(calendar: tokyo)
+        let store = try kind.make(in: temp.url, calendar: tokyo)
         try store.upsert([
             usageEvent("old", at: noon.addingTimeInterval(-3 * 86_400), input: 1),
             usageEvent("a", at: noon, account: "a", input: 2),
@@ -158,7 +164,7 @@ struct UsageStoreContractTests {
 
     @Test(arguments: StoreKind.allCases)
     func checkpointsRoundTripAndReplaceWhole(kind: StoreKind) throws {
-        let store = try kind.make()
+        let store = try kind.make(in: temp.url)
         #expect(try store.checkpoints(scanner: "claude", accountID: "acct").isEmpty)
 
         try store.saveCheckpoints(["/a.jsonl": "1:100", "/b.jsonl": "2:200"], scanner: "claude", accountID: "acct")
@@ -174,7 +180,7 @@ struct UsageStoreContractTests {
 
     @Test(arguments: StoreKind.allCases)
     func latestSnapshotsKeepsTheLastRecordedPerAccount(kind: StoreKind) throws {
-        let store = try kind.make()
+        let store = try kind.make(in: temp.url)
         let first = UsageSnapshot(
             accountID: "acct", provider: .claude, plan: "Max 20x",
             windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: 10, windowMinutes: 300, resetsAt: noon.addingTimeInterval(3600))],
@@ -196,7 +202,7 @@ struct UsageStoreContractTests {
 
     @Test(arguments: StoreKind.allCases)
     func samplesFilterByWindowAndStartInTimeOrder(kind: StoreKind) throws {
-        let store = try kind.make()
+        let store = try kind.make(in: temp.url)
         let reset = noon.addingTimeInterval(4 * 3600)
         for (offset, used) in [(0.0, 10.0), (900, 20), (1800, 30)] {
             try store.record(UsageSnapshot(

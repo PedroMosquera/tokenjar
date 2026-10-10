@@ -5,17 +5,20 @@ enum StoreKind: String, CaseIterable, Sendable {
     case memory
     case sqlite
 
-    func make(calendar: Calendar = .current) throws -> any UsageStore {
+    func make(in directory: URL, calendar: Calendar = .current) throws -> any UsageStore {
         switch self {
         case .memory: InMemoryUsageStore(calendar: calendar)
-        case .sqlite: try SQLiteUsageStore(url: makeTemporaryDirectory().appending(path: "headroom.sqlite"), calendar: calendar)
+        case .sqlite: try SQLiteUsageStore(url: directory.appending(path: "headroom.sqlite"), calendar: calendar)
         }
     }
 }
 
 /// A fresh directory that does not exist yet, so tests also cover creating the store's parent directory.
-func makeTemporaryDirectory() -> URL {
-    FileManager.default.temporaryDirectory.appending(path: "headroom-store-tests/\(UUID().uuidString)")
+/// Deleted on deinit: keep it in a suite's stored property, which outlives every store a test opens in it.
+final class TemporaryDirectory: Sendable {
+    let url = FileManager.default.temporaryDirectory.appending(path: "headroom-store-tests/\(UUID().uuidString)")
+
+    deinit { try? FileManager.default.removeItem(at: url) }
 }
 
 func fixedCalendar(_ zone: String) -> Calendar {

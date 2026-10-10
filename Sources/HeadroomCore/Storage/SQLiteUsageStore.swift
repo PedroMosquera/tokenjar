@@ -16,6 +16,7 @@ public struct SQLiteError: Error, CustomStringConvertible {
 public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
     public static let sampleRetention: TimeInterval = 180 * 86_400
     public static let sampleDedupeInterval: TimeInterval = 5 * 60
+    private static let busyTimeout: TimeInterval = 5
 
     private let connection: Connection
     private let lock = NSLock()
@@ -23,16 +24,19 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
 
     private var db: OpaquePointer { connection.handle }
 
-    /// Opens or creates the database (mode 0600, WAL) and applies pending migrations.
-    /// `calendar` decides which local day an event falls on in `dailyUsage`.
+    /// Opens or creates the database (mode 0600, WAL) and applies pending migrations. Several processes may open
+    /// the same path at once, including for the first time. `calendar` decides which local day an event falls on in `dailyUsage`.
     public init(url: URL, calendar: Calendar = .current) throws {
         let fm = FileManager.default
         try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         // SQLite creates new files 0644 and gives the -wal and -shm files the main file's mode, so create it 0600 first.
-        if !fm.fileExists(atPath: url.path) {
-            guard fm.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) else {
-                throw SQLiteError(code: SQLITE_CANTOPEN, message: "cannot create the database file")
-            }
+        // O_EXCL rather than FileManager.createFile, which replaces the path and so orphans a concurrent opener's file.
+        let fd = open(url.path, O_CREAT | O_EXCL | O_RDWR, 0o600)
+        let createError = errno
+        if fd >= 0 {
+            close(fd)
+        } else if createError != EEXIST {
+            throw SQLiteError(code: SQLITE_CANTOPEN, message: "cannot create the database file (errno \(createError))")
         }
         try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
 
@@ -41,8 +45,8 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         guard let handle else { throw SQLiteError(code: rc, message: "cannot open the database") }
         connection = Connection(handle: handle)
         try check(rc)
-        sqlite3_busy_timeout(db, 5_000)
-        try exec("PRAGMA journal_mode = WAL")
+        sqlite3_busy_timeout(db, Int32(Self.busyTimeout * 1_000))
+        try enableWAL()
         try exec("PRAGMA synchronous = NORMAL")
         try registerDayFunction(calendar)
         try migrate()
@@ -264,14 +268,26 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         """,
     ]
 
-    private func migrate() throws {
-        try exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
-        let version = try schemaVersion()
-        guard version <= Self.migrations.count else {
-            throw SQLiteError(code: SQLITE_ERROR, message: "database schema \(version) is newer than this build supports (\(Self.migrations.count))")
+    /// Switching a new file to WAL upgrades a read lock to a write lock, where SQLite returns SQLITE_BUSY at once instead of
+    /// waiting out the busy timeout. Two first opens collide there, so the loser retries until the winner has switched the file.
+    private func enableWAL() throws {
+        let deadline = Date().addingTimeInterval(Self.busyTimeout)
+        while true {
+            let rc = sqlite3_exec(db, "PRAGMA journal_mode = WAL", nil, nil, nil)
+            guard rc == SQLITE_BUSY, Date() < deadline else { return try check(rc) }
+            usleep(10_000)
         }
-        for (index, sql) in Self.migrations.enumerated() where index >= version {
-            try transaction {
+    }
+
+    /// Reads the version under the write lock, so a second opener waits for the first to finish and then finds nothing pending.
+    private func migrate() throws {
+        try transaction {
+            try exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
+            let version = try schemaVersion()
+            guard version <= Self.migrations.count else {
+                throw SQLiteError(code: SQLITE_ERROR, message: "database schema \(version) is newer than this build supports (\(Self.migrations.count))")
+            }
+            for (index, sql) in Self.migrations.enumerated() where index >= version {
                 try exec(sql)
                 try run("INSERT INTO schema_version (version) VALUES (?1)", [.int(index + 1)])
             }
