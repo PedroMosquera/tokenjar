@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "currency": "USD",
+  "unit": "per_million_tokens",
+  "models": {
+    "claude-fable-5-1": {
+      "input": 10, "output": 50, "cacheRead": 0.25, "cacheWrite5m": 12.5, "cacheWrite1h": 20,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+    },
+    "claude-fable-5": {
+      "input": 10, "output": 50, "cacheRead": 1, "cacheWrite5m": 12.5, "cacheWrite1h": 20,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+    },
+    "claude-opus-5-5": {
+      "input": 4, "output": 20, "cacheRead": 0.2, "cacheWrite5m": 5, "cacheWrite1h": 8,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+    },
+    "claude-opus-5": {
+      "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite5m": 6.25, "cacheWrite1h": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+    },
+    "claude-sonnet-5-5": {
+      "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite5m": 2.5, "cacheWrite1h": 4,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+    },
+    "claude-sonnet-5": {
+      "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite5m": 2.5, "cacheWrite1h": 4,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+    },
+    "claude-haiku-5-5": {
+      "input": 0.1, "output": 0.5, "cacheRead": 0.01, "cacheWrite5m": 0.125, "cacheWrite1h": 0.2,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10",
+      "note": "Rate for prompts up to 100,000 tokens. Longer prompts are billed at 5x and are not modeled, so this underestimates them."
+    },
+    "claude-haiku-4-5": {
+      "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite5m": 1.25, "cacheWrite1h": 2,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+    },
+    "gpt-6-astra": {
+      "input": 10, "output": 50, "cacheRead": 1, "cacheWrite5m": 12.5, "cacheWrite1h": 12.5,
+      "source": "https://developers.openai.com/api/docs/pricing", "asOf": "2026-10-10",
+      "note": "Standard tier, short context (up to 272K input tokens). Cache write is the published cache-write rate."
+    },
+    "gpt-6.1-sol": {
+      "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite5m": 2.5, "cacheWrite1h": 2.5,
+      "source": "https://developers.openai.com/api/docs/pricing", "asOf": "2026-10-10",
+      "note": "Standard tier, short context (up to 272K input tokens). Cache write is the published cache-write rate."
+    },
+    "gpt-5.5": {
+      "input": 5, "output": 30, "cacheRead": 0.5, "cacheWrite5m": 5, "cacheWrite1h": 5,
+      "source": "https://developers.openai.com/api/docs/pricing", "asOf": "2026-10-10",
+      "note": "Standard tier, short context (up to 272K input tokens). No cache-write charge is published, so cache writes cost input."
+    }
+  },
+  "aliases": {
+    "claude-haiku-4-5-20251001": "claude-haiku-4-5"
+  }
+}
