@@ -94,12 +94,26 @@ struct CodexRateLimitMappingTests {
         #expect(CodexRateLimitMapping.isNotStarted(usedPercent: used, windowMinutes: 300, resetsAt: now.addingTimeInterval(resetIn), now: now) == expected)
     }
 
-    @Test(arguments: [
-        ("plus", "Plus"), ("pro", "Pro"), ("business", "Business"), ("team", "Business"), ("enterprise", "Enterprise"),
-        ("edu", "Edu"), ("edu_plus", "Edu"), ("free", "Free"), ("usage_based", "Usage Based"),
-    ])
-    func planLabels(raw: String, label: String) {
+    /// The `plan_type` values codex 0.162.0 declares (`hc` aside, its meaning is unknown), plus a made-up one for the fallback.
+    static let planCases: [(raw: String, label: String?)] = [
+        ("free", "Free"), ("go", "Go"), ("plus", "Plus"), ("pro", "Pro"), ("prolite", "Pro"), ("promax", "Pro"),
+        ("team", "Business"), ("business", "Business"), ("self_serve_business_prolite", "Business"),
+        ("self_serve_business_usage_based", "Business"), ("enterprise", "Enterprise"), ("ent26", "Enterprise"),
+        ("enterprise_cbp_automation", "Enterprise"), ("enterprise_cbp_usage_based", "Enterprise"), ("enterprise_cbp_trial", "Enterprise"),
+        ("edu", "Edu"), ("education", "Edu"), ("edu_plus", "Edu"), ("edu_pro", "Edu"), ("unknown", nil), ("", nil),
+        ("usage_based", "Usage Based"),
+    ]
+
+    @Test(arguments: planCases)
+    func planLabels(raw: String, label: String?) {
         #expect(CodexRateLimitMapping.planLabel(raw) == label)
+    }
+
+    @Test func unknownPlanShowsNoPill() throws {
+        let json = #"{"rateLimits":{"limitId":"codex","primary":{"usedPercent":9,"windowDurationMins":300},"planType":"unknown"}}"#
+        let result = try JSONDecoder().decode(CodexRateLimitsResult.self, from: Data(json.utf8))
+        let s = try #require(CodexRateLimitMapping.snapshot(from: result, accountID: "a", fetchedAt: now, source: "s"))
+        #expect(s.plan == nil)
     }
 
     @Test func unknownDurationsGetMinuteIdsAndReadableLabels() {

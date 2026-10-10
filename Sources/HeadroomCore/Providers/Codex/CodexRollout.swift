@@ -49,7 +49,7 @@ struct CodexRolloutLine: Decodable {
 
 /// Token counts in codex's shape. `cachedInputTokens` is a subset of `inputTokens`, and
 /// `reasoningOutputTokens` a subset of `outputTokens`.
-struct CodexTokenUsage: Decodable, Sendable, Equatable {
+struct CodexTokenUsage: Codable, Sendable, Equatable {
     var inputTokens = 0
     var cachedInputTokens = 0
     var outputTokens = 0

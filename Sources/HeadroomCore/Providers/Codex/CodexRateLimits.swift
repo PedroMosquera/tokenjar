@@ -216,7 +216,7 @@ enum CodexRateLimitMapping {
         }
         if let note = creditsNote(main.credits) { notes.append(note) }
 
-        let plan = (main.planType ?? byID.values.compactMap(\.planType).first).map(planLabel)
+        let plan = (main.planType ?? byID.values.compactMap(\.planType).first).flatMap(planLabel)
         return UsageSnapshot(
             accountID: accountID, provider: .codex, plan: plan, windows: windows,
             fetchedAt: fetchedAt, source: source, notes: notes
@@ -271,16 +271,22 @@ enum CodexRateLimitMapping {
         return "Credits: \(balance.formatted)"
     }
 
-    static func planLabel(_ planType: String) -> String {
+    /// The plan pill for codex's `plan_type`, or nil when codex does not know the plan either. Workspace and
+    /// billing variants (`ent26`, `enterprise_cbp_*`, `self_serve_business_*`) collapse into their family.
+    static func planLabel(_ planType: String) -> String? {
         let plan = planType.lowercased()
         switch plan {
+        case "", "unknown": return nil
         case "plus": return "Plus"
-        case "pro": return "Pro"
-        case "business", "team": return "Business"
-        case "enterprise": return "Enterprise"
+        case "go": return "Go"
         case "free": return "Free"
+        case "team": return "Business"
         default:
+            if plan.contains("enterprise") || plan.hasPrefix("ent") { return "Enterprise" }
+            if plan.contains("business") { return "Business" }
             if plan.hasPrefix("edu") { return "Edu" }
+            // `prolite` and `promax` have no verified marketed names, so they show as their family.
+            if plan.hasPrefix("pro") { return "Pro" }
             return plan.split(separator: "_").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
         }
     }

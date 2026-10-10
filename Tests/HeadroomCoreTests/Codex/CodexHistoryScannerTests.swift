@@ -46,14 +46,14 @@ struct CodexHistoryScannerTests {
     }
 
     @Test func jumpToTheContextWindowWithoutOutputIsNotUsage() {
-        var reader = CodexHistoryScanner.FileReader(fileName: "f", accountID: "a", totals: nil)
+        var reader = CodexHistoryScanner.FileReader(fileName: "f", accountID: "a")
         let lines = [
             #"{"timestamp":"2026-10-09T10:00:00Z","type":"turn_context","payload":{"model":"gpt-5.5","cwd":"/x/p"}}"#,
             #"{"timestamp":"2026-10-09T10:01:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1000,"cached_input_tokens":0,"output_tokens":100,"reasoning_output_tokens":0,"total_tokens":1100},"model_context_window":5000}}}"#,
             #"{"timestamp":"2026-10-09T10:02:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":4900,"cached_input_tokens":0,"output_tokens":100,"reasoning_output_tokens":0,"total_tokens":5000},"model_context_window":5000}}}"#,
             #"{"timestamp":"2026-10-09T10:03:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":5400,"cached_input_tokens":0,"output_tokens":150,"reasoning_output_tokens":0,"total_tokens":5550},"model_context_window":5000}}}"#,
         ]
-        for (index, line) in lines.enumerated() { reader.read(Data(line.utf8), at: index * 1_000, counting: true) }
+        for (index, line) in lines.enumerated() { reader.read(Data(line.utf8), at: index * 1_000) }
 
         #expect(reader.events.map(\.inputTokens) == [1_000, 500])
         #expect(reader.events.map(\.outputTokens) == [100, 50])
@@ -87,14 +87,14 @@ struct CodexHistoryScannerTests {
             return try scan(other).events
         }()
 
-        // First scan sees the first two deltas plus half of a line codex is still writing.
+        // First scan sees one delta, a repeat of its total, and half of a line codex is still writing.
         try temp.write(lines[..<6].joined(separator: "\n") + "\n" + lines[6].prefix(40), to: path)
         let first = try scan(temp)
         #expect(first.events.map(\.dedupeKey) == ["codex:rollout-t.jsonl:10500"])
         #expect(first.checkpoints.count == 1)
         let checkpoint = try #require(first.checkpoints.values.first.flatMap(CodexHistoryScanner.Checkpoint.init))
         #expect(checkpoint.offset == lines[..<6].map { $0.utf8.count + 1 }.reduce(0, +))
-        #expect(checkpoint.totals?.totalTokens == 10_500)
+        #expect(checkpoint.context.totals?.totalTokens == 10_500)
 
         let unchanged = try scan(temp, first.checkpoints)
         #expect(unchanged.events.isEmpty)
@@ -108,7 +108,7 @@ struct CodexHistoryScannerTests {
         #expect(first.events + second.events == whole)
     }
 
-    @Test func incrementalScansKeepRecordModeAndContextFromBeforeTheCheckpoint() throws {
+    @Test func incrementalScansReadOnlyTheTailAndKeepRecordModeAndContext() throws {
         let temp = try CodexTempDirectory()
         let lines = try CodexFixtures.lines("rollout-records.jsonl")
         let path = "codex-home/sessions/2026/10/09/rollout-r.jsonl"
@@ -117,7 +117,9 @@ struct CodexHistoryScannerTests {
         let first = try scan(temp)
         #expect(first.events.map(\.dedupeKey) == ["codex:resp_placeholder_1"])
 
-        try temp.write(lines.joined(separator: "\n") + "\n", to: path)
+        // The model, project and record mode can only come from the checkpoint once the head is blanked in place.
+        let blankHead = lines[..<4].map { String(repeating: " ", count: $0.utf8.count) }
+        try temp.write((blankHead + lines[4...]).joined(separator: "\n") + "\n", to: path)
         let second = try scan(temp, first.checkpoints)
         #expect(second.events.map(\.dedupeKey) == ["codex:resp_placeholder_2"])
         #expect(second.events.first?.model == "gpt-6.1-sol")
@@ -137,6 +139,19 @@ struct CodexHistoryScannerTests {
         #expect(second.events == first.events)
     }
 
+    @Test func truncatedFileIsRescannedFromTheStart() throws {
+        let temp = try CodexTempDirectory()
+        let lines = try CodexFixtures.lines("rollout-token-count.jsonl")
+        let path = "codex-home/sessions/2026/10/09/rollout-t.jsonl"
+        try temp.write(lines.joined(separator: "\n") + "\n", to: path)
+        let first = try scan(temp)
+
+        try temp.write(lines[..<5].joined(separator: "\n") + "\n", to: path)
+        let second = try scan(temp, first.checkpoints)
+
+        #expect(second.events.map(\.dedupeKey) == ["codex:rollout-t.jsonl:10500"])
+    }
+
     @Test func checkpointsForDeletedFilesAreDropped() throws {
         let temp = try CodexTempDirectory()
         let result = try scan(temp, ["/gone/rollout-x.jsonl": "1:2:"])
@@ -144,9 +159,19 @@ struct CodexHistoryScannerTests {
         #expect(result.events.isEmpty)
     }
 
-    @Test(arguments: ["12:345:1,2,3,4,5", "12:345:"])
-    func checkpointRoundTrips(encoded: String) throws {
-        #expect(try #require(CodexHistoryScanner.Checkpoint(encoded)).encoded == encoded)
+    @Test func checkpointRoundTripsModelIdsAndFolderNamesWithSeparators() {
+        let context = CodexHistoryScanner.Context(
+            totals: CodexTokenUsage(inputTokens: 1, cachedInputTokens: 2, outputTokens: 3, reasoningOutputTokens: 4, totalTokens: 5),
+            model: "gpt-oss:20b", project: "a:b,c", recordsStarted: true
+        )
+        let checkpoint = CodexHistoryScanner.Checkpoint(inode: 12, offset: 345, context: context)
+        #expect(CodexHistoryScanner.Checkpoint(checkpoint.encoded) == checkpoint)
+        #expect(CodexHistoryScanner.Checkpoint(CodexHistoryScanner.Checkpoint(inode: 1, offset: 0, context: .init()).encoded)?.context == .init())
+    }
+
+    @Test(arguments: ["", "12:345:1,2,3,4,5", #"{"inode":1,"offset":-1,"context":{"recordsStarted":false}}"#])
+    func unreadableCheckpointsMeanAFullRescan(encoded: String) {
+        #expect(CodexHistoryScanner.Checkpoint(encoded) == nil)
     }
 
     @Test func eventsCarryNoTextFromTheLog() throws {
