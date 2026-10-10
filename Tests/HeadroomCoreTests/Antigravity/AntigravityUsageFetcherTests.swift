@@ -18,11 +18,27 @@ final class AntigravityUsageFetcherTests {
 
     // MARK: Version gate
 
-    @Test func readsVersionFromCommonFormats() {
-        #expect(AntigravityUsageFetcher.version(in: "1.1.11\n") == [1, 1, 11])
-        #expect(AntigravityUsageFetcher.version(in: "agy version 1.2 (abc1234)") == [1, 2, 0])
-        #expect(AntigravityUsageFetcher.version(in: "agy/1.1.10 darwin-arm64") == [1, 1, 10])
-        #expect(AntigravityUsageFetcher.version(in: "agy (dev build)") == nil)
+    @Test(arguments: [
+        ("1.1.11\n", [1, 1, 11]),
+        ("agy version 1.2 (abc1234)", [1, 2, 0]),
+        ("agy/1.1.10 darwin-arm64", [1, 1, 10]),
+        ("Antigravity CLI v1.3.0-beta.2", [1, 3, 0]),
+        ("Node.js v22.3.0\nagy 1.0.4\n", [1, 0, 4]),
+        ("v22.3.0\nagy 1.0.4\n", [1, 0, 4]),
+    ])
+    func readsTheAgyVersionNotOtherNumbers(text: String, version: [Int]) {
+        #expect(AntigravityUsageFetcher.version(in: text) == version)
+    }
+
+    @Test(arguments: [
+        "agy (dev build)",
+        "agy (dev build) node 22.3.0",
+        "error: unknown option '--version' (see docs v2.0)",
+        "Node.js v22.3.0",
+        "agy 1.1.11abc",
+    ])
+    func refusesTextWithoutAnAnchoredAgyVersion(text: String) {
+        #expect(AntigravityUsageFetcher.version(in: text) == nil)
     }
 
     @Test(arguments: [
@@ -34,10 +50,13 @@ final class AntigravityUsageFetcherTests {
     }
 
     @Test(arguments: [
-        ("agy 1.1.10", "Update agy to 1.1.11 or later"),
-        ("agy (dev build)", "Could not read the agy version"),
+        (output("agy 1.1.10"), "Update agy to 1.1.11 or later"),
+        (output("Node.js v22.3.0\nagy 1.0.4\n"), "Update agy to 1.1.11 or later"),
+        (output("agy (dev build)"), "Could not read the agy version"),
+        (output("", stderr: "agy 1.2.0\n"), "Could not read the agy version"),
+        (output("agy 1.2.0\n", stderr: "error: unknown option '--version' (see docs v2.0)\n", exitCode: 2), "Could not read the agy version"),
     ])
-    func refusesOldOrUnknownVersionsBeforeAskingForUsage(version: String, message: String) async throws {
+    func refusesOldOrUnknownVersionsBeforeAskingForUsage(version: ProcessResult, message: String) async throws {
         let runner = try FakeAgy(version: version, usage: output(fixture("usage-snake.json")))
         await #expect(throws: FetchError.unsupported(message)) { try await self.fetch(runner) }
         #expect(runner.calls.map(\.arguments) == [["--version"]])
@@ -133,9 +152,54 @@ final class AntigravityUsageFetcherTests {
     }
 
     @Test(arguments: [
+        ("seven_day", "weekly", 10_080), ("7_day", "weekly", 10_080), ("WEEKLY", "weekly", 10_080), ("7d", "weekly", 10_080),
+        ("five_hours", "session", 300), ("5h", "session", 300), ("Session", "session", 300),
+        ("Daily_Requests", "dailyrequests", nil),
+    ])
+    func classifiesWindowSpellings(raw: String, id: String, minutes: Int?) throws {
+        let kind = try #require(AntigravityUsageFetcher.windowKind(raw))
+        #expect(kind.id == id)
+        #expect(kind.minutes == minutes)
+    }
+
+    @Test(arguments: [
+        #"{"groups":[{"name":"Gemini models","buckets":[{"window":"weekly","remaining":0.4,"reset_time":"2026-10-12T00:00:00Z"}]}]}"#,
+        #"{"groups":[{"name":"Gemini models","buckets":[{"limit":"weekly","remaining_fraction":0.4}]}]}"#,
+        #"{"groups":[{"name":"Gemini models","buckets":[{"window":"weekly","remaining_fraction":62}]}]}"#,
+        #"{"groups":[{"name":"Gemini models","buckets":[{"window":"weekly","remaining_fraction":-0.2}]}]}"#,
+        #"{"groups":[{"name":"Gemini models","limits":[{"window":"weekly","remaining_fraction":0.4}]}]}"#,
+    ])
+    func unrecognizedBucketsAreAParseErrorNotAnEmptyAccount(stdout: String) async throws {
+        let runner = FakeAgy(usage: output(stdout))
+        await #expect(throws: FetchError.parse("agy /usage buckets not recognized")) { try await self.fetch(runner) }
+    }
+
+    @Test func oneUnrecognizedBucketBesideAGoodOneIsSkipped() async throws {
+        let stdout = #"{"groups":[{"name":"Gemini models","buckets":[{"window":"weekly","remaining_fraction":0.5},{"window":"five_hour","remaining_percent":40}]}]}"#
+        let snapshot = try await fetch(FakeAgy(usage: output(stdout)))
+        #expect(snapshot.windows.map(\.id) == ["gemini:weekly"])
+    }
+
+    @Test func errorPayloadAboutSignInIsNotSignedIn() async throws {
+        let runner = FakeAgy(usage: output(#"{"error":{"code":"UNAUTHENTICATED","message":"Please sign in"}}"#))
+        await #expect(throws: FetchError.notSignedIn) { try await self.fetch(runner) }
+    }
+
+    @Test(arguments: [
+        #"{"command":{"name":"usage","error":{"code":"UNAVAILABLE","message":"placeholder detail"}}}"#,
+        #"{"result":{"error":"placeholder detail"}}"#,
+    ])
+    func otherErrorPayloadIsAParseError(stdout: String) async throws {
+        let runner = FakeAgy(usage: output(stdout))
+        await #expect(throws: FetchError.parse("agy /usage reported an error")) { try await self.fetch(runner) }
+    }
+
+    @Test(arguments: [
         #"{"command":{"data":{"groups":[]}}}"#,
         #"{"command":{"data":{"message":"Usage is not available for this account type"}}}"#,
+        #"{"command":{"error":null,"data":{"message":"Usage is not available for this account type"}}}"#,
         #"{"command":{"data":{"groups":[{"name":"Gemini models","buckets":[{"window":"weekly","remaining_fraction":1,"disabled":true}]}]}}}"#,
+        #"{"command":{"data":{"groups":[{"name":"Gemini models","buckets":[]}]}}}"#,
     ])
     func emptyReportShowsANoteInsteadOfWindows(stdout: String) async throws {
         let snapshot = try await fetch(FakeAgy(usage: output(stdout)))
@@ -202,8 +266,8 @@ private final class FakeAgy: ProcessRunning, @unchecked Sendable {
     private let version: ProcessResult
     private let usage: ProcessResult
 
-    init(version: String = "agy 1.1.11", usage: ProcessResult) {
-        self.version = output(version)
+    init(version: ProcessResult = output("agy 1.1.11"), usage: ProcessResult) {
+        self.version = version
         self.usage = usage
     }
 

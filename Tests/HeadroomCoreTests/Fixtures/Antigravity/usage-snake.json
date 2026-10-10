@@ -14,7 +14,7 @@
           "name": "Claude and GPT models",
           "buckets": [
             { "window": "five_hour", "remaining_fraction": 1, "reset_time": "2026-10-10T23:00:00Z", "disabled": true },
-            { "window": "weekly", "remaining_fraction": 0.25, "reset_time": "2026-10-14T08:00:00Z", "disabled": false }
+            { "window": "weekly", "remaining_fraction": 0.25, "reset_time": "2026-10-14T08:00:00", "disabled": false }
           ]
         }
       ]
