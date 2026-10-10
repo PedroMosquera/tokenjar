@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "currency": "USD",
+  "unit": "per_million_tokens",
+  "models": {
+    "model-a": { "input": 1, "output": 2, "cacheRead": 0.1, "cacheWrite5m": 1.25, "cacheWrite1h": 2, "source": "https://example.test/a", "asOf": "2026-01-01" },
+    "model-b": { "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite5m": 3.75, "cacheWrite1h": 6, "source": "https://example.test/b", "asOf": "2026-01-01" }
+  },
+  "aliases": {
+    "a-legacy": "model-a",
+    "b-legacy": "model-b"
+  }
+}

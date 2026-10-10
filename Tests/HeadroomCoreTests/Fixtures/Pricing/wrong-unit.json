@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "currency": "USD",
+  "unit": "per_thousand_tokens",
+  "models": {
+    "model-a": { "input": 0.001, "output": 0.002, "cacheRead": 0.0001, "cacheWrite5m": 0.00125, "cacheWrite1h": 0.002 }
+  }
+}

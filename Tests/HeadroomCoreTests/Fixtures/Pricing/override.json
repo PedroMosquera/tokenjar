@@ -1,0 +1,9 @@
+{
+  "models": {
+    "model-b": { "input": 30, "output": 150, "cacheRead": 3, "cacheWrite5m": 37.5, "cacheWrite1h": 60 },
+    "model-c": { "input": 0.5, "output": 1, "cacheRead": 0.05, "cacheWrite5m": 0.5, "cacheWrite1h": 0.5, "source": "my contract", "asOf": "2026-09-01" }
+  },
+  "aliases": {
+    "b-legacy": "model-c"
+  }
+}
