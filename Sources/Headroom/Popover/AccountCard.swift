@@ -51,17 +51,20 @@ private struct AccountCardHeader: View {
                     ProviderLogoView(provider: account.provider, size: 16)
                     Text(title.provider)
                         .font(.headline)
+                        .layoutPriority(2)
                     if let label = title.label {
                         Text(label)
                             .foregroundStyle(.secondary)
                     }
                     if let plan = title.plan {
                         PlanPill(text: plan)
+                            .layoutPriority(1)
                     }
-                    Image(systemName: "arrow.up.forward")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .opacity(hover.isHovering ? 1 : 0)
+                    if hover.isHovering {
+                        Image(systemName: "arrow.up.forward")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .lineLimit(1)
                 .contentShape(Rectangle())
@@ -76,10 +79,12 @@ private struct AccountCardHeader: View {
                 ProgressView()
                     .controlSize(.mini)
             } else if isStale, let fetchedAt = status.snapshot?.fetchedAt {
-                Label(Format.age(of: fetchedAt, now: model.now), systemImage: "clock")
+                let age = Format.duration(model.now.timeIntervalSince(fetchedAt))
+                Label(String(age.prefix { $0 != " " }), systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .help("Last successful update \(Format.age(of: fetchedAt, now: model.now))")
+                    .fixedSize()
+                    .help("Last successful update \(age) ago")
             }
             AccountMenu(account: account)
         }
@@ -184,7 +189,7 @@ private struct SnapshotBody: View {
                     }
                 }
             }
-            if let verdict = PaceVerdict.make(windows: snapshot.windows, now: now) {
+            if let verdict = PaceVerdict.make(windows: snapshot.windows, config: model.config.menuBar, now: now) {
                 VerdictLine(verdict: verdict, severity: verdictSeverity(verdict))
             }
             chart(now: now)

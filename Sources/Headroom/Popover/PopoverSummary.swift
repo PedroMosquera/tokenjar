@@ -73,7 +73,7 @@ struct PopoverSummary: Equatable {
     }
 }
 
-/// One line judging the pace of the most used window that has enough elapsed time to project.
+/// One line judging the pace of the most urgent window among those with enough elapsed time to project.
 struct PaceVerdict: Equatable {
     enum Kind: Equatable {
         case onPace
@@ -85,6 +85,15 @@ struct PaceVerdict: Equatable {
         case runsOut(TimeInterval)
         /// Already at 100 %; seconds until the reset.
         case exhausted(TimeInterval)
+
+        fileprivate var urgency: Int {
+            switch self {
+            case .onPace, .under: 0
+            case .ahead: 1
+            case .runsOut: 2
+            case .exhausted: 3
+            }
+        }
     }
 
     var window: UsageWindow
@@ -93,29 +102,29 @@ struct PaceVerdict: Equatable {
     /// Deltas inside this band read as "On pace"; smaller ones are noise from sampling and rounding.
     static let tolerance = 5.0
 
-    /// "Runs out" follows the projected-exhaustion alert rule in docs/design.md so the verdict never
-    /// contradicts a notification; earlier or smaller overuse reads as "Ahead of pace".
-    static func make(windows: [UsageWindow], now: Date) -> PaceVerdict? {
-        let paced = windows.compactMap { window in Pace.compute(window, now: now).map { (window, $0) } }
-        let tightest = paced.max { a, b in
-            if a.0.usedPercent != b.0.usedPercent { return a.0.usedPercent < b.0.usedPercent }
-            return (a.0.resetsAt ?? .distantFuture) > (b.0.resetsAt ?? .distantFuture)
+    /// Judges every paced window and keeps the most urgent kind, then the higher severity, then the higher used %.
+    /// "Runs out" uses the projected-exhaustion alert thresholds in docs/design.md, so whenever that alert fires the
+    /// verdict reads "Runs out" or "Limit reached"; earlier or smaller overuse reads as "Ahead of pace".
+    static func make(windows: [UsageWindow], config: MenuBarConfig, now: Date) -> PaceVerdict? {
+        let judged = windows.compactMap { window in
+            Pace.compute(window, now: now).map { pace in
+                (verdict: PaceVerdict(window: window, kind: kind(of: window, pace: pace)), severity: Severity.of(window, config: config, now: now))
+            }
         }
-        guard let (window, pace) = tightest else { return nil }
-        let kind: Kind
-        if window.usedPercent >= 100 {
-            kind = .exhausted(pace.secondsToReset)
-        } else if pace.runsOutBeforeReset, window.usedPercent >= 50, pace.fractionElapsed >= 0.1,
+        return judged.max { a, b in
+            (a.verdict.kind.urgency, a.severity, a.verdict.window.usedPercent) < (b.verdict.kind.urgency, b.severity, b.verdict.window.usedPercent)
+        }?.verdict
+    }
+
+    private static func kind(of window: UsageWindow, pace: Pace) -> Kind {
+        if window.usedPercent >= 100 { return .exhausted(pace.secondsToReset) }
+        if pace.runsOutBeforeReset, window.usedPercent >= 50, pace.fractionElapsed >= 0.1,
            let eta = pace.secondsToExhaustion, pace.secondsToReset - eta >= 15 * 60 {
-            kind = .runsOut(pace.secondsToReset - eta)
-        } else if pace.delta >= tolerance {
-            kind = .ahead(pace.delta)
-        } else if pace.delta <= -tolerance {
-            kind = .under(-pace.delta)
-        } else {
-            kind = .onPace
+            return .runsOut(pace.secondsToReset - eta)
         }
-        return PaceVerdict(window: window, kind: kind)
+        if pace.delta >= tolerance { return .ahead(pace.delta) }
+        if pace.delta <= -tolerance { return .under(-pace.delta) }
+        return .onPace
     }
 
     var text: String {
