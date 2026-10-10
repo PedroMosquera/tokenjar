@@ -16,6 +16,8 @@ struct OpenCodeHistoryScannerTests {
 
     private func database(_ dir: OpenCodeTempDirectory) -> URL { dir.url.appending(path: "opencode.db") }
 
+    private func checkpointKey(_ dir: OpenCodeTempDirectory, _ table: String) -> String { database(dir).path + "#" + table }
+
     @Test func keepsOnlyAssistantRowsOfTheScannedProviders() throws {
         let dir = try OpenCodeTempDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir))
@@ -66,7 +68,7 @@ struct OpenCodeHistoryScannerTests {
 
         let first = try scan(dir)
         #expect(first.events.count == 3)
-        #expect(first.checkpoints[database(dir).path] == "message:\(t0 + 2_000)")
+        #expect(first.checkpoints[checkpointKey(dir, "message")] == "\(t0 + 2_000)")
 
         try db.updateV1(id: "msg_a", cost: "0.5", updated: t0 + 4_000)
         try db.insertV1(id: "msg_c", provider: "opencode-go", created: t0 + 3_000)
@@ -75,28 +77,46 @@ struct OpenCodeHistoryScannerTests {
         // msg_b sits exactly on the checkpoint and is re-read on purpose; msg_old is not.
         #expect(second.events.map(\.dedupeKey) == ["opencode:msg_b", "opencode:msg_c", "opencode:msg_a"])
         #expect(second.events.last?.reportedCostUSD == 0.5)
-        #expect(second.checkpoints[database(dir).path] == "message:\(t0 + 4_000)")
+        #expect(second.checkpoints[checkpointKey(dir, "message")] == "\(t0 + 4_000)")
     }
 
-    @Test func checkpointFromAnotherTableStartsOver() throws {
-        let dir = try OpenCodeTempDirectory()
-        let db = try OpenCodeFixtureDatabase(at: database(dir))
-        try db.createV1Tables()
-        try db.insertV1(id: "msg_1", provider: "opencode-go", created: t0)
-        let result = try scan(dir, checkpoints: [database(dir).path: "session_message:\(t0 + 999_999)"])
-        #expect(result.events.map(\.dedupeKey) == ["opencode:msg_1"])
-    }
-
-    @Test func prefersTheV1TableWhenTheV2MigrationCopiedRows() throws {
+    /// Both tables live side by side once opencode has created `session_message`. Rows that exist only there,
+    /// including ones older than the newest `message` row, count; copies of `message` rows do not.
+    @Test func readsBothTablesAndSkipsV2CopiesOfV1Rows() throws {
         let dir = try OpenCodeTempDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir))
         try db.createV1Tables()
         try db.createV2Tables()
         try db.insertSession("ses_1", directory: "/work/alpha")
+        try db.insertSession("ses_2", directory: "/work/beta")
         try db.insertV1(id: "msg_1", provider: "opencode-go", created: t0)
-        try db.insertV2(id: "msg_1", provider: "opencode-go", created: t0, seq: 1)
-        try db.insertV2(id: "msg_v2_only", provider: "opencode-go", created: t0 + 1, seq: 2)
-        #expect(try scan(dir).events.map(\.dedupeKey) == ["opencode:msg_1"])
+        try db.insertV1(id: "msg_2", provider: "opencode-go", created: t0 + 10_000)
+        try db.insertV2(id: "msg_1", provider: "opencode-go", created: t0 + 1, seq: 1)
+        try db.insertV2(id: "msg_2_new_id", provider: "opencode-go", created: t0 + 10_000, seq: 2)
+        try db.insertV2(id: "msg_v2_older", session: "ses_2", provider: "opencode-go", created: t0 + 5_000, seq: 1)
+        try db.insertV2(id: "msg_v2_newer", session: "ses_2", provider: "opencode-go", created: t0 + 20_000, seq: 2)
+
+        let result = try scan(dir)
+        #expect(result.events.map(\.dedupeKey).sorted() == ["opencode:msg_1", "opencode:msg_2", "opencode:msg_v2_newer", "opencode:msg_v2_older"])
+        #expect(result.events.first { $0.dedupeKey == "opencode:msg_v2_older" }?.project == "beta")
+        #expect(result.checkpoints[checkpointKey(dir, "message")] == "\(t0 + 10_000)")
+        #expect(result.checkpoints[checkpointKey(dir, "session_message")] == "\(t0 + 20_000)")
+    }
+
+    /// A newer checkpoint in one table must not hide rows the other table gained after its own checkpoint.
+    @Test func eachTableResumesFromItsOwnCheckpoint() throws {
+        let dir = try OpenCodeTempDirectory()
+        let db = try OpenCodeFixtureDatabase(at: database(dir))
+        try db.createV1Tables()
+        try db.createV2Tables()
+        try db.insertV1(id: "msg_v1_a", provider: "opencode-go", created: t0 + 1_000)
+        try db.insertV2(id: "msg_v2_a", session: "ses_2", provider: "opencode-go", created: t0 + 9_000, seq: 1)
+        let first = try scan(dir)
+        #expect(first.events.count == 2)
+
+        try db.insertV1(id: "msg_v1_b", provider: "opencode-go", created: t0 + 2_000)
+        let second = try scan(dir, checkpoints: first.checkpoints)
+        #expect(second.events.map(\.dedupeKey) == ["opencode:msg_v1_a", "opencode:msg_v1_b", "opencode:msg_v2_a"])
     }
 
     @Test func readsTheV2TableWhenTheV1TableIsGone() throws {
@@ -116,7 +136,8 @@ struct OpenCodeHistoryScannerTests {
         #expect(event.inputTokens == 11)
         #expect(event.outputTokens == 22)
         #expect(event.reportedCostUSD == 1)
-        #expect(result.checkpoints[database(dir).path] == "session_message:\(t0)")
+        #expect(result.checkpoints[checkpointKey(dir, "session_message")] == "\(t0)")
+        #expect(result.checkpoints[checkpointKey(dir, "message")] == nil)
     }
 
     @Test func missingDatabaseYieldsNothingAndKeepsCheckpoints() throws {
@@ -173,11 +194,14 @@ struct OpenCodeZenUsageFetcherTests {
         try db.insertV1(id: "zen_this_2", provider: "opencode", cost: "2", created: ms("2026-10-09T12:00:00Z"))
         try db.insertV1(id: "zen_last_month", provider: "opencode", cost: "4", created: ms("2026-09-30T23:59:59Z"))
         try db.insertV1(id: "go_this", provider: "opencode-go", cost: "9", created: ms("2026-10-05T00:00:00Z"))
+        try db.createV2Tables()
+        try db.insertV2(id: "zen_this_1", provider: "opencode", cost: "1.5", created: ms("2026-10-01T00:00:00Z"), seq: 1)
+        try db.insertV2(id: "zen_v2_only", session: "ses_2", provider: "opencode", cost: "0.5", created: ms("2026-10-02T00:00:00Z"), seq: 1)
 
         let account = AccountConfig(id: "zen", provider: .opencodeZen, label: "Zen", profileDir: dir.url.path)
         let now = DateParsing.iso8601("2026-10-10T12:00:00Z")!
         let s = try await OpenCodeZenUsageFetcher(environment: [:], calendar: utc).fetch(account, context: context(dir, now: now))
-        #expect(s.money == [MoneyLine(label: "Spent this month (this Mac)", amount: 3.5)])
+        #expect(s.money == [MoneyLine(label: "Spent this month (this Mac)", amount: 4)])
         #expect(s.plan == "Pay as you go")
         #expect(s.source == "opencode.db")
         #expect(s.notes == ["Balance needs a console sign-in; showing local spend only."])

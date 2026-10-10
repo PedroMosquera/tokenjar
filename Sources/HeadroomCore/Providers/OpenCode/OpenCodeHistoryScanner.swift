@@ -23,51 +23,38 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
         OpenCodeLocalData.databaseFile(in: OpenCodeLocalData.dataDirectory(for: account, paths: paths, environment: environment))
     }
 
-    /// Checkpoint: the source table and the largest `time_updated` seen, keyed by the database path. opencode
+    /// Checkpoints: the largest `time_updated` seen per table, keyed by `<database path>#<table>`. opencode
     /// rewrites a message row when cost and tokens land on completion, so `time_updated` is what moves.
     /// A missing database is not an error: opencode may not be used on this Mac.
     public func scan(_ account: AccountConfig, checkpoints: ScanCheckpoints, paths: AppPaths) throws -> ScanResult {
         let database = databaseFile(for: account, paths: paths)
         guard FileManager.default.fileExists(atPath: database.path) else { return ScanResult(events: [], checkpoints: checkpoints) }
         let db = try ReadOnlySQLite(url: database)
-        guard let source = try Source.detect(in: db) else { return ScanResult(events: [], checkpoints: checkpoints) }
+        let tables = try Table.allCases.filter { try db.tableExists($0.rawValue) }
 
-        let key = database.path
-        let previous = Checkpoint(checkpoints[key])
-        let since = previous?.table == source.table ? previous?.updatedAt ?? 0 : 0
-        var latest = since
         var events: [UsageEvent] = []
-        try readRows(db, source: source, updatedSince: since) { row in
-            latest = max(latest, row.updatedAt)
-            events.append(row.event(accountID: account.id, home: paths.home))
-        }
-
         var out = checkpoints
-        out[key] = Checkpoint(table: source.table, updatedAt: latest).description
+        for table in tables {
+            let key = database.path + "#" + table.rawValue
+            let since = checkpoints[key].flatMap { Int64($0) } ?? 0
+            var latest = since
+            try readRows(db, table: table, skippingCopiesOfMessageRows: tables.contains(.message), updatedSince: since) { row in
+                latest = max(latest, row.updatedAt)
+                events.append(row.event(accountID: account.id, home: paths.home))
+            }
+            out[key] = String(latest)
+        }
         return ScanResult(events: events, checkpoints: out)
     }
 
-    private enum Source {
+    /// opencode 1.18 keeps `session_message` next to `message` and new turns may land in either, so both are read.
+    /// A `session_message` row with the id, or the session and creation time, of a `message` row is a copy and skipped.
+    private enum Table: String, CaseIterable {
         /// opencode 1.x: `message.data` holds role, providerID, modelID, cost, tokens and path.cwd.
         case message
         /// opencode 2.x projection: `session_message.data` holds model{id, providerID}, cost and tokens; the
         /// working directory comes from the session row.
-        case sessionMessage
-
-        var table: String {
-            switch self {
-            case .message: "message"
-            case .sessionMessage: "session_message"
-            }
-        }
-
-        /// The v2 migration copies rows into `session_message` without deleting `message`, so reading both
-        /// would double count. The v1 table wins whenever it exists.
-        static func detect(in db: ReadOnlySQLite) throws -> Source? {
-            if try db.tableExists("message") { return .message }
-            if try db.tableExists("session_message") { return .sessionMessage }
-            return nil
-        }
+        case sessionMessage = "session_message"
     }
 
     private struct Row {
@@ -94,13 +81,20 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
         }
     }
 
-    private func readRows(_ db: ReadOnlySQLite, source: Source, updatedSince: Int64, _ handle: (Row) -> Void) throws {
+    private func readRows(
+        _ db: ReadOnlySQLite, table: Table, skippingCopiesOfMessageRows skipCopies: Bool, updatedSince: Int64,
+        _ handle: (Row) -> Void
+    ) throws {
         let providers = providerIDs.sorted()
         guard !providers.isEmpty else { return }
         let placeholders = providers.indices.map { "?\($0 + 2)" }.joined(separator: ", ")
+        let notACopy = skipCopies ? """
+            AND NOT EXISTS (SELECT 1 FROM message v1 WHERE v1.id = m.id)
+              AND NOT EXISTS (SELECT 1 FROM message v1 WHERE v1.session_id = m.session_id AND v1.time_created = m.time_created)
+            """ : ""
         // `>=` rather than `>`: a row written later in the same millisecond as the previous scan is not lost.
         // Re-reading the boundary rows is harmless because the store upserts by dedupeKey.
-        let sql = switch source {
+        let sql = switch table {
         case .message:
             """
             SELECT id, time_created, time_updated, json_extract(data, '$.modelID'), json_extract(data, '$.cost'),
@@ -123,6 +117,7 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
             WHERE m.time_updated >= ?1
               AND m.type = 'assistant'
               AND json_extract(m.data, '$.model.providerID') IN (\(placeholders))
+              \(notACopy)
             ORDER BY m.time_updated
             """
         }
@@ -144,23 +139,5 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
         if url.path == home.standardizedFileURL.path { return "~" }
         let last = url.lastPathComponent
         return last == "/" ? nil : last
-    }
-
-    private struct Checkpoint: CustomStringConvertible {
-        var table: String
-        var updatedAt: Int64
-
-        init(table: String, updatedAt: Int64) {
-            self.table = table
-            self.updatedAt = updatedAt
-        }
-
-        init?(_ raw: String?) {
-            guard let raw, let colon = raw.lastIndex(of: ":"), let value = Int64(raw[raw.index(after: colon)...]) else { return nil }
-            table = String(raw[..<colon])
-            updatedAt = value
-        }
-
-        var description: String { "\(table):\(updatedAt)" }
     }
 }
