@@ -48,9 +48,12 @@ public struct ClaudeUsageFetcher: UsageFetcher {
         } catch {
             return try fallback(.cliNotFound("claude"))
         }
-        if result.timedOut { return try fallback(.timeout) }
-
         let output = ClaudeUsageOutput.parse(result.stdout)
+        if result.timedOut {
+            // A turn cut short has already spent tokens; the cache would hide that every refresh spends them again.
+            if case .modelTurn = output.kind { throw FetchError.unsupported(Self.modelTurnMessage) }
+            return try fallback(.timeout)
+        }
         // API key usage is billed outside the subscription, so the plan saved in .claude.json does not describe this login.
         let plan = output.usesAPIKey ? nil : config?.plan
 
@@ -105,7 +108,7 @@ struct ClaudeUsageOutput {
     static func parse(_ stdout: Data) -> ClaudeUsageOutput {
         let decoder = JSONDecoder()
         var apiKeySource: String?
-        var ranUsage = false
+        var ranUsage = false, modelReplied = false
         for line in stdout.split(separator: UInt8(ascii: "\n")) {
             guard let event = try? decoder.decode(StreamLine.self, from: line) else { continue }
             switch event.type {
@@ -113,6 +116,9 @@ struct ClaudeUsageOutput {
                 apiKeySource = event.apiKeySource ?? apiKeySource
             case "assistant":
                 if let report = event.usageReport { return Self(.report(report.rateLimits), apiKeySource: apiKeySource) }
+                // The local answer carries `local_command_run`; any other assistant line is the model's. A run cut short
+                // by the timeout or a crash never prints the result line that would count the turn.
+                if event.localCommandRun == nil { modelReplied = true }
             case "result":
                 if (event.numTurns ?? 0) > 0 || (event.totalCostUSD ?? 0) > 0 { return Self(.modelTurn, apiKeySource: apiKeySource) }
                 if event.localCommand == "usage", event.isError != true { ranUsage = true }
@@ -120,6 +126,7 @@ struct ClaudeUsageOutput {
                 break
             }
         }
+        if modelReplied { return Self(.modelTurn, apiKeySource: apiKeySource) }
         return Self(ranUsage ? .noReport : .unrecognized, apiKeySource: apiKeySource)
     }
 
@@ -127,6 +134,7 @@ struct ClaudeUsageOutput {
         var type: String?
         var apiKeySource: String?
         var usageReport: UsageReport?
+        var localCommandRun: LocalCommandRun?
         var localCommand: String?
         var isError: Bool?
         var numTurns: Int?
@@ -135,6 +143,7 @@ struct ClaudeUsageOutput {
         enum CodingKeys: String, CodingKey {
             case type, apiKeySource
             case usageReport = "usage_report"
+            case localCommandRun = "local_command_run"
             case localCommand = "local_command"
             case isError = "is_error"
             case numTurns = "num_turns"
@@ -146,4 +155,7 @@ struct ClaudeUsageOutput {
         var rateLimits: ClaudeRateLimits?
         enum CodingKeys: String, CodingKey { case rateLimits = "rate_limits" }
     }
+
+    /// Only its presence matters.
+    private struct LocalCommandRun: Decodable {}
 }

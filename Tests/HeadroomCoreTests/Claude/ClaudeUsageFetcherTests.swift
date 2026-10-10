@@ -233,6 +233,37 @@ struct ClaudeUsageFetcherTests {
         }
     }
 
+    /// A run killed mid-turn has no result line to count its turns, but the model reply it printed already spent tokens.
+    /// Serving the cache, or calling it a timeout, would let every refresh spend tokens again.
+    @Test(arguments: [true, false])
+    func aModelReplyWithoutAResultLineIsAModelTurn(timedOut: Bool) async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("claude-json-max.json", as: ".claude.json")
+        let stream = """
+        {"type":"system","subtype":"init","apiKeySource":"none","model":"claude-opus-5-5"}
+        {"type":"assistant","message":{"model":"claude-opus-5-5","content":[{"type":"text","text":"MODEL_TEXT"}],"usage":{"input_tokens":12,"output_tokens":40}}}
+
+        """
+        let runner = FakeClaude(stdout: Data(stream.utf8), exitCode: timedOut ? 0 : 1, timedOut: timedOut)
+
+        await #expect(throws: FetchError.unsupported(ClaudeUsageFetcher.modelTurnMessage)) {
+            try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+        }
+    }
+
+    /// The local `/usage` answer is an assistant line too, so a run that hangs after printing it is only a timeout.
+    @Test func aTimeoutAfterTheLocalUsageAnswerIsStillATimeout() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        let lines = String(decoding: try fixture("stream-signed-out.jsonl"), as: UTF8.self).split(separator: "\n")
+        let partial = Data((lines.prefix(2).joined(separator: "\n") + "\n").utf8)
+
+        await #expect(throws: FetchError.timeout) {
+            try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeClaude(stdout: partial, timedOut: true), now: now))
+        }
+    }
+
     @Test func usageBasedEnterpriseSeatHasNoPlanLimits() async throws {
         let box = try Sandbox()
         defer { box.remove() }

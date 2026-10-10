@@ -214,11 +214,13 @@ public struct ClaudeHistoryScanner: HistoryScanner {
                 write5m = usage.cacheCreationInputTokens ?? 0
                 write1h = 0
             }
+            let input = usage.inputTokens ?? 0, cacheRead = usage.cacheReadInputTokens ?? 0
             return UsageEvent(
                 dedupeKey: "claude:\(id):\(requestId ?? sessionId ?? "")", timestamp: timestamp, accountID: accountID,
-                harness: .claudeCode, model: model, project: UsageEvent.project(fromWorkingDirectory: cwd, home: home),
-                inputTokens: usage.inputTokens ?? 0, outputTokens: usage.outputTokens ?? 0,
-                cacheReadTokens: usage.cacheReadInputTokens ?? 0, cacheWrite5mTokens: write5m, cacheWrite1hTokens: write1h
+                harness: .claudeCode, model: PriceTable.billedModel(model, promptTokens: input + cacheRead + write5m + write1h),
+                project: UsageEvent.project(fromWorkingDirectory: cwd, home: home),
+                inputTokens: input, outputTokens: usage.outputTokens ?? 0,
+                cacheReadTokens: cacheRead, cacheWrite5mTokens: write5m, cacheWrite1hTokens: write1h
             )
         }
     }

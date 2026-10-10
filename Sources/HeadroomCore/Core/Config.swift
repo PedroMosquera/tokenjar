@@ -102,7 +102,10 @@ public struct AppConfig: Codable, Equatable, Sendable {
 }
 
 public enum ConfigError: Error {
+    /// The file could not be read, is not a JSON object, or does not decode as a config. `file` is the name only, safe to show.
     case invalidJSON(file: String, detail: String)
+    /// The file is a symlink whose destination is gone, so a save would replace the link instead of writing through it.
+    case brokenLink(file: String)
 }
 
 /// Loads `config.json` merged with `config.local.json` (local wins), and saves edits back to `config.json`
@@ -148,10 +151,20 @@ public struct ConfigStore: Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         let data = try encoder.encode(config)
-        // Resolve the stow symlink and replace the real file, so the link keeps pointing at the dotfiles repo.
-        let target = paths.configFile.resolvingSymlinksInPath()
+        let target = try Self.writeTarget(paths.configFile)
         try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
         try (data + Data("\n".utf8)).write(to: target, options: .atomic)
+    }
+
+    /// The real file behind a stow symlink, so an atomic save replaces that file and the link keeps pointing at the
+    /// dotfiles repo. realpath resolves a relative link against the link's own folder, as the kernel does. A link whose
+    /// destination is gone throws: `resolvingSymlinksInPath` returns such a link unchanged, and the save would replace it.
+    static func writeTarget(_ file: URL) throws -> URL {
+        let type = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.type] as? FileAttributeType
+        guard type == .typeSymbolicLink else { return file }
+        guard let resolved = realpath(file.path, nil) else { throw ConfigError.brokenLink(file: file.lastPathComponent) }
+        defer { free(resolved) }
+        return URL(fileURLWithPath: String(cString: resolved))
     }
 
     /// Copies leaf fields one by one: the merge is deep, so a local override can sit beside a field the user edits in
@@ -229,11 +242,16 @@ public struct ConfigStore: Sendable {
     }
 
     private func readJSONObject(_ url: URL) throws -> [String: Any] {
-        let data = try Data(contentsOf: url)
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+        } catch {
+            throw ConfigError.invalidJSON(file: url.lastPathComponent, detail: String(describing: error))
+        }
+        guard let dictionary = object as? [String: Any] else {
             throw ConfigError.invalidJSON(file: url.lastPathComponent, detail: "top level is not an object")
         }
-        return object
+        return dictionary
     }
 
     private func decode(_ object: [String: Any], file: URL) throws -> AppConfig {

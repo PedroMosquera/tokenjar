@@ -92,8 +92,9 @@ public enum AlertEngine {
     /// Pure: the outcome and the new `state` depend only on the arguments.
     ///
     /// An account's first successful snapshot in a session only records a baseline: crossings already present
-    /// are marked as alerted without posting. Failures before that are recorded silently too. With alerts
-    /// disabled the state keeps tracking the same way, so turning alerts on does not replay old crossings.
+    /// are marked as alerted without posting. Failures before that are recorded silently too, except a probe that spent
+    /// tokens, which notifies at once. With alerts disabled the state keeps tracking the same way, so turning alerts on
+    /// does not replay old crossings.
     /// Network errors, timeouts and rate limiting never open a source-problem episode: they usually mean the Mac
     /// went offline, and would otherwise notify once per account.
     /// Windows whose reset time has passed are skipped. A not-started window never fires a threshold or a projection,
@@ -122,7 +123,10 @@ public enum AlertEngine {
 
     private static func sourceFailed(account: AccountConfig, error: FetchError, config: AppConfig, state: inout AlertState) -> AlertOutcome {
         guard opensEpisode(error), state.failingAccounts.insert(account.id).inserted else { return AlertOutcome() }
-        guard state.baselinedAccounts.contains(account.id), config.alerts.enabled, config.alerts.sourceProblems else { return AlertOutcome() }
+        // A run that spent tokens is news, not a condition carried over from before launch, and the app stops probing a
+        // Claude account after one, so waiting for a baseline would mean never saying so.
+        guard state.baselinedAccounts.contains(account.id) || spentTokens(error), config.alerts.enabled, config.alerts.sourceProblems
+        else { return AlertOutcome() }
         let event = AlertEvent(
             id: sourceKey(account), threadID: account.id, title: account.displayName, body: error.userMessage,
             kind: .sourceProblem, accountID: account.id
@@ -135,6 +139,10 @@ public enum AlertEngine {
         case .network, .timeout, .rateLimited: false
         case .cliNotFound, .notSignedIn, .noSubscription, .unauthorized, .parse, .unsupported: true
         }
+    }
+
+    private static func spentTokens(_ error: FetchError) -> Bool {
+        error == .unsupported(ClaudeUsageFetcher.modelTurnMessage) || error == .unsupported(AntigravityUsageFetcher.modelTurnMessage)
     }
 
     private static func evaluate(

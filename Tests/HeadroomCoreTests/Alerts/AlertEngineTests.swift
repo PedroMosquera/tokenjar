@@ -303,6 +303,26 @@ struct AlertEngineTests {
         #expect(run(&state, .failure(.notSignedIn)).events.count == 1)
     }
 
+    /// The app stops probing a Claude account after a run that spent tokens, so that first failure is the only chance
+    /// to say so, baseline or not. The user's switches still apply.
+    @Test(arguments: [ClaudeUsageFetcher.modelTurnMessage, AntigravityUsageFetcher.modelTurnMessage])
+    func aProbeThatSpentTokensAlertsEvenBeforeBaseline(message: String) {
+        var state = AlertState()
+        #expect(run(&state, .failure(.unsupported(message))).events.map(\.body) == [message])
+        #expect(run(&state, .failure(.unsupported(message))) == AlertOutcome(), "still once per episode")
+
+        var muted = thresholdsOnly
+        muted.alerts.sourceProblems = false
+        var fresh = AlertState()
+        #expect(run(&fresh, .failure(.unsupported(message)), config: muted) == AlertOutcome())
+        muted = thresholdsOnly
+        muted.alerts.enabled = false
+        fresh = AlertState()
+        #expect(run(&fresh, .failure(.unsupported(message)), config: muted) == AlertOutcome())
+        fresh = AlertState()
+        #expect(run(&fresh, .failure(.unsupported("Update agy to 1.1.11 or later"))) == AlertOutcome(), "other failures still wait for a baseline")
+    }
+
     @Test func sourceProblemsCanBeTurnedOff() {
         var config = thresholdsOnly
         config.alerts.sourceProblems = false

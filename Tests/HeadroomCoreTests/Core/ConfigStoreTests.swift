@@ -147,6 +147,61 @@ struct ConfigStoreTests {
         #expect(written.refreshMinutes == 15)
     }
 
+    /// Stow writes relative links, resolved against the link's own folder.
+    @Test func writeFollowsARelativeStowLink() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        let repoFile = home.appending(path: "dotfiles/headroom/.config/headroom/config.json")
+        try write(#"{"accounts": []}"#, to: repoFile)
+        try FileManager.default.createDirectory(at: paths.configDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: paths.configFile.path, withDestinationPath: "../../dotfiles/headroom/.config/headroom/config.json")
+
+        var config = AppConfig()
+        config.refreshMinutes = 15
+        try ConfigStore(paths: paths).write(config)
+
+        #expect(try FileManager.default.attributesOfItem(atPath: paths.configFile.path)[.type] as? FileAttributeType == .typeSymbolicLink)
+        #expect(try JSONDecoder().decode(AppConfig.self, from: Data(contentsOf: repoFile)).refreshMinutes == 15)
+    }
+
+    /// A save through a link whose repo file is gone (a branch switch in the dotfiles repo) would replace the link with
+    /// a regular file, and the config would silently stop syncing.
+    @Test func writeThroughADanglingLinkThrowsAndKeepsTheLink() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try FileManager.default.createDirectory(at: paths.configDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: paths.configFile.path, withDestinationPath: "../../dotfiles/headroom/.config/headroom/config.json")
+
+        #expect {
+            try ConfigStore(paths: paths).write(AppConfig())
+        } throws: { error in
+            if case ConfigError.brokenLink(file: "config.json") = error { return true }
+            return false
+        }
+        #expect(try FileManager.default.attributesOfItem(atPath: paths.configFile.path)[.type] as? FileAttributeType == .typeSymbolicLink)
+        #expect(!FileManager.default.fileExists(atPath: home.appending(path: "dotfiles").path))
+    }
+
+    /// The app names the broken file in its banner, so a syntax error such as a merge conflict must say which one.
+    @Test(arguments: [("config.json", true), ("config.local.json", false)])
+    func unreadableJSONNamesItsFile(file: String, isBase: Bool) throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        let conflicted = "<<<<<<< HEAD\n{\"refreshMinutes\": 5}\n=======\n{\"refreshMinutes\": 15}\n>>>>>>> theirs\n"
+        try write(isBase ? conflicted : #"{"accounts": []}"#, to: paths.configFile)
+        try write(isBase ? #"{"refreshMinutes": 5}"# : conflicted, to: paths.localConfigFile)
+
+        #expect {
+            try ConfigStore(paths: paths).load()
+        } throws: { error in
+            guard case ConfigError.invalidJSON(let name, let detail) = error else { return false }
+            return name == file && !detail.isEmpty
+        }
+    }
+
     @Test func missingFieldsDecodeToDefaults() throws {
         let config = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"accounts": [{"id": "x", "provider": "codex"}]}"#.utf8))
         #expect(config.alerts.thresholds == [80, 95])
