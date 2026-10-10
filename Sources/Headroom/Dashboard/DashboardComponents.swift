@@ -95,19 +95,6 @@ struct DashboardEmptyState: View {
     }
 }
 
-struct PlanPill: View {
-    var plan: String
-
-    var body: some View {
-        Text(plan)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(.quaternary))
-    }
-}
-
 extension View {
     func dashboardSurface() -> some View {
         background(

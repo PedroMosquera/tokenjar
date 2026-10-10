@@ -22,5 +22,10 @@ let package = Package(
             dependencies: ["HeadroomCore"],
             exclude: ["Fixtures"]
         ),
+        .testTarget(
+            name: "HeadroomTests",
+            dependencies: ["Headroom", "HeadroomCore"],
+            swiftSettings: [.defaultIsolation(MainActor.self)]
+        ),
     ]
 )

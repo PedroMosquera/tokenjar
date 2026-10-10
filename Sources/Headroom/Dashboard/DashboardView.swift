@@ -70,7 +70,7 @@ struct DashboardView: View {
                         .font(.title2.weight(.semibold))
                         .lineLimit(1)
                     if let plan = account.flatMap({ model.status(for: $0).snapshot?.plan }) {
-                        PlanPill(plan: plan)
+                        PlanPill(plan)
                     }
                 }
                 Text(headerSubtitle)

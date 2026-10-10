@@ -57,7 +57,7 @@ private struct AccountCardHeader: View {
                             .foregroundStyle(.secondary)
                     }
                     if let plan = title.plan {
-                        PlanPill(text: plan)
+                        PlanPill(plan)
                             .layoutPriority(1)
                     }
                     if hover.isHovering {
@@ -88,19 +88,6 @@ private struct AccountCardHeader: View {
             }
             AccountMenu(account: account)
         }
-    }
-}
-
-private struct PlanPill: View {
-    var text: String
-
-    var body: some View {
-        Text(text)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1)
-            .background(.quaternary, in: Capsule())
     }
 }
 

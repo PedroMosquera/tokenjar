@@ -60,7 +60,7 @@ struct GeneralSettingsPane: View {
         .sheet(item: $pendingImport) { pending in
             CodexBarImportSheet(changes: pending.changes) {
                 model.updateConfig { config in
-                    config = CodexBarImport.apply(pending.preview, to: config, discovered: pending.discovered)
+                    config = CodexBarImport.apply(pending.preview, to: config, discovered: pending.discovered, paths: model.paths)
                 }
             }
         }
@@ -152,7 +152,7 @@ struct GeneralSettingsPane: View {
             return
         }
         let discovered = AccountDiscovery.discover(paths: model.paths, cli: CLILocator(overrides: model.config.cliPaths))
-        let proposed = CodexBarImport.apply(preview, to: model.config, discovered: discovered)
+        let proposed = CodexBarImport.apply(preview, to: model.config, discovered: discovered, paths: model.paths)
         pendingImport = PendingCodexBarImport(
             preview: preview, discovered: discovered,
             changes: SettingsLogic.describeChanges(from: model.config, to: proposed)
