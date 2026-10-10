@@ -50,6 +50,10 @@ struct ModelHome {
         try JSONDecoder().decode(AppConfig.self, from: Data(contentsOf: configFile))
     }
 
+    func mode(_ file: URL) throws -> Int? {
+        try FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as? Int
+    }
+
     func isSymlink(_ file: URL) -> Bool {
         (try? FileManager.default.attributesOfItem(atPath: file.path))?[.type] as? FileAttributeType == .typeSymbolicLink
     }

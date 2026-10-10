@@ -23,7 +23,13 @@ enum SnapshotRenderer {
             model.dashboardSelection = "claude-work"
             render(DashboardView().environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-account-\(suffix).png"))
             render(DashboardView(range: .month, grouping: .project).environment(model), size: NSSize(width: 980, height: 1400), appearance: appearance, to: outputDirectory.appending(path: "dashboard-account-tall-\(suffix).png"))
+            render(DashboardView().environment(model), size: NSSize(width: 760, height: 520), appearance: appearance, to: outputDirectory.appending(path: "dashboard-account-small-\(suffix).png"))
+            model.dashboardSelection = "antigravity"
+            render(DashboardView().environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-antigravity-\(suffix).png"))
+            model.dashboardSelection = "opencode-zen"
+            render(DashboardView().environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-zen-\(suffix).png"))
             model.dashboardSelection = nil
+            render(DashboardView(range: .day).environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-all-day-\(suffix).png"))
             render(DashboardView(range: .month, grouping: .harness).environment(model), size: NSSize(width: 980, height: 1400), appearance: appearance, to: outputDirectory.appending(path: "dashboard-all-tall-\(suffix).png"))
 
             model.settingsSelection = nil

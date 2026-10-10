@@ -2,25 +2,42 @@ import CryptoKit
 import Foundation
 import HeadroomCore
 
-/// Accounts whose `claude -p /usage` ran as a billed model turn instead of answering locally. Hard rule 5 forbids
-/// starting a model turn, so a latched account is not probed again by any path until the claude binary changes
-/// or the user asks for one more try. Persisted, so a relaunch does not probe again either.
+/// Accounts whose `/usage` probe ran as a model turn instead of answering locally: `claude -p /usage` spent tokens
+/// or `agy -p /usage` spent quota. Hard rule 5 forbids starting a model turn, so a latched account is not probed
+/// again by any path until that CLI's binary changes or the user asks for one more try. Persisted, so a relaunch
+/// does not probe again either.
 nonisolated struct ProbeLatch: Codable, Equatable {
-    static let error = FetchError.unsupported(ClaudeUsageFetcher.modelTurnMessage)
+    /// A CLI whose `/usage` probe can turn into a model turn. The raw value is the name `CLILocator` looks up.
+    enum CLI: String, Codable, CaseIterable {
+        case claude, agy
+
+        /// Thrown by the fetcher when the probe turned into a model turn, and shown on the card while latched.
+        var modelTurnError: FetchError {
+            switch self {
+            case .claude: .unsupported(ClaudeUsageFetcher.modelTurnMessage)
+            case .agy: .unsupported(AntigravityUsageFetcher.modelTurnMessage)
+            }
+        }
+
+        /// nil for every failure that did not start a model turn.
+        init?(modelTurn error: FetchError) {
+            guard let cli = Self.allCases.first(where: { $0.modelTurnError == error }) else { return nil }
+            self = cli
+        }
+    }
 
     private struct Entry: Codable, Equatable {
-        /// Fingerprint of the claude binary the turn ran with; nil when it could not be located.
+        /// Fingerprint of the CLI binary the turn ran with; nil when it could not be located.
         var binary: String?
+        /// nil in files written before agy could latch, when every entry was claude's.
+        var cli: CLI?
+        var owner: CLI { cli ?? .claude }
     }
 
     private var entries: [String: Entry] = [:]
 
     var isEmpty: Bool { entries.isEmpty }
     var accountIDs: [String] { entries.keys.sorted() }
-
-    static func spentTokens(_ error: FetchError) -> Bool {
-        error == Self.error
-    }
 
     /// SHA-256 of the resolved path, size and modification date. The native installer resolves to a per-version
     /// path and npm rewrites the file, so either kind of update changes it. Hashed because the path holds the
@@ -39,8 +56,13 @@ nonisolated struct ProbeLatch: Codable, Equatable {
         entries[accountID] != nil
     }
 
-    mutating func latch(_ accountID: String, binary: String?) {
-        entries[accountID] = Entry(binary: binary)
+    /// nil when the account is not latched.
+    func cli(of accountID: String) -> CLI? {
+        entries[accountID]?.owner
+    }
+
+    mutating func latch(_ accountID: String, cli: CLI, binary: String?) {
+        entries[accountID] = Entry(binary: binary, cli: cli)
     }
 
     /// Returns whether the account was latched.
@@ -49,11 +71,11 @@ nonisolated struct ProbeLatch: Codable, Equatable {
         entries.removeValue(forKey: accountID) != nil
     }
 
-    /// Releases the accounts latched on another claude build: an update may have fixed `/usage`.
-    /// Returns whether anything was released.
-    mutating func releaseAll(unlessBinary current: String?) -> Bool {
+    /// Releases the accounts latched on another build of their CLI: an update may have fixed `/usage`.
+    /// `current` gives the fingerprint of a CLI's binary today. Returns whether anything was released.
+    mutating func releaseAll(unlessBinary current: (CLI) -> String?) -> Bool {
         let before = entries.count
-        entries = entries.filter { $0.value.binary == current }
+        entries = entries.filter { $0.value.binary == current($0.value.owner) }
         return entries.count != before
     }
 }
