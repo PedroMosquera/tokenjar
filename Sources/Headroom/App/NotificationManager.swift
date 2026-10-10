@@ -2,6 +2,28 @@ import Foundation
 import UserNotifications
 import HeadroomCore
 
+/// How alerts reach the user. A default config has alerts on, so a new user only ever gets the quiet provisional
+/// grant until something asks for banners; Settings needs to tell those apart.
+enum NotificationPermission: Equatable {
+    /// Running outside an app bundle, where Notification Center does not serve the app.
+    case unavailable
+    case notDetermined
+    /// Provisional: delivered to Notification Center without banners or sound.
+    case quiet
+    case banners
+    case denied
+
+    init(_ status: UNAuthorizationStatus) {
+        switch status {
+        case .authorized: self = .banners
+        case .provisional: self = .quiet
+        case .denied: self = .denied
+        case .notDetermined: self = .notDetermined
+        @unknown default: self = .notDetermined
+        }
+    }
+}
+
 /// Posts alert outcomes to Notification Center and routes the "Open dashboard" action back to the app.
 /// Notification Center only serves an app bundle, so every call is a no-op when running from a build folder.
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
@@ -30,20 +52,26 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// Without `prominent`, asks for provisional delivery: quiet, straight to Notification Center, no prompt.
-    /// `prominent` asks for banners and sound and shows the system prompt, so pass it only when the user
-    /// turns alerts on in Settings.
+    /// `prominent` asks for banners and sound and shows the system prompt, so pass it only from a user action.
     @discardableResult
-    func requestAuthorization(prominent: Bool) async -> Bool {
-        guard let center else { return false }
-        switch await center.notificationSettings().authorizationStatus {
-        case .authorized: return true
-        case .denied: return false
-        case .provisional where !prominent: return true
+    func requestAuthorization(prominent: Bool) async -> NotificationPermission {
+        guard let center else { return .unavailable }
+        let current = await permission()
+        switch current {
+        case .banners, .denied, .unavailable: return current
+        case .quiet where !prominent: return current
         default: break
         }
         var options: UNAuthorizationOptions = [.alert, .sound]
         if !prominent { options.insert(.provisional) }
-        return (try? await center.requestAuthorization(options: options)) ?? false
+        _ = try? await center.requestAuthorization(options: options)
+        return await permission()
+    }
+
+    /// Reads the current grant without asking for anything.
+    func permission() async -> NotificationPermission {
+        guard let center else { return .unavailable }
+        return NotificationPermission(await center.notificationSettings().authorizationStatus)
     }
 
     /// Withdraws first: a reset's withdrawals belong to the previous cycle, never to the events posted with them.

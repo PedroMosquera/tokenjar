@@ -27,7 +27,10 @@ final class AppModel {
     var config = AppConfig()
     private(set) var baseConfig = AppConfig()
     var hasLocalOverrides = false
-    var configError: String?
+    /// The one banner the popover and Settings show: a config problem first, else a history database problem.
+    var configError: String? { configProblem ?? historyProblem }
+    private var configProblem: String?
+    private var historyProblem: String?
 
     /// Keyed by AccountConfig.id.
     var statuses: [String: AccountStatus] = [:]
@@ -37,13 +40,16 @@ final class AppModel {
     var now = Date()
     /// Bumped whenever stored samples or usage rows change, so history views reload.
     var historyRevision = 0
-    var notificationsAuthorized: Bool?
+    /// nil until the app has asked macOS; see `refreshNotificationPermission`.
+    var notificationPermission: NotificationPermission?
 
     var dashboardSelection: String?
     var settingsSelection: String?
 
     @ObservationIgnored var presenter = Presenter()
-    @ObservationIgnored let paths = AppPaths()
+    @ObservationIgnored let paths: AppPaths
+    @ObservationIgnored private let fetcher: (ProviderID) -> any UsageFetcher
+    @ObservationIgnored private let clock: () -> Date
     @ObservationIgnored var store: (any UsageStore)?
     @ObservationIgnored var priceTable = PriceTable()
     @ObservationIgnored var notifications: NotificationManager?
@@ -51,15 +57,25 @@ final class AppModel {
     @ObservationIgnored var previewMode = false
 
     @ObservationIgnored private var ticker: Timer?
-    @ObservationIgnored private var wakeObserver: NSObjectProtocol?
+    @ObservationIgnored private var workspaceObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private var sleeping = false
     @ObservationIgnored private var alertState = AlertState()
-    @ObservationIgnored private var nextDue: [String: Date] = [:]
-    @ObservationIgnored private var inFlight: Set<String> = []
+    @ObservationIgnored private var scheduler = RefreshScheduler()
+    @ObservationIgnored private var probeLatch = ProbeLatch()
     @ObservationIgnored private var scanning = false
     @ObservationIgnored private var lastScanAt: Date?
     @ObservationIgnored private var configStamp: [Date?] = []
+    /// config.json or config.local.json did not load. Saving would overwrite whatever is in the file, which may be a
+    /// merge conflict or a hand edit in progress, so nothing is saved until a load succeeds.
+    @ObservationIgnored private var configLoadFailed = false
+    @ObservationIgnored private var hasLoadedConfig = false
 
-    private static let scanInterval: TimeInterval = 5 * 60
+    /// `paths`, `fetcher` and `clock` are seams for tests; the app uses the defaults.
+    init(paths: AppPaths = AppPaths(), fetcher: @escaping (ProviderID) -> any UsageFetcher = FetcherRegistry.fetcher(for:), clock: @escaping () -> Date = { Date() }) {
+        self.paths = paths
+        self.fetcher = fetcher
+        self.clock = clock
+    }
 
     /// Accounts to show on this Mac: enabled, and with their profile dir or credential present.
     var accounts: [AccountConfig] {
@@ -78,79 +94,125 @@ final class AppModel {
 
     func start() {
         signal(SIGPIPE, SIG_IGN)
-        loadConfig()
-        do {
-            store = try SQLiteUsageStore(url: paths.databaseFile)
-        } catch {
-            store = nil
-            configError = "History is unavailable: could not open the database."
-        }
-        priceTable = PriceTable.load(bundled: ProviderLogo.resourceURL("pricing.json"), override: paths.pricingOverrideFile)
-        seedFromStore()
-        loadAlertState()
+        loadState()
 
         ticker = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            // The network is usually not back the instant the lid opens.
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(8))
-                self?.refresh(force: true)
-            }
-        }
+        let center = NSWorkspace.shared.notificationCenter
+        workspaceObservers = [
+            center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.systemWillSleep() }
+            },
+            center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in await self?.systemDidWake() }
+            },
+        ]
         refresh(force: true)
         scanHistory()
     }
 
+    /// Everything `start` reads from disk, without timers or observers.
+    func loadState() {
+        loadConfig(firstRunAllowed: true)
+        do {
+            store = try SQLiteUsageStore(url: paths.databaseFile)
+            historyProblem = nil
+        } catch {
+            store = nil
+            historyProblem = "History is unavailable: could not open the database."
+        }
+        priceTable = PriceTable.load(bundled: ProviderLogo.resourceURL("pricing.json"), override: paths.pricingOverrideFile)
+        seedFromStore()
+        loadAlertState()
+        loadProbeLatch()
+    }
+
     func popoverWillOpen() {
-        now = Date()
-        if let last = lastRefreshAt, now.timeIntervalSince(last) < 120 { return }
+        now = clock()
+        guard RefreshScheduler.shouldRefreshOnPopoverOpen(lastRefreshAt: lastRefreshAt, now: now) else { return }
         refresh(force: true)
     }
 
-    private func tick() {
-        now = Date()
+    @discardableResult
+    func tick() -> Task<Void, Never>? {
+        now = clock()
+        guard !sleeping else { return nil }
         reloadConfigIfChanged()
-        refresh(force: false)
-        if lastScanAt.map({ now.timeIntervalSince($0) >= Self.scanInterval }) ?? true { scanHistory() }
+        let fetches = refresh(force: false)
+        if RefreshScheduler.shouldScan(lastScanAt: lastScanAt, now: now) { scanHistory() }
+        return fetches
+    }
+
+    /// Ticks pause from sleep until the delayed wake refresh. A tick in the first seconds after wake would fetch
+    /// every overdue account before the network is back, and that failure would hold for a full interval.
+    func systemWillSleep() {
+        sleeping = true
+    }
+
+    @discardableResult
+    func systemDidWake(networkDelay: Duration = .seconds(8)) async -> Task<Void, Never>? {
+        try? await Task.sleep(for: networkDelay)
+        sleeping = false
+        return refresh(force: true)
     }
 
     // MARK: Config
 
-    func loadConfig() {
+    /// Only `start` passes `firstRunAllowed`: discovery then writes a new config.json, and only when nothing at all,
+    /// not even a dangling stow link, is at its path. A reload never writes, so a config.json missing for a moment
+    /// (a branch switch in the dotfiles repo) keeps the current settings instead of replacing the user's.
+    func loadConfig(firstRunAllowed: Bool = false) {
         let configStore = ConfigStore(paths: paths)
+        defer { configStamp = currentConfigStamp() }
         do {
             if let loaded = try configStore.load() {
                 config = loaded.merged
                 baseConfig = loaded.base
                 hasLocalOverrides = loaded.hasLocalOverrides
-            } else {
+                configLoaded()
+            } else if firstRunAllowed, !configPathIsTaken {
+                // CodexBar's settings are imported only from Settings > General, which shows the changes first.
                 var fresh = AppConfig()
-                let discovered = AccountDiscovery.discover(paths: paths, cli: CLILocator(overrides: fresh.cliPaths))
-                fresh.accounts = discovered
-                if let preview = CodexBarImport.preview(paths: paths) {
-                    fresh = CodexBarImport.apply(preview, to: fresh, discovered: discovered, paths: paths)
-                }
+                fresh.accounts = AccountDiscovery.discover(paths: paths, cli: cliLocator(for: fresh))
                 config = fresh
                 baseConfig = fresh
-                try configStore.write(fresh)
+                configLoaded()
+                do { try configStore.write(fresh) } catch { configProblem = "Could not create config.json." }
+            } else {
+                configLoadFailed = true
+                configProblem = "config.json is missing or its link is broken. Keeping the current settings and saving nothing until it is back."
             }
-            configError = nil
         } catch {
-            configError = "Could not read config.json. Using the last good settings until it is fixed."
+            configLoadFailed = true
+            configProblem = loadFailureMessage(error)
         }
-        configStamp = currentConfigStamp()
+    }
+
+    private func configLoaded() {
+        configLoadFailed = false
+        hasLoadedConfig = true
+        configProblem = nil
+    }
+
+    private func loadFailureMessage(_ error: Error) -> String {
+        var file = "config.json or config.local.json"
+        if case ConfigError.invalidJSON(let name, _) = error { file = name }
+        let fallback = hasLoadedConfig ? "Using the last good settings" : "No settings are loaded"
+        return "Could not read \(file). \(fallback), and nothing is saved until it is fixed and reloaded."
+    }
+
+    /// lstat, not stat: a stow link whose target is gone still takes the path.
+    private var configPathIsTaken: Bool {
+        (try? FileManager.default.attributesOfItem(atPath: paths.configFile.path)) != nil
     }
 
     /// Picks up edits made outside the app, e.g. a `git pull` in the dotfiles repo the config is stowed from.
     private func reloadConfigIfChanged() {
         guard !previewMode, currentConfigStamp() != configStamp else { return }
-        let before = config
+        let before = config.accounts
         loadConfig()
-        if config.accounts != before.accounts { refresh(force: true) }
+        refreshEditedAccounts(from: before)
     }
 
     private func currentConfigStamp() -> [Date?] {
@@ -160,7 +222,11 @@ final class AppModel {
     }
 
     /// Applies an edit from Settings and saves it to config.json (through the stow symlink if there is one).
+    /// While the last load failed, the edit is neither applied nor saved; the banner says why.
     func updateConfig(_ edit: (inout AppConfig) -> Void) {
+        // An outside change since the last tick is the base of this edit, or saving would revert it.
+        reloadConfigIfChanged()
+        guard previewMode || !configLoadFailed else { return }
         let old = config
         var new = config
         edit(&new)
@@ -169,48 +235,61 @@ final class AppModel {
         guard !previewMode else { return }
         do {
             baseConfig = try ConfigStore(paths: paths).save(old: old, new: new, base: baseConfig)
-            configError = nil
+            configProblem = nil
         } catch {
-            configError = "Could not save config.json."
+            configProblem = "Could not save config.json."
         }
         configStamp = currentConfigStamp()
-        if old.accounts != new.accounts {
-            for account in new.accounts where old.accounts.first(where: { $0.id == account.id }) != account {
-                nextDue[account.id] = nil
-            }
-            refresh(force: false)
-        }
+        refreshEditedAccounts(from: old.accounts)
         if new.alerts.enabled, !old.alerts.enabled { requestNotificationPermission(prominent: true) }
+    }
+
+    private func refreshEditedAccounts(from old: [AccountConfig]) {
+        guard config.accounts != old else { return }
+        scheduler.invalidate(config.accounts.filter { !old.contains($0) }.map(\.id))
+        refresh(force: false)
     }
 
     // MARK: Refresh
 
-    /// `force` refreshes every visible account now; otherwise only accounts whose interval has elapsed.
-    func refresh(force: Bool) {
-        let current = Date()
-        let targets = accounts.filter { force || (nextDue[$0.id] ?? .distantPast) <= current }
-        refresh(targets)
+    /// `force` skips the refresh interval (popover open, wake, the header button) but not a rate-limit backoff.
+    @discardableResult
+    func refresh(force: Bool) -> Task<Void, Never>? {
+        let due = Set(scheduler.due(accounts.map(\.id), now: clock(), force: force))
+        return fetch(accounts.filter { due.contains($0.id) })
     }
 
-    func refresh(accountID: String) {
-        refresh(accounts.filter { $0.id == accountID })
+    /// An explicit per-account check, such as Settings > Test: it overrides the interval and a rate-limit backoff.
+    @discardableResult
+    func refresh(accountID: String) -> Task<Void, Never>? {
+        fetch(accounts.filter { $0.id == accountID && !scheduler.inFlight.contains($0.id) })
     }
 
-    private func refresh(_ targets: [AccountConfig]) {
-        let targets = targets.filter { !inFlight.contains($0.id) }
-        guard !targets.isEmpty, !previewMode else { return }
+    /// The one way to probe an account again after its probe spent tokens: one run, latched again if it repeats.
+    @discardableResult
+    func retryProbe(accountID: String) -> Task<Void, Never>? {
+        if probeLatch.release(accountID) { saveProbeLatch() }
+        return refresh(accountID: accountID)
+    }
+
+    private func fetch(_ targets: [AccountConfig]) -> Task<Void, Never>? {
+        guard !previewMode else { return nil }
+        let targets = withoutLatchedProbes(targets)
+        guard !targets.isEmpty else { return nil }
+        scheduler.begin(targets.map(\.id))
         for account in targets {
-            inFlight.insert(account.id)
             statuses[account.id, default: AccountStatus()].isRefreshing = true
         }
         isRefreshing = true
-        let context = FetchContext(cli: CLILocator(overrides: config.cliPaths), paths: paths)
-        Task {
+        let context = FetchContext(cli: cliLocator(for: config), paths: paths)
+        let jobs = targets.map { ($0, fetcher($0.provider)) }
+        return Task {
+            var dropped = false
             await withTaskGroup(of: (AccountConfig, Result<UsageSnapshot, FetchError>).self) { group in
-                for account in targets {
+                for (account, fetcher) in jobs {
                     group.addTask {
                         do {
-                            let snapshot = try await FetcherRegistry.fetcher(for: account.provider).fetch(account, context: context)
+                            let snapshot = try await fetcher.fetch(account, context: context)
                             return (account, .success(snapshot))
                         } catch let error as FetchError {
                             return (account, .failure(error))
@@ -219,18 +298,35 @@ final class AppModel {
                         }
                     }
                 }
-                for await (account, result) in group { apply(result, to: account) }
+                for await (account, result) in group {
+                    if !apply(result, to: account) { dropped = true }
+                    isRefreshing = !scheduler.inFlight.isEmpty
+                }
             }
-            for account in targets { inFlight.remove(account.id) }
-            isRefreshing = !inFlight.isEmpty
-            lastRefreshAt = Date()
-            now = Date()
+            lastRefreshAt = clock()
+            now = clock()
             historyRevision += 1
+            if dropped { refresh(force: false) }
         }
     }
 
-    private func apply(_ result: Result<UsageSnapshot, FetchError>, to account: AccountConfig) {
-        let current = Date()
+    /// Returns false when the account was edited, disabled or removed while its fetch ran. Such a result describes
+    /// the old settings, so it is not shown, stored or alerted on, and the account is due again at once.
+    private func apply(_ result: Result<UsageSnapshot, FetchError>, to account: AccountConfig) -> Bool {
+        let current = clock()
+        var spentTokens = false, rateLimited = false
+        if case .failure(let error) = result {
+            spentTokens = ProbeLatch.spentTokens(error)
+            if case .rateLimited = error { rateLimited = true }
+        }
+        let live = config.accounts.first { $0.id == account.id }
+        // A model turn has already spent tokens whatever changed meanwhile, so it always latches.
+        guard live == account || spentTokens else {
+            scheduler.finish(account.id, at: current, delay: nil, rateLimited: false)
+            statuses[account.id]?.isRefreshing = false
+            return false
+        }
+
         var status = statuses[account.id] ?? AccountStatus()
         status.isRefreshing = false
         status.lastAttempt = current
@@ -243,21 +339,32 @@ final class AppModel {
             status.error = error
         }
         statuses[account.id] = status
-        nextDue[account.id] = current.addingTimeInterval(retryDelay(for: account, after: result))
+        let delay = RefreshScheduler.retryDelay(
+            accountMinutes: account.refreshMinutes, globalMinutes: config.refreshMinutes,
+            lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled, result: result
+        )
+        scheduler.finish(account.id, at: current, delay: delay, rateLimited: rateLimited)
+        if spentTokens {
+            probeLatch.latch(account.id, binary: ProbeLatch.fingerprint(ofBinaryAt: cliLocator(for: config).locate("claude")))
+            saveProbeLatch()
+        }
 
-        let liveAccount = config.accounts.first { $0.id == account.id } ?? account
-        let outcome = AlertEngine.evaluate(account: liveAccount, result: result, config: config, state: &alertState, now: current)
+        let outcome = AlertEngine.evaluate(account: live ?? account, result: result, config: config, state: &alertState, now: current)
         notifications?.handle(outcome)
         saveAlertState()
+        return true
     }
 
-    private func retryDelay(for account: AccountConfig, after result: Result<UsageSnapshot, FetchError>) -> TimeInterval {
-        var minutes = Double(account.refreshMinutes ?? config.refreshMinutes)
-        if ProcessInfo.processInfo.isLowPowerModeEnabled { minutes = max(minutes, 30) }
-        if case .failure(.rateLimited(let retryAfter)) = result {
-            return max(retryAfter ?? 0, minutes * 2 * 60)
-        }
-        return max(1, minutes) * 60
+    /// Accounts whose last probe spent tokens stay out, unless the claude binary has changed since.
+    private func withoutLatchedProbes(_ targets: [AccountConfig]) -> [AccountConfig] {
+        guard !probeLatch.isEmpty else { return targets }
+        let binary = ProbeLatch.fingerprint(ofBinaryAt: cliLocator(for: config).locate("claude"))
+        if probeLatch.releaseAll(unlessBinary: binary) { saveProbeLatch() }
+        return targets.filter { !probeLatch.isLatched($0.id) }
+    }
+
+    private func cliLocator(for config: AppConfig) -> CLILocator {
+        CLILocator(home: paths.home, overrides: config.cliPaths)
     }
 
     // MARK: History
@@ -269,25 +376,11 @@ final class AppModel {
         let jobs = accounts.compactMap { account in FetcherRegistry.scanner(for: account.provider).map { (account, $0) } }
         let paths = self.paths
         Task.detached(priority: .utility) { [weak self] in
-            var changed = false
-            for (account, scanner) in jobs {
-                do {
-                    let checkpoints = try store.checkpoints(scanner: scanner.name, accountID: account.id)
-                    let result = try scanner.scan(account, checkpoints: checkpoints, paths: paths)
-                    if !result.events.isEmpty {
-                        try store.upsert(result.events)
-                        changed = true
-                    }
-                    try store.saveCheckpoints(result.checkpoints, scanner: scanner.name, accountID: account.id)
-                } catch {
-                    // One unreadable source must not stop the others; it is retried on the next scan.
-                    continue
-                }
-            }
-            await MainActor.run { [changed] in
+            let changed = HistoryScanJob.run(jobs, store: store, paths: paths)
+            await MainActor.run {
                 guard let self else { return }
                 self.scanning = false
-                self.lastScanAt = Date()
+                self.lastScanAt = self.clock()
                 if changed { self.historyRevision += 1 }
             }
         }
@@ -310,9 +403,10 @@ final class AppModel {
         }
     }
 
-    // MARK: Alerts
+    // MARK: Persisted state
 
     private var alertStateFile: URL { paths.supportDirectory.appending(path: "alert-state.json") }
+    private var probeLatchFile: URL { paths.supportDirectory.appending(path: "probe-latch.json") }
 
     private func loadAlertState() {
         guard let data = try? Data(contentsOf: alertStateFile), let state = try? JSONDecoder().decode(AlertState.self, from: data) else { return }
@@ -325,12 +419,37 @@ final class AppModel {
         try? data.write(to: alertStateFile, options: .atomic)
     }
 
+    private func loadProbeLatch() {
+        guard let data = try? Data(contentsOf: probeLatchFile), let latch = try? JSONDecoder().decode(ProbeLatch.self, from: data) else { return }
+        probeLatch = latch
+        // Nothing probes a latched account, so without this its card would not say why it stopped updating.
+        for id in latch.accountIDs {
+            statuses[id, default: AccountStatus()].error = ProbeLatch.error
+        }
+    }
+
+    private func saveProbeLatch() {
+        guard !previewMode, let data = try? JSONEncoder().encode(probeLatch) else { return }
+        try? FileManager.default.createDirectory(at: paths.supportDirectory, withIntermediateDirectories: true)
+        try? data.write(to: probeLatchFile, options: .atomic)
+    }
+
+    // MARK: Notifications
+
     /// Without `prominent` this is the quiet provisional grant (no prompt). `prominent` shows the system prompt
     /// and is only called from an explicit user action.
     func requestNotificationPermission(prominent: Bool) {
         guard let notifications, !previewMode else { return }
         Task {
-            notificationsAuthorized = await notifications.requestAuthorization(prominent: prominent)
+            notificationPermission = await notifications.requestAuthorization(prominent: prominent)
+        }
+    }
+
+    /// Reads the current grant without asking, so Settings can show whether alerts arrive as banners or quietly.
+    func refreshNotificationPermission() {
+        guard let notifications, !previewMode else { return }
+        Task {
+            notificationPermission = await notifications.permission()
         }
     }
 
