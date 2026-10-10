@@ -21,9 +21,10 @@ struct AccountDetailView: View {
                     statusLine
                     HStack {
                         Spacer()
-                        Button("Test") { model.refresh(accountID: account.id) }
+                        let check = AccountAction.check(account, status: model.status(for: account), model: model)
+                        Button(check.title, action: check.run)
                             .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
-                            .help(testBlocker ?? "Fetch this account's usage now")
+                            .help(testBlocker ?? check.help ?? "")
                         Button("Open Usage Page") { model.openProviderDashboard(account) }
                             .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
                     }

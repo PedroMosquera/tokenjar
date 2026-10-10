@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import HeadroomCore
 
@@ -5,11 +6,25 @@ struct AlertsSettingsPane: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        let delivery = AlertDelivery(model.notificationPermission)
         SettingsPage(title: "Alerts") {
             Section {
                 Toggle(isOn: model.configBinding(\.alerts.enabled)) {
                     Text("Send alerts")
-                    Text("macOS asks for permission to show notifications the first time alerts are on.")
+                    Text(delivery.summary)
+                }
+                if let action = delivery.action {
+                    HStack {
+                        Spacer()
+                        switch action {
+                        case .allowBanners:
+                            Button("Allow Banners") { model.requestNotificationPermission(prominent: true) }
+                        case .openNotificationSettings:
+                            Button("Open Notification Settings") {
+                                NSWorkspace.shared.open(AlertDelivery.notificationSettingsURL(bundleID: Bundle.main.bundleIdentifier))
+                            }
+                        }
+                    }
                 }
             }
 
@@ -31,11 +46,11 @@ struct AlertsSettingsPane: View {
                 }
                 Toggle(isOn: model.configBinding(\.alerts.windowResets)) {
                     Text("A window resets")
-                    Text("When a limit window starts over.")
+                    Text("When a limit window starts over after reaching 80% or more.")
                 }
                 Toggle(isOn: model.configBinding(\.alerts.sourceProblems)) {
                     Text("A source stops working")
-                    Text("A CLI is missing or signed out. Once per problem, cleared by the next good check.")
+                    Text("A CLI is missing, signed out or unsupported, a credential or subscription stops working, or its output cannot be read. Network errors, timeouts and rate limits never alert. Once per problem, cleared by the next good check.")
                 }
             }
             .disabled(!model.config.alerts.enabled)
@@ -44,5 +59,47 @@ struct AlertsSettingsPane: View {
                 HelpText("Nothing fires on the first check after launch; that check only sets the baseline.")
             }
         }
+        .onAppear { model.refreshNotificationPermission() }
+        // The grant can change in System Settings while this pane is open.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.refreshNotificationPermission()
+        }
+    }
+}
+
+/// What the Alerts pane says about how alerts reach the user, and the one fix it can offer.
+struct AlertDelivery: Equatable {
+    enum Action: Equatable {
+        case allowBanners
+        case openNotificationSettings
+    }
+
+    var summary: String
+    var action: Action?
+
+    /// nil is a grant not read yet: the default wording, but no button until it is known.
+    init(_ permission: NotificationPermission?) {
+        switch permission {
+        case .quiet, .notDetermined, nil:
+            summary = "Alerts arrive quietly in Notification Center. Allow banners to see them on screen."
+            action = permission == nil ? nil : .allowBanners
+        case .banners:
+            summary = "Alerts show as banners and stay in Notification Center."
+            action = nil
+        case .denied:
+            summary = "Notifications for Headroom are off in System Settings, so alerts are not shown."
+            action = .openNotificationSettings
+        case .unavailable:
+            summary = "Alerts work only from the installed app in ~/Applications."
+            action = nil
+        }
+    }
+
+    static func notificationSettingsURL(bundleID: String?) -> URL {
+        var components = URLComponents()
+        components.scheme = "x-apple.systempreferences"
+        components.path = "com.apple.Notifications-Settings.extension"
+        if let bundleID { components.queryItems = [URLQueryItem(name: "id", value: bundleID)] }
+        return components.url!
     }
 }
