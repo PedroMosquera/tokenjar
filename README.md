@@ -26,7 +26,7 @@ On a Mac that only runs approved software, an allowlisting tool blocks new ad-ho
 
 ## Config and sync
 
-Headroom reads `~/.config/headroom/config.json`. It holds no secrets (only references to where API keys live), so it can be stowed from the dotfiles repo and shared between Macs. Settings saves through the symlink, so the link survives.
+Headroom reads `~/.config/headroom/config.json` (`$XDG_CONFIG_HOME/headroom/config.json` when that variable is set in the app's own environment). It holds no secrets (only references to where API keys live), so it can be stowed from the dotfiles repo and shared between Macs. Settings saves through the symlink, so the link survives.
 
 ```json
 {
@@ -59,7 +59,7 @@ Never rename an account `id` once it has data: it is the key for history and ale
 
 `Scripts/make-icon.sh` rebuilds `Resources/AppIcon.icns` from `Resources/AppIcon.svg`; run it after editing the SVG and commit both.
 
-For development, the debug binary has three flags that do one job and exit: `--probe <provider>` prints one fetch as JSON, `--scan <provider> [--days N]` prints history totals, and `--render-snapshots <dir>` renders every surface to PNG from preview data.
+For development, the debug binary has three flags that do one job and exit: `--probe <provider> [--profile-dir DIR] [--credential-file FILE --credential-key KEY]` prints one fetch as JSON, `--scan <provider> [--profile-dir DIR] [--days N]` (default 30 days) prints history totals and an API-equivalent cost, and `--render-snapshots <dir>` renders every surface to PNG from preview data. `<provider>` is one of `claude`, `codex`, `opencode-go`, `opencode-zen`, `antigravity` (Antigravity has no history to scan). `--probe` and `--scan` never touch `headroom.sqlite` or `config.json`.
 
 ## Troubleshooting
 
