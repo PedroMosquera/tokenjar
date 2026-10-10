@@ -1,6 +1,6 @@
 # What Headroom reads, runs, sends and stores
 
-Headroom shows subscription usage limits without ever handling an OAuth token. Claude and Codex numbers come from their own CLIs, which keep their own credentials. The app's only network request of its own is one GET to `opencode.ai`. History comes from local log files, and only counts, model ids, timestamps and project folder names are kept.
+Headroom shows subscription usage limits without ever handling an OAuth token. Claude and Codex numbers come from their own CLIs, which keep their own credentials. The app's only network request of its own is one GET to `opencode.ai`. History comes from local log files. Headroom keeps only counts, model ids, timestamps, project folder names, and SHA-256 digests that record which files and responses it has already counted.
 
 This page is the contract. If the code and this page disagree, the code has a bug.
 
@@ -9,9 +9,9 @@ This page is the contract. If the code and this page disagree, the code has a bu
 Two labels are used below:
 
 - **In code**: implemented in this repository today.
-- **As designed**: specified in [design.md](design.md); the implementation is still a stub on `main`. Whoever implements it updates this page in the same change.
+- **As designed**: specified in [design.md](design.md) but not on `main` yet. Each row is checked against the code and relabeled when its implementation merges.
 
-In code today: the HTTP client (allowlist, GET only, HTTPS only, no redirects, no cookies) and the test that pins it; the Keychain wrapper scoped to the app's own service; how CLIs are located and the environment they get; the config file paths and how config is written. Every provider fetcher, history scanner, the SQLite store, first-run discovery and the CodexBar import are as designed.
+In code today: the HTTP client (allowlist, GET only, HTTPS only, no redirects, no cookies) and the test that pins its allowlist; the Keychain wrapper scoped to the app's own service; how CLIs are located and the environment they get; the config file paths and how config is written. Every provider fetcher, history scanner, the SQLite store, first-run discovery and the CodexBar import are as designed.
 
 ## Network
 
@@ -22,7 +22,7 @@ In code today: the HTTP client (allowlist, GET only, HTTPS only, no redirects, n
 | Request | `GET https://opencode.ai/zen/go/v1/usage` |
 | When | Each refresh, for OpenCode Go accounts only (as designed) |
 | Headers | `Authorization: Bearer <key>`, `User-Agent: Headroom`, `Accept: application/json` |
-| Key source | The `key` field of the `opencode-go` entry in opencode's `auth.json`, falling back to the `opencode` entry, or a key you pasted in Settings and Headroom stored in its own Keychain item (as designed) |
+| Key source | The account's `credential` in config: a named entry in a JSON file, or a key you pasted in Settings and Headroom stored in its own Keychain item. Without one, the `opencode-go` entry in opencode's `auth.json`, then the `opencode` entry (as designed) |
 
 Enforced by `HTTPClient` (in code):
 
@@ -54,7 +54,7 @@ claude -p /usage --output-format stream-json --verbose --no-session-persistence 
 | Part | Why |
 |---|---|
 | `-p /usage` | Runs the local `/usage` command and exits. It reports plan limits and starts no model turn (0 tokens). |
-| `--output-format stream-json --verbose` | Machine-readable output; `stream-json` requires `--verbose` in print mode. Headroom reads only `usage_report.rate_limits` (`limits[]`, `extra_usage`). |
+| `--output-format stream-json --verbose` | Machine-readable output; `stream-json` requires `--verbose` in print mode. Headroom reads only `usage_report.rate_limits` (`limits[]`, `extra_usage`) and, from the init line, `apiKeySource`, which names where an API key would come from (never the key), to tell an API-key login from being signed out. |
 | `--no-session-persistence` | The probe is not saved as a session, so it never appears in `claude --resume` or in the transcripts Headroom scans. |
 | `--strict-mcp-config` | With no `--mcp-config` given, no MCP servers start. |
 | `--settings '{"disableAllHooks":true}'` | Your hooks do not run for the probe. |
@@ -67,9 +67,9 @@ The exact argument list lives in `ClaudeUsageFetcher`; this table must match it.
 codex -s read-only -a never app-server
 ```
 
-`-s read-only` keeps the sandbox read-only and `-a never` means it never asks for approval. Headroom speaks JSON-RPC over stdin/stdout and sends exactly three messages:
+`-s read-only` keeps the sandbox read-only and `-a never` means it never asks for approval. Headroom writes JSON-RPC-style requests to stdin, one JSON object per line (codex's app-server protocol has no `jsonrpc` field), and sends exactly three messages:
 
-1. `initialize`
+1. `initialize`, with `clientInfo` naming Headroom and its version
 2. `initialized` (notification)
 3. `account/rateLimits/read` with `{"excludeResetCreditDetails": true}`
 
@@ -78,10 +78,11 @@ It never sends `account/read` with `refreshToken: true`, never uses Codex's cons
 ### Antigravity
 
 ```
+agy --version
 agy -p /usage --output-format json
 ```
 
-Needs agy 1.1.11 or later. Not yet verified against a live install.
+`/usage` is sent only after `agy --version` reports 1.1.11 or later. Older versions have no non-interactive slash commands and could pass `/usage` to the model as a prompt, which spends quota, so a failed or unreadable version check also stops the probe. The JSON shape of `/usage` is not yet verified against a live install.
 
 ### OpenCode
 
@@ -97,13 +98,14 @@ No CLI is run. See the network request above and the files below.
 |---|---|---|
 | `~/.config/headroom/config.json`, `~/.config/headroom/config.local.json` | The whole file. Both are secret-free by design. | In code |
 | `~/.config/headroom/pricing.json` | Optional per-model price overrides. | As designed |
-| `<claude profile>/projects/**/*.jsonl` (default profile `~/.claude`) | Assistant entries only: the token counts in `message.usage`, `message.model`, `timestamp`, the last path component of `cwd`, and `message.id` plus `requestId` to count each response once. Never `message.content`. | As designed |
-| `~/.claude.json` (or `.claude.json` inside a custom profile dir) | From `oauthAccount`, only the field that names the plan, for the plan label. No email, name, organization or uuid fields. | As designed |
-| `<codex home>/sessions/**/rollout-*.jsonl` (default `~/.codex`) | `token_usage_record` token counts and model id, deduplicated by `response_id`; otherwise positive deltas of `token_count` events; timestamps; the last path component of the session's working directory. If the codex CLI is missing, the last `rate_limits` snapshot in the newest rollout, shown as stale. | As designed |
+| `<claude profile>/projects/**/*.jsonl` (default profile `~/.claude`), subagent transcripts included | Assistant entries only: the token counts in `message.usage`, `message.model`, `timestamp`, the last path component of `cwd` (`~` for the home folder itself), and `message.id` plus `requestId` (or `sessionId` when a line has no request id) to count each response once. Never `message.content`. | As designed |
+| `~/.claude.json`, or `.claude.json` inside a custom profile dir; `<claude profile>/.config.json` instead when that older file exists | From `oauthAccount`: the organization type, seat tier and rate-limit tier fields that name the plan (Pro, Max 5x, Team and so on), which first-run discovery also uses to label an account Work or Personal. From `cachedUsageUtilization`: the limits Claude Code itself last fetched, shown only when the CLI cannot report. `oauthAccount.accountUuid` is compared in memory with the cache's account uuid so another login's cache is never shown; neither uuid is stored or logged. No email, name or organization name fields. | As designed |
+| `<claude profile>/settings.json` | Only the `env` keys `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX` and `CLAUDE_CODE_USE_FOUNDRY`, to tell a cloud-provider login from being signed out. | As designed |
+| `<codex home>/sessions/**/rollout-*.jsonl` and `<codex home>/archived_sessions/**/rollout-*.jsonl` (default `~/.codex`) | `token_usage_record` token counts and model id, deduplicated by `response_id`; otherwise positive deltas of `token_count` events; timestamps; the last path component of the session's working directory (`~` for the home folder itself). If the codex CLI is missing, the last `rate_limits` snapshot from the most recent rollout under `sessions/` that has one, shown as stale. | As designed |
 | `~/.codex/auth.json` | Existence only, for first-run discovery. The file is never opened. | As designed |
-| opencode's `auth.json` (`~/.local/share/opencode/auth.json`) | The `key` field of the `opencode-go` entry, then of `opencode`. That key is an API key, not an OAuth token, and it is sent only to `opencode.ai`. The file is parsed to find that entry; no other entry is used, stored or logged. First-run discovery reads only which entry names exist. | As designed |
-| opencode's `opencode.db` (`~/.local/share/opencode/`) | Opened read-only. For assistant messages: cost, token counts, provider id, model id, timestamps, and the last path component of the working directory. Never message text or parts. | As designed |
-| CodexBar's config and preferences | One-shot import you start at first run: provider ids and enabled flags, plus an explicit allowlist of preference keys (thresholds, refresh interval, notifications). Never its API key or cookie fields; its preferences domain is never enumerated. | As designed |
+| opencode's `auth.json` in its data folder: the account's `profileDir`, else `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` | The `opencode-go` entry, then `opencode` (or the entry named in the account's `credential`): the `key` of an `api` entry, or the `token` of a `wellknown` entry. That value is sent only to `opencode.ai`. Only the named entries are decoded, so other entries, OAuth ones included, are never read into memory, stored or logged. First-run discovery reads only which entry names exist. | As designed |
+| opencode's `opencode.db`, in the same data folder | Opened read-only. For assistant messages of the account's provider: message id, cost, token counts, model id, created and updated timestamps, and the last path component of the working directory (`~` for the home folder itself). Never message text or the `part` table. The OpenCode Zen account sums this month's cost from the same rows and makes no network request. | As designed |
+| CodexBar's `config.json` (`$XDG_CONFIG_HOME/codexbar`, `~/.config/codexbar` or `~/.codexbar`) and its preferences domain `com.steipete.codexbar` | One-shot import you start at first run: `providers[].id` and `providers[].enabled` from the config, and only the preference keys `refreshFrequency`, `quotaWarningThresholds` and `quotaWarningNotificationsEnabled`. Never its API key or cookie fields; the preferences domain is never enumerated. | As designed |
 | Headroom's own Keychain item, service `com.pedromosquera.headroom.apikeys` | API keys you pasted in Settings. Nothing else. | In code |
 
 Antigravity has no history source; only the `agy` command above.
@@ -112,17 +114,17 @@ Antigravity has no history source; only the `agy` command above.
 
 | Where | What | Status |
 |---|---|---|
-| `~/Library/Application Support/Headroom/headroom.sqlite` | The latest snapshot per account: plan label, each limit window (id, label, used %, length, reset time), money lines, source label and plain-language notes. | As designed |
-| same | `window_samples(account_id, window_id, ts, used_percent, resets_at)`: one row per fetch per window, for the charts. | As designed |
-| same | Per-response token counts: timestamp, harness, model id, project folder name, input, output, cache read, cache write and reasoning tokens, cost reported by the harness, and a dedupe key built from the response's message or request id. Rolled up into `usage_daily`, because Claude Code deletes transcripts after 30 days. | As designed |
-| same | `scan_state(path, inode, size, offset)`: which log files were read and how far, so scans are incremental. | As designed |
+| `~/Library/Application Support/Headroom/headroom.sqlite` (mode 0600) | The latest snapshot per account: plan label, each limit window (id, label, used %, length, reset time), money lines, source label and plain-language notes. | As designed |
+| same | `window_samples(account_id, window_id, ts, used_percent, resets_at)`: one row per fetch per window, for the charts. A sample identical to the previous one within 5 minutes is skipped, and samples older than 180 days are deleted. | As designed |
+| same | `usage_events`, one row per response: timestamp, account slug, harness, model id, project folder name, input, output, cache read, cache write (5-minute and 1-hour) and reasoning tokens, cost reported by the harness, and a SHA-256 digest of the response's dedupe key (built from its message, request or session id, or the rollout file name). Rows outlive the logs they came from, because Claude Code deletes transcripts after 30 days; daily totals are computed from them. | As designed |
+| same | `scan_state`, one row per log file or database read: scanner name, account slug, a SHA-256 digest of the file's path (never the path, which holds your home folder name, encoded project paths and session uuids) and a progress marker (inode and byte offset, or opencode's last update time), so scans are incremental. | As designed |
 | `~/Library/Application Support/Headroom/probe/` | An empty directory, used as the working directory for CLI probes. | As designed |
 | `~/.config/headroom/config.json` | Your settings, written when you change them in Settings, through the stow symlink if there is one. `config.local.json` is never written. | In code |
 | Headroom's own Keychain item | API keys you paste in Settings. | In code |
 
 `account_id` everywhere is the slug you chose in config (for example `claude-work`), not a provider account id.
 
-Never stored, logged or displayed: prompts, outputs, file contents, emails, names, organization names, provider account ids or uuids, OAuth tokens, API keys (outside the Keychain item), raw error bodies.
+Never stored, logged or displayed: prompts, outputs, file contents, log file paths, emails, names, organization names, provider account ids or uuids, OAuth tokens, API keys (outside the Keychain item), raw error bodies.
 
 Notifications are local macOS notifications. Their text carries no emails, ids or raw errors (as designed).
 

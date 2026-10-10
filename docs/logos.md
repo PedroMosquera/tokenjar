@@ -9,7 +9,7 @@ Provider marks in `Resources/Logos/`, loaded by `ProviderLogo` as `<ProviderID.l
 | `opencode.svg` | https://cdn.jsdelivr.net/npm/simple-icons@16.32.0/icons/opencode.svg | simple-icons 16.32.0 (published 2026-09-20) | `1e4cf7115b3a697bc4d4695abc826c64b685d1691140f8965623adf2b53de576` | `6f7d203200ba051cdbaa726c4de0a729cee3f1cec47953f189399d951af58c4c` | `#000000` |
 | `antigravity.svg` | https://cdn.jsdelivr.net/npm/simple-icons@16.32.0/icons/googlegemini.svg | simple-icons 16.32.0 (published 2026-09-20) | `2879700fcd4cc6e0f6a64ff85453ec494538fc161347a0411cc6a62dd50080bc` | `a6228d8846040401e941a39ed17459785e8324dbb7b870ce84233c9b3e9863a0` | `#8E75B2` |
 
-Brand hex values come from `data/simple-icons.json` in the same package version. The files themselves are monochrome; tint them at runtime if a view wants color.
+Brand hex values come from `data/simple-icons.json` in the same package version. The files themselves are black, so draw them as templates and tint them at runtime. Drawn as-is they nearly vanish on a dark background.
 
 ## Why these versions
 
