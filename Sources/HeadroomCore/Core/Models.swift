@@ -289,7 +289,11 @@ public struct UsageEvent: Codable, Hashable, Sendable {
     /// name is never stored. nil for a relative path, the root, or no path. Every history scanner goes through this.
     static func project(fromWorkingDirectory cwd: String?, home: URL) -> String? {
         guard let cwd, cwd.hasPrefix("/") else { return nil }
-        let url = URL(fileURLWithPath: cwd).standardizedFileURL
+        var url = URL(fileURLWithPath: cwd).standardizedFileURL
+        // Claude Code runs subagents and parallel sessions in <repo>/.claude/worktrees/<name>; the work belongs to <repo>.
+        if let range = url.path.range(of: "/.claude/worktrees/") {
+            url = URL(fileURLWithPath: String(url.path[..<range.lowerBound]))
+        }
         if url.path == home.standardizedFileURL.path { return "~" }
         let last = url.lastPathComponent
         return last == "/" ? nil : last
