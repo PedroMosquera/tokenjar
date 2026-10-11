@@ -113,10 +113,9 @@ struct AccountCredentialSection: View {
         let key = draftKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return }
         do {
-            try model.secrets.write(key, account: account.id)
+            try model.savePastedKey(key, accountID: account.id)
             draftKey = ""
             choosingKeychain = false
-            model.updateAccount(account.id) { $0.credential = .keychain(account: account.id) }
             message = ("Saved to the Keychain.", false)
         } catch {
             Self.log.error("Saving the pasted key failed: \(String(describing: error), privacy: .public)")

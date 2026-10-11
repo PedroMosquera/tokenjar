@@ -78,8 +78,9 @@ final class AppModel {
     @ObservationIgnored private(set) var readOnly = false
     /// What General shows for launch at login. Window renders replace it so they never ask macOS.
     @ObservationIgnored var launchAtLoginState: () -> LaunchAtLogin.State = { LaunchAtLogin.state }
-    /// Where pasted API keys live. Window renders replace it so they never reach the Keychain.
-    @ObservationIgnored var secrets: any SecretStore = KeychainSecretStore()
+    /// Pasted API keys, held for the launch so the Keychain is asked once per account. Window renders replace it with
+    /// one backed by memory, so they never reach the Keychain.
+    @ObservationIgnored var secrets = SessionSecretStore(KeychainSecretStore())
     /// Asked once per launch by the Headroom move; tests replace it.
     @ObservationIgnored var legacyAppIsRunning: () -> Bool = {
         !NSRunningApplication.runningApplications(withBundleIdentifier: LegacyMigration.legacyBundleIdentifier).isEmpty
@@ -361,10 +362,13 @@ final class AppModel {
         return fetch(accounts.filter { due.contains($0.id) }, startedAt: current)
     }
 
-    /// An explicit per-account check, such as Settings > Test: it overrides the interval and a rate-limit backoff.
+    /// An explicit per-account check, such as Settings > Test: it overrides the interval and a rate-limit backoff. It is
+    /// also the only check that asks the Keychain again for a pasted key it found missing or was refused.
     @discardableResult
     func refresh(accountID: String) -> Task<Void, Never>? {
-        fetch(accounts.filter { $0.id == accountID && !scheduler.inFlight.contains($0.id) }, startedAt: clock())
+        let targets = accounts.filter { $0.id == accountID && !scheduler.inFlight.contains($0.id) }
+        for case .keychain(let name)? in targets.map(\.credential) { secrets.allowRead(account: name) }
+        return fetch(targets, startedAt: clock())
     }
 
     /// The one way to probe an account again after its probe spent tokens or quota: one run, latched again if it
@@ -581,6 +585,14 @@ final class AppModel {
 
     func openStatusPage(_ account: AccountConfig) {
         if let url = account.provider.statusPageURL { NSWorkspace.shared.open(url) }
+    }
+
+    /// Settings' Save Key: stores the key, points the account at it and checks it. An account that already used a pasted
+    /// key is not edited, so without the check its card would keep the last failure until the next interval.
+    func savePastedKey(_ key: String, accountID: String) throws {
+        try secrets.write(key, account: accountID)
+        updateAccount(accountID) { $0.credential = .keychain(account: accountID) }
+        refresh(accountID: accountID)
     }
 
     func showDashboard(accountID: String? = nil) { presenter.showDashboard(accountID) }

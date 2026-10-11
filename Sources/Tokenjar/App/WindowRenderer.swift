@@ -86,7 +86,7 @@ private final class RenderSession {
         let empty = AppModel.previewEmpty()
         let configError = AppModel.preview()
         configError.showFailedReload(of: "config.json")
-        for preview in [model, states, empty, configError] { preview.secrets = InMemorySecretStore() }
+        for preview in [model, states, empty, configError] { preview.secrets = SessionSecretStore(InMemorySecretStore()) }
         let slots = SnapshotRenderer.slotStates(now: model.now).map { (name: "slot-\($0.name)", state: $0.state) }
         return RenderData(
             model: model, states: states, empty: empty, configError: configError,

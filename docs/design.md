@@ -60,6 +60,7 @@ SwiftPM package, Swift tools 6.2, macOS 14 or later, built with Command Line Too
 - Forced refreshes skip the interval: launch, 8 seconds after wake (ticks pause from sleep until then, so nothing fetches before the network is back), opening the popover when the last refresh is 2 minutes old or more, and the popover's refresh button.
 - After a 429 the account waits the longer of `Retry-After` and twice its interval. Ticks, forced refreshes and edits respect that backoff, with one exception: a result that arrives after its account was edited is dropped and the account is fetched again at once, even when that result was a 429 or a backoff was in place.
 - A per-account check (a card's Retry, Settings' Test, Try once more) skips both the interval and the backoff, and checks only that account.
+- A pasted key is read from the Keychain at its account's first check after launch and held in memory (`SessionSecretStore`) until the app quits, whatever that read found, so a Deny is never asked again in the background. Only the account's own check reads it again, and only while no key is held. Save Key replaces the held key and checks the account at once.
 - No account is fetched twice at once. An account edited in Settings, or changed by an outside edit to the config, is due at once. A result that arrives after its account was edited, disabled or removed is dropped; an edited account that still shows is then fetched again at once. A model-turn failure is never dropped, because the tokens are already spent, and it always latches.
 - History is scanned off the main thread at launch and then every 5 minutes, at utility priority. A scanner's checkpoints move only after its events are stored, and one unreadable source does not stop the others.
 
@@ -156,7 +157,7 @@ Next to the database: `alert-state.json` (fired dedupe keys, failing accounts, a
 Swift Testing, two targets. `make test` runs both and passes the plugin and framework paths Command Line Tools needs.
 
 - `TokenjarCoreTests`: fetchers against recorded fixtures (redacted, see `Tests/TokenjarCoreTests/Fixtures/README.md`) and scripted processes, scanners, the SQLite store and its migrations, alerts, pace, pricing, config, discovery, the CodexBar import and the move from Headroom's folders. Privacy pins include `HTTPClientTests.allowlistIsExactlyOpenCode`, `CLILocatorTests.baseEnvironmentPassesOnlyTheListedVariables`, `CodexBarImportTests.defaultsAllowlistIsPinned`, `KeychainSecretStoreTests.everyQueryIsScopedToTheAppsOwnService` and `StoredIdentifierTests.scannedPathsAndResponseIDsAreStoredOnlyAsDigests`.
-- `TokenjarTests`: app-module logic. `AppModel` config and refresh behavior with fake fetchers in a temporary home (first run, dangling links, the Headroom move at launch, the probe latch, rate-limit backoff, owner-only state files), `RefreshScheduler`, `ProbeLatch`, `HistoryScanJob`, popover verdicts and summaries, account actions, dashboard math and content, menu bar state and formatting.
+- `TokenjarTests`: app-module logic. `AppModel` config and refresh behavior with fake fetchers in a temporary home (first run, dangling links, the Headroom move at launch, the probe latch, rate-limit backoff, owner-only state files, one Keychain read per pasted key per launch), `RefreshScheduler`, `ProbeLatch`, `HistoryScanJob`, popover verdicts and summaries, account actions, dashboard math and content, menu bar state and formatting.
 
 Tests never touch the real Keychain, notifications or login items. Run `make test` with `XDG_CONFIG_HOME` unset: `AppPaths` honors it, so `ConfigStoreTests` would write into the real config folder (the `AppModel` tests refuse to run in that case).
 
@@ -171,7 +172,7 @@ Constraints found while packaging:
 - No `.xcassets` or `.xcstrings` (they need Xcode). Logos ship as SVG in `Contents/Resources/Logos` and load with `NSImage(contentsOf:)` through `Bundle.main`, never `Bundle.module`.
 - Command Line Tools ship no SwiftUIMacros plugin, so views avoid the `@State` macro: they use explicit `State` storage, the `SettingsState` alias or an `ObservableObject`.
 - Notifications and launch at login work only from an app bundle; use the installed copy in `~/Applications`.
-- Ad-hoc signatures change on every build, so Keychain grants for the app's own item re-prompt after a rebuild. Only pasted API keys live there.
+- Ad-hoc signatures change on every build, so Keychain grants for the app's own item re-prompt after a rebuild, and a Deny is not remembered. Only pasted API keys live there, and each is read once per launch (see [Scheduling](#scheduling)).
 - On a Mac that only runs approved software, an allowlisting tool blocks every new ad-hoc build until it is allowlisted.
 
 A GitHub Actions release zip and a Homebrew cask are deferred. Homebrew 6 removed `--no-quarantine`, so a cask adds a Gatekeeper prompt without adding anything for a single user.
