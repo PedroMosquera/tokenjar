@@ -127,6 +127,12 @@ nonisolated struct SpendBreakdown: Equatable, Sendable {
     var unpricedModels: [String] = []
     var isEstimate = false
     var hasUsage = false
+
+    /// Two raw ids can share a display name, which is listed once.
+    var unpricedModelNames: String {
+        var seen: Set<String> = []
+        return unpricedModels.map(DashboardMath.displayName).filter { seen.insert($0).inserted }.joined(separator: ", ")
+    }
 }
 
 nonisolated struct ProjectSummary: Identifiable, Equatable, Sendable {

@@ -73,7 +73,7 @@ private struct DashboardDetail: View {
             if let account { windowTiles(account) }
             if sections.limits { limitsCard }
             if sections.history {
-                spendCard(emptyMessage: noUsage ?? spendEmptyMessage)
+                spendCard(emptyMessage: DashboardSections.spendEmptyMessage(account: account, content: content, breakdown: breakdown, range: range))
                 if noUsage == nil { projectsCard }
             } else if let account, account.provider.isLinkOnly {
                 linkOnlyPanel(account)
@@ -271,7 +271,7 @@ private struct DashboardDetail: View {
                 }
                 .frame(height: 210)
                 if emptyMessage == nil, !breakdown.unpricedModels.isEmpty {
-                    Text("Not priced: \(unpricedModelNames)")
+                    Text("Not priced: \(breakdown.unpricedModelNames)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -312,22 +312,8 @@ private struct DashboardDetail: View {
         return "\(account.provider.displayName) keeps no local usage logs, so there is no cost or token history to show."
     }
 
-    private var spendEmptyMessage: String? {
-        guard content.key != nil else { return nil }
-        if !breakdown.hasUsage { return "No local usage \(range.inRangePhrase)." }
-        if breakdown.segments.isEmpty {
-            return "No prices for these models: \(unpricedModelNames)."
-        }
-        return nil
-    }
-
     private var spendLabels: [String] {
         breakdown.groups.map { DashboardMath.displayGroup($0, by: grouping, accountNames: content.accountNames) }
-    }
-
-    private var unpricedModelNames: String {
-        var seen: Set<String> = []
-        return breakdown.unpricedModels.map(DashboardMath.displayName).filter { seen.insert($0).inserted }.joined(separator: ", ")
     }
 
     /// Accounts keep the color they have in the limits chart; other groupings color by rank in the legend.

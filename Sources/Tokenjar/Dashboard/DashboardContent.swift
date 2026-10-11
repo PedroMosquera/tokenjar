@@ -180,6 +180,20 @@ struct DashboardSections: Equatable {
     /// one on screen. nil while the first load runs.
     static func historyEmptyMessage(account: AccountConfig?, content: DashboardContent, range: DashboardRange) -> String? {
         guard content.key != nil, !content.hasUsage else { return nil }
+        return noUsageMessage(account: account, range: range)
+    }
+
+    /// What the daily spend card shows in place of its chart. nil while the first load runs and when there is a chart.
+    /// An empty range says the same whether or not the rest of the loaded period has usage, so switching ranges does
+    /// not change the wording.
+    static func spendEmptyMessage(account: AccountConfig?, content: DashboardContent, breakdown: SpendBreakdown, range: DashboardRange) -> String? {
+        guard content.key != nil else { return nil }
+        if !content.hasUsage || !breakdown.hasUsage { return noUsageMessage(account: account, range: range) }
+        if breakdown.segments.isEmpty { return "No prices for these models: \(breakdown.unpricedModelNames)." }
+        return nil
+    }
+
+    private static func noUsageMessage(account: AccountConfig?, range: DashboardRange) -> String {
         guard let account else { return "No usage \(range.inRangePhrase)." }
         return "No \(AccountTitle(provider: account.provider, label: account.label).name) usage \(range.inRangePhrase)."
     }
