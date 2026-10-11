@@ -64,6 +64,13 @@ struct AccountActionTests {
         #expect(AccountAction.forError(.noSubscription("No active OpenCode Go subscription"), account: claude, model: model).isEmpty)
     }
 
+    /// Nothing in Tokenjar can update a CLI yet; pinned so that offering a button later is a deliberate change.
+    @Test func anOutdatedCLIOffersNoButtonYet() {
+        let model = AppModel.preview()
+        #expect(AccountAction.forError(.cliTooOld(name: "codex", minimum: "0.50.0"), account: codex, model: model).isEmpty)
+        #expect(AccountAction.forError(.cliTooOld(name: "codex", minimum: nil), account: codex, model: model).isEmpty)
+    }
+
     /// Title case, and an ellipsis on a button that opens a window where the user still has to act.
     @Test func buttonTitlesFollowTheMacConventions() {
         let model = AppModel.preview()

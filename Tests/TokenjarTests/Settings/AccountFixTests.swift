@@ -41,6 +41,21 @@ struct AccountFixTests {
         #expect(AccountFix.primary(for: .notSignedIn, provider: .antigravity, credential: nil) == nil)
     }
 
+    /// Pinned so that giving an outdated CLI a fix later is a deliberate change.
+    @Test func anOutdatedCLIHasNoFixYet() {
+        for provider in ProviderID.allCases {
+            #expect(AccountFix.primary(for: .cliTooOld(name: "codex", minimum: nil), provider: provider, credential: nil) == nil, "\(provider)")
+        }
+    }
+
+    @Test func anOutdatedCLIIsCaptionedCheckFailed() {
+        let codex = AccountConfig(id: "codex", provider: .codex, label: "Plus")
+        let status = AccountStatus(error: .cliTooOld(name: "codex", minimum: "0.50.0"))
+        let line = AccountStatusText.make(account: codex, status: status, missingPath: nil, now: Date(timeIntervalSince1970: 1_800_000_000))
+        #expect(line.caption == AccountStatusText.Caption(text: "Check failed", isActionable: true))
+        #expect(line.text == "Update codex to 0.50.0 or later.")
+    }
+
     @Test func theSearchedFoldersReadAsTildePaths() {
         let home = URL(fileURLWithPath: "/Users/someone")
         let text = AccountFix.searchedText(for: "agy", locator: CLILocator(home: home), home: home.path)
