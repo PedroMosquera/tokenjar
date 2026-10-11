@@ -132,7 +132,7 @@ private struct AccountMenu: View {
     }
 }
 
-private struct ErrorRow: View {
+struct ErrorRow: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
     var error: FetchError
@@ -160,18 +160,18 @@ private struct ErrorRow: View {
         .font(.callout)
     }
 
-    @ViewBuilder
     private var icon: some View {
-        if error.attention == .calm {
-            Image(systemName: "minus.circle")
-                .foregroundStyle(.secondary)
-        } else if !needsAttention {
-            Image(systemName: "wifi.exclamationmark")
-                .foregroundStyle(.secondary)
-        } else {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Severity.warning.color)
-        }
+        Image(systemName: Self.symbol(for: error, needsAttention: needsAttention))
+            .foregroundStyle(needsAttention ? AnyShapeStyle(Severity.warning.color) : AnyShapeStyle(.secondary))
+    }
+
+    /// A gray icon over fresh data names what Tokenjar is waiting out. Wi-Fi only for a network error: a CLI that did
+    /// not answer or a provider's rate limit is not a connection problem.
+    static func symbol(for error: FetchError, needsAttention: Bool) -> String {
+        if error.attention == .calm { return "minus.circle" }
+        if needsAttention { return "exclamationmark.triangle.fill" }
+        if case .network = error { return "wifi.exclamationmark" }
+        return "clock.arrow.circlepath"
     }
 
     private func buttons(_ actions: [AccountAction]) -> some View {

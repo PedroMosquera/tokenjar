@@ -659,6 +659,23 @@ struct SignInCommandDisplayTests {
     }
 }
 
+@MainActor
+struct ErrorRowTests {
+    /// The gray icon over fresh data names the cause: only a network error is a connection problem.
+    @Test func onlyANetworkErrorShowsWiFi() {
+        #expect(ErrorRow.symbol(for: .network("offline"), needsAttention: false) == "wifi.exclamationmark")
+        #expect(ErrorRow.symbol(for: .timeout, needsAttention: false) == "clock.arrow.circlepath")
+        #expect(ErrorRow.symbol(for: .rateLimited(retryAfter: nil), needsAttention: false) == "clock.arrow.circlepath")
+    }
+
+    @Test func aFailureThatNeedsTheUserShowsTheWarningAndNoSubscriptionStaysCalm() {
+        for error in [FetchError.network("offline"), .timeout, .notSignedIn] {
+            #expect(ErrorRow.symbol(for: error, needsAttention: true) == "exclamationmark.triangle.fill")
+        }
+        #expect(ErrorRow.symbol(for: .noSubscription("none"), needsAttention: false) == "minus.circle")
+    }
+}
+
 /// What VoiceOver reads where the popover's meaning is otherwise only visual. Not verified with VoiceOver running.
 @MainActor
 struct PopoverSpeechTests {
