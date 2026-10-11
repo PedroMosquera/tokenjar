@@ -41,6 +41,13 @@ enum SnapshotRenderer {
                 model.config.menuBar.mode = mode
                 renderStatusIcon(model.menuBarState, appearance: appearance, to: outputDirectory.appending(path: "menubar-\(mode.rawValue)-\(suffix).png"))
             }
+
+            let slots = slotStates(now: model.now)
+            for (name, _, state) in slots {
+                renderStatusIcon(state, appearance: appearance, to: outputDirectory.appending(path: "menubar-slot-\(name)-\(suffix).png"))
+            }
+            let sheet = slots.map { ($0.label, StatusIconRenderer.render($0.state)) }
+            render(StatusItemSheet(rows: sheet), size: nil, width: 360, appearance: appearance, to: outputDirectory.appending(path: "menubar-slot-sheet-\(suffix).png"))
         }
         print("Rendered snapshots to \(outputDirectory.path)")
     }
@@ -75,16 +82,8 @@ enum SnapshotRenderer {
 
     /// Draws the status item contents on a strip shaped like the menu bar, at 2x.
     private static func renderStatusIcon(_ state: MenuBarState, appearance: NSAppearance, to url: URL) {
-        let rendered = StatusIconRenderer.render(state)
-        let button = NSButton(frame: .zero)
-        button.isBordered = false
+        let button = StatusItemPreview.button(StatusIconRenderer.render(state))
         button.appearance = appearance
-        button.image = rendered.image
-        // An off-screen NSButton draws template images mid-gray; the real status bar draws them at label contrast.
-        button.contentTintColor = .labelColor
-        button.imagePosition = .imageLeading
-        if rendered.attributedTitle.length > 0 { button.attributedTitle = rendered.attributedTitle } else { button.title = rendered.title }
-        button.sizeToFit()
         let strip = NSView(frame: NSRect(x: 0, y: 0, width: max(60, button.frame.width + 24), height: 24))
         strip.appearance = appearance
         strip.wantsLayer = true
@@ -99,5 +98,55 @@ enum SnapshotRenderer {
         strip.cacheDisplay(in: strip.bounds, to: rep)
         try? rep.representation(using: .png, properties: [:])?.write(to: url)
         window.close()
+    }
+
+    /// Every look of the app mark: fill levels, severity tints, stale, the error dot and the neutral state.
+    private static func slotStates(now: Date) -> [(name: String, label: String, state: MenuBarState)] {
+        func entry(_ used: Double?, _ severity: Severity = .ok, stale: Bool = false, error: Bool = false) -> MenuBarState.Entry {
+            let window = used.map { UsageWindow(id: "session", label: "5-hour", usedPercent: $0, windowMinutes: 300, resetsAt: now.addingTimeInterval(47 * 60)) }
+            return MenuBarState.Entry(accountID: "preview", provider: .claude, label: "Preview", tightest: window, severity: severity, isStale: stale, hasError: error)
+        }
+        func state(_ entry: MenuBarState.Entry, mode: MenuBarMode = .worst) -> MenuBarState {
+            MenuBarState(mode: mode, entries: [entry], showResetCountdownWhenFull: true, now: now)
+        }
+        return [
+            ("000", "0 %", state(entry(0))),
+            ("030", "30 %", state(entry(30))),
+            ("085", "85 %, under Amber at", state(entry(85))),
+            ("100", "100 %, full", state(entry(100, .critical))),
+            ("warn", "85 %, amber", state(entry(85, .warning))),
+            ("critical", "97 %, red", state(entry(97, .critical))),
+            ("neutral", "No data yet", state(entry(nil))),
+            ("neutral-error", "No data, check failed", state(entry(nil, error: true))),
+            ("stale", "42 %, out of date", state(entry(42, stale: true))),
+            ("stale-warn", "85 %, amber, out of date", state(entry(85, .warning, stale: true))),
+            ("error", "42 %, check failed", state(entry(42, error: true))),
+            ("critical-error", "97 %, red, check failed", state(entry(97, .critical, error: true))),
+            ("icon-030", "Icon only, 30 %", state(entry(30), mode: .icon)),
+            ("icon-critical", "Icon only, 97 %, red", state(entry(97, .critical), mode: .icon)),
+        ]
+    }
+}
+
+/// Labelled menu bar strips, one per row, for reviewing several icon states in one image.
+private struct StatusItemSheet: View {
+    var rows: [(label: String, rendered: RenderedStatusIcon)]
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+            ForEach(rows.indices, id: \.self) { index in
+                GridRow {
+                    Text(rows[index].label).font(.caption).foregroundStyle(.secondary)
+                    StatusItemPreview(rendered: rows[index].rendered)
+                        .fixedSize()
+                        .padding(.horizontal, 10)
+                        .frame(height: 24)
+                        .background(colorScheme == .dark ? Color(white: 0.16) : Color(white: 0.93))
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

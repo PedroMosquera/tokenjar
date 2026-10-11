@@ -302,6 +302,16 @@ struct StatusIconRendererTests {
         #expect(StatusIconRenderer.render(state([])).image?.accessibilityDescription == "Tokenjar")
     }
 
+    @Test(arguments: [MenuBarMode.worst, .icon])
+    func theMarkFillsToTheWorstAccountsTightestShare(_ mode: MenuBarMode) {
+        let quarter = StatusIconRenderer.render(state([entry("a", used: 10), entry("b", used: 25)], mode: mode)).image
+        #expect(glyphAlpha(quarter, 11.5, 6.5) > 0.9)
+        #expect(glyphAlpha(quarter, 11.5, 11.5) < 0.1)
+        let threeQuarters = StatusIconRenderer.render(state([entry("a", used: 75), entry("b", used: 25)], mode: mode)).image
+        #expect(glyphAlpha(threeQuarters, 6.5, 11.5) > 0.9)
+        #expect(glyphAlpha(threeQuarters, 6.5, 6.5) < 0.1)
+    }
+
     @Test func showsTheTightestPercentInTheMenuBarColor() {
         let rendered = StatusIconRenderer.render(state([entry("a", used: 42), entry("b", used: 63)]))
         #expect(rendered.title == "63%")

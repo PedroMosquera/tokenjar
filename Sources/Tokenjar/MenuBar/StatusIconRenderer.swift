@@ -11,7 +11,7 @@ struct RenderedStatusIcon {
 enum StatusIconRenderer {
     static func render(_ state: MenuBarState) -> RenderedStatusIcon {
         let toolTip = toolTip(for: state)
-        guard let worst = state.worst, worst.tightest != nil else {
+        guard let worst = state.worst, let tightest = worst.tightest else {
             return RenderedStatusIcon(image: StatusGlyph.neutral(dot: state.entries.contains(where: \.hasError)), toolTip: toolTip)
         }
         let alpha: CGFloat = worst.isStale ? 0.5 : 1
@@ -19,7 +19,7 @@ enum StatusIconRenderer {
         case .worst:
             let text = title(for: worst, showResetCountdownWhenFull: state.showResetCountdownWhenFull, now: state.now)
             return RenderedStatusIcon(
-                image: StatusGlyph.brand(tint: tint(worst.severity), alpha: alpha, dot: worst.hasError),
+                image: StatusGlyph.image(fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: worst.hasError),
                 title: text,
                 attributedTitle: attributedTitle(text, severity: worst.severity, isStale: worst.isStale),
                 toolTip: toolTip
@@ -31,7 +31,7 @@ enum StatusIconRenderer {
             return RenderedStatusIcon(image: StatusGlyph.bars(bars), toolTip: toolTip)
         case .icon:
             return RenderedStatusIcon(
-                image: StatusGlyph.brand(tint: tint(worst.severity), alpha: alpha, dot: worst.hasError),
+                image: StatusGlyph.image(fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: worst.hasError),
                 toolTip: toolTip
             )
         }

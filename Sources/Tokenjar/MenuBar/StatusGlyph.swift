@@ -4,7 +4,7 @@ import TokenjarCore
 /// Draws the status item images. Template images let the menu bar pick black or white for the current
 /// wallpaper; an image only becomes non-template when it has to carry a severity color.
 enum StatusGlyph {
-    static let glyphSide: CGFloat = 16
+    static let glyphSide: CGFloat = 18
     static let barsHeight: CGFloat = 18
     static let barWidth: CGFloat = 3
     static let barGap: CGFloat = 2
@@ -16,31 +16,55 @@ enum StatusGlyph {
         var dimmed: Bool
     }
 
-    /// Tokenjar's own mark, a ceiling over three rising bars. The menu bar uses it instead of a
-    /// provider logo, which would be mistaken for that provider's own app sitting next to it.
-    static func brand(tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
-        compose(mark, description: "Tokenjar", tint: tint, alpha: alpha, dot: dot)
+    /// Tokenjar's own mark, the cooldown slot, filled to `fraction` (0...1) of the tightest window. The menu bar uses
+    /// it instead of a provider logo, which would be mistaken for that provider's own app sitting next to it.
+    static func image(fraction: Double, tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
+        compose(slot(fraction), description: "Tokenjar", tint: tint, alpha: alpha, dot: dot)
     }
 
-    /// Shown when nothing is configured or no account has reported yet.
+    /// Shown when nothing is configured or no account has reported yet: the base pose drawn faint, so it never
+    /// reads as a real level.
     static func neutral(dot: Bool) -> NSImage {
-        brand(tint: nil, alpha: 1, dot: dot)
+        compose(neutralSlot, description: "Tokenjar", tint: nil, alpha: 1, dot: dot)
     }
 
-    private static let mark: NSImage = {
+    /// The pose the app icon and the SVG source are drawn in.
+    static let basePose = 0.8
+
+    /// The slot as a template, drawn on the 18 x 18 grid of its SVG source. A wedge sweeps clockwise from 12 o'clock
+    /// like a game's cooldown wipe and is clipped to the inner square, so its corners fill as the sweep passes them.
+    static func slot(_ fraction: Double, wedgeAlpha: CGFloat = 1) -> NSImage {
         let side = glyphSide
         let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: NSRect(x: 1, y: 13.2, width: 14, height: 1.8), xRadius: 0.9, yRadius: 0.9).fill()
-            // Heights rise left to right and stop short of the ceiling: the gap is the room left.
-            for (x, height) in [(1.6, 5.2), (6.3, 7.6), (11.0, 9.8)] as [(CGFloat, CGFloat)] {
-                NSBezierPath(roundedRect: NSRect(x: x, y: 1, width: 3.4, height: height), xRadius: 1.1, yRadius: 1.1).fill()
+            let grid = NSAffineTransform()
+            grid.scale(by: side / 18)
+            grid.concat()
+            NSColor.black.set()
+            // The SVG source has the frame at 2...16 with a 1.6 stroke and the square at 4.3...13.7. These keep its
+            // proportions and the 1.5 gap, but land every straight edge on a whole pixel at 2x, so the frame stays crisp.
+            let frame = NSBezierPath(roundedRect: NSRect(x: 1.75, y: 1.75, width: 14.5, height: 14.5), xRadius: 2.75, yRadius: 2.75)
+            frame.lineWidth = 1.5
+            frame.stroke()
+            let square = NSBezierPath(roundedRect: NSRect(x: 4, y: 4, width: 10, height: 10), xRadius: 1, yRadius: 1)
+            NSColor.black.withAlphaComponent(wedgeAlpha).setFill()
+            if fraction >= 1 {
+                square.fill()
+            } else if fraction > 0 {
+                let center = NSPoint(x: 9, y: 9)
+                let wedge = NSBezierPath()
+                wedge.move(to: center)
+                wedge.appendArc(withCenter: center, radius: 9, startAngle: 90, endAngle: 90 - 360 * fraction, clockwise: true)
+                wedge.close()
+                square.addClip()
+                wedge.fill()
             }
             return true
         }
         image.isTemplate = true
         return image
-    }()
+    }
+
+    private static let neutralSlot = slot(basePose, wedgeAlpha: 0.35)
 
     static func bars(_ bars: [Bar]) -> NSImage {
         let count = CGFloat(max(bars.count, 1))
@@ -71,7 +95,7 @@ enum StatusGlyph {
         return image
     }
 
-    /// Fits `base` into a 16 pt box, optionally tinted, faded, and badged with a dot that knocks a ring
+    /// Fits `base` into a `glyphSide` box, optionally tinted, faded, and badged with a dot that knocks a ring
     /// out of the glyph so it reads as separate even in a one-color template image.
     private static func compose(_ base: NSImage, description: String, tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
         let glyph = fitted(base.size)
