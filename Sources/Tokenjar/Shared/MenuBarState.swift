@@ -14,6 +14,7 @@ struct MenuBarState: Equatable {
     }
 
     var mode: MenuBarMode
+    var icon: MenuBarIcon = .app
     var entries: [Entry]
     var showResetCountdownWhenFull: Bool
     var now: Date
@@ -41,6 +42,6 @@ struct MenuBarState: Equatable {
                 hasError: status.error != nil
             )
         }
-        return MenuBarState(mode: config.menuBar.mode, entries: entries, showResetCountdownWhenFull: config.menuBar.showResetCountdownWhenFull, now: now)
+        return MenuBarState(mode: config.menuBar.mode, icon: config.menuBar.icon, entries: entries, showResetCountdownWhenFull: config.menuBar.showResetCountdownWhenFull, now: now)
     }
 }

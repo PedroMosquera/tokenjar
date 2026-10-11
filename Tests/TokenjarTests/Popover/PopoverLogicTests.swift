@@ -283,8 +283,8 @@ struct StatusIconRendererTests {
         )
     }
 
-    private func state(_ entries: [MenuBarState.Entry], mode: MenuBarMode = .worst, countdown: Bool = true) -> MenuBarState {
-        MenuBarState(mode: mode, entries: entries, showResetCountdownWhenFull: countdown, now: now)
+    private func state(_ entries: [MenuBarState.Entry], mode: MenuBarMode = .worst, icon: MenuBarIcon = .app, countdown: Bool = true) -> MenuBarState {
+        MenuBarState(mode: mode, icon: icon, entries: entries, showResetCountdownWhenFull: countdown, now: now)
     }
 
     private func color(_ rendered: RenderedStatusIcon) -> NSColor? {
@@ -292,14 +292,38 @@ struct StatusIconRendererTests {
         return rendered.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
     }
 
-    /// A provider's logo here would read as that provider's own menu bar app (Claude's spark sits right beside it).
+    /// A provider's logo would read as that provider's own menu bar app (Claude's spark sits right beside it), so the
+    /// menu bar shows one only when the user picks it.
     @Test(arguments: [MenuBarMode.worst, .icon])
-    func menuBarShowsTokenjarsOwnMarkNeverAProviderLogo(_ mode: MenuBarMode) {
+    func defaultIsTheAppMarkAndAProviderLogoOnlyWhenPicked(_ mode: MenuBarMode) {
+        let logos = MenuBarIcon.allCases.filter { $0.group == .logos }
         for severity in [Severity.ok, .warning, .critical] {
-            let rendered = StatusIconRenderer.render(state([entry("a", used: 90, severity: severity)], mode: mode))
-            #expect(rendered.image?.accessibilityDescription == "Tokenjar")
+            let tint = severity == .ok ? nil : severity.nsColor
+            let entries = [entry("a", used: 90, severity: severity)]
+            let byDefault = StatusIconRenderer.render(state(entries, mode: mode)).image
+            #expect(pixels(byDefault) == pixels(StatusGlyph.image(.app, fraction: 0.9, tint: tint, alpha: 1, dot: false)))
+            let logoPixels = logos.map { pixels(StatusGlyph.image($0, fraction: 0.9, tint: tint, alpha: 1, dot: false)) }
+            for icon in MenuBarIcon.allCases {
+                let picked = pixels(StatusIconRenderer.render(state(entries, mode: mode, icon: icon)).image)
+                #expect(logoPixels.contains(picked) == logos.contains(icon), "\(icon.rawValue)")
+            }
         }
-        #expect(StatusIconRenderer.render(state([])).image?.accessibilityDescription == "Tokenjar")
+        #expect(pixels(StatusIconRenderer.render(state([])).image) == pixels(StatusGlyph.neutral(.app, dot: false)))
+        #expect(StatusIconRenderer.render(state([entry("a", used: 90)], mode: mode, icon: .logoClaude)).image?.accessibilityDescription == "Tokenjar")
+    }
+
+    @Test(arguments: [MenuBarIcon.markMana, .logoClaude, .symbolBrain])
+    func aStaticGlyphStillCarriesTheWarnings(_ icon: MenuBarIcon) {
+        #expect(StatusIconRenderer.render(state([entry("a", used: 42)], icon: icon)).image?.isTemplate == true)
+        #expect(StatusIconRenderer.render(state([entry("a", used: 85, severity: .warning)], icon: icon)).image?.isTemplate == false)
+        let stale = StatusIconRenderer.render(state([entry("a", used: 42, stale: true)], icon: icon))
+        #expect(abs(peakAlpha(stale.image) - 0.5) < 0.02)
+        let plain = StatusIconRenderer.render(state([entry("a", used: 42)], icon: icon))
+        let failing = StatusIconRenderer.render(state([entry("a", used: 42, error: true)], icon: icon))
+        #expect((failing.image?.size.width ?? 0) > (plain.image?.size.width ?? 0))
+        let neutral = StatusIconRenderer.render(state([entry("a", used: nil)], icon: icon)).image
+        #expect(pixels(neutral) == pixels(StatusGlyph.neutral(icon, dot: false)))
+        #expect(pixels(neutral) != pixels(StatusGlyph.neutral(.app, dot: false)))
     }
 
     @Test(arguments: [MenuBarMode.worst, .icon])

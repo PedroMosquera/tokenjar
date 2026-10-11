@@ -34,6 +34,11 @@ enum SnapshotRenderer {
 
             model.settingsSelection = nil
             render(SettingsView().environment(model), size: NSSize(width: 760, height: 560), appearance: appearance, to: outputDirectory.appending(path: "settings-general-\(suffix).png"))
+            render(SettingsView().environment(model), size: NSSize(width: 760, height: 900), appearance: appearance, to: outputDirectory.appending(path: "settings-general-tall-\(suffix).png"))
+            model.config.menuBar.icon = .logoClaude
+            model.config.menuBar.mode = .icon
+            render(SettingsView().environment(model), size: NSSize(width: 760, height: 900), appearance: appearance, to: outputDirectory.appending(path: "settings-general-logo-\(suffix).png"))
+            model.config.menuBar = MenuBarConfig()
             model.settingsSelection = "claude-work"
             render(SettingsView().environment(model), size: NSSize(width: 760, height: 560), appearance: appearance, to: outputDirectory.appending(path: "settings-account-\(suffix).png"))
 
@@ -46,8 +51,18 @@ enum SnapshotRenderer {
             for (name, _, state) in slots {
                 renderStatusIcon(state, appearance: appearance, to: outputDirectory.appending(path: "menubar-slot-\(name)-\(suffix).png"))
             }
-            let sheet = slots.map { ($0.label, StatusIconRenderer.render($0.state)) }
+            let sheet = slots.map { ($0.label, [StatusIconRenderer.render($0.state)]) }
             render(StatusItemSheet(rows: sheet), size: nil, width: 360, appearance: appearance, to: outputDirectory.appending(path: "menubar-slot-sheet-\(suffix).png"))
+
+            var choices: [(label: String, rendered: [RenderedStatusIcon])] = []
+            for icon in MenuBarIcon.allCases {
+                let states = choiceStates(icon, now: model.now)
+                let slug = icon.rawValue.replacingOccurrences(of: ":", with: "-")
+                renderStatusIcon(states[0], appearance: appearance, to: outputDirectory.appending(path: "menubar-choice-\(slug)-\(suffix).png"))
+                choices.append((icon.title, states.map(StatusIconRenderer.render)))
+            }
+            render(StatusItemSheet(rows: choices), size: nil, width: 680, appearance: appearance, to: outputDirectory.appending(path: "menubar-choices-\(suffix).png"))
+            render(MenuBarIconMenuSheet(), size: nil, width: 240, appearance: appearance, to: outputDirectory.appending(path: "menubar-picker-items-\(suffix).png"))
         }
         print("Rendered snapshots to \(outputDirectory.path)")
     }
@@ -126,11 +141,37 @@ enum SnapshotRenderer {
             ("icon-critical", "Icon only, 97 %, red", state(entry(97, .critical), mode: .icon)),
         ]
     }
+
+    /// One picker choice at 42 %, amber, full, with no data, out of date and after a failed check.
+    private static func choiceStates(_ icon: MenuBarIcon, now: Date) -> [MenuBarState] {
+        func state(_ used: Double?, _ severity: Severity = .ok, stale: Bool = false, error: Bool = false) -> MenuBarState {
+            let window = used.map { UsageWindow(id: "session", label: "5-hour", usedPercent: $0, windowMinutes: 300, resetsAt: now.addingTimeInterval(47 * 60)) }
+            let entry = MenuBarState.Entry(accountID: "preview", provider: .claude, label: "Preview", tightest: window, severity: severity, isStale: stale, hasError: error)
+            return MenuBarState(mode: .worst, icon: icon, entries: [entry], showResetCountdownWhenFull: true, now: now)
+        }
+        return [state(42), state(85, .warning), state(100, .critical), state(nil), state(42, stale: true), state(42, error: true)]
+    }
 }
 
-/// Labelled menu bar strips, one per row, for reviewing several icon states in one image.
+/// The icon picker's items laid out the way its menu groups them, since a closed pop-up shows only the selection.
+private struct MenuBarIconMenuSheet: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(MenuBarIcon.Group.allCases, id: \.self) { group in
+                Text(group.title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 6)
+                ForEach(group.icons, id: \.self) { icon in
+                    MenuBarIconLabel(icon: icon)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Labelled menu bar strips, one row per label, for reviewing several icon states in one image.
 private struct StatusItemSheet: View {
-    var rows: [(label: String, rendered: RenderedStatusIcon)]
+    var rows: [(label: String, rendered: [RenderedStatusIcon])]
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -138,11 +179,13 @@ private struct StatusItemSheet: View {
             ForEach(rows.indices, id: \.self) { index in
                 GridRow {
                     Text(rows[index].label).font(.caption).foregroundStyle(.secondary)
-                    StatusItemPreview(rendered: rows[index].rendered)
-                        .fixedSize()
-                        .padding(.horizontal, 10)
-                        .frame(height: 24)
-                        .background(colorScheme == .dark ? Color(white: 0.16) : Color(white: 0.93))
+                    ForEach(rows[index].rendered.indices, id: \.self) { column in
+                        StatusItemPreview(rendered: rows[index].rendered[column])
+                            .fixedSize()
+                            .padding(.horizontal, 10)
+                            .frame(height: 24)
+                            .background(colorScheme == .dark ? Color(white: 0.16) : Color(white: 0.93))
+                    }
                 }
             }
         }

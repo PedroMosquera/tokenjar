@@ -61,7 +61,7 @@ struct StatusGlyphTests {
     }
 
     @Test func neutralDrawsTheBasePoseFaint() {
-        let neutral = StatusGlyph.neutral(dot: false)
+        let neutral = StatusGlyph.neutral(.app, dot: false)
         #expect(neutral.isTemplate)
         #expect(glyphAlpha(neutral, 9, 1.9) > 0.9)
         #expect(abs(glyphAlpha(neutral, 11.5, 11.5) - 0.35) < 0.05)

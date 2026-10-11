@@ -16,17 +16,49 @@ enum StatusGlyph {
         var dimmed: Bool
     }
 
-    /// Tokenjar's own mark, the cooldown slot, filled to `fraction` (0...1) of the tightest window. The menu bar uses
-    /// it instead of a provider logo, which would be mistaken for that provider's own app sitting next to it.
-    static func image(fraction: Double, tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
-        compose(slot(fraction), description: "Tokenjar", tint: tint, alpha: alpha, dot: dot)
+    /// The image for worst and icon modes. The default, the cooldown slot, is filled to `fraction` (0...1) of the
+    /// tightest window. Every other choice is a static glyph that still takes the tint, fade and dot, so warnings show.
+    static func image(_ icon: MenuBarIcon, fraction: Double, tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
+        compose(glyph(icon) ?? slot(fraction), description: "Tokenjar", tint: tint, alpha: alpha, dot: dot)
     }
 
-    /// Shown when nothing is configured or no account has reported yet: the base pose drawn faint, so it never
-    /// reads as a real level.
-    static func neutral(dot: Bool) -> NSImage {
-        compose(neutralSlot, description: "Tokenjar", tint: nil, alpha: 1, dot: dot)
+    /// Shown when nothing is configured or no account has reported yet. The slot shows its base pose faint, so it
+    /// never reads as a real level.
+    static func neutral(_ icon: MenuBarIcon, dot: Bool) -> NSImage {
+        compose(glyph(icon) ?? neutralSlot, description: "Tokenjar", tint: nil, alpha: 1, dot: dot)
     }
+
+    /// The template glyph of a choice other than the app mark; nil for the app mark or a file that did not load, so
+    /// the menu bar falls back to the slot instead of going blank.
+    static func glyph(_ icon: MenuBarIcon) -> NSImage? {
+        if let cached = glyphs[icon] { return cached }
+        let image: NSImage?
+        switch icon.source {
+        case .slot: return nil
+        case .mark(let name): image = ProviderLogo.resourceURL("Marks/\(name).svg").flatMap(NSImage.init(contentsOf:))
+        case .logo(let name): image = ProviderLogo.logoURL(name).flatMap(NSImage.init(contentsOf:))
+        case .symbol(let name): image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(symbolConfiguration)
+        }
+        image?.isTemplate = true
+        glyphs[icon] = image
+        return image
+    }
+
+    /// A choice's glyph centered on a square canvas, so the picker's rows line up whatever the glyph's width.
+    static func picture(_ icon: MenuBarIcon) -> NSImage {
+        let base = glyph(icon) ?? slot(basePose)
+        let size = fitted(base.size)
+        let image = NSImage(size: NSSize(width: glyphSide, height: glyphSide), flipped: false) { rect in
+            base.draw(in: NSRect(x: (rect.width - size.width) / 2, y: (rect.height - size.height) / 2, width: size.width, height: size.height))
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = icon.title
+        return image
+    }
+
+    private static var glyphs: [MenuBarIcon: NSImage] = [:]
+    private static let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
 
     /// The pose the app icon and the SVG source are drawn in.
     static let basePose = 0.8
@@ -127,9 +159,10 @@ enum StatusGlyph {
         return image
     }
 
+    /// Glyphs keep their own size, so a full-bleed 16 pt logo is not blown up past the slot; only larger ones shrink.
     private static func fitted(_ size: NSSize) -> NSSize {
         guard size.width > 0, size.height > 0 else { return NSSize(width: glyphSide, height: glyphSide) }
-        let scale = glyphSide / max(size.width, size.height)
+        let scale = min(1, glyphSide / max(size.width, size.height))
         return NSSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
     }
 }

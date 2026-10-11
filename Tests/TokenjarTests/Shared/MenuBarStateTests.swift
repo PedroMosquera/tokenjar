@@ -60,6 +60,12 @@ struct MenuBarStateTests {
         #expect(state.entries.map(\.isStale) == [true, false])
     }
 
+    @Test func theIconComesFromTheConfig() {
+        #expect(MenuBarState.make(accounts: [personal], statuses: [:], config: AppConfig(), now: now).icon == .app)
+        let picked = AppConfig(menuBar: MenuBarConfig(icon: .symbolGauge))
+        #expect(MenuBarState.make(accounts: [personal], statuses: [:], config: picked, now: now).icon == .symbolGauge)
+    }
+
     @Test func aFailedCheckIsFlagged() {
         let state = MenuBarState.make(
             accounts: [personal, work], statuses: ["personal": status([weeklyOnPace], error: .timeout), "work": status([weeklyOnPace])],

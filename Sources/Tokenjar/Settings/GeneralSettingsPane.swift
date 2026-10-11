@@ -29,16 +29,31 @@ struct GeneralSettingsPane: View {
             }
 
             Section("Menu bar") {
+                Picker("Icon", selection: model.configBinding(\.menuBar.icon)) {
+                    ForEach(MenuBarIcon.Group.allCases, id: \.self) { group in
+                        Section(group.title) {
+                            ForEach(group.icons, id: \.self) { icon in
+                                MenuBarIconLabel(icon: icon).tag(icon)
+                            }
+                        }
+                    }
+                }
                 Picker("Show", selection: model.configBinding(\.menuBar.mode)) {
                     ForEach(MenuBarMode.allCases, id: \.self) { mode in
                         VStack(alignment: .leading, spacing: 1) {
                             Text(mode.title)
-                            Text(mode.summary).font(.caption).foregroundStyle(.secondary)
+                            Text(mode.summary(for: model.config.menuBar.icon)).font(.caption).foregroundStyle(.secondary)
                         }
                         .tag(mode)
                     }
                 }
                 .pickerStyle(.radioGroup)
+                LabeledContent {
+                    MenuBarPreview(config: model.config.menuBar)
+                } label: {
+                    Text("Preview")
+                    Text("Healthy, amber and full")
+                }
                 PercentField(title: "Amber at", value: model.configBinding(\.menuBar.warnAt), range: 1...max(1, model.config.menuBar.criticalAt - 1))
                 PercentField(title: "Red at", value: model.configBinding(\.menuBar.criticalAt), range: min(100, model.config.menuBar.warnAt + 1)...100)
             }
@@ -173,11 +188,13 @@ extension MenuBarMode {
         }
     }
 
-    var summary: String {
-        switch self {
-        case .worst: "Tokenjar's mark and the used % of the account with the least room left."
-        case .bars: "One thin bar per account shown in the menu bar."
-        case .icon: "Tokenjar's mark only, tinted amber or red when an account runs low."
+    func summary(for icon: MenuBarIcon) -> String {
+        switch (self, icon) {
+        case (.worst, .app): return "The slot, filled to the used share of the account with the least room left, and that used %."
+        case (.worst, _): return "\(icon.phrase) and the used % of the account with the least room left."
+        case (.bars, _): return "One thin bar per account shown in the menu bar, in place of the icon."
+        case (.icon, .app): return "The slot only, filled to the tightest used share and tinted amber or red when an account runs low."
+        case (.icon, _): return "\(icon.phrase) only, tinted amber or red when an account runs low."
         }
     }
 }

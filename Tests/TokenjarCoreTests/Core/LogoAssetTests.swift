@@ -17,8 +17,8 @@ struct LogoAssetTests {
         #expect(image.size.width > 0 && image.size.height > 0)
     }
 
-    /// Marks committed ahead of their providers (GitHub Copilot, and Windsurf standing in for Devin), so they are known
-    /// to load before any code draws them.
+    /// Marks for providers still to come (GitHub Copilot, and Windsurf standing in for Devin). Only the menu bar icon
+    /// picker draws them so far, at this size.
     @Test(arguments: ["copilot", "windsurf"])
     func logosForProvidersStillToComeLoadAtMenuBarSize(_ name: String) throws {
         let url = logos.appending(path: "\(name).svg")
