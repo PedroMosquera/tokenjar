@@ -64,13 +64,27 @@ struct AccountActionTests {
         #expect(AccountAction.forError(.noSubscription("No active OpenCode Go subscription"), account: claude, model: model).isEmpty)
     }
 
-    /// The latch blocks refresh(accountID:), so a plain Test would silently do nothing.
-    @Test func settingsOffersOneMoreTryInsteadOfTestForALatchedAccount() async throws {
+    /// Title case, and an ellipsis on a button that opens a window where the user still has to act.
+    @Test func buttonTitlesFollowTheMacConventions() {
+        let model = AppModel.preview()
+        func titles(_ error: FetchError) -> [String] { AccountAction.forError(error, account: claude, model: model).map(\.title) }
+        #expect(titles(.cliNotFound("claude")) == ["Set Up\u{2026}"])
+        #expect(titles(.notSignedIn) == ["Sign In\u{2026}"])
+        #expect(titles(.unauthorized) == ["Settings\u{2026}"])
+        #expect(titles(.network("offline")) == ["Retry"])
+        #expect(titles(modelTurn) == ["Try Once More", "Disable"])
+        let check = AccountAction.check(claude, status: AccountStatus(), model: model)
+        #expect(check.title == "Check Now")
+        #expect(check.help == "Fetch this account's usage now")
+    }
+
+    /// The latch blocks refresh(accountID:), so a plain check would silently do nothing.
+    @Test func settingsOffersOneMoreTryInsteadOfCheckNowForALatchedAccount() async throws {
         let home = try ModelHome()
         defer { home.remove() }
         let log = FetchLog()
         let model = try model(home, accounts: [claude], log: log) { [modelTurn] _ in .failure(modelTurn) }
-        #expect(AccountAction.check(claude, status: model.status(for: claude), model: model).title == "Test")
+        #expect(AccountAction.check(claude, status: model.status(for: claude), model: model).title == "Check Now")
         await model.refresh(force: true)?.value
 
         let check = AccountAction.check(claude, status: model.status(for: claude), model: model)

@@ -8,6 +8,11 @@ enum StatusGlyph {
     static let barsHeight: CGFloat = 18
     static let barWidth: CGFloat = 3
     static let barGap: CGFloat = 2
+    /// The failure dot sits on the glyph's top right corner.
+    static let dotDiameter: CGFloat = 5
+    /// How far the dot reaches past the glyph: half the dot, rounded up because the status bar button resamples an
+    /// image of fractional width, which softens every edge at 1x.
+    static let dotOverhang: CGFloat = (dotDiameter / 2).rounded(.up)
 
     struct Bar: Equatable {
         /// 0...1 of the tightest window; nil when the account has no data.
@@ -79,14 +84,19 @@ enum StatusGlyph {
     static func slot(_ fraction: Double, wedgeAlpha: CGFloat = 1) -> NSImage {
         let side = glyphSide
         let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
+            let deviceScale = NSGraphicsContext.current.map { abs($0.cgContext.userSpaceToDeviceSpaceTransform.a) } ?? 2
             let grid = NSAffineTransform()
             grid.scale(by: side / 18)
             grid.concat()
             NSColor.black.set()
-            // The SVG source has the frame at 2...16 with a 1.6 stroke and the square at 4.3...13.7. These keep its
-            // proportions and the 1.5 gap, but land every straight edge on a whole pixel at 2x, so the frame stays crisp.
-            let frame = NSBezierPath(roundedRect: NSRect(x: 1.75, y: 1.75, width: 14.5, height: 14.5), xRadius: 2.75, yRadius: 2.75)
-            frame.lineWidth = 1.5
+            // The SVG source has the frame at 2...16 with a 1.6 stroke and the square at 4.3...13.7. At 2x these keep its
+            // proportions and the 1.5 gap with every straight edge on a whole pixel. At 1x a 1.5 stroke would straddle
+            // a pixel and draw a soft gray column, so the frame is one whole pixel with the same outer edge and corner,
+            // which matches the menu bar text's 1x stroke and keeps the gap to the square.
+            let frame = deviceScale < 1.5
+                ? NSBezierPath(roundedRect: NSRect(x: 1.5, y: 1.5, width: 15, height: 15), xRadius: 3, yRadius: 3)
+                : NSBezierPath(roundedRect: NSRect(x: 1.75, y: 1.75, width: 14.5, height: 14.5), xRadius: 2.75, yRadius: 2.75)
+            frame.lineWidth = deviceScale < 1.5 ? 1 : 1.5
             frame.stroke()
             let square = NSBezierPath(roundedRect: NSRect(x: 4, y: 4, width: 10, height: 10), xRadius: 1, yRadius: 1)
             NSColor.black.withAlphaComponent(wedgeAlpha).setFill()
@@ -109,7 +119,7 @@ enum StatusGlyph {
 
     private static let neutralSlot = slot(basePose, wedgeAlpha: 0.35)
 
-    static func bars(_ bars: [Bar]) -> NSImage {
+    static func bars(_ bars: [Bar], description: String) -> NSImage {
         let count = CGFloat(max(bars.count, 1))
         let size = NSSize(width: count * barWidth + (count - 1) * barGap, height: barsHeight)
         let colored = bars.contains { $0.severity > .ok }
@@ -134,16 +144,16 @@ enum StatusGlyph {
         image.isTemplate = !colored
         // Non-template colors resolve against the menu bar's appearance at draw time, so never cache a rendering.
         if colored { image.cacheMode = .never }
-        image.accessibilityDescription = "Usage bars"
+        image.accessibilityDescription = description
         return image
     }
 
     /// Fits `base` into a `glyphSide` box, optionally tinted, faded, and badged with a dot that knocks a ring
-    /// out of the glyph so it reads as separate even in a one-color template image.
+    /// out of the glyph so it reads as separate even in a one-color template image. The dot's room is kept with or
+    /// without it, so the status item, and every item to its left, stays put when a check fails or recovers.
     private static func compose(_ base: NSImage, description: String, tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
         let glyph = fitted(base.size)
-        let dotDiameter: CGFloat = 5
-        let size = NSSize(width: glyph.width + (dot ? dotDiameter / 2 : 0), height: max(glyphSide, glyph.height))
+        let size = NSSize(width: glyph.width + dotOverhang, height: max(glyphSide, glyph.height))
         let glyphRect = NSRect(x: 0, y: (size.height - glyph.height) / 2, width: glyph.width, height: glyph.height)
         let image = NSImage(size: size, flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else { return false }

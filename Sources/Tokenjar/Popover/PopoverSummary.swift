@@ -21,6 +21,8 @@ struct AccountTitle: Equatable {
     }
 
     var name: String { label.map { "\(provider) · \($0)" } ?? provider }
+    /// `name` without the middle dot, which VoiceOver can read out.
+    var spokenName: String { label.map { "\(provider) \($0)" } ?? provider }
 }
 
 /// The popover header's one-line answer: the account closest to a limit, or "All clear" with the next reset.
@@ -35,7 +37,7 @@ struct PopoverSummary: Equatable {
     /// Cards keep config order, so this is how an at-risk account below the fold still reaches the header.
     var others: [String] = []
 
-    static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: MenuBarConfig, now: Date) -> PopoverSummary {
+    static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date) -> PopoverSummary {
         guard !accounts.isEmpty else { return PopoverSummary(tone: .empty, text: "No accounts yet") }
         var worst: (account: AccountConfig, window: UsageWindow, severity: Severity)?
         var nextReset: Date?
@@ -44,15 +46,17 @@ struct PopoverSummary: Equatable {
         var needsALook: [AccountConfig] = []
         for account in accounts {
             let status = statuses[account.id] ?? AccountStatus()
-            if status.error != nil { failing += 1 }
-            if status.error != nil || Severity.worst(of: status.snapshot?.windows ?? [], config: config, now: now) > .ok {
+            let failed = status.failureNeedsAttention(now: now, refreshMinutes: account.refreshMinutes ?? config.refreshMinutes)
+            if failed { failing += 1 }
+            if failed || Severity.worst(of: status.snapshot?.windows ?? [], config: config.menuBar, now: now) > .ok {
                 needsALook.append(account)
             }
-            // A link card is ready at once and has no limits, so it must not stand in for accounts still being checked.
-            guard let snapshot = status.snapshot, !account.provider.isLinkOnly else { continue }
+            // A link card or a spend-only account is ready at once and has no limits, so it must not stand in for
+            // accounts still being checked.
+            guard let snapshot = status.snapshot, account.provider.reportsWindows else { continue }
             withData += 1
-            for window in snapshot.windows {
-                let severity = Severity.of(window, config: config, now: now)
+            for window in snapshot.windows where !window.hasReset(now: now) {
+                let severity = Severity.of(window, config: config.menuBar, now: now)
                 if worst.map({ (severity, window.usedPercent) > ($0.severity, $0.window.usedPercent) }) ?? true {
                     worst = (account, window, severity)
                 }
@@ -81,11 +85,24 @@ struct PopoverSummary: Equatable {
             return PopoverSummary(tone: .problem, text: failing == 1 ? "1 account needs attention" : "\(failing) accounts need attention")
         }
         if withData == 0 {
-            if accounts.allSatisfy(\.provider.isLinkOnly) { return PopoverSummary(tone: .empty, text: "No limits to track") }
-            return PopoverSummary(tone: .empty, text: "Waiting for usage data")
+            let nothingToTrack = accounts.allSatisfy { !$0.provider.reportsWindows || statuses[$0.id]?.error?.attention == .calm }
+            return PopoverSummary(tone: .empty, text: nothingToTrack ? "No limits to track" : "Waiting for usage data")
         }
         guard let nextReset else { return PopoverSummary(tone: .clear, text: "All clear") }
         return PopoverSummary(tone: .clear, text: "All clear · next reset in \(Format.duration(nextReset.timeIntervalSince(now)))")
+    }
+}
+
+extension AccountStatus {
+    /// Whether the last failed check should reach the header. A missing subscription never does, and a network
+    /// error or timeout only once there is no fresh data to show instead.
+    func failureNeedsAttention(now: Date, refreshMinutes: Int) -> Bool {
+        guard let error else { return false }
+        switch error.attention {
+        case .calm: return false
+        case .transient: return snapshot == nil || isStale(now: now, refreshMinutes: refreshMinutes)
+        case .actionable: return true
+        }
     }
 }
 
@@ -110,6 +127,11 @@ struct PaceVerdict: Equatable {
             case .exhausted: 3
             }
         }
+
+        fileprivate var lockout: TimeInterval {
+            if case .runsOut(let gap) = self { return gap }
+            return 0
+        }
     }
 
     var window: UsageWindow
@@ -118,17 +140,19 @@ struct PaceVerdict: Equatable {
     /// Deltas inside this band read as "On pace"; smaller ones are noise from sampling and rounding.
     static let tolerance = 5.0
 
-    /// Judges every paced window and keeps the most urgent kind, then the higher severity, then the higher used %.
-    /// "Runs out" uses the projected-exhaustion alert thresholds in docs/design.md, so whenever that alert fires the
-    /// verdict reads "Runs out" or "Limit reached"; earlier or smaller overuse reads as "Ahead of pace".
+    /// Judges every paced window from 1 % used and keeps the most urgent kind, then among run-outs the longer lockout
+    /// before the reset, then the higher severity, then the higher used %. "Runs out" uses the projected-exhaustion
+    /// alert thresholds in docs/design.md, so whenever that alert fires the verdict reads "Runs out" or "Limit
+    /// reached"; earlier or smaller overuse reads as "Ahead of pace".
     static func make(windows: [UsageWindow], config: MenuBarConfig, now: Date) -> PaceVerdict? {
-        let judged = windows.compactMap { window in
+        let judged = windows.filter { $0.usedPercent >= 1 }.compactMap { window in
             Pace.compute(window, now: now).map { pace in
                 (verdict: PaceVerdict(window: window, kind: kind(of: window, pace: pace)), severity: Severity.of(window, config: config, now: now))
             }
         }
         return judged.max { a, b in
-            (a.verdict.kind.urgency, a.severity, a.verdict.window.usedPercent) < (b.verdict.kind.urgency, b.severity, b.verdict.window.usedPercent)
+            (a.verdict.kind.urgency, a.verdict.kind.lockout, a.severity, a.verdict.window.usedPercent)
+                < (b.verdict.kind.urgency, b.verdict.kind.lockout, b.severity, b.verdict.window.usedPercent)
         }?.verdict
     }
 
@@ -151,13 +175,18 @@ struct PaceVerdict: Equatable {
         }
     }
 
-    var text: String {
+    var text: String { phrase(duration: Format.duration, about: "~") }
+
+    /// `text` with the units spelled out, for VoiceOver.
+    var spokenText: String { phrase(duration: Format.spokenDuration, about: "about ") }
+
+    private func phrase(duration: (TimeInterval) -> String, about: String) -> String {
         switch kind {
         case .onPace: "On pace"
         case .ahead(let points): "Ahead of pace +\(Format.percent(points))"
         case .under(let points): "Under pace -\(Format.percent(points))"
-        case .runsOut(let gap): "Runs out ~\(Format.duration(gap)) before reset"
-        case .exhausted(let untilReset): "Limit reached, resets in \(Format.duration(untilReset))"
+        case .runsOut(let gap): "Runs out \(about)\(duration(gap)) before reset"
+        case .exhausted(let untilReset): "Limit reached, resets in \(duration(untilReset))"
         }
     }
 }

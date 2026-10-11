@@ -59,7 +59,7 @@ struct MenuBarPreview: View {
         levels(config).map { used in
             let window = UsageWindow(id: "session", label: "5-hour", usedPercent: used, windowMinutes: 300, resetsAt: sampleTime.addingTimeInterval(47 * 60))
             let severity = Severity.of(window, config: config, now: sampleTime)
-            return MenuBarState.Entry(accountID: "sample", provider: .claude, label: "Sample", tightest: window, severity: severity, isStale: false, hasError: false)
+            return MenuBarState.Entry(accountID: "sample", provider: .claude, label: "Sample", tightest: window, severity: severity, isStale: false, failureNeedsAttention: false)
         }
     }
 

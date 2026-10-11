@@ -38,6 +38,7 @@ enum ProviderLogo {
     }
 }
 
+/// Decorative for VoiceOver: every place that shows a logo shows the provider's name beside it.
 struct ProviderLogoView: View {
     var provider: ProviderID
     var size: CGFloat = 16
@@ -45,6 +46,11 @@ struct ProviderLogoView: View {
     var tint: Color?
 
     var body: some View {
+        logo.accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var logo: some View {
         if let image = ProviderLogo.image(provider, template: true) {
             Image(nsImage: image)
                 .renderingMode(.template)

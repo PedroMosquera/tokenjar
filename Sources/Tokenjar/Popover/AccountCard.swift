@@ -4,25 +4,26 @@ import TokenjarCore
 struct AccountCard: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
+    var burnUps: BurnUpSamples
 
     var body: some View {
         let status = model.status(for: account)
-        let isStale = status.isStale(now: model.now, refreshMinutes: account.refreshMinutes ?? model.config.refreshMinutes)
+        let refreshMinutes = account.refreshMinutes ?? model.config.refreshMinutes
+        let isStale = status.isStale(now: model.popoverNow, refreshMinutes: refreshMinutes)
         VStack(alignment: .leading, spacing: 10) {
             AccountCardHeader(account: account, status: status, isStale: isStale)
             if let error = status.error {
-                ErrorRow(account: account, error: error)
+                ErrorRow(account: account, error: error, needsAttention: status.failureNeedsAttention(now: model.popoverNow, refreshMinutes: refreshMinutes))
             }
             if let snapshot = status.snapshot {
-                SnapshotBody(account: account, snapshot: snapshot)
-                    .opacity(isStale ? 0.5 : 1)
+                SnapshotBody(account: account, snapshot: snapshot, isStale: isStale, burnUps: burnUps)
             } else if status.error == nil {
                 Text(status.isRefreshing ? "Checking usage" : "No data yet")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(12)
+        .padding(PopoverView.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
@@ -79,12 +80,15 @@ private struct AccountCardHeader: View {
                 ProgressView()
                     .controlSize(.mini)
             } else if isStale, let fetchedAt = status.snapshot?.fetchedAt {
-                let age = Format.duration(model.now.timeIntervalSince(fetchedAt))
+                let seconds = model.popoverNow.timeIntervalSince(fetchedAt)
+                let age = Format.duration(seconds)
                 Label(String(age.prefix { $0 != " " }), systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize()
                     .help("Last successful update \(age) ago")
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(PopoverSpeech.staleBadge(age: seconds))
             }
             AccountMenu(account: account)
         }
@@ -108,7 +112,10 @@ private struct AccountMenu: View {
                 }
             }
             Divider()
-            Button("Show in Dashboard") { model.showDashboard(accountID: account.id) }
+            // A link card has no usage of its own, so its dashboard page would be empty.
+            if !account.provider.isLinkOnly {
+                Button("Show in Dashboard") { model.showDashboard(accountID: account.id) }
+            }
             Button("Settings for This Account") { model.showSettings(accountID: account.id) }
         } label: {
             Image(systemName: "ellipsis")
@@ -121,20 +128,22 @@ private struct AccountMenu: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("More for \(account.displayName)")
+        .accessibilityLabel(PopoverSpeech.menuLabel(for: account))
     }
 }
 
-private struct ErrorRow: View {
+struct ErrorRow: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
     var error: FetchError
+    /// See `AccountStatus.failureNeedsAttention`; only then does the row take the warning color.
+    var needsAttention: Bool
 
     var body: some View {
         let actions = AccountAction.forError(error, account: account, model: model)
         VStack(alignment: .trailing, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Severity.warning.color)
+                icon
                 Text(error.userMessage)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -151,6 +160,20 @@ private struct ErrorRow: View {
         .font(.callout)
     }
 
+    private var icon: some View {
+        Image(systemName: Self.symbol(for: error, needsAttention: needsAttention))
+            .foregroundStyle(needsAttention ? AnyShapeStyle(Severity.warning.color) : AnyShapeStyle(.secondary))
+    }
+
+    /// A gray icon over fresh data names what Tokenjar is waiting out. Wi-Fi only for a network error: a CLI that did
+    /// not answer or a provider's rate limit is not a connection problem.
+    static func symbol(for error: FetchError, needsAttention: Bool) -> String {
+        if error.attention == .calm { return "minus.circle" }
+        if needsAttention { return "exclamationmark.triangle.fill" }
+        if case .network = error { return "wifi.exclamationmark" }
+        return "clock.arrow.circlepath"
+    }
+
     private func buttons(_ actions: [AccountAction]) -> some View {
         ForEach(actions, id: \.title) { action in
             Button(action.title, action: action.run)
@@ -163,9 +186,12 @@ private struct SnapshotBody: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
     var snapshot: UsageSnapshot
+    /// Dims the bars and the chart only. Text keeps full contrast, and the header's clock badge says it is old.
+    var isStale: Bool
+    var burnUps: BurnUpSamples
 
     var body: some View {
-        let now = model.now
+        let now = model.popoverNow
         VStack(alignment: .leading, spacing: 10) {
             if !snapshot.windows.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -174,17 +200,19 @@ private struct SnapshotBody: View {
                             window: window,
                             severity: Severity.of(window, config: model.config.menuBar, now: now),
                             pace: Pace.compute(window, now: now),
-                            now: now
+                            now: now,
+                            isDimmed: isStale
                         )
                     }
                 }
             }
             let verdict = PaceVerdict.make(windows: snapshot.windows, config: model.config.menuBar, now: now)
+            let namesWindow = VerdictLine.namesWindow(among: snapshot.windows)
             if let verdict {
-                VerdictLine(verdict: verdict, severity: verdict.severity(config: model.config.menuBar, now: now))
+                VerdictLine(verdict: verdict, severity: verdict.severity(config: model.config.menuBar, now: now), showsWindow: namesWindow)
                     .font(.callout)
             }
-            chart(now: now, verdictWindowID: verdict?.window.id)
+            chart(now: now, verdictWindowID: verdict?.window.id, namesWindow: namesWindow)
             if !snapshot.money.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(snapshot.money.enumerated()), id: \.offset) { _, line in
@@ -217,12 +245,19 @@ private struct SnapshotBody: View {
     }
 
     @ViewBuilder
-    private func chart(now: Date, verdictWindowID: String?) -> some View {
-        if let window = BurnUpChart.chartWindow(in: snapshot.windows, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
-            let samples = model.samples(accountID: account.id, windowID: window.id, since: start)
+    private func chart(now: Date, verdictWindowID: String?, namesWindow: Bool) -> some View {
+        // A window past its reset would chart the cycle that just ended.
+        let live = snapshot.windows.filter { !$0.hasReset(now: now) }
+        if let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
+            let samples = burnUps.samples(accountID: account.id, windowID: window.id, start: start, end: window.resetsAt ?? now, revision: model.historyRevision) {
+                model.samples(accountID: account.id, windowID: window.id, since: start)
+            }
             let points = BurnUpChart.points(samples: samples, window: window, start: start, now: now)
-            if points.count >= 2 {
-                BurnUpChart(window: window, start: start, points: points, tint: Severity.of(window, config: model.config.menuBar, now: now).color)
+            if BurnUpChart.isWorthDrawing(points, start: start, end: window.resetsAt ?? now) {
+                BurnUpChart(
+                    window: window, start: start, points: points, tint: Severity.of(window, config: model.config.menuBar, now: now).color,
+                    caption: namesWindow && window.id != verdictWindowID ? window.label : nil, isDimmed: isStale
+                )
             }
         }
     }
@@ -231,28 +266,37 @@ private struct SnapshotBody: View {
 struct VerdictLine: View {
     var verdict: PaceVerdict
     var severity: Severity
-    /// Off where the window is already named, such as a dashboard tile titled with it.
+    /// Off where the window is already named: a dashboard tile titled with it, or a card with one window.
     var showsWindow = true
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             Image(systemName: symbol)
                 .foregroundStyle(severity == .ok ? AnyShapeStyle(.secondary) : AnyShapeStyle(severity.color))
+                .spoken(PopoverSpeech.severity(severity))
             message
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    /// One Text, so a long window label wraps to a second line instead of truncating the verdict's number.
+    /// One Text, so a long window label wraps to a second line instead of truncating the verdict's number. The
+    /// verdict itself is primary whatever the severity: secondary text is 3.9:1 on a light card, under the 4.5:1
+    /// body text needs, and the icon already carries the severity.
     private var message: Text {
-        let text = Text(verdict.text).foregroundStyle(severity == .ok ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+        let text = Text(verdict.text)
         guard showsWindow else { return text }
-        return Text("\(text) \(Text(Self.windowSuffix(verdict.window.label)).foregroundStyle(.secondary))")
+        return Text("\(Text(Self.windowLead(verdict.window.label)).foregroundStyle(.secondary)) \(text)")
     }
 
-    /// Non-breaking spaces, so a wrap moves the whole label to the next line rather than splitting it.
-    static func windowSuffix(_ label: String) -> String {
-        "·\u{00A0}" + label.replacingOccurrences(of: " ", with: "\u{00A0}")
+    /// A card names the verdict's window only when it shows more than one; with one, the row above names it.
+    static func namesWindow(among windows: [UsageWindow]) -> Bool {
+        windows.filter { !$0.notStarted }.count > 1
+    }
+
+    /// "Week:" ahead of the verdict, with non-breaking spaces so a wrap never splits the label or starts a line with
+    /// its "·".
+    static func windowLead(_ label: String) -> String {
+        label.replacingOccurrences(of: " ", with: "\u{00A0}") + ":"
     }
 
     private var symbol: String {
@@ -283,5 +327,44 @@ struct MoneyRow: View {
     static func amount(_ line: MoneyLine, locale: Locale = .autoupdatingCurrent) -> String {
         guard let limit = line.limit else { return Format.money(line.amount, currency: line.currency, locale: locale) }
         return Format.moneyUsed(line.amount, of: limit, currency: line.currency, locale: locale)
+    }
+}
+
+/// What VoiceOver reads where the popover's meaning is otherwise only visual: a color, a glyph or a short badge.
+enum PopoverSpeech {
+    static func menuLabel(for account: AccountConfig) -> String {
+        "Actions for \(AccountTitle(provider: account.provider, label: account.label).spokenName)"
+    }
+
+    static func staleBadge(age: TimeInterval) -> String {
+        "Last updated \(Format.spokenDuration(age)) ago"
+    }
+
+    /// nil where the header's text already says it all.
+    static func tone(_ tone: PopoverSummary.Tone) -> String? {
+        switch tone {
+        case .clear: "All clear"
+        case .warning: "Warning"
+        case .critical: "Critical"
+        case .problem: "Needs attention"
+        case .empty: nil
+        }
+    }
+
+    /// nil for ok, where the icon only repeats the text beside it.
+    static func severity(_ severity: Severity) -> String? {
+        switch severity {
+        case .ok: nil
+        case .warning: "Warning"
+        case .critical: "Critical"
+        }
+    }
+}
+
+extension View {
+    /// Reads `label` for an icon whose meaning is its color, and hides it when there is nothing to add.
+    @ViewBuilder
+    func spoken(_ label: String?) -> some View {
+        if let label { accessibilityLabel(label) } else { accessibilityHidden(true) }
     }
 }

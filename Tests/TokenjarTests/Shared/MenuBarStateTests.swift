@@ -35,6 +35,7 @@ struct MenuBarStateTests {
             config: AppConfig(), now: now
         )
         #expect(state.worst?.accountID == "work")
+        #expect(state.entries.map(\.cause?.window.id) == [nil, "session"])
         let rendered = StatusIconRenderer.render(state)
         #expect(rendered.title == "60%")
         #expect(color(rendered) == .systemOrange)
@@ -45,9 +46,20 @@ struct MenuBarStateTests {
         let state = MenuBarState.make(accounts: [personal], statuses: ["personal": status([weeklyOnPace, sessionRunsOut])], config: AppConfig(), now: now)
         #expect(state.entries.first?.tightest?.id == "weekly")
         #expect(state.entries.first?.severity == .warning)
+        #expect(state.entries.first?.cause?.window.id == "session")
+        let tip = StatusIconRenderer.toolTip(for: state)
+        #expect(tip == "Claude · Personal: weekly 75%, resets in 1d; session runs out ~50m before reset")
         let rendered = StatusIconRenderer.render(state)
         #expect(rendered.title == "75%")
         #expect(color(rendered) == .systemOrange)
+    }
+
+    /// At warnAt the number on the mark already explains the color.
+    @Test func aWindowPastWarnAtNeedsNoCause() {
+        let high = window("weekly", used: 85, minutes: 10_080, resetIn: 6 * 86_400)
+        let state = MenuBarState.make(accounts: [personal], statuses: ["personal": status([high])], config: AppConfig(), now: now)
+        #expect(state.entries.first?.severity == .warning)
+        #expect(state.entries.first?.cause == nil)
     }
 
     @Test func staleUsesTheAccountsOwnInterval() {
@@ -76,6 +88,18 @@ struct MenuBarStateTests {
         #expect(StatusIconRenderer.toolTip(for: alone) == "Tokenjar: no accounts in the menu bar")
     }
 
+    /// A full window whose reset has passed would read "<1m" in red until the next check lands.
+    @Test func aWindowPastItsResetIsNotTheTightest() {
+        let reset = window("session", used: 100, minutes: 300, resetIn: -60)
+        let alone = MenuBarState.make(accounts: [personal], statuses: ["personal": status([reset])], config: AppConfig(), now: now)
+        #expect(StatusIconRenderer.render(alone).title != "<1m")
+        #expect(alone.entries.first?.severity == .ok)
+
+        let calm = window("weekly", used: 30, minutes: 10_080, resetIn: 5 * 86_400)
+        let beside = MenuBarState.make(accounts: [personal], statuses: ["personal": status([reset, calm])], config: AppConfig(), now: now)
+        #expect(StatusIconRenderer.render(beside).title == "30%")
+    }
+
     @Test func theIconComesFromTheConfig() {
         #expect(MenuBarState.make(accounts: [personal], statuses: [:], config: AppConfig(), now: now).icon == .app)
         let picked = AppConfig(menuBar: MenuBarConfig(icon: .symbolGauge))
@@ -87,7 +111,50 @@ struct MenuBarStateTests {
             accounts: [personal, work], statuses: ["personal": status([weeklyOnPace], error: .timeout), "work": status([weeklyOnPace])],
             config: AppConfig(), now: now
         )
-        #expect(state.entries.map(\.hasError) == [true, false])
+        #expect(state.entries.map(\.attention) == [.transient, nil])
+    }
+
+    /// The dot and the popover header judge a failed check by one rule, so the menu bar never alarms over a blip the
+    /// header calls all clear, and never stays quiet about a failure the header counts.
+    @Test func theDotAndTheHeaderAgreeOnAFailedCheck() {
+        func judged(_ statuses: [String: AccountStatus]) -> (dot: String?, tone: PopoverSummary.Tone) {
+            let accounts = [personal, work]
+            let state = MenuBarState.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
+            return (state.failing?.accountID, PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now).tone)
+        }
+        let blipStatuses = ["personal": status([weeklyOnPace], error: .network("offline")), "work": status([weeklyOnPace])]
+        let blip = judged(blipStatuses)
+        #expect(blip.dot == nil)
+        #expect(blip.tone == .clear)
+        // Bars have no dot; a dimmed bar is how they say a check failed.
+        let bars = MenuBarState.make(accounts: [personal, work], statuses: blipStatuses, config: AppConfig(menuBar: MenuBarConfig(mode: .bars)), now: now)
+        #expect(StatusIconRenderer.render(bars).image?.accessibilityDescription == "Tokenjar, Claude Personal 75%, Claude Work 75%")
+
+        let gone = judged(["personal": status([weeklyOnPace], fetchedAgo: 3_600, error: .network("offline")), "work": status([weeklyOnPace])])
+        #expect(gone.dot == "personal")
+        #expect(gone.tone == .problem)
+
+        let elsewhere = judged(["personal": status([weeklyOnPace]), "work": AccountStatus(error: .timeout)])
+        #expect(elsewhere.dot == "work")
+        #expect(elsewhere.tone == .problem)
+    }
+
+    /// Zen only has spend and a Go key without a subscription has nothing at all: either would be an empty bar and a
+    /// "no data" line that reads as a failure.
+    @Test func accountsWithNoLimitsToShowStayOut() {
+        let zen = AccountConfig(id: "zen", provider: .opencodeZen, label: "Zen", showInMenuBar: true)
+        let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go")
+        let spend = AccountStatus(snapshot: UsageSnapshot(accountID: "zen", provider: .opencodeZen, money: [MoneyLine(label: "Spent", amount: 3)], fetchedAt: now, source: "opencode.db"))
+        let unsubscribed = AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"))
+        let calm = window("weekly", used: 3, minutes: 10_080, resetIn: 6 * 86_400)
+        let state = MenuBarState.make(accounts: [zen, go, personal], statuses: ["zen": spend, "go": unsubscribed, "personal": status([calm])], config: AppConfig(), now: now)
+        #expect(state.entries.map(\.accountID) == ["personal"])
+        let tip = StatusIconRenderer.toolTip(for: state)
+        #expect(!tip.contains("last check failed"))
+        #expect(!tip.contains("OpenCode"))
+
+        let withData = MenuBarState.make(accounts: [go], statuses: ["go": status([calm], error: .noSubscription("none"))], config: AppConfig(), now: now)
+        #expect(withData.entries.map(\.attention) == [.calm])
     }
 }
 

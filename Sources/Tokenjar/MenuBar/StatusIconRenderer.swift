@@ -11,30 +11,30 @@ struct RenderedStatusIcon {
 enum StatusIconRenderer {
     static func render(_ state: MenuBarState) -> RenderedStatusIcon {
         let toolTip = toolTip(for: state)
+        let failing = state.failing
         guard let worst = state.worst, let tightest = worst.tightest else {
-            let failing = state.entries.contains(where: \.hasError)
-            let description = failing ? "Tokenjar, last check failed" : "Tokenjar"
-            return RenderedStatusIcon(image: StatusGlyph.neutral(state.icon, dot: failing, description: description), toolTip: toolTip)
+            let description = "Tokenjar" + failedClause(failing, in: state)
+            return RenderedStatusIcon(image: StatusGlyph.neutral(state.icon, dot: failing != nil, description: description), toolTip: toolTip)
         }
         let alpha: CGFloat = worst.isStale ? 0.5 : 1
-        let description = accessibilityDescription(worst, window: tightest)
+        let description = accessibilityDescription(worst, window: tightest, failing: failing, in: state)
         switch state.mode {
         case .worst:
             let text = title(for: worst, showResetCountdownWhenFull: state.showResetCountdownWhenFull, now: state.now)
             return RenderedStatusIcon(
-                image: StatusGlyph.image(state.icon, fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: worst.hasError, description: description),
+                image: StatusGlyph.image(state.icon, fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: failing != nil, description: description),
                 title: text,
                 attributedTitle: attributedTitle(text, severity: worst.severity, isStale: worst.isStale),
                 toolTip: toolTip
             )
         case .bars:
             let bars = state.entries.map { entry in
-                StatusGlyph.Bar(fraction: entry.tightest.map { $0.usedPercent / 100 }, severity: entry.severity, dimmed: entry.isStale || entry.hasError)
+                StatusGlyph.Bar(fraction: entry.tightest.map { $0.usedPercent / 100 }, severity: entry.severity, dimmed: entry.isStale || entry.failureNeedsAttention)
             }
-            return RenderedStatusIcon(image: StatusGlyph.bars(bars), toolTip: toolTip)
+            return RenderedStatusIcon(image: StatusGlyph.bars(bars, description: barsDescription(state)), toolTip: toolTip)
         case .icon:
             return RenderedStatusIcon(
-                image: StatusGlyph.image(state.icon, fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: worst.hasError, description: description),
+                image: StatusGlyph.image(state.icon, fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: failing != nil, description: description),
                 toolTip: toolTip
             )
         }
@@ -49,12 +49,48 @@ enum StatusIconRenderer {
         return Format.percent(window.usedPercent)
     }
 
-    /// What VoiceOver reads for the icon. Icon mode has no title and the tooltip is only delayed help, so the level the
-    /// slot shows and the state the fade and dot show have to be spelled out here.
-    private static func accessibilityDescription(_ entry: MenuBarState.Entry, window: UsageWindow) -> String {
-        var text = "Tokenjar, \(window.label) \(Format.percent(window.usedPercent)) used"
-        if entry.hasError { text += ", last check failed" } else if entry.isStale { text += ", out of date" }
-        return text
+    /// What VoiceOver reads for the icon. Icon mode has no title and the tooltip is only delayed help, so the account,
+    /// the level the slot shows and the state the tint, fade and dot show have to be spelled out here.
+    private static func accessibilityDescription(_ entry: MenuBarState.Entry, window: UsageWindow, failing: MenuBarState.Entry?, in state: MenuBarState) -> String {
+        var text = "Tokenjar, \(spokenName(entry, in: state)) \(window.label) "
+        if window.usedPercent >= 100, let resetsAt = window.resetsAt {
+            text += "full, resets in \(Format.spokenDuration(resetsAt.timeIntervalSince(state.now)))"
+        } else {
+            text += "\(Format.percent(window.usedPercent)) used"
+        }
+        if let cause = entry.cause { text += ", " + causeClause(cause, tightest: window, spoken: true) }
+        if entry.isStale, failing?.accountID != entry.accountID { text += ", out of date" }
+        return text + failedClause(failing, in: state)
+    }
+
+    /// Bars shows no number, so every account's level is read out, then what the colors, fades and dims mean.
+    private static func barsDescription(_ state: MenuBarState) -> String {
+        let levels = state.entries.map { entry in
+            "\(spokenName(entry, in: state)) \(entry.tightest.map { Format.percent($0.usedPercent) } ?? "no data")"
+        }
+        let notes = state.entries.compactMap { entry in
+            entry.cause.map { "\(spokenName(entry, in: state)) \(causeClause($0, tightest: entry.tightest, spoken: true))" }
+        } + state.entries.filter { $0.isStale && !$0.failureNeedsAttention }.map { "\(spokenName($0, in: state)) out of date" }
+            + state.entries.filter(\.failureNeedsAttention).map { "\(spokenName($0, in: state)) check failed" }
+        return (["Tokenjar"] + levels + notes).joined(separator: ", ")
+    }
+
+    /// "5-hour runs out ~50m before reset", without the window's name when it is the one whose number is shown.
+    private static func causeClause(_ cause: PaceVerdict, tightest: UsageWindow?, spoken: Bool) -> String {
+        let text = spoken ? cause.spokenText : cause.text
+        let clause = text.prefix(1).lowercased() + text.dropFirst()
+        return cause.window.id == tightest?.id ? clause : "\(cause.window.label) \(clause)"
+    }
+
+    private static func failedClause(_ failing: MenuBarState.Entry?, in state: MenuBarState) -> String {
+        failing.map { ", \(spokenName($0, in: state)) check failed" } ?? ""
+    }
+
+    /// The provider alone names an account unless another menu bar account shares it.
+    private static func spokenName(_ entry: MenuBarState.Entry, in state: MenuBarState) -> String {
+        let title = AccountTitle(provider: entry.provider, label: entry.label)
+        let shared = state.entries.contains { $0.accountID != entry.accountID && $0.provider == entry.provider }
+        return shared ? title.spokenName : title.provider
     }
 
     static func toolTip(for state: MenuBarState) -> String {
@@ -69,10 +105,11 @@ enum StatusIconRenderer {
                 } else if let countdown = Format.countdown(to: window.resetsAt, now: state.now) {
                     line += ", resets in \(countdown)"
                 }
+                if let cause = entry.cause { line += "; " + causeClause(cause, tightest: window, spoken: false) }
             } else {
                 line = "\(name): no data"
             }
-            if entry.hasError { line += " (last check failed)" } else if entry.isStale { line += " (out of date)" }
+            if entry.checkFailed { line += " (last check failed)" } else if entry.isStale { line += " (out of date)" }
             return line
         }
         return lines.joined(separator: "\n")

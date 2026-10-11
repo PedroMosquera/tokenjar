@@ -32,7 +32,7 @@ struct MenuBarIconTests {
         let image = StatusGlyph.image(icon, fraction: 0.5, tint: nil, alpha: 1, dot: false)
         #expect(image.isTemplate)
         #expect(image.size.height == StatusGlyph.glyphSide)
-        #expect(image.size.width <= StatusGlyph.glyphSide)
+        #expect(image.size.width <= StatusGlyph.glyphSide + StatusGlyph.dotOverhang)
     }
 
     @Test func onlyTheAppMarkShowsTheLevel() {

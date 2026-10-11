@@ -10,8 +10,8 @@ private func window(_ id: String, _ label: String, used: Double, minutes: Int = 
     UsageWindow(id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: resetIn.map { now.addingTimeInterval($0) }, notStarted: notStarted)
 }
 
-private func snapshot(_ accountID: String, _ windows: [UsageWindow], plan: String? = nil) -> UsageSnapshot {
-    UsageSnapshot(accountID: accountID, provider: .claude, plan: plan, windows: windows, fetchedAt: now, source: "test")
+private func snapshot(_ accountID: String, _ windows: [UsageWindow], plan: String? = nil, fetchedAgo: TimeInterval = 0) -> UsageSnapshot {
+    UsageSnapshot(accountID: accountID, provider: .claude, plan: plan, windows: windows, fetchedAt: now.addingTimeInterval(-fetchedAgo), source: "test")
 }
 
 @MainActor
@@ -89,6 +89,12 @@ struct PaceVerdictTests {
         #expect(Severity.of(window, config: MenuBarConfig(), now: now) == .ok)
     }
 
+    /// Past its reset a window still carries the old cycle's use until the next check replaces it.
+    @Test func aWindowPastItsResetIsOk() {
+        #expect(Severity.of(window("session", "5-hour", used: 100, resetIn: -60), config: MenuBarConfig(), now: now) == .ok)
+        #expect(Severity.of(window("session", "5-hour", used: 100, resetIn: 60), config: MenuBarConfig(), now: now) == .critical)
+    }
+
     @Test func aWindowThatRunsOutOutranksAnAheadWindowOfEqualSeverity() throws {
         // Both are warnings: the 5-hour runs out 50 m early, the week is past warnAt but only 6 % elapsed, so it can
         // only be "ahead". The run-out has to win over the higher used %.
@@ -101,6 +107,21 @@ struct PaceVerdictTests {
         #expect(verdict.text == "Runs out ~50m before reset")
     }
 
+    /// A week locked out for 41 hours explains an orange Week bar; a 5-hour that runs out 15 minutes early does not.
+    @Test func theLongerLockoutWinsAmongRunOuts() throws {
+        let windows = [
+            window("session", "5-hour", used: 88, resetIn: 50 * 60),
+            window("weekly", "Week", used: 71, minutes: 10_080, resetIn: 3 * 86_400 + 6 * 3_600),
+        ]
+        let verdict = try #require(PaceVerdict.make(windows: windows, config: MenuBarConfig(), now: now))
+        #expect(verdict.window.label == "Week")
+        guard case .runsOut(let gap) = verdict.kind else {
+            Issue.record("expected runsOut, got \(verdict.kind)")
+            return
+        }
+        #expect(abs(gap - 41.2 * 3_600) < 0.1 * 3_600)
+    }
+
     @Test func aRunOutVerdictIsAtLeastAWarning() {
         let calm = window("session", "5-hour", used: 40, resetIn: 150 * 60)
         #expect(PaceVerdict(window: calm, kind: .runsOut(1_000)).severity(config: MenuBarConfig(), now: now) == .warning)
@@ -109,8 +130,24 @@ struct PaceVerdictTests {
         #expect(PaceVerdict(window: full, kind: .exhausted(1_500)).severity(config: MenuBarConfig(), now: now) == .critical)
     }
 
-    @Test func theWindowLabelWrapsAsOneUnit() {
-        #expect(VerdictLine.windowSuffix("Claude and GPT · Week") == "·\u{00A0}Claude\u{00A0}and\u{00A0}GPT\u{00A0}·\u{00A0}Week")
+    /// A card with one window already names it in the row above; with several the name leads, so a wrap never starts
+    /// a line with "·" and never splits the label.
+    @Test func theVerdictLeadsWithItsWindowOnlyOnACardWithSeveral() {
+        let pooled = window("claude-and-gpt:weekly", "Claude and GPT · Week", used: 71, minutes: 10_080, resetIn: 4 * 86_400)
+        let gemini = window("gemini:weekly", "Gemini · Week", used: 38, minutes: 10_080, resetIn: 4 * 86_400)
+        let idle = window("session", "5-hour", used: 0, resetIn: 300 * 60, notStarted: true)
+        #expect(!VerdictLine.namesWindow(among: [pooled]))
+        #expect(!VerdictLine.namesWindow(among: [idle, pooled]))
+        #expect(VerdictLine.namesWindow(among: [gemini, pooled]))
+        #expect(VerdictLine.windowLead("Claude and GPT · Week") == "Claude\u{00A0}and\u{00A0}GPT\u{00A0}·\u{00A0}Week:")
+    }
+
+    /// 2 of 5,000 credits is "under pace" by any measure, and saying so is noise.
+    @Test func noVerdictForAWindowUnderOnePercent() {
+        let credits = window("monthly", "AI credits", used: 0.04, minutes: 44_640, resetIn: 20 * 86_400)
+        #expect(PaceVerdict.make(windows: [credits], config: MenuBarConfig(), now: now) == nil)
+        let used = window("monthly", "AI credits", used: 1, minutes: 44_640, resetIn: 20 * 86_400)
+        #expect(PaceVerdict.make(windows: [used], config: MenuBarConfig(), now: now) != nil)
     }
 
     @Test func noVerdictWithoutAPace() {
@@ -131,13 +168,13 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 42, resetIn: 130 * 60)])),
             "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .warning, text: "Claude · Work: 5-hour at 88%"))
     }
 
     @Test func criticalTone() {
         let statuses = ["personal": AccountStatus(snapshot: snapshot("personal", [window("weekly", "Week", used: 96, minutes: 10_080, resetIn: 3 * 86_400)]))]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .critical, text: "Claude · Personal: Week at 96%"))
     }
 
@@ -147,14 +184,21 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(snapshot: snapshot("personal", [window("weekly", "Week", used: 75, minutes: 10_080, resetIn: 86_400)])),
             "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 60, resetIn: 150 * 60)])),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .warning, text: "Claude · Work: 5-hour at 60%"))
     }
 
     @Test func fullWindowShowsTheResetCountdown() {
         let statuses = ["work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 100, resetIn: 50 * 60)]))]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary.text == "Claude · Work: 5-hour full, resets in 50m")
+    }
+
+    @Test func aWindowPastItsResetIsNotFull() {
+        let statuses = ["work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 100, resetIn: -60)]))]
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.tone != .critical)
+        #expect(!summary.text.contains("full"))
     }
 
     @Test func allClearNamesTheNextResetOfAWindowInUse() {
@@ -165,7 +209,7 @@ struct PopoverSummaryTests {
             ])),
             "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 10, resetIn: 130 * 60)])),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .clear, text: "All clear · next reset in 2h 10m"))
     }
 
@@ -174,7 +218,7 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 10, resetIn: 130 * 60)])),
             "work": AccountStatus(error: .notSignedIn),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .problem, text: "1 account needs attention"))
     }
 
@@ -191,7 +235,7 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 42, resetIn: 130 * 60)])),
             "agy": AccountStatus(snapshot: snapshot("agy", [window("pool:weekly", "Pool · Week", used: 71, minutes: 10_080, resetIn: 4 * 86_400)])),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary.text == "Claude · Work: 5-hour at 88%")
         // Only accounts that share a provider need their label to tell them apart.
         #expect(summary.others == ["OpenCode Go", "Antigravity"])
@@ -202,7 +246,7 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(error: .notSignedIn),
             "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary.tone == .warning)
         #expect(summary.others == ["Claude · Personal"])
     }
@@ -213,7 +257,7 @@ struct PopoverSummaryTests {
             "devin": AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"])),
             "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 10, resetIn: 130 * 60)])),
         ]
-        let summary = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .clear, text: "All clear · next reset in 2h 10m"))
     }
 
@@ -222,15 +266,78 @@ struct PopoverSummaryTests {
     @Test func aLinkOnlyAccountIsNotUsageData() {
         let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
         let statuses = ["devin": AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"]))]
-        let waiting = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: MenuBarConfig(), now: now)
+        let waiting = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: AppConfig(), now: now)
         #expect(waiting == PopoverSummary(tone: .empty, text: "Waiting for usage data"))
-        let alone = PopoverSummary.make(accounts: [devin], statuses: statuses, config: MenuBarConfig(), now: now)
+        let alone = PopoverSummary.make(accounts: [devin], statuses: statuses, config: AppConfig(), now: now)
         #expect(alone == PopoverSummary(tone: .empty, text: "No limits to track"))
     }
 
     @Test func emptyStates() {
-        #expect(PopoverSummary.make(accounts: [], statuses: [:], config: MenuBarConfig(), now: now) == PopoverSummary(tone: .empty, text: "No accounts yet"))
-        #expect(PopoverSummary.make(accounts: accounts, statuses: [:], config: MenuBarConfig(), now: now) == PopoverSummary(tone: .empty, text: "Waiting for usage data"))
+        #expect(PopoverSummary.make(accounts: [], statuses: [:], config: AppConfig(), now: now) == PopoverSummary(tone: .empty, text: "No accounts yet"))
+        #expect(PopoverSummary.make(accounts: accounts, statuses: [:], config: AppConfig(), now: now) == PopoverSummary(tone: .empty, text: "Waiting for usage data"))
+    }
+
+    /// With no accounts there is nothing to update, so "No accounts yet" stands alone instead of over "Not updated yet".
+    @MainActor
+    @Test func theUpdateLineIsLeftOutWithoutAccounts() {
+        #expect(PopoverHeader.updateLine(hasAccounts: false, isRefreshing: false, lastRefreshAt: nil, now: now) == nil)
+        #expect(PopoverHeader.updateLine(hasAccounts: false, isRefreshing: false, lastRefreshAt: now.addingTimeInterval(-60), now: now) == nil)
+        #expect(PopoverHeader.updateLine(hasAccounts: true, isRefreshing: false, lastRefreshAt: nil, now: now) == "Not updated yet")
+        #expect(PopoverHeader.updateLine(hasAccounts: true, isRefreshing: true, lastRefreshAt: nil, now: now) == "Updating")
+        #expect(PopoverHeader.updateLine(hasAccounts: true, isRefreshing: false, lastRefreshAt: now.addingTimeInterval(-60), now: now) == "Updated 1m ago")
+    }
+
+    @MainActor
+    @Test func refreshIsOffWithNothingToCheck() {
+        #expect(!PopoverHeader.canRefresh(hasAccounts: false, isRefreshing: false))
+        #expect(!PopoverHeader.canRefresh(hasAccounts: true, isRefreshing: true))
+        #expect(PopoverHeader.canRefresh(hasAccounts: true, isRefreshing: false))
+    }
+
+    private let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go")
+    private let noSubscription = AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"))
+
+    /// Not being subscribed is a state, not a fault: there is nothing to fix and nothing to wait for.
+    @Test func aMissingSubscriptionIsCalm() {
+        let statuses = [
+            "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 10, resetIn: 130 * 60)])),
+            "go": noSubscription,
+        ]
+        let summary = PopoverSummary.make(accounts: [accounts[0], go], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.tone == .clear)
+        #expect(summary.text.hasPrefix("All clear"))
+    }
+
+    @Test func aMissingSubscriptionIsNotListedBesideAWarning() {
+        let statuses = [
+            "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
+            "go": noSubscription,
+        ]
+        let summary = PopoverSummary.make(accounts: [accounts[1], go], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.tone == .warning)
+        #expect(summary.others.isEmpty)
+    }
+
+    @Test func onlyAccountsWithoutASubscriptionHaveNoLimitsToTrack() {
+        let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
+        let link = AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"]))
+        let summary = PopoverSummary.make(accounts: [go, devin], statuses: ["go": noSubscription, "devin": link], config: AppConfig(), now: now)
+        #expect(summary == PopoverSummary(tone: .empty, text: "No limits to track"))
+    }
+
+    /// One failed check over data that is still fresh will most likely pass on the next one.
+    @Test func aNetworkErrorOverFreshDataIsNoAlarm() {
+        let fresh = snapshot("personal", [window("session", "5-hour", used: 10, resetIn: 130 * 60)], fetchedAgo: 5 * 60)
+        let summary = PopoverSummary.make(accounts: [accounts[0]], statuses: ["personal": AccountStatus(snapshot: fresh, error: .network("offline"))], config: AppConfig(), now: now)
+        #expect(summary.tone == .clear)
+    }
+
+    @Test func aNetworkErrorWithoutFreshDataNeedsAttention() {
+        let stale = snapshot("personal", [window("session", "5-hour", used: 10, resetIn: 130 * 60)], fetchedAgo: 50 * 60)
+        let old = PopoverSummary.make(accounts: [accounts[0]], statuses: ["personal": AccountStatus(snapshot: stale, error: .network("offline"))], config: AppConfig(), now: now)
+        #expect(old == PopoverSummary(tone: .problem, text: "1 account needs attention"))
+        let none = PopoverSummary.make(accounts: [accounts[0]], statuses: ["personal": AccountStatus(error: .timeout)], config: AppConfig(), now: now)
+        #expect(none == PopoverSummary(tone: .problem, text: "1 account needs attention"))
     }
 }
 
@@ -257,11 +364,50 @@ struct BurnUpChartTests {
         let samples = [
             WindowSample(accountID: "a", windowID: "weekly", timestamp: start, usedPercent: 97, resetsAt: start),
             WindowSample(accountID: "a", windowID: "weekly", timestamp: start.addingTimeInterval(3600), usedPercent: 1, resetsAt: weekly.resetsAt),
-            WindowSample(accountID: "a", windowID: "weekly", timestamp: now.addingTimeInterval(-3600), usedPercent: 39, resetsAt: weekly.resetsAt),
+            WindowSample(accountID: "a", windowID: "weekly", timestamp: now.addingTimeInterval(-86_400), usedPercent: 39, resetsAt: weekly.resetsAt),
         ]
         let points = BurnUpChart.points(samples: samples, window: weekly, start: start, now: now)
         #expect(points.map(\.used) == [1, 39, 40])
         #expect(points.last?.date == now)
+    }
+
+    /// A week at the observed 10-minute cadence is about 1,000 samples, each one a mark Charts lays out on every draw.
+    @Test func aLongCycleIsThinnedButKeepsItsPeakAndTheLiveValue() {
+        let weekly = window("weekly", "Week", used: 60, minutes: 10_080, resetIn: 86_400)
+        let start = weekly.resetsAt!.addingTimeInterval(-7 * 86_400)
+        let elapsed = now.timeIntervalSince(start) - 120
+        let samples = (0..<1_500).map { i in
+            let used = i <= 700 ? 75 * Double(i) / 700 : 50 + 9 * Double(i - 700) / 799
+            return WindowSample(accountID: "a", windowID: "weekly", timestamp: start.addingTimeInterval(elapsed * Double(i) / 1_499), usedPercent: used, resetsAt: weekly.resetsAt)
+        }
+        let points = BurnUpChart.points(samples: samples, window: weekly, start: start, now: now)
+        #expect(points.count <= 121)
+        #expect(points.map(\.used).max() == 75)
+        #expect(points.last?.used == 60)
+        #expect(points.last?.date == now)
+    }
+
+    /// A card's body re-runs on every model change it reads; only new history or a new cycle may reach SQLite.
+    @Test func storedSamplesAreLoadedOncePerHistoryRevisionAndCycle() {
+        let cache = BurnUpSamples()
+        let start = now.addingTimeInterval(-3 * 86_400)
+        let end = start.addingTimeInterval(7 * 86_400)
+        var loads = 0
+        func read(_ windowID: String = "weekly", start: Date = start, revision: Int = 1) -> [WindowSample] {
+            cache.samples(accountID: "a", windowID: windowID, start: start, end: end, revision: revision) {
+                loads += 1
+                return [WindowSample(accountID: "a", windowID: windowID, timestamp: start, usedPercent: 1, resetsAt: end)]
+            }
+        }
+        _ = read()
+        _ = read()
+        #expect(loads == 1)
+        _ = read(revision: 2)
+        #expect(loads == 2)
+        _ = read(start: end, revision: 2)
+        #expect(loads == 3)
+        _ = read("session", revision: 2)
+        #expect(loads == 4)
     }
 
     @Test func aFreshSampleTakesTheLiveValueInsteadOfAddingAPoint() {
@@ -269,6 +415,18 @@ struct BurnUpChartTests {
         let start = weekly.resetsAt!.addingTimeInterval(-7 * 86_400)
         let samples = [WindowSample(accountID: "a", windowID: "weekly", timestamp: now.addingTimeInterval(-10), usedPercent: 38, resetsAt: weekly.resetsAt)]
         #expect(BurnUpChart.points(samples: samples, window: weekly, start: start, now: now).map(\.used) == [40])
+    }
+
+    /// A stub at the right edge or a flat line on the floor says nothing the bar above it does not.
+    @Test func aChartNeedsATenthOfTheCycleAndSomeUse() {
+        let start = now.addingTimeInterval(-3 * 86_400)
+        let end = start.addingTimeInterval(7 * 86_400)
+        func point(_ at: Date, _ used: Double) -> BurnUpChart.Point { BurnUpChart.Point(date: at, used: used) }
+        #expect(!BurnUpChart.isWorthDrawing([point(now.addingTimeInterval(-0.05 * 7 * 86_400), 3), point(now, 5)], start: start, end: end))
+        #expect(!BurnUpChart.isWorthDrawing([point(start, 0), point(now, 0.04)], start: start, end: end))
+        #expect(!BurnUpChart.isWorthDrawing([point(now, 40)], start: start, end: end))
+        #expect(BurnUpChart.isWorthDrawing([point(start, 0), point(now, 40)], start: start, end: end))
+        #expect(BurnUpChart.isWorthDrawing([point(start, 0), point(end, 97)], start: start, end: end))
     }
 
     @Test func prefersTheWeeklyWindowElseTheLongest() {
@@ -296,11 +454,15 @@ struct BurnUpChartTests {
 
 @MainActor
 struct StatusIconRendererTests {
-    private func entry(_ id: String, used: Double?, severity: Severity = .ok, resetIn: TimeInterval? = 50 * 60, stale: Bool = false, error: Bool = false) -> MenuBarState.Entry {
+    /// An actionable failure always needs attention; a transient one only without fresh data, so a test says which.
+    private func entry(
+        _ id: String, used: Double?, severity: Severity = .ok, resetIn: TimeInterval? = 50 * 60, stale: Bool = false,
+        attention: FetchError.Attention? = nil, needsAttention: Bool? = nil, provider: ProviderID = .claude
+    ) -> MenuBarState.Entry {
         MenuBarState.Entry(
-            accountID: id, provider: .claude, label: id,
+            accountID: id, provider: provider, label: id,
             tightest: used.map { window("session", "5-hour", used: $0, resetIn: resetIn) },
-            severity: severity, isStale: stale, hasError: error
+            severity: severity, isStale: stale, attention: attention, failureNeedsAttention: needsAttention ?? (attention == .actionable)
         )
     }
 
@@ -330,7 +492,7 @@ struct StatusIconRendererTests {
             }
         }
         #expect(pixels(StatusIconRenderer.render(state([])).image) == pixels(StatusGlyph.neutral(.app, dot: false)))
-        #expect(StatusIconRenderer.render(state([entry("a", used: 90)], mode: mode, icon: .logoClaude)).image?.accessibilityDescription == "Tokenjar, 5-hour 90% used")
+        #expect(StatusIconRenderer.render(state([entry("a", used: 90)], mode: mode, icon: .logoClaude)).image?.accessibilityDescription == "Tokenjar, Claude 5-hour 90% used")
     }
 
     /// Icon mode has no title, so the image's description is all VoiceOver has to read the level from.
@@ -339,12 +501,37 @@ struct StatusIconRendererTests {
         func described(_ entries: [MenuBarState.Entry], icon: MenuBarIcon = .app) -> String? {
             StatusIconRenderer.render(state(entries, mode: mode, icon: icon)).image?.accessibilityDescription
         }
-        #expect(described([entry("a", used: 42), entry("b", used: 85, severity: .warning)]) == "Tokenjar, 5-hour 85% used")
-        #expect(described([entry("a", used: 85, severity: .warning)], icon: .symbolBrain) == "Tokenjar, 5-hour 85% used")
-        #expect(described([entry("a", used: 42, stale: true)]) == "Tokenjar, 5-hour 42% used, out of date")
-        #expect(described([entry("a", used: 42, stale: true, error: true)]) == "Tokenjar, 5-hour 42% used, last check failed")
+        #expect(described([entry("a", used: 42), entry("b", used: 85, severity: .warning, provider: .codex)]) == "Tokenjar, Codex 5-hour 85% used")
+        // Two accounts of one provider need the label to tell them apart.
+        #expect(described([entry("Personal", used: 42), entry("Work", used: 85, severity: .warning)]) == "Tokenjar, Claude Work 5-hour 85% used")
+        #expect(described([entry("a", used: 85, severity: .warning)], icon: .symbolBrain) == "Tokenjar, Claude 5-hour 85% used")
+        #expect(described([entry("a", used: 42, stale: true)]) == "Tokenjar, Claude 5-hour 42% used, out of date")
+        #expect(described([entry("a", used: 42, stale: true, attention: .actionable)]) == "Tokenjar, Claude 5-hour 42% used, Claude check failed")
         #expect(described([entry("a", used: nil)]) == "Tokenjar")
-        #expect(described([entry("a", used: nil, error: true)]) == "Tokenjar, last check failed")
+        #expect(described([entry("a", used: nil, attention: .actionable)]) == "Tokenjar, Claude check failed")
+        #expect(described([entry("a", used: 100, severity: .critical, resetIn: 47 * 60)]) == "Tokenjar, Claude 5-hour full, resets in 47 minutes")
+    }
+
+    /// Bars shows no number, so VoiceOver needs every account's level.
+    @Test func barsDescribeEveryAccount() {
+        let entries = [entry("a", used: 42), entry("b", used: 0, provider: .codex), entry("c", used: nil, provider: .copilot)]
+        #expect(StatusIconRenderer.render(state(entries, mode: .bars)).image?.accessibilityDescription == "Tokenjar, Claude 42%, Codex 0%, GitHub Copilot no data")
+        let troubled = [entry("a", used: 42, stale: true), entry("b", used: nil, attention: .actionable, provider: .codex)]
+        #expect(StatusIconRenderer.render(state(troubled, mode: .bars)).image?.accessibilityDescription == "Tokenjar, Claude 42%, Codex no data, Claude out of date, Codex check failed")
+    }
+
+    /// The number is the tightest window's, so an amber mark at 75 % needs the window whose projection colored it.
+    @Test func aProjectionNamesTheWindowThatColorsTheMark() {
+        var projected = entry("a", used: 75, severity: .warning)
+        projected.tightest = window("weekly", "Week", used: 75, minutes: 10_080, resetIn: 86_400)
+        projected.cause = PaceVerdict(window: window("session", "5-hour", used: 60, resetIn: 150 * 60), kind: .runsOut(50 * 60))
+        let rendered = StatusIconRenderer.render(state([projected]))
+        #expect(rendered.image?.accessibilityDescription == "Tokenjar, Claude Week 75% used, 5-hour runs out about 50 minutes before reset")
+        #expect(rendered.toolTip == "Claude · a: Week 75%, resets in 1d; 5-hour runs out ~50m before reset")
+
+        var itself = entry("a", used: 60, severity: .warning, resetIn: 150 * 60)
+        itself.cause = PaceVerdict(window: itself.tightest!, kind: .runsOut(50 * 60))
+        #expect(StatusIconRenderer.render(state([itself])).toolTip == "Claude · a: 5-hour 60%, resets in 2h 30m; runs out ~50m before reset")
     }
 
     @Test(arguments: [MenuBarIcon.markMana, .logoClaude, .symbolBrain])
@@ -353,9 +540,9 @@ struct StatusIconRendererTests {
         #expect(StatusIconRenderer.render(state([entry("a", used: 85, severity: .warning)], icon: icon)).image?.isTemplate == false)
         let stale = StatusIconRenderer.render(state([entry("a", used: 42, stale: true)], icon: icon))
         #expect(abs(peakAlpha(stale.image) - 0.5) < 0.02)
-        let plain = StatusIconRenderer.render(state([entry("a", used: 42)], icon: icon))
-        let failing = StatusIconRenderer.render(state([entry("a", used: 42, error: true)], icon: icon))
-        #expect((failing.image?.size.width ?? 0) > (plain.image?.size.width ?? 0))
+        let failing = StatusIconRenderer.render(state([entry("a", used: 42, attention: .actionable)], icon: icon))
+        #expect(pixels(failing.image) == pixels(StatusGlyph.image(icon, fraction: 0.42, tint: nil, alpha: 1, dot: true)))
+        #expect(pixels(failing.image) != pixels(StatusGlyph.image(icon, fraction: 0.42, tint: nil, alpha: 1, dot: false)))
         let neutral = StatusIconRenderer.render(state([entry("a", used: nil)], icon: icon)).image
         #expect(pixels(neutral) == pixels(StatusGlyph.neutral(icon, dot: false)))
         #expect(pixels(neutral) != pixels(StatusGlyph.neutral(.app, dot: false)))
@@ -422,9 +609,31 @@ struct StatusIconRendererTests {
     }
 
     @Test func errorAddsADotBesideTheGlyph() {
-        let plain = StatusIconRenderer.render(state([entry("a", used: 42)]))
-        let failing = StatusIconRenderer.render(state([entry("a", used: 42, error: true)]))
-        #expect((failing.image?.size.width ?? 0) > (plain.image?.size.width ?? 0))
+        let failing = StatusIconRenderer.render(state([entry("a", used: 42, attention: .actionable)]))
+        #expect(pixels(failing.image) == pixels(dotted))
+        #expect(pixels(StatusIconRenderer.render(state([entry("a", used: 42)])).image) == pixels(undotted))
+    }
+
+    private let dotted = StatusGlyph.image(.app, fraction: 0.42, tint: nil, alpha: 1, dot: true)
+    private let undotted = StatusGlyph.image(.app, fraction: 0.42, tint: nil, alpha: 1, dot: false)
+
+    /// The worst account can be healthy while another one is signed out; the dot must still say a check failed.
+    @Test func anActionableFailureOnAnyAccountShowsTheDot() {
+        let rendered = StatusIconRenderer.render(state([entry("a", used: 42), entry("b", used: nil, attention: .actionable, provider: .codex)]))
+        #expect(pixels(rendered.image) == pixels(dotted))
+        #expect(rendered.image?.accessibilityDescription?.hasSuffix(", Codex check failed") == true)
+    }
+
+    /// A timeout over fresh data is likely gone by the next check, and a missing subscription is nothing to fix. A
+    /// timeout with nothing fresh to show needs attention on any account, as it does in the popover header.
+    @Test func onlyAFailureThatNeedsAttentionShowsTheDot() {
+        let blip = StatusIconRenderer.render(state([entry("a", used: 42, attention: .transient, needsAttention: false), entry("b", used: 12)]))
+        #expect(pixels(blip.image) == pixels(undotted))
+        let elsewhere = StatusIconRenderer.render(state([entry("a", used: 42), entry("b", used: nil, attention: .transient, needsAttention: true)]))
+        #expect(pixels(elsewhere.image) == pixels(dotted))
+        let calm = StatusIconRenderer.render(state([entry("a", used: 42, attention: .calm)]))
+        #expect(pixels(calm.image) == pixels(undotted))
+        #expect(calm.toolTip?.contains("failed") == false)
     }
 
     @Test func noDataShowsTheNeutralGaugeWithoutText() {
@@ -451,7 +660,7 @@ struct StatusIconRendererTests {
     }
 
     @Test func toolTipListsEveryAccount() {
-        let tip = StatusIconRenderer.render(state([entry("Personal", used: 42), entry("Work", used: nil, error: true)])).toolTip ?? ""
+        let tip = StatusIconRenderer.render(state([entry("Personal", used: 42), entry("Work", used: nil, attention: .actionable)])).toolTip ?? ""
         #expect(tip == "Claude · Personal: 5-hour 42%, resets in 50m\nClaude · Work: no data (last check failed)")
         #expect(StatusIconRenderer.render(state([])).toolTip == "Tokenjar: no accounts in the menu bar")
     }
@@ -464,5 +673,50 @@ struct SignInCommandDisplayTests {
         let command = try #require(AccountDetailView.signInCommand(for: account, cliPaths: [:], paths: AppPaths(), previewMode: true))
         #expect(command == "CLAUDE_CONFIG_DIR=/Users/you/.claude-work claude auth login")
         #expect(!command.contains(NSHomeDirectory()))
+    }
+}
+
+@MainActor
+struct ErrorRowTests {
+    /// The gray icon over fresh data names the cause: only a network error is a connection problem.
+    @Test func onlyANetworkErrorShowsWiFi() {
+        #expect(ErrorRow.symbol(for: .network("offline"), needsAttention: false) == "wifi.exclamationmark")
+        #expect(ErrorRow.symbol(for: .timeout, needsAttention: false) == "clock.arrow.circlepath")
+        #expect(ErrorRow.symbol(for: .rateLimited(retryAfter: nil), needsAttention: false) == "clock.arrow.circlepath")
+    }
+
+    @Test func aFailureThatNeedsTheUserShowsTheWarningAndNoSubscriptionStaysCalm() {
+        for error in [FetchError.network("offline"), .timeout, .notSignedIn] {
+            #expect(ErrorRow.symbol(for: error, needsAttention: true) == "exclamationmark.triangle.fill")
+        }
+        #expect(ErrorRow.symbol(for: .noSubscription("none"), needsAttention: false) == "minus.circle")
+    }
+}
+
+/// What VoiceOver reads where the popover's meaning is otherwise only visual. Not verified with VoiceOver running.
+@MainActor
+struct PopoverSpeechTests {
+    @Test func theCardMenuNamesItsAccount() {
+        #expect(PopoverSpeech.menuLabel(for: AccountConfig(id: "w", provider: .claude, label: "Work")) == "Actions for Claude Work")
+        #expect(PopoverSpeech.menuLabel(for: AccountConfig(id: "g", provider: .opencodeGo, label: "Go")) == "Actions for OpenCode Go")
+    }
+
+    @Test func theStaleBadgeSpellsTheAgeOut() {
+        #expect(PopoverSpeech.staleBadge(age: 3 * 3_600 + 5 * 60) == "Last updated 3 hours, 5 minutes ago")
+    }
+
+    @Test func theHeaderIconSaysWhatItsColorMeans() {
+        #expect(PopoverSpeech.tone(.clear) == "All clear")
+        #expect(PopoverSpeech.tone(.warning) == "Warning")
+        #expect(PopoverSpeech.tone(.critical) == "Critical")
+        #expect(PopoverSpeech.tone(.problem) == "Needs attention")
+        #expect(PopoverSpeech.tone(.empty) == nil)
+    }
+
+    /// An ok verdict icon repeats the text beside it, so only a warning or critical one is read.
+    @Test func onlyAWorryingVerdictIconIsRead() {
+        #expect(PopoverSpeech.severity(.ok) == nil)
+        #expect(PopoverSpeech.severity(.warning) == "Warning")
+        #expect(PopoverSpeech.severity(.critical) == "Critical")
     }
 }

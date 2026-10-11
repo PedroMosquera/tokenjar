@@ -7,15 +7,24 @@ enum Severity: Int, Comparable {
 
     static func < (a: Severity, b: Severity) -> Bool { a.rawValue < b.rawValue }
 
-    /// Warning at `warnAt`, or when the window is projected to run out at least 15 minutes before it resets
-    /// (the same rule the alert engine uses, so a bar is never orange while the verdict says "On pace").
+    /// Warning at `warnAt`, or when the window is projected to run out at least 15 minutes before it resets (the
+    /// alert engine's rule). The projection never colors a bar the verdict calls "On pace", but `warnAt` can.
+    /// Ok once the reset has passed: the use shown is the old cycle's until the next check replaces it.
     static func of(_ window: UsageWindow, config: MenuBarConfig, now: Date) -> Severity {
-        if window.usedPercent >= Double(config.criticalAt) { return .critical }
-        if window.usedPercent >= Double(config.warnAt) { return .warning }
+        if window.hasReset(now: now) { return .ok }
+        let byUse = ofUse(window.usedPercent, config: config)
+        if byUse > .ok { return byUse }
         if window.usedPercent >= 50, let pace = Pace.compute(window, now: now), pace.fractionElapsed >= 0.1,
            let eta = pace.secondsToExhaustion, pace.secondsToReset - eta >= 15 * 60 {
             return .warning
         }
+        return .ok
+    }
+
+    /// The thresholds alone, without the projection.
+    static func ofUse(_ usedPercent: Double, config: MenuBarConfig) -> Severity {
+        if usedPercent >= Double(config.criticalAt) { return .critical }
+        if usedPercent >= Double(config.warnAt) { return .warning }
         return .ok
     }
 

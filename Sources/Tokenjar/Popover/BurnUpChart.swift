@@ -15,6 +15,9 @@ struct BurnUpChart: View {
     var start: Date
     var points: [Point]
     var tint: Color
+    /// The window's name, only where nothing nearby names it.
+    var caption: String?
+    var isDimmed = false
 
     /// The window the verdict line judges when it lasts a day or more, so the chart never contradicts the line
     /// above it. Otherwise the weekly window, else the longest one; nil when no window has a known cycle.
@@ -31,29 +34,56 @@ struct BurnUpChart: View {
         return resetsAt.addingTimeInterval(-Double(minutes) * 60)
     }
 
-    /// This cycle's samples, ending at the live value. Matched by their own reset time too, because a sample
-    /// taken just before the previous reset can carry a timestamp inside this cycle.
+    /// At least a tenth of the cycle and 1 % used: less draws a stub at the edge or a flat line on the floor, which
+    /// says nothing the bar above does not.
+    static func isWorthDrawing(_ points: [Point], start: Date, end: Date) -> Bool {
+        guard let first = points.first, let last = points.last, end > start else { return false }
+        let span = last.date.timeIntervalSince(first.date) / end.timeIntervalSince(start)
+        return span >= 0.1 && (points.map(\.used).max() ?? 0) >= 1
+    }
+
+    /// This cycle's samples, ending at the live value, thinned to the peak of each 1/120 of the cycle: a 44 pt chart
+    /// shows no more, and every mark costs layout on each draw.
     static func points(samples: [WindowSample], window: UsageWindow, start: Date, now: Date) -> [Point] {
         let end = window.resetsAt ?? now
+        // A sample under a minute old is the live value, which is appended below.
+        var kept = cycleSamples(samples, start: start, end: end).filter { $0.timestamp <= now && now.timeIntervalSince($0.timestamp) >= 60 }
+        kept.append(WindowSample(accountID: "", windowID: window.id, timestamp: now, usedPercent: window.usedPercent, resetsAt: window.resetsAt))
+        return DashboardMath.downsample(kept, bucket: thinningBucket(start: start, end: end)).map { Point(date: $0.timestamp, used: $0.usedPercent) }
+    }
+
+    /// Matched by their own reset time too, because a sample taken just before the previous reset can carry a
+    /// timestamp inside this cycle.
+    static func cycleSamples(_ samples: [WindowSample], start: Date, end: Date) -> [WindowSample] {
         let halfCycle = end.timeIntervalSince(start) / 2
-        var points = samples
-            .filter { sample in
-                sample.timestamp >= start && sample.timestamp <= now
-                    && (sample.resetsAt.map { abs($0.timeIntervalSince(end)) < halfCycle } ?? true)
-            }
-            .map { Point(date: $0.timestamp, used: $0.usedPercent) }
-        if let last = points.last, now.timeIntervalSince(last.date) < 60 {
-            points[points.count - 1].used = window.usedPercent
-        } else {
-            points.append(Point(date: now, used: window.usedPercent))
+        return samples.filter { sample in
+            sample.timestamp >= start && (sample.resetsAt.map { abs($0.timeIntervalSince(end)) < halfCycle } ?? true)
         }
-        return points
+    }
+
+    static func thinningBucket(start: Date, end: Date) -> TimeInterval {
+        end.timeIntervalSince(start) / 120
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let caption {
+                Text(caption)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            plot
+                .opacity(isDimmed ? 0.5 : 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(window.label) usage this cycle")
+        .accessibilityValue("\(Format.percent(window.usedPercent)) used")
+    }
+
+    private var plot: some View {
         let end = window.resetsAt ?? start
         let top = max(100, points.map(\.used).max() ?? 0)
-        Chart {
+        return Chart {
             LineMark(x: .value("Time", start), y: .value("Used", 0), series: .value("Series", "pace"))
                 .foregroundStyle(Color.secondary)
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
@@ -86,13 +116,26 @@ struct BurnUpChart: View {
             }
         }
         .frame(height: 44)
-        .overlay(alignment: .topLeading) {
-            Text(window.label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .allowsHitTesting(false)
-        }
-        .accessibilityLabel("\(window.label) usage this cycle")
-        .accessibilityValue("\(Format.percent(window.usedPercent)) used")
+    }
+}
+
+/// The popover's copy of each chart's stored samples, already thinned, so re-running a card's body never queries
+/// SQLite. An entry holds until the history changes or the window starts a new cycle. Not published: filling it
+/// during a body must not trigger another one.
+final class BurnUpSamples: ObservableObject {
+    private struct Entry {
+        var start: Date
+        var revision: Int
+        var samples: [WindowSample]
+    }
+
+    private var entries: [String: Entry] = [:]
+
+    func samples(accountID: String, windowID: String, start: Date, end: Date, revision: Int, load: () -> [WindowSample]) -> [WindowSample] {
+        let key = "\(accountID)\n\(windowID)"
+        if let entry = entries[key], entry.start == start, entry.revision == revision { return entry.samples }
+        let samples = DashboardMath.downsample(BurnUpChart.cycleSamples(load(), start: start, end: end), bucket: BurnUpChart.thinningBucket(start: start, end: end))
+        entries[key] = Entry(start: start, revision: revision, samples: samples)
+        return samples
     }
 }

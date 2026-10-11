@@ -46,7 +46,8 @@ struct QuietButtonStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .padding(padding)
-                .foregroundStyle(.secondary)
+                // A custom style draws its own disabled look; without this a disabled button looks clickable.
+                .foregroundStyle(isEnabled ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary))
                 .background {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(.primary.opacity(configuration.isPressed ? 0.14 : hover.isHovering && isEnabled ? 0.08 : 0))

@@ -1,6 +1,7 @@
 import AppKit
 import Testing
 @testable import Tokenjar
+import TokenjarCore
 
 /// Alpha of `image` at a point of the mark's 18 x 18 design grid, measured from the top left like the SVG source.
 @MainActor
@@ -72,5 +73,81 @@ struct StatusGlyphTests {
 
     @Test func theMarkIsSizedForTheMenuBar() {
         #expect(StatusGlyph.slot(0.5).size == NSSize(width: 18, height: 18))
+    }
+
+    /// The status item must not shift the items beside it when a check fails or recovers.
+    @Test(arguments: [MenuBarIcon.app, .markMana, .logoClaude, .symbolBrain])
+    func theDotNeverChangesTheWidth(_ icon: MenuBarIcon) {
+        let plain = StatusGlyph.image(icon, fraction: 0.42, tint: nil, alpha: 1, dot: false)
+        let dotted = StatusGlyph.image(icon, fraction: 0.42, tint: nil, alpha: 1, dot: true)
+        #expect(plain.size == dotted.size)
+        #expect(StatusGlyph.neutral(icon, dot: false).size == StatusGlyph.neutral(icon, dot: true).size)
+    }
+
+    /// Alpha of each device pixel along the slot's middle row, drawn at `scale`, from the left edge.
+    private func rowAlphas(_ image: NSImage, scale: CGFloat) -> [CGFloat] {
+        let side = Int(StatusGlyph.glyphSide * scale)
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return [] }
+        rep.size = image.size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        image.draw(in: NSRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        return (0..<side).map { rep.colorAt(x: $0, y: side / 2)?.alphaComponent ?? -1 }
+    }
+
+    /// A 1.5 pt stroke covers one and a half pixels on a 1x display, which draws the frame with a soft gray column.
+    @Test func theFrameLandsOnWholePixelsAt1x() {
+        let row = rowAlphas(StatusGlyph.slot(0.3), scale: 1)
+        let frame = Array(row.prefix(4)) + Array(row.suffix(4))
+        #expect(frame.allSatisfy { $0 < 0.05 || $0 > 0.95 }, "\(frame)")
+        #expect(row[1] > 0.95 && row[16] > 0.95)
+    }
+
+    /// The status bar button resamples an image of fractional width, so the slot drawn on whole pixels would come out
+    /// soft at 1x anyway. This draws the composed image the way the menu bar does.
+    @Test(arguments: [false, true])
+    func theStatusButtonKeepsTheSlotOnWholePixelsAt1x(_ dot: Bool) {
+        let button = NSStatusBarButton(frame: .zero)
+        button.imagePosition = .imageOnly
+        button.contentTintColor = .black
+        button.image = StatusGlyph.image(.app, fraction: 1, tint: nil, alpha: 1, dot: dot)
+        button.sizeToFit()
+        let size = button.bounds.size
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: Int(size.width.rounded(.up)), pixelsHigh: Int(size.height.rounded(.up)), bitsPerSample: 8,
+            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else {
+            Issue.record("no bitmap")
+            return
+        }
+        rep.size = NSSize(width: CGFloat(rep.pixelsWide), height: CGFloat(rep.pixelsHigh))
+        button.cacheDisplay(in: button.bounds, to: rep)
+        // The middle row crosses both sides of the frame and of the full square, and nothing else.
+        let row = (0..<rep.pixelsWide).map { rep.colorAt(x: $0, y: rep.pixelsHigh / 2)?.alphaComponent ?? -1 }
+        let peak = row.max() ?? 0
+        #expect(peak > 0.5, "\(row)")
+        #expect(row.allSatisfy { $0 < 0.05 * peak || $0 > 0.95 * peak }, "\(row)")
+        #expect(row.filter { $0 > 0.95 * peak }.count == 12, "\(row)")
+    }
+
+    @Test(arguments: MenuBarIcon.allCases)
+    func everyComposedImageIsAWholeNumberOfPointsWide(_ icon: MenuBarIcon) {
+        for dot in [false, true] {
+            for image in [StatusGlyph.image(icon, fraction: 0.3, tint: nil, alpha: 1, dot: dot), StatusGlyph.neutral(icon, dot: dot)] {
+                #expect(image.size.width == image.size.width.rounded(), "\(icon.rawValue) \(image.size.width)")
+            }
+        }
+    }
+
+    /// The 2x frame was already on whole pixels: 3 device pixels from 2 to 4, and the gap clear to the square at 8.
+    @Test func theFrameAt2xKeepsItsGeometry() {
+        let row = rowAlphas(StatusGlyph.slot(0), scale: 2)
+        #expect(row[0...1].allSatisfy { $0 < 0.05 }, "\(row)")
+        #expect(row[2...4].allSatisfy { $0 > 0.95 }, "\(row)")
+        #expect(row[5...7].allSatisfy { $0 < 0.05 }, "\(row)")
     }
 }

@@ -1,19 +1,39 @@
 import Foundation
 
 enum Format {
+    /// Whole percent, except that nothing above 0 reads "0%" and nothing below 100 reads "100%".
     static func percent(_ value: Double) -> String {
-        "\(Int(value.rounded()))%"
+        if value > 0, value < 1 { return "<1%" }
+        if value >= 99, value < 100 { return "99%" }
+        return "\(Int(value.rounded()))%"
     }
 
-    /// "3d 4h", "1h 48m", "12m", "<1m".
+    /// "3d 4h", "3d", "1h 48m", "2h", "12m", "<1m".
     static func duration(_ seconds: TimeInterval) -> String {
         let s = max(0, Int(seconds))
         let days = s / 86_400, hours = (s % 86_400) / 3_600, minutes = (s % 3_600) / 60
-        if days > 0 { return "\(days)d \(hours)h" }
-        if hours > 0 { return "\(hours)h \(minutes)m" }
+        if days > 0 { return hours > 0 ? "\(days)d \(hours)h" : "\(days)d" }
+        if hours > 0 { return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h" }
         if minutes > 0 { return "\(minutes)m" }
         return "<1m"
     }
+
+    /// "1 hour, 48 minutes", for accessibility text only. English, like every other string the app shows.
+    static func spokenDuration(_ seconds: TimeInterval) -> String {
+        guard seconds >= 60 else { return "less than a minute" }
+        return spokenFormatter.string(from: seconds.rounded(.down)) ?? duration(seconds)
+    }
+
+    private static let spokenFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US")
+        formatter.calendar = calendar
+        formatter.unitsStyle = .full
+        formatter.allowedUnits = [.day, .hour, .minute]
+        formatter.maximumUnitCount = 2
+        return formatter
+    }()
 
     static func countdown(to date: Date?, now: Date) -> String? {
         guard let date else { return nil }
@@ -43,7 +63,7 @@ enum Format {
         amount >= 100 || amount == amount.rounded() ? 0 : 2
     }
 
-    private static func money(_ amount: Double, currency: String, fractionDigits: Int, locale: Locale) -> String {
+    static func money(_ amount: Double, currency: String, fractionDigits: Int, locale: Locale) -> String {
         amount.formatted(.currency(code: currency).precision(.fractionLength(fractionDigits)).locale(locale))
     }
 
