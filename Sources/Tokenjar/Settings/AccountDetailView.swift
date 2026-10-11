@@ -35,10 +35,11 @@ struct AccountDetailView: View {
                 }
                 // Zen reads only opencode's local database, so it has no key to choose and no login to run.
                 if account.provider == .opencodeGo {
-                    AccountCredentialSection(account: account)
+                    AccountCredentialSection(account: account, signInCommand: signInCommand, onSignIn: openSignIn)
                         .id(Self.credentialAnchor)
                 }
-                if !account.provider.isLinkOnly, account.provider != .opencodeZen {
+                // OpenCode's login belongs to its key source, inside the Credential section.
+                if !account.provider.isLinkOnly, !account.provider.usesAPIKey {
                     signInSection
                 }
                 overridesSection
