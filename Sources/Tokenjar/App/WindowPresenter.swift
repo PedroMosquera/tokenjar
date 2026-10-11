@@ -32,8 +32,12 @@ final class WindowPresenter: NSObject, NSWindowDelegate {
     /// The window `show` opens, before it is placed, restored or shown. `--render-windows` builds its captures here
     /// too, with its own window class from `make`, so they match what the app opens.
     static func makeWindow(_ spec: Spec, controller: NSViewController, make: @MainActor (NSViewController) -> NSWindow = NSWindow.init(contentViewController:)) -> NSWindow {
-        let window = make(controller)
+        // init(contentViewController:) binds the title to the controller's, replacing the navigationTitle SwiftUI sets
+        // while attaching the content until that title changes. Content attached to a built window keeps its title.
+        let window = make(Self.placeholder())
+        window.unbind(.title)
         window.title = spec.title
+        window.contentViewController = controller
         window.identifier = NSUserInterfaceItemIdentifier(spec.id)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
@@ -41,6 +45,12 @@ final class WindowPresenter: NSObject, NSWindowDelegate {
         window.contentMinSize = spec.minSize
         window.isReleasedWhenClosed = false
         return window
+    }
+
+    private static func placeholder() -> NSViewController {
+        let controller = NSViewController()
+        controller.view = NSView()
+        return controller
     }
 
     private func bringToFront(_ window: NSWindow) {
