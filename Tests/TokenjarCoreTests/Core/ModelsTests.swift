@@ -76,6 +76,25 @@ struct ModelsTests {
         #expect(snapshot.tightestWindow?.id == "session")
     }
 
+    @Test func aWindowHasResetOnceItsResetTimeHasPassed() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        #expect(UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now.addingTimeInterval(-60)).hasReset(now: now))
+        #expect(UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now).hasReset(now: now))
+        #expect(!UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now.addingTimeInterval(60)).hasReset(now: now))
+        #expect(!UsageWindow(id: "session", label: "5-hour", usedPercent: 100).hasReset(now: now))
+    }
+
+    /// A full 5-hour window that reset a minute ago no longer limits anything; the live 40 % one does.
+    @Test func tightestWindowAtATimeSkipsWindowsThatHaveReset() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = UsageSnapshot(accountID: "a", provider: .claude, windows: [
+            UsageWindow(id: "session", label: "5-hour", usedPercent: 100, windowMinutes: 300, resetsAt: now.addingTimeInterval(-60)),
+            UsageWindow(id: "weekly", label: "Week", usedPercent: 40, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(86_400)),
+        ], fetchedAt: now.addingTimeInterval(-600), source: "test")
+        #expect(snapshot.tightestWindow(now: now)?.id == "weekly")
+        #expect(snapshot.tightestWindow(now: now.addingTimeInterval(-120))?.id == "session")
+    }
+
     /// Every surface reads this to decide whether an account needs a look, so each case is pinned.
     @Test func attentionClassifiesEveryFetchError() {
         let expected: [(FetchError, FetchError.Attention)] = [

@@ -185,6 +185,11 @@ public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
         guard let start = calendar.date(byAdding: .month, value: -1, to: resetsAt) else { return nil }
         return Int((resetsAt.timeIntervalSince(start) / 60).rounded())
     }
+
+    /// True once the reported reset time has passed: until the next check, the used % describes a cycle that is over.
+    public func hasReset(now: Date) -> Bool {
+        resetsAt.map { $0 <= now } ?? false
+    }
 }
 
 public struct MoneyLine: Codable, Hashable, Sendable {
@@ -228,6 +233,15 @@ public struct UsageSnapshot: Codable, Hashable, Sendable {
 
     /// The window with the highest used %, ties broken by the sooner reset.
     public var tightestWindow: UsageWindow? {
+        Self.tightest(windows)
+    }
+
+    /// `tightestWindow` among the windows that have not reset by `now`.
+    public func tightestWindow(now: Date) -> UsageWindow? {
+        Self.tightest(windows.filter { !$0.hasReset(now: now) })
+    }
+
+    private static func tightest(_ windows: [UsageWindow]) -> UsageWindow? {
         windows.max { a, b in
             if a.usedPercent != b.usedPercent { return a.usedPercent < b.usedPercent }
             return (a.resetsAt ?? .distantFuture) > (b.resetsAt ?? .distantFuture)
