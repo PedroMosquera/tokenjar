@@ -54,29 +54,29 @@ struct PopoverHeader: View {
         return "Updated \(Format.age(of: last, now: model.popoverNow))"
     }
 
-    /// With nothing to judge yet the header shows the app's own slot, the mark the menu bar shows.
     @ViewBuilder
     private func toneIcon(_ tone: PopoverSummary.Tone) -> some View {
-        switch tone {
-        case .empty:
+        if let symbol = symbol(tone) {
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundStyle(color(tone))
+        } else {
             Image(nsImage: StatusGlyph.picture(.app))
                 .renderingMode(.template)
                 .resizable()
                 .frame(width: 22, height: 22)
                 .foregroundStyle(.secondary)
-        case .clear, .warning, .critical, .problem:
-            Image(systemName: symbol(tone))
-                .font(.title2)
-                .foregroundStyle(color(tone))
         }
     }
 
-    private func symbol(_ tone: PopoverSummary.Tone) -> String {
+    /// nil with nothing to judge yet, where the header shows the slot the menu bar shows.
+    private func symbol(_ tone: PopoverSummary.Tone) -> String? {
         switch tone {
         case .clear: "checkmark.circle.fill"
         case .warning: "exclamationmark.triangle.fill"
         case .critical: "exclamationmark.octagon.fill"
-        case .problem, .empty: "exclamationmark.circle.fill"
+        case .problem: "exclamationmark.circle.fill"
+        case .empty: nil
         }
     }
 
