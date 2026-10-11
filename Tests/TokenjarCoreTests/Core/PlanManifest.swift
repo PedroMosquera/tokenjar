@@ -4,7 +4,7 @@ import TokenjarCore
 
 /// One row of the plan matrix, from `Fixtures/Plans/<folder>/manifest.json`. `expect` is nil until the area that owns
 /// the provider writes it. Each test target carries this file; keep the copies the same apart from `folder`.
-struct PlanCase: Decodable, Sendable, CustomTestStringConvertible {
+nonisolated struct PlanCase: Decodable, Sendable, CustomTestStringConvertible {
     enum Confidence: String, Decodable, Sendable { case recorded, documented, inferred }
 
     struct Expectation: Decodable, Sendable {
@@ -37,7 +37,8 @@ struct PlanCase: Decodable, Sendable, CustomTestStringConvertible {
     }
 }
 
-enum PlanManifest {
+// Nonisolated: the app test target defaults to the main actor, and `@Test(arguments:)` reads these off it.
+nonisolated enum PlanManifest {
     static let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appending(path: "Fixtures/Plans")
 
     /// Empty when a manifest fails to decode; `everyPlanRowHasOneManifestEntry` calls `load()` to show why.
