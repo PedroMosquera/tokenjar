@@ -19,9 +19,14 @@ enum StrayWindowSweeper {
         isVisible && screens.contains { $0.intersects(frame) }
     }
 
+    static func report(hiding frame: NSRect) -> String {
+        "stray window hidden: \(Int(frame.width.rounded()))x\(Int(frame.height.rounded()))\n"
+    }
+
     private static func sweep() {
         let screens = NSScreen.screens.map(\.frame)
         for window in NSApp.windows where isStray(frame: window.frame, isVisible: window.isVisible, screens: screens) {
+            FileHandle.standardError.write(Data(report(hiding: window.frame).utf8))
             window.alphaValue = 0
             window.orderOut(nil)
         }
