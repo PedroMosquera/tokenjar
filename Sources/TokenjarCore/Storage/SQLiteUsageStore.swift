@@ -316,9 +316,8 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
             Unmanaged.passRetained(CalendarBox(calendar)).toOpaque(),
             { context, _, arguments in
                 guard let context, let user = sqlite3_user_data(context), let argument = arguments?[0] else { return }
-                let calendar = Unmanaged<CalendarBox>.fromOpaque(user).takeUnretainedValue().calendar
-                let day = calendar.startOfDay(for: Date(timeIntervalSince1970: sqlite3_value_double(argument)))
-                sqlite3_result_double(context, day.timeIntervalSince1970)
+                let box = Unmanaged<CalendarBox>.fromOpaque(user).takeUnretainedValue()
+                sqlite3_result_double(context, box.startOfDay(sqlite3_value_double(argument)))
             },
             nil, nil,
             // SQLite calls this when the connection closes, and also when registration fails.
@@ -389,9 +388,21 @@ private final class Connection {
     deinit { sqlite3_close_v2(handle) }
 }
 
+/// SQLite calls `tokenjar_local_day` once per row a daily query reads, mostly in time order, so the last day's bounds
+/// answer nearly every call without asking the calendar. Only used under the store's lock.
 private final class CalendarBox {
     let calendar: Calendar
+    private var day: DateInterval?
+
     init(_ calendar: Calendar) { self.calendar = calendar }
+
+    func startOfDay(_ ts: Double) -> Double {
+        let date = Date(timeIntervalSince1970: ts)
+        if let day, day.start <= date, date < day.end { return day.start.timeIntervalSince1970 }
+        guard let interval = calendar.dateInterval(of: .day, for: date) else { return calendar.startOfDay(for: date).timeIntervalSince1970 }
+        day = interval
+        return interval.start.timeIntervalSince1970
+    }
 }
 
 private enum SQLValue {

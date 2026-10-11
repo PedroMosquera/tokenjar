@@ -107,6 +107,29 @@ struct SQLiteUsageStoreTests {
         #expect(try store.samples(accountID: "acct", windowID: nil, since: .distantPast).map(\.windowID) == ["weekly:Fable", "weekly:Opus"])
     }
 
+    /// The local-day function remembers the last day it computed. Events every 37 minutes through both US clock changes
+    /// of 2026 must land on the same days `Calendar.startOfDay` gives each one.
+    @Test func localDaysMatchStartOfDayAcrossClockChanges() throws {
+        let newYork = fixedCalendar("America/New_York")
+        let store = try StoreKind.sqlite.make(in: temp.url, calendar: newYork)
+        var events: [UsageEvent] = []
+        for (month, day) in [(3, 6), (10, 30)] {
+            let start = newYork.date(from: DateComponents(year: 2026, month: month, day: day))!
+            for step in 0..<(5 * 24 * 60 / 37) {
+                events.append(usageEvent("\(month)-\(step)", at: start.addingTimeInterval(Double(step) * 37 * 60), input: step + 1))
+            }
+        }
+        try store.upsert(events)
+
+        let expected = Dictionary(grouping: events) { newYork.startOfDay(for: $0.timestamp) }
+            .map { (day: $0.key, requests: $0.value.count, input: $0.value.map(\.inputTokens).reduce(0, +)) }
+            .sorted { $0.day < $1.day }
+        let rows = try store.dailyUsage(accountIDs: nil, since: .distantPast)
+        #expect(rows.map(\.day) == expected.map(\.day))
+        #expect(rows.map(\.requests) == expected.map(\.requests))
+        #expect(rows.map(\.inputTokens) == expected.map(\.input))
+    }
+
     @Test func prunesSamplesOlderThanTheRetention() throws {
         let store = try StoreKind.sqlite.make(in: temp.url)
         func record(_ at: Date, window: String) throws {
