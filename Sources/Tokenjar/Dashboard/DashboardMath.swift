@@ -71,6 +71,19 @@ nonisolated struct DashboardPeriods: Equatable, Sendable {
     func days(of range: DashboardRange) -> [Date] {
         (0..<range.dayCount).reversed().compactMap { calendar.date(byAdding: .day, value: -$0, to: today) }
     }
+
+    /// What both day-grained charts span for `range`, from its first day to the end of today, so a date sits at the
+    /// same x in the limits and spend charts.
+    func chartDomain(of range: DashboardRange) -> ClosedRange<Date> {
+        firstDay(of: range)...(calendar.date(byAdding: .day, value: 1, to: today) ?? now)
+    }
+
+    /// The days both charts label: every day at 7d, and every seventh day counting back from today at 30d.
+    func axisDays(of range: DashboardRange) -> [Date] {
+        let days = days(of: range)
+        guard range == .month else { return days }
+        return stride(from: days.count - 1, through: 0, by: -7).map { days[$0] }.reversed()
+    }
 }
 
 nonisolated struct CostTotal: Equatable, Sendable {
@@ -331,6 +344,24 @@ nonisolated enum DashboardMath {
         var readable = snapshot
         readable.windows = snapshot.windows.filter { !sampling(for: range, windowMinutes: $0.windowMinutes).peaksOnly }
         return readable.windows.isEmpty ? snapshot.tightestWindow : readable.tightestWindow
+    }
+
+    /// The limits chart's x range. At 24h it is the last 24 hours. Otherwise it is the domain it shares with the
+    /// spend chart, unless the samples begin inside it (`earliest`, with nothing before the range: `reachesBack`
+    /// false); then it starts just before the first sample, spans at least a day and ends now, and `since` is set
+    /// so the card can say where the history begins.
+    static func limitsDomain(
+        range: DashboardRange, periods: DashboardPeriods, earliest: Date?, reachesBack: Bool
+    ) -> (domain: ClosedRange<Date>, since: Date?) {
+        let now = periods.now
+        let lastDay = now.addingTimeInterval(-86_400)
+        guard range != .day else { return (lastDay...now, nil) }
+        let shared = periods.chartDomain(of: range)
+        guard let earliest, !reachesBack else { return (shared, nil) }
+        let padded = earliest.addingTimeInterval(-max(range.sampleBucket, 15 * 60))
+        let start = max(shared.lowerBound, min(padded, lastDay))
+        guard start > shared.lowerBound else { return (shared, nil) }
+        return (start...now, earliest)
     }
 
     /// One color slot per account for both dashboard charts. Accounts with limit windows come first in config

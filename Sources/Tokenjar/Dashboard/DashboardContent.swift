@@ -50,6 +50,10 @@ nonisolated struct DashboardContent: Sendable {
     var series: [Series] = []
     var pointsBySeries: [String: [LimitPoint]] = [:]
     var resets: [ResetMarker] = []
+    /// The limits chart's x range (`DashboardMath.limitsDomain`).
+    var limitsDomain = Date()...Date()
+    /// When the limits history begins, if that is after the range starts.
+    var limitsSince: Date?
     var spend: [UsageGrouping: SpendBreakdown] = [:]
     var projects: [ProjectSummary] = []
     /// Keyed by the name the spend chart groups accounts by, so an account's bars match its limits line.
@@ -98,7 +102,9 @@ nonisolated struct DashboardContent: Sendable {
         }
         content.projects = DashboardMath.topProjects(rows, since: firstDay, limit: projectLimit)
 
-        let since = input.now.addingTimeInterval(-range.duration)
+        // A day before the range shows whether history reaches back to its start, or begins inside it.
+        let rangeStart = range == .day ? input.now.addingTimeInterval(-range.duration) : periods.firstDay(of: range)
+        let lookback = rangeStart.addingTimeInterval(-86_400)
         var wanted: [(id: String, label: String, colorIndex: Int, accountID: String, window: UsageWindow)] = []
         if let account = input.account {
             let windows = snapshots[account.id]?.windows ?? []
@@ -112,15 +118,20 @@ nonisolated struct DashboardContent: Sendable {
                 wanted.append((account.id, names[account.id] ?? account.id, slot, account.id, window))
             }
         }
+        var earliest: Date?
+        var reachesBack = false
         for entry in wanted {
-            let samples = (try? input.store?.samples(accountID: entry.accountID, windowID: entry.window.id, since: since)) ?? []
+            let loaded = (try? input.store?.samples(accountID: entry.accountID, windowID: entry.window.id, since: lookback)) ?? []
+            let samples = loaded.filter { $0.timestamp >= rangeStart }
             let sampling = DashboardMath.sampling(for: range, windowMinutes: entry.window.windowMinutes)
             let label = sampling.peaksOnly ? "\(entry.label) (peak per cycle)" : entry.label
             let points = DashboardMath.limitPoints(
                 seriesID: entry.id, label: label, samples: samples, bucket: sampling.bucket,
                 maxGap: max(2 * 3600, 3 * sampling.bucket)
             )
-            guard !points.isEmpty else { continue }
+            guard let first = points.first else { continue }
+            reachesBack = reachesBack || loaded.count > samples.count
+            earliest = min(earliest ?? first.date, first.date)
             content.series.append(Series(id: entry.id, label: label, colorIndex: entry.colorIndex, peaksOnly: sampling.peaksOnly))
             content.pointsBySeries[entry.id] = points
             let resets = DashboardMath.resets(in: samples)
@@ -128,6 +139,9 @@ nonisolated struct DashboardContent: Sendable {
                 content.resets += resets.map { ResetMarker(seriesID: entry.id, date: $0) }
             }
         }
+        (content.limitsDomain, content.limitsSince) = DashboardMath.limitsDomain(
+            range: range, periods: periods, earliest: earliest, reachesBack: reachesBack
+        )
         return content
     }
 }

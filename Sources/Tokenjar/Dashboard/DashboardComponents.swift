@@ -114,6 +114,35 @@ extension View {
     }
 }
 
+/// What the limits and spend charts share so a date sits at the same x in both: the label dates and formats, and a
+/// y-label column of one width, which sets where each plot starts.
+enum DashboardAxis {
+    static let yLabelWidth: CGFloat = 56
+
+    static func yLabel(_ text: String) -> some View {
+        Text(text)
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(width: yLabelWidth, alignment: .trailing)
+    }
+
+    /// Noon of each day, so a label sits under its day's bar and inside its day on the line chart.
+    static func labelDates(_ days: [Date]) -> [Date] {
+        days.map { $0.addingTimeInterval(12 * 3600) }
+    }
+
+    /// Centered under its day, except today's at 30d, which ends at noon: half a 30d day is too narrow for a centered
+    /// label, and the chart would truncate it at the plot's edge.
+    static func labelAnchor(_ value: AxisValue, range: DashboardRange) -> UnitPoint {
+        range == .month && value.index == value.count - 1 ? .topTrailing : .top
+    }
+
+    static func dayFormat(_ range: DashboardRange) -> Date.FormatStyle {
+        range == .month ? .dateTime.month(.abbreviated).day() : .dateTime.weekday(.abbreviated).day()
+    }
+}
+
 extension View {
     /// Sets `date` to the x value under the pointer while it is over the plot, and to nil when it leaves.
     func chartHoverDate(_ date: Binding<Date?>) -> some View {

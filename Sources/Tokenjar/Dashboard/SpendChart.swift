@@ -3,28 +3,25 @@ import SwiftUI
 import TokenjarCore
 
 struct SpendChart: View, Equatable {
-    /// With `grouping` and `days`, all that `breakdown`, `colors` and `labels` are built from.
+    /// With `grouping` and `range`, all that `breakdown`, `periods`, `colors` and `labels` are built from.
     var contentKey: DashboardLoadKey?
     var grouping: UsageGrouping
+    var range: DashboardRange
     var breakdown: SpendBreakdown
-    var days: [Date]
+    var periods: DashboardPeriods
     var colors: [Color]
     /// What the legend and tooltip call each of `breakdown.groups`, in the same order. Two groups may share one.
     var labels: [String]
 
     static func == (a: SpendChart, b: SpendChart) -> Bool {
-        a.contentKey == b.contentKey && a.grouping == b.grouping && a.days == b.days
+        a.contentKey == b.contentKey && a.grouping == b.grouping && a.range == b.range
     }
 
     /// Explicit State storage: the SDK's @State is a macro whose plugin ships only with Xcode.
     private let hoverState = State<Date?>(initialValue: nil)
     private var hover: Date? { hoverState.wrappedValue }
 
-    private var xDomain: ClosedRange<Date> {
-        let first = days.first ?? Date()
-        let last = days.last ?? first
-        return first...(Calendar.current.date(byAdding: .day, value: 1, to: last) ?? last)
-    }
+    private var days: [Date] { periods.days(of: range) }
 
     var body: some View {
         Chart {
@@ -46,18 +43,19 @@ struct SpendChart: View, Equatable {
             }
         }
         .chartForegroundStyleScale(domain: legend.map(\.label), range: legend.map(\.color))
-        .chartXScale(domain: xDomain)
+        // The limits chart uses the same domain and labels, so a day sits at the same x in both cards.
+        .chartXScale(domain: periods.chartDomain(of: range))
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine().foregroundStyle(Color.primary.opacity(0.08))
                 AxisValueLabel {
-                    if let v = value.as(Double.self) { Text(Format.money(v)).monospacedDigit() }
+                    if let v = value.as(Double.self) { DashboardAxis.yLabel(Format.money(v)) }
                 }
             }
         }
         .chartXAxis {
-            AxisMarks(values: days.count > 7 ? .stride(by: .day, count: 5) : .stride(by: .day)) { _ in
-                AxisValueLabel(format: days.count > 7 ? .dateTime.month(.abbreviated).day() : .dateTime.weekday(.abbreviated).day(), centered: true)
+            AxisMarks(values: DashboardAxis.labelDates(periods.axisDays(of: range))) { value in
+                AxisValueLabel(format: DashboardAxis.dayFormat(range), anchor: DashboardAxis.labelAnchor(value, range: range))
             }
         }
         .chartLegend(position: .bottom, alignment: .leading, spacing: 10)

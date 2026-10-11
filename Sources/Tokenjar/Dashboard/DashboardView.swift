@@ -223,7 +223,10 @@ private struct DashboardDetail: View {
             subtitle: limitsSubtitle
         ) {
             Group {
-                if let message = limitsEmptyMessage {
+                // Until the first load lands there is no domain to draw, only axis labels piled in one place.
+                if content.key == nil {
+                    Color.clear
+                } else if let message = limitsEmptyMessage {
                     DashboardEmptyState(systemImage: "chart.line.uptrend.xyaxis", message: message)
                 } else {
                     LimitsChart(content: content, range: range, warnAt: model.config.menuBar.warnAt, criticalAt: model.config.menuBar.criticalAt)
@@ -235,8 +238,18 @@ private struct DashboardDetail: View {
     }
 
     private var limitsSubtitle: String {
-        if account != nil { return "Used % per window, faint rules mark resets" }
-        return range == .day ? "Tightest window of each account" : "Tightest window of each account, skipping windows too short for this range"
+        var subtitle = if account != nil {
+            "Used % per window, faint rules mark resets"
+        } else if range == .day {
+            "Tightest window of each account"
+        } else {
+            "Tightest window of each account, skipping windows too short for this range"
+        }
+        // The axis starts where the history does, so say so rather than let it read as the whole range.
+        if let since = content.limitsSince {
+            subtitle += " · since \(since.formatted(.dateTime.weekday(.abbreviated).hour().minute()))"
+        }
+        return subtitle
     }
 
     private var limitsEmptyMessage: String? {
@@ -273,12 +286,14 @@ private struct DashboardDetail: View {
         } content: {
             VStack(alignment: .leading, spacing: 6) {
                 Group {
-                    if let message = spendEmptyMessage {
+                    if content.key == nil {
+                        Color.clear
+                    } else if let message = spendEmptyMessage {
                         DashboardEmptyState(systemImage: "chart.bar.xaxis", message: message)
                     } else {
                         SpendChart(
-                            contentKey: content.key, grouping: grouping, breakdown: breakdown, days: content.periods.days(of: range),
-                            colors: spendColors, labels: spendLabels
+                            contentKey: content.key, grouping: grouping, range: content.key?.range ?? range, breakdown: breakdown,
+                            periods: content.periods, colors: spendColors, labels: spendLabels
                         )
                         .equatable()
                     }

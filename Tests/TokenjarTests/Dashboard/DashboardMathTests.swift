@@ -238,4 +238,41 @@ struct DashboardMathTests {
         #expect(!unknown.peaksOnly)
         #expect(unknown.bucket == DashboardRange.month.sampleBucket)
     }
+
+    // MARK: Chart domains
+
+    @Test func dayGrainedChartsShareOneDomainAndTicks() {
+        let periods = DashboardPeriods(now: now, calendar: Self.calendar)
+        #expect(periods.chartDomain(of: .week) == day(-6)...day(1))
+        #expect(periods.chartDomain(of: .month) == day(-29)...day(1))
+        #expect(periods.axisDays(of: .week) == (-6...0).map(day))
+        #expect(periods.axisDays(of: .month) == [-28, -21, -14, -7, 0].map(day))
+    }
+
+    @Test func newHistoryClipsTheLimitsChartToADayAtLeast() {
+        let periods = DashboardPeriods(now: now, calendar: Self.calendar)
+        let threeHoursAgo = now.addingTimeInterval(-3 * 3600)
+        let clipped = DashboardMath.limitsDomain(range: .week, periods: periods, earliest: threeHoursAgo, reachesBack: false)
+        #expect(clipped.domain.lowerBound >= now.addingTimeInterval(-86_400))
+        #expect(clipped.domain.upperBound == now)
+        #expect(clipped.since == threeHoursAgo)
+
+        // Two days of history at 7d: the chart starts just before the first sample.
+        let twoDaysAgo = now.addingTimeInterval(-2 * 86_400)
+        let short = DashboardMath.limitsDomain(range: .week, periods: periods, earliest: twoDaysAgo, reachesBack: false)
+        #expect(short.domain.lowerBound < twoDaysAgo && short.domain.lowerBound > twoDaysAgo.addingTimeInterval(-3600))
+    }
+
+    @Test func historyThatReachesBackKeepsTheSharedDomain() {
+        let periods = DashboardPeriods(now: now, calendar: Self.calendar)
+        // A Mac asleep at midnight has its first in-range sample in the morning, but older samples exist.
+        let morning = day(-6).addingTimeInterval(8 * 3600)
+        let full = DashboardMath.limitsDomain(range: .week, periods: periods, earliest: morning, reachesBack: true)
+        #expect(full.domain == periods.chartDomain(of: .week))
+        #expect(full.since == nil)
+        // Nothing to draw keeps the shared domain too.
+        #expect(DashboardMath.limitsDomain(range: .month, periods: periods, earliest: nil, reachesBack: false).domain == periods.chartDomain(of: .month))
+        // 24h is the last 24 hours, never the two calendar days the spend chart shows.
+        #expect(DashboardMath.limitsDomain(range: .day, periods: periods, earliest: nil, reachesBack: false).domain == now.addingTimeInterval(-86_400)...now)
+    }
 }

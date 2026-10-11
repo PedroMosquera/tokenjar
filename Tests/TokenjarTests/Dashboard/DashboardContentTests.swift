@@ -117,6 +117,13 @@ struct DashboardContentLoadTests {
         #expect(load(model, account: zen, range: .week).hasUsage)
     }
 
+    @Test func limitsStartNearTheFirstSampleWhenHistoryIsNew() {
+        // The test store's samples start an hour ago, so a week-long axis would leave the lines in a sliver.
+        let content = load(model(), range: .week)
+        #expect(content.limitsDomain.lowerBound >= now.addingTimeInterval(-86_400))
+        #expect(content.limitsSince == now.addingTimeInterval(-3600))
+    }
+
     @Test func oneAccountMarksWindowsThatOnlyShowPeaks() {
         let model = model()
         let content = load(model, account: model.accounts.first, range: .month)

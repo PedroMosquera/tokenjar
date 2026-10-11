@@ -19,9 +19,15 @@ struct LimitsChart: View, Equatable {
     private let hoverState = State<Date?>(initialValue: nil)
     private var hover: Date? { hoverState.wrappedValue }
 
-    private var domain: ClosedRange<Date> {
-        content.periods.now.addingTimeInterval(-range.duration)...content.periods.now
-    }
+    /// The range the content was built for, which the page's picker may already have moved past while it reloads.
+    private var shownRange: DashboardRange { content.key?.range ?? range }
+
+    private var domain: ClosedRange<Date> { content.limitsDomain }
+
+    /// Days at 7d and 30d, unless the history is new and the axis spans only a day or so.
+    private var sharesSpendAxis: Bool { shownRange != .day && content.limitsSince == nil }
+
+    private var spansHours: Bool { domain.upperBound.timeIntervalSince(domain.lowerBound) <= 36 * 3600 }
 
     var body: some View {
         Chart {
@@ -62,31 +68,33 @@ struct LimitsChart: View, Equatable {
         // The padding lifts a series at 0% off the axis line, where it would otherwise disappear.
         .chartYScale(domain: 0...100, range: .plotDimension(startPadding: 4, endPadding: 2))
         // Hour labels are centred on their tick; without room past "now" the plot clips the last one.
-        .chartXScale(domain: domain, range: .plotDimension(endPadding: range == .day ? 12 : 0))
+        .chartXScale(domain: domain, range: .plotDimension(endPadding: sharesSpendAxis ? 0 : 12))
         .chartYAxis {
             AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
                 AxisGridLine().foregroundStyle(Color.primary.opacity(0.08))
                 AxisValueLabel {
-                    if let v = value.as(Int.self) { Text("\(v)%").monospacedDigit() }
+                    if let v = value.as(Int.self) { DashboardAxis.yLabel("\(v)%") }
                 }
             }
         }
         .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: range == .week ? 7 : 6)) { _ in
-                AxisGridLine().foregroundStyle(Color.primary.opacity(0.05))
-                AxisValueLabel(format: axisFormat)
+            if sharesSpendAxis {
+                let days = content.periods.axisDays(of: shownRange)
+                AxisMarks(values: days) { _ in
+                    AxisGridLine().foregroundStyle(Color.primary.opacity(0.05))
+                }
+                AxisMarks(values: DashboardAxis.labelDates(days)) { value in
+                    AxisValueLabel(format: DashboardAxis.dayFormat(shownRange), anchor: DashboardAxis.labelAnchor(value, range: shownRange))
+                }
+            } else {
+                AxisMarks(values: .automatic(desiredCount: 6)) { _ in
+                    AxisGridLine().foregroundStyle(Color.primary.opacity(0.05))
+                    AxisValueLabel(format: spansHours ? .dateTime.hour() : .dateTime.weekday(.abbreviated).day())
+                }
             }
         }
         .chartLegend(position: .bottom, alignment: .leading, spacing: 10)
         .chartHoverDate(hoverState.projectedValue)
-    }
-
-    private var axisFormat: Date.FormatStyle {
-        switch range {
-        case .day: .dateTime.hour()
-        case .week: .dateTime.weekday(.abbreviated)
-        case .month: .dateTime.month(.abbreviated).day()
-        }
     }
 
     /// Below this many points apart the two labels would overlap, so the amber one hangs under its rule.
@@ -113,7 +121,7 @@ struct LimitsChart: View, Equatable {
 
     private func tooltip(at date: Date) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(date.formatted(range == .day ? .dateTime.hour().minute() : .dateTime.weekday(.abbreviated).month(.abbreviated).day().hour()))
+            Text(date.formatted(spansHours ? .dateTime.hour().minute() : .dateTime.weekday(.abbreviated).month(.abbreviated).day().hour()))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             ForEach(content.series) { series in
