@@ -10,26 +10,30 @@ struct GeneralSettingsPane: View {
     @SettingsState private var importNotFound = false
 
     var body: some View {
-        SettingsPage(title: "General") {
+        SettingsPage {
             Section {
-                Toggle("Launch at login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchAtLogin))
-                if let hint = loginHint {
-                    HelpText(hint)
-                }
-                if loginState == .requiresApproval {
-                    Button("Open Login Items Settings") { LaunchAtLogin.openLoginItemsSettings() }
-                }
-                Picker("Refresh every", selection: model.configBinding(\.refreshMinutes)) {
+                launchAtLoginRow
+                Picker(selection: model.configBinding(\.refreshMinutes)) {
                     ForEach(SettingsLogic.refreshOptions(including: model.config.refreshMinutes), id: \.self) { minutes in
-                        Text("\(minutes) minutes").tag(minutes)
+                        Text(RefreshInterval.label(minutes)).tag(minutes)
                     }
+                } label: {
+                    Text("Refresh every")
+                    Text("Each account can override this.")
                 }
-            } footer: {
-                HelpText.footer("Each account can override the refresh interval.")
+                .disabled(!model.canEditConfig)
             }
 
             Section("Menu bar") {
-                Picker("Icon", selection: model.configBinding(\.menuBar.icon)) {
+                Picker(selection: model.configBinding(\.menuBar.mode)) {
+                    ForEach(MenuBarMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                } label: {
+                    Text("Show")
+                    Text(model.config.menuBar.mode.summary(for: model.config.menuBar.icon))
+                }
+                Picker(selection: model.configBinding(\.menuBar.icon)) {
                     ForEach(MenuBarIcon.Group.allCases, id: \.self) { group in
                         Section(group.title) {
                             ForEach(group.icons, id: \.self) { icon in
@@ -37,38 +41,35 @@ struct GeneralSettingsPane: View {
                             }
                         }
                     }
-                }
-                .disabled(!model.config.menuBar.mode.usesIcon)
-                Picker("Show", selection: model.configBinding(\.menuBar.mode)) {
-                    ForEach(MenuBarMode.allCases, id: \.self) { mode in
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(mode.title)
-                            Text(mode.summary(for: model.config.menuBar.icon)).font(.caption).foregroundStyle(.secondary)
-                        }
-                        .tag(mode)
+                } label: {
+                    if model.config.menuBar.mode.usesIcon {
+                        Text("Icon")
+                    } else {
+                        // A disabled pop-up greys itself but not the form's label.
+                        Text("Icon").foregroundStyle(.secondary)
+                        Text("Not used with \(MenuBarMode.bars.title)")
                     }
                 }
-                .pickerStyle(.radioGroup)
+                .disabled(!model.config.menuBar.mode.usesIcon)
                 LabeledContent {
                     MenuBarPreview(config: model.config.menuBar)
                 } label: {
                     Text("Preview")
-                    Text("Healthy, amber and full")
+                    Text(MenuBarPreview.caption(model.config.menuBar))
                 }
-                PercentField(title: "Amber at", value: model.configBinding(\.menuBar.warnAt), range: 1...max(1, model.config.menuBar.criticalAt - 1))
-                PercentField(title: "Red at", value: model.configBinding(\.menuBar.criticalAt), range: min(100, model.config.menuBar.warnAt + 1)...100)
             }
+            .disabled(!model.canEditConfig)
+
+            Section("Usage colors") {
+                PercentField(
+                    title: "Amber at", value: usageLevel(.warn), range: UsageLevels.warnRange,
+                    note: "Bars turn amber and red at these levels in the menu bar, popover and dashboard. Alerts have their own thresholds."
+                )
+                PercentField(title: "Red at", value: usageLevel(.critical), range: UsageLevels.criticalRange)
+            }
+            .disabled(!model.canEditConfig)
 
             configFileSection
-
-            Section {
-                LabeledContent {
-                    Button("Import from CodexBar\u{2026}", action: prepareImport)
-                } label: {
-                    Text("CodexBar")
-                    Text("Read only when you click. Lists the changes before applying them: enabled providers, alert thresholds, refresh interval and whether alerts are on. Never reads its keys or cookies.")
-                }
-            }
         }
         .onAppear {
             if !model.previewMode { loginState = model.launchAtLoginState() }
@@ -90,46 +91,77 @@ struct GeneralSettingsPane: View {
     private var configFileSection: some View {
         let file = model.paths.configFile
         let target = file.resolvingSymlinksInPath()
-        return Section {
-            LabeledContent("Config file") {
-                Text(abbreviated(file))
-                    .font(.system(.callout, design: .monospaced))
-                    .textSelection(.enabled)
+        let isLink = target.path != file.path
+        return Section("Configuration") {
+            LabeledContent {
+                HStack {
+                    Button("Reveal in Finder") {
+                        let exists = FileManager.default.fileExists(atPath: target.path)
+                        NSWorkspace.shared.activateFileViewerSelecting([exists ? target : target.deletingLastPathComponent()])
+                    }
+                    Button("Reload") { model.loadConfig() }
+                }
+            } label: {
+                Text("Config file")
+                // One line: a wrapped path breaks at a slash and reads like two paths. The tooltip has it whole.
+                (Text(isLink ? "Links to " : "") + Text(abbreviated(isLink ? target : file)).font(.system(.subheadline, design: .monospaced)))
                     .lineLimit(1)
                     .truncationMode(.middle)
-            }
-            if target.path != file.path {
-                LabeledContent("Links to") {
-                    Text(abbreviated(target))
-                        .font(.system(.callout, design: .monospaced))
-                        .textSelection(.enabled)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
+                    .help("\(target.path)\nHolds no keys, so it is safe in a dotfiles repo. Saves go through the link.")
             }
             if model.hasLocalOverrides {
                 Label("config.local.json overrides are active on this Mac. Edits here are saved to config.json; local values still win.", systemImage: "square.stack.3d.up")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            if let error = model.configError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+            LabeledContent {
+                Button("Import from CodexBar\u{2026}", action: prepareImport)
+                    .disabled(!model.canEditConfig)
+            } label: {
+                Text("CodexBar")
+                Text("Reads CodexBar's settings only when you click, and lists the changes before applying them. Never its keys or cookies.")
             }
-            HStack {
-                Spacer()
-                Button("Reveal in Finder") {
-                    let exists = FileManager.default.fileExists(atPath: target.path)
-                    NSWorkspace.shared.activateFileViewerSelecting([exists ? target : target.deletingLastPathComponent()])
-                }
-                Button("Reload") { model.loadConfig() }
-            }
-        } header: {
-            Text("Configuration")
-        } footer: {
-            HelpText.footer("Safe to keep in a dotfiles repo: it holds no keys. Saves go through the symlink, so a stow link survives.")
         }
+    }
+
+    private func usageLevel(_ field: UsageLevels.Field) -> Binding<Int> {
+        Binding(
+            get: { field == .warn ? model.config.menuBar.warnAt : model.config.menuBar.criticalAt },
+            set: { value in
+                model.updateConfig { config in
+                    let levels = field == .warn
+                        ? UsageLevels.pushAlong(warn: value, critical: config.menuBar.criticalAt, keeping: .warn)
+                        : UsageLevels.pushAlong(warn: config.menuBar.warnAt, critical: value, keeping: .critical)
+                    config.menuBar.warnAt = levels.warn
+                    config.menuBar.criticalAt = levels.critical
+                }
+            }
+        )
+    }
+
+    @ViewBuilder private var launchAtLoginRow: some View {
+        let isOn = Binding(get: { launchesAtLogin }, set: setLaunchAtLogin)
+        if loginState == .requiresApproval {
+            LabeledContent {
+                HStack(spacing: 10) {
+                    Button("Open Login Items Settings") { LaunchAtLogin.openLoginItemsSettings() }
+                    Toggle("Launch at login", isOn: isOn)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+            } label: {
+                launchAtLoginLabel
+            }
+        } else {
+            Toggle(isOn: isOn) { launchAtLoginLabel }
+                .disabled(!(loginState?.canChange ?? true))
+        }
+    }
+
+    @ViewBuilder private var launchAtLoginLabel: some View {
+        Text("Launch at login")
+        if let hint = loginHint { Text(hint) }
     }
 
     // config.json syncs between Macs, so the registration on this one wins when macOS can report it.
@@ -145,7 +177,7 @@ struct GeneralSettingsPane: View {
         if let loginError { return loginError }
         switch loginState {
         case .requiresApproval: return "macOS is waiting for approval. Turn Tokenjar on in System Settings > General > Login Items."
-        case .unavailable: return "Works only from the installed app in ~/Applications."
+        case .unavailable: return "Available only in the installed app."
         case .enabled, .disabled, nil: return nil
         }
     }
@@ -191,13 +223,25 @@ extension MenuBarMode {
         }
     }
 
+    /// One sentence, shown under the Show picker for the selected mode.
     func summary(for icon: MenuBarIcon) -> String {
         switch (self, icon) {
-        case (.worst, .app): return "The slot, filled to the used share of the account with the least room left, and that used %."
-        case (.worst, _): return "\(icon.phrase) and the used % of the account with the least room left."
-        case (.bars, _): return "One thin bar per account shown in the menu bar, in place of the icon."
-        case (.icon, .app): return "The slot only, filled to the tightest used share and tinted amber or red when an account runs low."
-        case (.icon, _): return "\(icon.phrase) only, tinted amber or red when an account runs low."
+        case (.worst, .app): return "The cooldown slot fills to the tightest account's used share, next to its %."
+        case (.worst, _): return "\(icon.phrase), next to the tightest account's used %."
+        case (.bars, _): return "One bar per menu bar account, in place of the icon."
+        case (.icon, .app): return "The cooldown slot alone, filled and tinted for the tightest account."
+        case (.icon, _): return "\(icon.phrase) alone, tinted amber or red when an account runs low."
         }
+    }
+}
+
+/// How a refresh interval reads in the General picker and in an account's override.
+enum RefreshInterval {
+    static func label(_ minutes: Int) -> String {
+        minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
+
+    static func inheritedLabel(globalMinutes: Int) -> String {
+        "Same as General (\(label(globalMinutes)))"
     }
 }

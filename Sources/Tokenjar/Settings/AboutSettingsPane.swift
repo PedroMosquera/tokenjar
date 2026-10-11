@@ -35,13 +35,13 @@ struct AboutSettingsPane: View {
 
     private let writes = [
         Item(what: "~/.config/tokenjar/config.json", why: "Settings, through the symlink if it is one."),
-        Item(what: "~/Library/Application Support/Tokenjar/", why: "tokenjar.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens, so it is not run again until claude updates or you try once more. probe: an empty folder the CLIs run in."),
+        Item(what: "~/Library/Application Support/Tokenjar/", why: "tokenjar.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens or quota, so it is not run again until that CLI (claude or agy) updates or you click Try Once More. probe: an empty folder the CLIs run in."),
         Item(what: "$TMPDIR/tokenjar-sign-in-<account>.command", why: "Only when you click Sign In in Terminal: the login command for Terminal to run. It deletes itself when it runs."),
         Item(what: "Keychain: \(AppPaths.keychainService)", why: "Only API keys you paste here."),
     ]
 
     var body: some View {
-        SettingsPage(title: "About") {
+        SettingsPage {
             Section {
                 HStack(spacing: 14) {
                     appIcon
@@ -49,16 +49,20 @@ struct AboutSettingsPane: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Tokenjar").font(.title3.weight(.semibold))
                         Text("Version \(version)").foregroundStyle(.secondary)
+                        Text("Shows how much room is left on each AI subscription. Built from source; no telemetry, no updates feed.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 4)
                     }
                 }
-                HelpText("Shows how much room is left on each AI subscription. Built from source; no telemetry, no updates feed.")
             }
 
             itemSection("Runs", runs)
             itemSection("Reads", reads)
 
             Section("Contacts") {
-                itemRow(Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits. The only network request Tokenjar makes. Dashboards open in your browser."))
+                itemRow(Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits. The only network request Tokenjar makes. Usage pages open in your browser."))
             }
 
             itemSection("Writes", writes)
@@ -70,7 +74,7 @@ struct AboutSettingsPane: View {
                 Text("Sends anything that spends credits or starts a model turn.")
             }
 
-            Section("Provider dashboards") {
+            Section("Usage pages") {
                 ForEach(dashboardProviders, id: \.self) { provider in
                     LabeledContent {
                         Link(provider.defaultDashboardURL.host() ?? provider.defaultDashboardURL.absoluteString, destination: provider.defaultDashboardURL)
@@ -90,7 +94,7 @@ struct AboutSettingsPane: View {
         if Bundle.main.bundleURL.pathExtension == "app" {
             Image(nsImage: NSApp.applicationIconImage).resizable()
         } else {
-            Image(systemName: "gauge.with.dots.needle.33percent")
+            Image(nsImage: StatusGlyph.picture(.app))
                 .resizable()
                 .scaledToFit()
                 .foregroundStyle(Color.accentColor)

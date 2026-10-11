@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 import TokenjarCore
 
@@ -6,6 +7,9 @@ import TokenjarCore
 struct AccountCredentialSection: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
+    /// opencode's own login, which writes auth.json; offered only while the key comes from there.
+    var signInCommand: String?
+    var onSignIn: (String) -> Void
 
     private enum Source: Hashable { case authFile, keychain }
 
@@ -13,6 +17,8 @@ struct AccountCredentialSection: View {
     @SettingsState private var confirmRemoveKey = false
     @SettingsState private var draftKey = ""
     @SettingsState private var message: (text: String, isError: Bool)?
+
+    private static let log = Logger(subsystem: AppPaths.bundleIdentifier, category: "keychain")
 
     private var isKeychain: Bool {
         if case .keychain = account.credential { return true }
@@ -36,11 +42,13 @@ struct AccountCredentialSection: View {
 
     var body: some View {
         Section {
-            Picker("API key", selection: source) {
-                Text("From opencode's auth.json").tag(Source.authFile)
-                Text("Pasted key, saved in Tokenjar's Keychain item").tag(Source.keychain)
+            Picker(selection: source) {
+                Text("opencode's auth.json").tag(Source.authFile)
+                Text("Pasted key").tag(Source.keychain)
+            } label: {
+                Text("API key")
+                Text("Never saved in config.json. A pasted key stays in this Mac's Keychain, so paste it again on each Mac.")
             }
-            .pickerStyle(.radioGroup)
             .confirmationDialog("Stop using the pasted key?", isPresented: $confirmRemoveKey) {
                 Button("Delete Key", role: .destructive, action: removePastedKey)
             } message: {
@@ -48,13 +56,40 @@ struct AccountCredentialSection: View {
             }
 
             if source.wrappedValue == .authFile {
-                HelpText("Reads \(authFileDescription). Sign in with opencode auth login to add or change it.")
+                TextRow {
+                    Text("Key file")
+                    // One line: a wrapped path breaks at a slash and reads like two paths. The tooltip has it whole.
+                    Text(keyFile.path)
+                        .font(.system(.subheadline, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help("\(keyFile.path), \(keyFile.entry)")
+                }
+                if let command = signInCommand {
+                    TextRow {
+                        Text(command)
+                            .font(.system(.callout, design: .monospaced))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help(command)
+                        Text("Runs opencode's own login in Terminal. Tokenjar reads the key it saves.")
+                    }
+                    HStack {
+                        Spacer()
+                        Button("Copy Command") { SignInLauncher.copy(command) }
+                        Button("Sign In in Terminal\u{2026}") { onSignIn(command) }
+                    }
+                }
             } else {
                 // config.json syncs between Macs and the Keychain does not, so a .keychain reference does not prove a key is here.
                 SecureField("New API key", text: $draftKey, prompt: Text(isKeychain ? "Paste a key to use on this Mac" : "Paste an OpenCode API key"))
                 HStack {
                     if let message {
-                        Text(message.text).font(.callout).foregroundStyle(message.isError ? .red : .secondary)
+                        if message.isError {
+                            SettingsNotice(kind: .error, text: message.text)
+                        } else {
+                            Text(message.text).font(.callout).foregroundStyle(.secondary)
+                        }
                     }
                     Spacer()
                     Button("Save Key", action: saveKey)
@@ -63,14 +98,15 @@ struct AccountCredentialSection: View {
             }
         } header: {
             Text("Credential")
-        } footer: {
-            HelpText.footer("Keys never go into config.json. A pasted key lives only in this Mac's Keychain, under Tokenjar's own item, so paste it again on each Mac that shares this config.")
         }
     }
 
-    private var authFileDescription: String {
-        if case .file(let path, let key) = account.credential { return "the \(key) entry of \(path)" }
-        return "the opencode-go entry of ~/.local/share/opencode/auth.json, then opencode"
+    private var keyFile: (path: String, entry: String) {
+        if case .file(let path, let key) = account.credential {
+            return (path, "entry \(key)")
+        }
+        let file = SettingsLogic.tildePath(AccountDiscovery.openCodeAuthFile(paths: model.paths, environment: ProcessInfo.processInfo.environment).path, home: model.paths.home.path)
+        return (file, "entry opencode-go, else opencode")
     }
 
     private func saveKey() {
@@ -82,10 +118,9 @@ struct AccountCredentialSection: View {
             choosingKeychain = false
             model.updateAccount(account.id) { $0.credential = .keychain(account: account.id) }
             message = ("Saved to the Keychain.", false)
-        } catch SecretStoreError.keychain(let status) {
-            message = ("Keychain refused the key (status \(status)).", true)
         } catch {
-            message = ("Keychain refused the key.", true)
+            Self.log.error("Saving the pasted key failed: \(String(describing: error), privacy: .public)")
+            message = ("Couldn't save the key to the Keychain. Unlock the login keychain and try again.", true)
         }
     }
 
@@ -95,10 +130,9 @@ struct AccountCredentialSection: View {
             draftKey = ""
             choosingKeychain = false
             model.updateAccount(account.id) { $0.credential = remaining }
-        } catch SecretStoreError.keychain(let status) {
-            message = ("Keychain refused to delete the key (status \(status)).", true)
         } catch {
-            message = ("Keychain refused to delete the key.", true)
+            Self.log.error("Deleting the pasted key failed: \(String(describing: error), privacy: .public)")
+            message = ("Couldn't delete the key from the Keychain. Unlock the login keychain and try again.", true)
         }
     }
 }

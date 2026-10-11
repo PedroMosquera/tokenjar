@@ -5,104 +5,143 @@ import TokenjarCore
 struct AccountDetailView: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
-    var onRemoved: () -> Void
+    /// Asks the accounts pane to confirm removing this account; the list's minus button asks the same way.
+    var onRemove: () -> Void
 
-    @SettingsState private var confirmRemove = false
     @SettingsState private var dashboardError = false
-    @SettingsState private var signInError: String?
+    @SettingsState private var signInFailed = false
+
+    private static let credentialAnchor = "credential"
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
+        ScrollViewReader { scroller in
             Form {
                 Section {
-                    statusLine
+                    statusRow(scroller)
                     HStack {
                         Spacer()
-                        let check = AccountAction.check(account, status: model.status(for: account), model: model)
-                        Button(check.title, action: check.run)
-                            .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
-                            .help(testBlocker ?? check.help ?? "")
+                        if statusText.offersCheck, fix != .tryOnceMore {
+                            checkButton
+                        }
                         Button("Open Usage Page") { model.openProviderDashboard(account) }
                             .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
                     }
+                } header: {
+                    header
                 }
+                // While config.json cannot be saved, edits would be dropped; checks, links and sign-in still work.
                 generalSection
+                    .disabled(!model.canEditConfig)
                 if let variable = SignInCommand.profileVariable(for: account.provider) {
                     profileSection(variable: variable)
+                        .disabled(!model.canEditConfig)
                 }
-                if account.provider == .opencodeGo || account.provider == .opencodeZen {
-                    AccountCredentialSection(account: account)
+                // Zen reads only opencode's local database, so it has no key to choose and no login to run.
+                if account.provider == .opencodeGo {
+                    AccountCredentialSection(account: account, signInCommand: signInCommand, onSignIn: openSignIn)
+                        .id(Self.credentialAnchor)
+                        .disabled(!model.canEditConfig)
                 }
-                if account.provider.isLinkOnly {
-                    linkOnlySection
-                } else {
+                // OpenCode's login belongs to its key source, inside the Credential section.
+                if !account.provider.isLinkOnly, !account.provider.usesAPIKey {
                     signInSection
                 }
                 overridesSection
+                    .disabled(!model.canEditConfig)
                 Section {
                     HStack {
                         Spacer()
-                        Button("Remove Account\u{2026}", role: .destructive) { confirmRemove = true }
+                        Button("Remove Account\u{2026}", role: .destructive, action: onRemove)
                     }
                 }
+                .disabled(!model.canEditConfig)
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .confirmationDialog("Remove \(account.displayName)?", isPresented: $confirmRemove) {
-            Button("Remove", role: .destructive, action: remove)
+        .alert("Couldn't open Terminal", isPresented: $signInFailed) {
+            Button("OK", role: .cancel) {}
         } message: {
-            Text(removeMessage)
+            Text("Use Copy Command and paste it into Terminal.")
         }
     }
 
     // MARK: Header
 
+    /// The first section's header, so it scrolls with the rows instead of covering them.
     private var header: some View {
-        HStack(spacing: 12) {
+        let title = AccountTitle(provider: account.provider, label: account.label, plan: model.status(for: account).snapshot?.plan)
+        let subtitle = [title.label, title.plan].compactMap { $0 }.joined(separator: " \u{00B7} ")
+        return HStack(spacing: 12) {
             ProviderLogoView(provider: account.provider, size: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text(account.label)
+                Text(title.provider)
                     .font(.title2.weight(.semibold))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
-                Text(subtitle)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.body)
+                        .fontWeight(.regular)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
         }
+        .padding(.bottom, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
-    private var subtitle: String {
-        let title = AccountTitle(provider: account.provider, label: account.label, plan: model.status(for: account).snapshot?.plan)
-        return [account.provider.displayName, title.plan].compactMap { $0 }.joined(separator: " \u{00B7} ")
-    }
-
-    private var statusLine: some View {
-        let status = model.status(for: account)
-        let (text, symbol, color): (String, String, Color) = {
-            if status.isRefreshing { return ("Checking\u{2026}", "arrow.triangle.2.circlepath", .secondary) }
-            if let error = status.error { return (error.userMessage, "exclamationmark.triangle.fill", .orange) }
-            if let snapshot = status.snapshot {
-                let windows = account.provider.isLinkOnly ? "link only" : snapshot.windows.count == 1 ? "1 window" : "\(snapshot.windows.count) windows"
-                return ("\(snapshot.source) \u{00B7} \(windows) \u{00B7} updated \(Format.age(of: snapshot.fetchedAt, now: model.now))", "checkmark.circle.fill", .green)
+    private func statusRow(_ scroller: ScrollViewProxy) -> some View {
+        let line = statusText
+        let symbol = Text(Image(systemName: line.symbol)).foregroundStyle(line.tone.color)
+        return LabeledContent {
+            switch fix {
+            case .signIn:
+                if let command = signInCommand {
+                    Button("Sign In in Terminal\u{2026}") { openSignIn(command) }
+                }
+            case .changeKey:
+                Button("Change Key\u{2026}") {
+                    withAnimation { scroller.scrollTo(Self.credentialAnchor, anchor: .top) }
+                }
+            case .tryOnceMore:
+                checkButton
+            case .searchedFolders, nil:
+                EmptyView()
             }
-            if !account.enabled { return ("Off", "pause.circle", .secondary) }
-            return ("Not checked yet", "circle.dashed", .secondary)
-        }()
-        return Label {
-            Text(text)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } icon: {
-            Image(systemName: symbol).foregroundStyle(color)
+        } label: {
+            Text("\(symbol)  \(line.text)")
+                .foregroundStyle(line.tone == .warning ? .primary : .secondary)
+            if let detail = line.detail { Text(detail) }
+            if fix == .searchedFolders, case .cliNotFound(let cli) = model.status(for: account).error {
+                let locator = CLILocator(home: model.paths.home, overrides: model.config.cliPaths)
+                Text(AccountFix.searchedText(for: cli, locator: locator, home: model.paths.home.path))
+                    .help(locator.searchDirectories.map { SettingsLogic.tildePath($0.path, home: model.paths.home.path) }.joined(separator: "\n"))
+            }
         }
-        .font(.callout)
     }
+
+    private var checkButton: some View {
+        let check = AccountAction.check(account, status: model.status(for: account), model: model)
+        return Button(check.title, action: check.run)
+            .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
+            .help(testBlocker ?? check.help ?? "")
+    }
+
+    /// Offered only while the status line shows the failure it fixes.
+    private var fix: AccountFix? {
+        let status = model.status(for: account)
+        guard let error = status.error, account.enabled, missingPath == nil, !status.isRefreshing, !account.provider.isLinkOnly else { return nil }
+        return AccountFix.primary(for: error, provider: account.provider, credential: account.credential)
+    }
+
+    private var statusText: AccountStatusText { model.statusText(for: account) }
+
+    private var missingPath: String? { model.missingPath(of: account) }
 
     // MARK: Sections
 
@@ -113,8 +152,8 @@ struct AccountDetailView: View {
                 let label = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 model.updateAccount(account.id) { $0.label = label.isEmpty ? account.provider.displayName : label }
             }
-            // MenuBarState leaves link-only accounts out, so the toggle would do nothing.
-            if !account.provider.isLinkOnly {
+            // The menu bar shows windows, so an account that reports none would never appear there.
+            if account.provider.reportsWindows {
                 Toggle("Show in menu bar", isOn: model.accountBinding(account.id, \.showInMenuBar, fallback: account.showInMenuBar))
             }
             LabeledContent("ID") {
@@ -127,30 +166,36 @@ struct AccountDetailView: View {
     }
 
     private func profileSection(variable: (name: String, defaultPath: String)) -> some View {
-        let title = account.provider == .copilot ? "gh config folder" : "Profile folder"
+        let title = account.provider == .copilot ? "GitHub CLI folder" : "Profile folder"
+        let cli = account.provider.cliName ?? account.provider.displayName
         return Section {
-            LabeledContent(title) {
+            LabeledContent {
                 HStack(spacing: 6) {
-                    CommittingTextField(title: title, prompt: "\(variable.defaultPath) (CLI default)", value: account.profileDir ?? "", monospaced: true) { text in
+                    // A fixed width keeps the row on one line; a long path truncates in the middle instead.
+                    CommittingTextField(title: title, prompt: variable.defaultPath, value: account.profileDir ?? "", monospaced: true) { text in
                         model.updateAccount(account.id) { $0.profileDir = SettingsLogic.profileDir(from: text) }
                     }
                     .labelsHidden()
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(width: 120)
                     Button("Choose\u{2026}", action: chooseProfileFolder)
                 }
+            } label: {
+                Text(title)
+                // Short on purpose: the form puts a field under its label once the label's one-line width leaves no room.
+                Text("For a second login")
             }
+            .help("Sets \(variable.name) when Tokenjar runs \(cli). Leave empty for \(variable.defaultPath).")
             if let twin = SettingsLogic.profileTwin(of: account, in: model.config.accounts, paths: model.paths), account.enabled {
-                Label("Same profile as \(twin.displayName). Both will show the same login.", systemImage: "exclamationmark.triangle")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
+                LabeledContent {
+                    Button("Choose\u{2026}", action: chooseProfileFolder)
+                } label: {
+                    SettingsNotice(kind: .warning, text: "Same profile as \(twin.displayName). Both will show the same login.", isSecondary: true)
+                }
             }
         } header: {
-            Text("Profile")
-        } footer: {
-            if account.provider == .copilot {
-                HelpText.footer("Sets \(variable.name) when Tokenjar runs gh. Leave empty for \(variable.defaultPath), your usual gh login. A second GitHub account needs a folder of its own: enter it here, then sign in to it with the command below.")
-            } else {
-                HelpText.footer("Sets \(variable.name) when Tokenjar runs \(account.provider == .claude ? "claude" : "codex"). Leave empty for \(variable.defaultPath).")
-            }
+            Text("Login")
         }
     }
 
@@ -159,76 +204,75 @@ struct AccountDetailView: View {
             if let command = signInCommand {
                 // One line: wrapping breaks at the hyphen in a profile path and reads like two paths. Copy Command
                 // copies it whole, and the tooltip shows it whole.
-                Text(command)
-                    .font(.system(.callout, design: .monospaced))
-                    .textSelection(.enabled)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .help(command)
+                TextRow {
+                    Text(command)
+                        .font(.system(.callout, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(command)
+                    Text(signInNote)
+                }
                 HStack {
-                    if let signInError {
-                        Text(signInError).font(.callout).foregroundStyle(.red)
-                    }
                     Spacer()
                     Button("Copy Command") { SignInLauncher.copy(command) }
                     Button("Sign In in Terminal\u{2026}") { openSignIn(command) }
                 }
             } else {
-                LabeledContent {
-                    Link("Install agy", destination: SignInCommand.antigravityInstallURL)
-                } label: {
-                    Text("Antigravity CLI")
-                    Text("Tokenjar reads limits from agy. Install it and sign in there.")
+                switch AgySignInRow.make(status: model.status(for: account)) {
+                case .install:
+                    LabeledContent {
+                        Link("Install agy", destination: SignInCommand.antigravityInstallURL)
+                    } label: {
+                        Text("Antigravity CLI")
+                        Text("Tokenjar reads limits from agy. Install it and sign in there.")
+                    }
+                case .signedOut:
+                    TextRow {
+                        Text("Antigravity CLI")
+                        Text("Signed out. Run agy in Terminal and sign in again.")
+                    }
+                case .signedIn:
+                    TextRow {
+                        Text("Antigravity CLI")
+                        Text("Signed in through agy. To switch Google accounts, sign in again in agy.")
+                    }
                 }
             }
         } header: {
             Text("Sign in")
-        } footer: {
-            if account.provider == .claude {
-                HelpText.footer("Runs the provider's own login in Terminal. With an older claude that has no auth command, run claude and type /\u{2060}login.")
-            } else if signInCommand != nil {
-                HelpText.footer("Runs the provider's own login in Terminal. Tokenjar never sees the credentials.")
-            }
         }
     }
 
-    private var linkOnlySection: some View {
-        Section {
-            Label {
-                Text("\(account.provider.displayName) doesn't share your quota with local apps yet, so this account opens its usage page. Tokenjar runs nothing for it and reads nothing.")
-                    .fixedSize(horizontal: false, vertical: true)
-            } icon: {
-                Image(systemName: "link")
-            }
-        } header: {
-            Text("Usage")
-        } footer: {
-            HelpText.footer("On a grandfathered Windsurf plan, set Usage page URL below to https://windsurf.com/subscription/manage-plan.")
-        }
+    private var signInNote: String {
+        account.provider == .claude
+            ? "Runs the provider's own login in Terminal. With an older claude that has no auth command, run claude and type /\u{2060}login."
+            : "Runs the provider's own login in Terminal. Tokenjar never sees the credentials."
     }
 
     private var overridesSection: some View {
         Section("Overrides") {
             // A link-only account has no window to refresh or alert on; its usage page is the one thing to set.
             if !account.provider.isLinkOnly {
-                Picker("Refresh", selection: model.accountBinding(account.id, \.refreshMinutes, fallback: account.refreshMinutes)) {
-                    Text("Global (\(model.config.refreshMinutes) minutes)").tag(Int?.none)
+                Picker("Refresh every", selection: model.accountBinding(account.id, \.refreshMinutes, fallback: account.refreshMinutes)) {
+                    Text(RefreshInterval.inheritedLabel(globalMinutes: model.config.refreshMinutes)).tag(Int?.none)
                     ForEach(SettingsLogic.refreshOptions(including: account.refreshMinutes), id: \.self) { minutes in
-                        Text("Every \(minutes) minutes").tag(Int?.some(minutes))
+                        Text(RefreshInterval.label(minutes)).tag(Int?.some(minutes))
                     }
                 }
-                Toggle(isOn: customThresholds) {
-                    Text("Custom alert thresholds")
-                    Text("Global: \(SettingsLogic.percentList(model.config.alerts.thresholds)) used")
-                }
-                if let thresholds = account.alertThresholds {
-                    ThresholdRows(values: thresholds) { values in
-                        model.updateAccount(account.id) { $0.alertThresholds = values }
+                // Thresholds are crossed by windows; spend-only Zen has none.
+                if account.provider.reportsWindows {
+                    Toggle(isOn: customThresholds) {
+                        Text("Custom alert thresholds")
+                        Text("Global: \(SettingsLogic.percentList(model.config.alerts.thresholds)) used")
+                    }
+                    if let thresholds = account.alertThresholds {
+                        ThresholdRows(values: thresholds) { values in
+                            model.updateAccount(account.id) { $0.alertThresholds = values }
+                        }
                     }
                 }
             }
-            LabeledContent("Usage page URL") {
+            LabeledContent {
                 CommittingTextField(title: "Usage page URL", prompt: account.provider.defaultDashboardURL.absoluteString, value: account.dashboardURL ?? "") { text in
                     switch SettingsLogic.dashboardURL(from: text) {
                     case .providerDefault:
@@ -242,12 +286,30 @@ struct AccountDetailView: View {
                     }
                 }
                 .labelsHidden()
+            } label: {
+                Text("Usage page URL")
             }
             if dashboardError {
-                Text("Enter a web address starting with https://").font(.callout).foregroundStyle(.red)
+                SettingsNotice(kind: .error, text: "Enter a web address starting with https://")
+            }
+            // A button, not the address in a note: a long URL wraps at its slashes and pushes the field under its label.
+            if account.provider == .devin {
+                LabeledContent {
+                    Button("Use Windsurf Page") {
+                        dashboardError = false
+                        model.updateAccount(account.id) { $0.dashboardURL = Self.windsurfUsageURL }
+                    }
+                    .disabled(account.dashboardURL == Self.windsurfUsageURL)
+                    .help(Self.windsurfUsageURL)
+                } label: {
+                    Text("Windsurf plan")
+                    Text("A grandfathered Windsurf plan shows its usage on windsurf.com.")
+                }
             }
         }
     }
+
+    static let windsurfUsageURL = "https://windsurf.com/subscription/manage-plan"
 
     // MARK: Actions
 
@@ -281,26 +343,11 @@ struct AccountDetailView: View {
         )
     }
 
-    private var removeMessage: String {
-        var text = "It is removed from config.json. Its history stays in the local database."
-        if case .keychain = account.credential { text += " Its pasted API key is deleted from this Mac's Keychain." }
-        return text
-    }
-
-    private func remove() {
-        if case .keychain(let keyAccount) = account.credential {
-            try? model.secrets.delete(account: keyAccount)
-        }
-        model.updateConfig { $0.accounts.removeAll { $0.id == account.id } }
-        onRemoved()
-    }
-
     private func openSignIn(_ command: String) {
         do {
             try SignInLauncher.run(command: command, account: account)
-            signInError = nil
         } catch {
-            signInError = "Could not create the sign-in script."
+            signInFailed = true
         }
     }
 
@@ -316,5 +363,197 @@ struct AccountDetailView: View {
         panel.directoryURL = model.paths.expand(current)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         model.updateAccount(account.id) { $0.profileDir = SettingsLogic.tildePath(url.path, home: model.paths.home.path) }
+    }
+}
+
+extension AppModel {
+    func statusText(for account: AccountConfig) -> AccountStatusText {
+        AccountStatusText.make(account: account, status: status(for: account), missingPath: missingPath(of: account), now: now)
+    }
+
+    /// The tilde path of what the account reads when it is not on this Mac. Preview data describes accounts on no real
+    /// Mac, so nothing is missing there.
+    func missingPath(of account: AccountConfig) -> String? {
+        guard !previewMode, !AccountDiscovery.isAvailable(account, paths: paths),
+              let location = AccountDiscovery.location(of: account, paths: paths, environment: ProcessInfo.processInfo.environment)
+        else { return nil }
+        return SettingsLogic.tildePath(location.path, home: paths.home.path)
+    }
+}
+
+/// What Settings says about one account: the status line at the top of its page and the caption on its list row.
+struct AccountStatusText: Equatable {
+    enum Tone: Equatable {
+        case good, neutral, warning
+
+        var color: Color {
+            switch self {
+            case .good: .green
+            case .neutral: .secondary
+            case .warning: .orange
+            }
+        }
+    }
+
+    struct Caption: Equatable {
+        var text: String
+        var isActionable: Bool
+    }
+
+    var symbol: String
+    var tone: Tone
+    var text: String
+    var detail: String?
+    var caption: Caption?
+    var offersCheck = true
+
+    /// `missingPath` is the tilde path of the profile folder or credential file the account reads, when it does not
+    /// exist on this Mac. Being off or missing outranks any old snapshot, which no longer describes this Mac.
+    static func make(account: AccountConfig, status: AccountStatus, missingPath: String?, now: Date) -> AccountStatusText {
+        let provider = account.provider
+        if !account.enabled {
+            return AccountStatusText(symbol: "pause.circle", tone: .neutral, text: "Off", caption: Caption(text: "Off", isActionable: false))
+        }
+        if let missingPath {
+            return AccountStatusText(
+                symbol: "questionmark.folder", tone: .neutral, text: "Not on this Mac: \(missingPath) does not exist",
+                caption: Caption(text: "Not on this Mac", isActionable: false)
+            )
+        }
+        if provider.isLinkOnly {
+            return AccountStatusText(
+                symbol: "link", tone: .neutral, text: "Opens \(account.resolvedDashboardURL.host() ?? provider.displayName)",
+                detail: "\(provider.displayName) doesn't share your quota with local apps yet, so this account opens its usage page. Tokenjar runs nothing for it and reads nothing.",
+                offersCheck: false
+            )
+        }
+        let caption = status.error.flatMap { caption(for: $0, account: account) }
+        let zenNote = provider.reportsWindows ? nil : "Reads this Mac's spend from opencode's local database. No key needed."
+        if status.isRefreshing {
+            return AccountStatusText(symbol: "arrow.triangle.2.circlepath", tone: .neutral, text: "Checking\u{2026}", detail: zenNote, caption: caption)
+        }
+        if let error = status.error {
+            if ProbeLatch.spentTokens(error) {
+                return AccountStatusText(symbol: "exclamationmark.triangle.fill", tone: .warning, text: error.userMessage, caption: caption)
+            }
+            switch error.attention {
+            case .calm:
+                return AccountStatusText(symbol: "minus.circle", tone: .neutral, text: "Not subscribed to \(provider.displayName)", caption: caption)
+            case .transient:
+                // Its own line: messages are full sentences, and the age would read as part of the last one.
+                let shown = status.snapshot.map { "Showing data from \(Format.age(of: $0.fetchedAt, now: now))." }
+                return AccountStatusText(symbol: "exclamationmark.arrow.triangle.2.circlepath", tone: .neutral, text: error.userMessage, detail: shown ?? zenNote)
+            case .actionable:
+                return AccountStatusText(symbol: "exclamationmark.triangle.fill", tone: .warning, text: actionableText(error, account: account), caption: caption)
+            }
+        }
+        if let snapshot = status.snapshot {
+            let age = Format.age(of: snapshot.fetchedAt, now: now)
+            if !provider.reportsWindows {
+                return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Local spend only \u{00B7} updated \(age)", detail: zenNote)
+            }
+            // Its own line: some window labels contain a middle dot themselves, so a dot after the age would misread.
+            let limits = snapshot.windows.isEmpty ? snapshot.notes.first : "Limits: " + snapshot.windows.map(\.label).joined(separator: ", ")
+            return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Updated \(age)", detail: limits)
+        }
+        return AccountStatusText(symbol: "circle.dashed", tone: .neutral, text: "Not checked yet", detail: zenNote)
+    }
+
+    /// The list row's caption: what to fix for an actionable failure, nothing for a passing one.
+    private static func caption(for error: FetchError, account: AccountConfig) -> Caption? {
+        if ProbeLatch.spentTokens(error) { return Caption(text: "Paused", isActionable: true) }
+        switch error.attention {
+        case .calm: return Caption(text: "Not subscribed", isActionable: false)
+        case .transient: return nil
+        case .actionable: break
+        }
+        let text = switch error {
+        case .notSignedIn: "Signed out"
+        case .unauthorized: account.provider.usesAPIKey ? "Key rejected" : "Login rejected"
+        case .cliNotFound: "Not installed"
+        case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported: "Check failed"
+        }
+        return Caption(text: text, isActionable: true)
+    }
+
+    private static func actionableText(_ error: FetchError, account: AccountConfig) -> String {
+        guard case .notSignedIn = error else { return error.userMessage }
+        if case .keychain = account.credential { return "No pasted key on this Mac." }
+        guard let cli = account.provider.cliName else { return error.userMessage }
+        return "Signed out of \(cli)."
+    }
+}
+
+extension ProviderID {
+    /// The command Tokenjar runs or hands to Terminal for this provider, as users type it.
+    var cliName: String? {
+        switch self {
+        case .claude: "claude"
+        case .codex: "codex"
+        case .copilot: "gh"
+        case .opencodeGo, .opencodeZen: "opencode"
+        case .antigravity: "agy"
+        case .devin: nil
+        }
+    }
+
+    var usesAPIKey: Bool { self == .opencodeGo || self == .opencodeZen }
+
+    /// Whether SignInCommand has a login to hand to Terminal. agy has none, and Devin runs nothing.
+    var hasSignInCommand: Bool { self != .antigravity && self != .devin }
+}
+
+/// What the Sign in section says for an Antigravity account. agy has no login command to hand to Terminal, so this row
+/// is the only place the page says how to sign in again.
+enum AgySignInRow: Equatable {
+    case install, signedOut, signedIn
+
+    /// A failed check keeps the last snapshot, so the current error decides first. Without one, an account that has
+    /// worked has agy already, and offering the install would read as if something were missing.
+    static func make(status: AccountStatus) -> AgySignInRow {
+        switch status.error {
+        case .cliNotFound: .install
+        case .notSignedIn: .signedOut
+        default: status.snapshot == nil ? .install : .signedIn
+        }
+    }
+}
+
+/// The one fix the status box offers next to a failed check's message.
+enum AccountFix: Equatable {
+    /// Sign In in Terminal, running the provider CLI's own login.
+    case signIn
+    /// Change Key, which scrolls to the Credential section.
+    case changeKey
+    /// Try Once More, the only way to probe again after a check spent tokens or quota.
+    case tryOnceMore
+    /// No button: a line saying where Tokenjar looked for the CLI.
+    case searchedFolders
+
+    static func primary(for error: FetchError, provider: ProviderID, credential: CredentialRef?) -> AccountFix? {
+        if ProbeLatch.spentTokens(error) { return .tryOnceMore }
+        let pastedKey = if case .keychain = credential { true } else { false }
+        switch error {
+        case .notSignedIn:
+            if provider.usesAPIKey, pastedKey { return .changeKey }
+            return provider.hasSignInCommand ? .signIn : nil
+        case .unauthorized:
+            if provider.usesAPIKey { return .changeKey }
+            return provider.hasSignInCommand ? .signIn : nil
+        case .cliNotFound:
+            return .searchedFolders
+        case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported:
+            return nil
+        }
+    }
+
+    /// "Looked in ~/.local/bin, /opt/homebrew/bin, /usr/local/bin and 5 more", or the one path cliPaths sets.
+    static func searchedText(for cli: String, locator: CLILocator, home: String) -> String {
+        if let override = locator.overrides[cli] {
+            return "Looked only at \(SettingsLogic.tildePath((override as NSString).expandingTildeInPath, home: home)), set in cliPaths"
+        }
+        let folders = locator.searchDirectories.map { SettingsLogic.tildePath($0.path, home: home) }
+        let shown = folders.prefix(3).joined(separator: ", ")
+        return folders.count > 3 ? "Looked in \(shown) and \(folders.count - 3) more" : "Looked in \(shown)"
     }
 }

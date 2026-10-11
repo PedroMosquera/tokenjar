@@ -7,12 +7,13 @@ struct AlertsSettingsPane: View {
 
     var body: some View {
         let delivery = AlertDelivery(model.notificationPermission)
-        SettingsPage(title: "Alerts") {
+        SettingsPage {
             Section {
                 Toggle(isOn: model.configBinding(\.alerts.enabled)) {
                     Text("Send alerts")
-                    Text(delivery.summary)
+                    Text("\(delivery.summary) Alerts start from the second check after launch, so a restart never repeats one.")
                 }
+                .disabled(!model.canEditConfig)
                 if let action = delivery.action {
                     HStack {
                         Spacer()
@@ -28,16 +29,15 @@ struct AlertsSettingsPane: View {
                 }
             }
 
-            Section {
-                ThresholdRows(values: model.config.alerts.thresholds) { values in
+            Section("Usage thresholds") {
+                ThresholdRows(
+                    values: model.config.alerts.thresholds,
+                    note: "Fires once per window when used % crosses a threshold, and again after the window resets. Only the highest crossed threshold fires. Accounts can set their own. Separate from the amber and red colors in General."
+                ) { values in
                     model.updateConfig { $0.alerts.thresholds = SettingsLogic.normalizedThresholds(values) }
                 }
-            } header: {
-                Text("Usage thresholds")
-            } footer: {
-                HelpText.footer("Fires once per window when used % crosses a threshold, and again after the window resets. Only the highest crossed threshold fires. Accounts can set their own.")
             }
-            .disabled(!model.config.alerts.enabled)
+            .disabled(!model.config.alerts.enabled || !model.canEditConfig)
 
             Section("Also alert when") {
                 Toggle(isOn: model.configBinding(\.alerts.projectedExhaustion)) {
@@ -49,15 +49,11 @@ struct AlertsSettingsPane: View {
                     Text("When a limit window starts over after reaching 80% or more.")
                 }
                 Toggle(isOn: model.configBinding(\.alerts.sourceProblems)) {
-                    Text("A source stops working")
-                    Text("A CLI is missing, signed out or unsupported, a credential or subscription stops working, or its output cannot be read. Network errors, timeouts and rate limits never alert. Once per problem, cleared by the next good check.")
+                    Text("An account stops updating")
+                    Text("Its command is missing or out of date, it is signed out, or its key or subscription stops working. Network hiccups never alert. Once per problem.")
                 }
             }
-            .disabled(!model.config.alerts.enabled)
-
-            Section {
-                HelpText("Nothing fires on the first check after launch; that check only sets the baseline.")
-            }
+            .disabled(!model.config.alerts.enabled || !model.canEditConfig)
         }
         .onAppear { model.refreshNotificationPermission() }
         // The grant can change in System Settings while this pane is open.

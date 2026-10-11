@@ -53,7 +53,9 @@ struct SettingsView: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 640, minHeight: 460)
+        // Narrower, the account page beside the sidebar and the account list puts its fields under their labels.
+        .frame(minWidth: 800, minHeight: 460)
+        .navigationTitle(pane.title)
         .onChange(of: model.settingsSelection) { _, id in
             guard let id else { return }
             chosenPane = .accounts
@@ -61,29 +63,41 @@ struct SettingsView: View {
         }
     }
 
+    // A native list, so its selection turns grey while the account list has focus, as in System Settings, instead of
+    // showing two accent highlights at once.
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        List(selection: Binding(get: { pane }, set: { if let item = $0 { select(item) } })) {
             ForEach(SettingsPane.allCases) { item in
-                SettingsSidebarRow(title: item.title, symbol: item.symbol, isSelected: item == pane) { select(item) }
+                Label(item.title, systemImage: item.symbol)
+                    .tag(item)
             }
-            Spacer()
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 12)
+        .listStyle(.sidebar)
         .frame(width: 160)
-        .background(Color.primary.opacity(0.035).ignoresSafeArea())
     }
 
     @ViewBuilder private var detail: some View {
         switch pane {
         case .general:
-            GeneralSettingsPane()
+            withConfigBanner { GeneralSettingsPane() }
         case .accounts:
-            AccountsSettingsPane(selection: accountID) { selectAccount($0) }
+            withConfigBanner { AccountsSettingsPane(selection: accountID) { selectAccount($0) } }
         case .alerts:
-            AlertsSettingsPane()
+            withConfigBanner { AlertsSettingsPane() }
         case .about:
             AboutSettingsPane()
+        }
+    }
+
+    /// Across the top of every pane that edits config, so the reason its controls are disabled is in view.
+    private func withConfigBanner<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            if let problem = model.configError {
+                SettingsBanner(text: problem)
+            }
+            // The empty Accounts page only fits its content, which would center the banner with it.
+            content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -97,36 +111,5 @@ struct SettingsView: View {
         chosenPane = .accounts
         chosenAccountID = id
         model.settingsSelection = id
-    }
-}
-
-struct SettingsSidebarRow: View {
-    var title: String
-    var symbol: String
-    var isSelected: Bool
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .frame(width: 18)
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
-                Text(title)
-                Spacer(minLength: 0)
-            }
-            .selectableRow(isSelected)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-extension View {
-    func selectableRow(_ isSelected: Bool) -> some View {
-        padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
-            .background(RoundedRectangle(cornerRadius: 6).fill(isSelected ? Color.accentColor : .clear))
-            .contentShape(Rectangle())
     }
 }
