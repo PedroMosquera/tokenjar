@@ -8,7 +8,7 @@ struct AccountCredentialSection: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
     /// opencode's own login, which writes auth.json; offered only while the key comes from there.
-    var signInCommand: String?
+    var signInCommand: SignInLine?
     var onSignIn: (String) -> Void
 
     private enum Source: Hashable { case authFile, keychain }
@@ -65,19 +65,19 @@ struct AccountCredentialSection: View {
                         .truncationMode(.middle)
                         .help("\(keyFile.path), \(keyFile.entry)")
                 }
-                if let command = signInCommand {
+                if let line = signInCommand {
                     TextRow {
-                        Text(command)
+                        Text(line.shown)
                             .font(.system(.callout, design: .monospaced))
                             .lineLimit(1)
                             .truncationMode(.middle)
-                            .help(command)
+                            .help(line.shown)
                         Text("Runs opencode's own login in Terminal. Tokenjar reads the key it saves.")
                     }
                     HStack {
                         Spacer()
-                        Button("Copy Command") { SignInLauncher.copy(command) }
-                        Button("Sign In in Terminal\u{2026}") { onSignIn(command) }
+                        Button("Copy Command") { SignInLauncher.copy(line.command) }
+                        Button("Sign In in Terminal\u{2026}") { onSignIn(line.command) }
                     }
                 }
             } else {

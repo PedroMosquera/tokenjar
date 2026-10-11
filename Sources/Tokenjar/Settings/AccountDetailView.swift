@@ -101,8 +101,8 @@ struct AccountDetailView: View {
         return LabeledContent {
             switch fix {
             case .signIn:
-                if let command = signInCommand {
-                    Button("Sign In in Terminal\u{2026}") { openSignIn(command) }
+                if let line = signInCommand {
+                    Button("Sign In in Terminal\u{2026}") { openSignIn(line.command) }
                 }
             case .changeKey:
                 Button("Change Key\u{2026}") {
@@ -201,21 +201,21 @@ struct AccountDetailView: View {
 
     private var signInSection: some View {
         Section {
-            if let command = signInCommand {
+            if let line = signInCommand {
                 // One line: wrapping breaks at the hyphen in a profile path and reads like two paths. Copy Command
                 // copies it whole, and the tooltip shows it whole.
                 TextRow {
-                    Text(command)
+                    Text(line.shown)
                         .font(.system(.callout, design: .monospaced))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .help(command)
+                        .help(line.shown)
                     Text(signInNote)
                 }
                 HStack {
                     Spacer()
-                    Button("Copy Command") { SignInLauncher.copy(command) }
-                    Button("Sign In in Terminal\u{2026}") { openSignIn(command) }
+                    Button("Copy Command") { SignInLauncher.copy(line.command) }
+                    Button("Sign In in Terminal\u{2026}") { openSignIn(line.command) }
                 }
             } else {
                 switch AgySignInRow.make(status: model.status(for: account)) {
@@ -313,18 +313,20 @@ struct AccountDetailView: View {
 
     // MARK: Actions
 
-    private var signInCommand: String? {
-        Self.signInCommand(for: account, cliPaths: model.config.cliPaths, paths: model.paths, previewMode: model.previewMode)
+    private var signInCommand: SignInLine? {
+        Self.signInLine(for: account, cliPaths: model.config.cliPaths, paths: model.paths, previewMode: model.previewMode)
     }
 
     /// Preview renders become review images that get pasted into PRs, so they use a stand-in home folder and bare
     /// CLI names instead of this Mac's paths.
-    static func signInCommand(for account: AccountConfig, cliPaths: [String: String], paths: AppPaths, previewMode: Bool) -> String? {
+    static func signInLine(for account: AccountConfig, cliPaths: [String: String], paths: AppPaths, previewMode: Bool) -> SignInLine? {
         let cli = CLILocator(overrides: cliPaths)
         let paths = previewMode ? AppPaths(home: URL(fileURLWithPath: "/Users/you")) : paths
-        return SignInCommand.command(for: account, paths: paths) { name in
-            previewMode ? name : (cli.locate(name)?.path ?? name)
-        }
+        let executable = { (name: String) in previewMode ? name : (cli.locate(name)?.path ?? name) }
+        guard let command = SignInCommand.command(for: account, paths: paths, executable: executable),
+              let shown = SignInCommand.command(for: account, paths: paths, executable: executable, abbreviatingHome: true)
+        else { return nil }
+        return SignInLine(command: command, shown: shown)
     }
 
     /// Refresh only fetches enabled accounts that exist on this Mac, so Test would silently do nothing for the rest.
@@ -379,6 +381,12 @@ extension AppModel {
         else { return nil }
         return SettingsLogic.tildePath(location.path, home: paths.home.path)
     }
+}
+
+/// An account's login command: `command` is what Copy Command and Sign In in Terminal use, `shown` is the row's text.
+struct SignInLine: Equatable {
+    var command: String
+    var shown: String
 }
 
 /// What Settings says about one account: the status line at the top of its page and the caption on its list row.
