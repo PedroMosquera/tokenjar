@@ -238,7 +238,7 @@ struct SQLiteUsageStoreTests {
                 group.addTask {
                     for i in 0..<50 {
                         try? store.upsert([usageEvent("w\(worker)-\(i)", at: start, input: 1)])
-                        try? store.record(UsageSnapshot(accountID: "w\(worker)", provider: .claude, fetchedAt: start, source: "test"))
+                        _ = try? store.record(UsageSnapshot(accountID: "w\(worker)", provider: .claude, fetchedAt: start, source: "test"))
                     }
                 }
             }
