@@ -214,6 +214,7 @@ Tokenjar never reads, writes or deletes Headroom's Keychain service, so a key pa
 ## Checking it yourself
 
 - The allowlist is `HTTPClient.allowedEndpoints` in `Sources/TokenjarCore/Core/HTTPClient.swift`; `make test` fails if it changes.
+- `DocsPinTests.privacyNamesEveryCLICall` records the command lines and environment variables the fetchers and `CLILocator.baseEnvironment` build, and fails when [Commands it runs](#commands-it-runs) does not name one.
 - While Tokenjar runs, `nettop -p Tokenjar` or `lsof -i -a -c Tokenjar` lists its own connections. Expect `opencode.ai` only, and only if you have an OpenCode Go account. The CLIs it starts show up as their own processes: a Copilot check is a short-lived `gh` connecting to `api.github.com`.
 - `sqlite3 ~/Library/Application\ Support/Tokenjar/tokenjar.sqlite "SELECT path FROM scan_state LIMIT 3"` prints 64-character hex digests, not paths.
 - `ls -la ~/Library/Application\ Support/Tokenjar` shows the modes listed above.
