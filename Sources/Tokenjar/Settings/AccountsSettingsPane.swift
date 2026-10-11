@@ -9,15 +9,29 @@ struct AccountsSettingsPane: View {
     @SettingsState private var removing: AccountConfig?
 
     var body: some View {
-        HStack(spacing: 0) {
-            accountList
-                .frame(width: 220)
-            Divider().ignoresSafeArea()
-            if let account = selectedAccount {
-                AccountDetailView(account: account, onRemove: { removing = account })
-                    .id(account.id)
+        Group {
+            if model.config.accounts.isEmpty {
+                ContentUnavailableView {
+                    Label("No Accounts", systemImage: "person.crop.circle.badge.plus")
+                } description: {
+                    Text("Add Claude, Codex, OpenCode, Antigravity, Copilot or Devin to track its limits.")
+                } actions: {
+                    addMenu { Text("Add Account") }
+                        .menuStyle(.button)
+                        .fixedSize()
+                }
             } else {
-                emptyDetail
+                HStack(spacing: 0) {
+                    accountList
+                        .frame(width: 220)
+                    Divider().ignoresSafeArea()
+                    if let account = selectedAccount {
+                        AccountDetailView(account: account, onRemove: { removing = account })
+                            .id(account.id)
+                    } else {
+                        Color.clear
+                    }
+                }
             }
         }
         .confirmationDialog(
@@ -71,11 +85,7 @@ struct AccountsSettingsPane: View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: 0) {
-                Menu {
-                    ForEach(ProviderID.allCases, id: \.self) { provider in
-                        Button(provider.displayName) { add(provider) }
-                    }
-                } label: {
+                addMenu {
                     Image(systemName: "plus")
                         .frame(width: 24, height: 22)
                 }
@@ -103,16 +113,14 @@ struct AccountsSettingsPane: View {
         }
     }
 
-    private var emptyDetail: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "person.crop.circle.badge.plus")
-                .font(.system(size: 32))
-                .foregroundStyle(.secondary)
-            Text("No account selected")
-                .font(.headline)
-            HelpText("Add an account with the button below the list.")
+    private func addMenu<Label: View>(@ViewBuilder label: () -> Label) -> some View {
+        Menu {
+            ForEach(ProviderID.allCases, id: \.self) { provider in
+                Button(provider.displayName) { add(provider) }
+            }
+        } label: {
+            label()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func add(_ provider: ProviderID) {
