@@ -89,6 +89,12 @@ struct PaceVerdictTests {
         #expect(Severity.of(window, config: MenuBarConfig(), now: now) == .ok)
     }
 
+    /// Past its reset a window still carries the old cycle's use until the next check replaces it.
+    @Test func aWindowPastItsResetIsOk() {
+        #expect(Severity.of(window("session", "5-hour", used: 100, resetIn: -60), config: MenuBarConfig(), now: now) == .ok)
+        #expect(Severity.of(window("session", "5-hour", used: 100, resetIn: 60), config: MenuBarConfig(), now: now) == .critical)
+    }
+
     @Test func aWindowThatRunsOutOutranksAnAheadWindowOfEqualSeverity() throws {
         // Both are warnings: the 5-hour runs out 50 m early, the week is past warnAt but only 6 % elapsed, so it can
         // only be "ahead". The run-out has to win over the higher used %.
@@ -155,6 +161,13 @@ struct PopoverSummaryTests {
         let statuses = ["work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 100, resetIn: 50 * 60)]))]
         let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
         #expect(summary.text == "Claude · Work: 5-hour full, resets in 50m")
+    }
+
+    @Test func aWindowPastItsResetIsNotFull() {
+        let statuses = ["work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 100, resetIn: -60)]))]
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        #expect(summary.tone != .critical)
+        #expect(!summary.text.contains("full"))
     }
 
     @Test func allClearNamesTheNextResetOfAWindowInUse() {

@@ -7,9 +7,11 @@ enum Severity: Int, Comparable {
 
     static func < (a: Severity, b: Severity) -> Bool { a.rawValue < b.rawValue }
 
-    /// Warning at `warnAt`, or when the window is projected to run out at least 15 minutes before it resets
-    /// (the same rule the alert engine uses, so a bar is never orange while the verdict says "On pace").
+    /// Warning at `warnAt`, or when the window is projected to run out at least 15 minutes before it resets (the
+    /// alert engine's rule). The projection never colors a bar the verdict calls "On pace", but `warnAt` can.
+    /// Ok once the reset has passed: the use shown is the old cycle's until the next check replaces it.
     static func of(_ window: UsageWindow, config: MenuBarConfig, now: Date) -> Severity {
+        if window.hasReset(now: now) { return .ok }
         if window.usedPercent >= Double(config.criticalAt) { return .critical }
         if window.usedPercent >= Double(config.warnAt) { return .warning }
         if window.usedPercent >= 50, let pace = Pace.compute(window, now: now), pace.fractionElapsed >= 0.1,

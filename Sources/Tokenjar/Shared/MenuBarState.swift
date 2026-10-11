@@ -31,7 +31,7 @@ struct MenuBarState: Equatable {
         // A link-only account has no window: it would draw an empty bar and a "no data" line that reads as a failure.
         let entries = accounts.filter { !$0.provider.isLinkOnly }.map { account -> Entry in
             let status = statuses[account.id] ?? AccountStatus()
-            let tightest = status.snapshot?.tightestWindow
+            let tightest = status.snapshot?.tightestWindow(now: now)
             return Entry(
                 accountID: account.id,
                 provider: account.provider,

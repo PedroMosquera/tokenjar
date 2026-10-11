@@ -218,7 +218,9 @@ private struct SnapshotBody: View {
 
     @ViewBuilder
     private func chart(now: Date, verdictWindowID: String?) -> some View {
-        if let window = BurnUpChart.chartWindow(in: snapshot.windows, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
+        // A window past its reset would chart the cycle that just ended.
+        let live = snapshot.windows.filter { !$0.hasReset(now: now) }
+        if let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
             let samples = model.samples(accountID: account.id, windowID: window.id, since: start)
             let points = BurnUpChart.points(samples: samples, window: window, start: start, now: now)
             if points.count >= 2 {

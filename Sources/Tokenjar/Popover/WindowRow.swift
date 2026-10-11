@@ -8,6 +8,8 @@ struct WindowRow: View {
     var now: Date
 
     var body: some View {
+        // Past its reset the snapshot still holds the old cycle's use, which the next check replaces.
+        let hasReset = window.hasReset(now: now)
         VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(window.label)
@@ -15,6 +17,9 @@ struct WindowRow: View {
                 Spacer(minLength: 8)
                 if window.notStarted {
                     Text("not started")
+                        .foregroundStyle(.secondary)
+                } else if hasReset {
+                    Text("reset, updating")
                         .foregroundStyle(.secondary)
                 } else {
                     HStack(spacing: 0) {
@@ -30,7 +35,7 @@ struct WindowRow: View {
             }
             .font(.callout)
             UsageBar(
-                fraction: window.notStarted ? 0 : window.usedPercent / 100,
+                fraction: window.notStarted || hasReset ? 0 : window.usedPercent / 100,
                 paceFraction: pace.map { $0.expectedPercent / 100 },
                 tint: severity.color
             )
@@ -43,6 +48,7 @@ struct WindowRow: View {
 
     private var helpText: String {
         guard !window.notStarted else { return "\(window.label) has not started; it begins with the next request." }
+        if window.hasReset(now: now) { return "\(window.label) has reset; the next check shows the new cycle." }
         var parts = ["\(Format.percent(window.usedPercent)) used"]
         if let pace { parts.append("even pace \(Format.percent(pace.expectedPercent))") }
         if let resetsAt = window.resetsAt { parts.append("resets \(resetsAt.formatted(date: .abbreviated, time: .shortened))") }
@@ -51,6 +57,7 @@ struct WindowRow: View {
 
     private var accessibilityValue: String {
         guard !window.notStarted else { return "not started" }
+        if window.hasReset(now: now) { return "reset, updating" }
         let countdown = Format.countdown(to: window.resetsAt, now: now).map { ", resets in \($0)" } ?? ""
         return "\(Format.percent(window.usedPercent)) used\(countdown)"
     }

@@ -76,6 +76,18 @@ struct MenuBarStateTests {
         #expect(StatusIconRenderer.toolTip(for: alone) == "Tokenjar: no accounts in the menu bar")
     }
 
+    /// A full window whose reset has passed would read "<1m" in red until the next check lands.
+    @Test func aWindowPastItsResetIsNotTheTightest() {
+        let reset = window("session", used: 100, minutes: 300, resetIn: -60)
+        let alone = MenuBarState.make(accounts: [personal], statuses: ["personal": status([reset])], config: AppConfig(), now: now)
+        #expect(StatusIconRenderer.render(alone).title != "<1m")
+        #expect(alone.entries.first?.severity == .ok)
+
+        let calm = window("weekly", used: 30, minutes: 10_080, resetIn: 5 * 86_400)
+        let beside = MenuBarState.make(accounts: [personal], statuses: ["personal": status([reset, calm])], config: AppConfig(), now: now)
+        #expect(StatusIconRenderer.render(beside).title == "30%")
+    }
+
     @Test func theIconComesFromTheConfig() {
         #expect(MenuBarState.make(accounts: [personal], statuses: [:], config: AppConfig(), now: now).icon == .app)
         let picked = AppConfig(menuBar: MenuBarConfig(icon: .symbolGauge))

@@ -51,7 +51,7 @@ struct PopoverSummary: Equatable {
             // A link card is ready at once and has no limits, so it must not stand in for accounts still being checked.
             guard let snapshot = status.snapshot, !account.provider.isLinkOnly else { continue }
             withData += 1
-            for window in snapshot.windows {
+            for window in snapshot.windows where !window.hasReset(now: now) {
                 let severity = Severity.of(window, config: config, now: now)
                 if worst.map({ (severity, window.usedPercent) > ($0.severity, $0.window.usedPercent) }) ?? true {
                     worst = (account, window, severity)
