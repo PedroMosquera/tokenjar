@@ -216,7 +216,7 @@
     "inputs": {
       "history": "opencode/zen-payg-spend.sql"
     },
-    "blocked": "No signal in opencode.db separates bring-your-own-key rows from Zen spend; the preview shows the payg card."
+    "blocked": "Volunteer capture of bring-your-own-key rows: no known signal in opencode.db separates them from Zen spend; the preview shows the payg card."
   },
   {
     "id": "opencode-zen.two-workspaces",
