@@ -67,6 +67,24 @@ struct ModelsTests {
         #expect(snapshot.tightestWindow?.id == "session")
     }
 
+    /// Every surface reads this to decide whether an account needs a look, so each case is pinned.
+    @Test func attentionClassifiesEveryFetchError() {
+        let expected: [(FetchError, FetchError.Attention)] = [
+            (.noSubscription("No active OpenCode Go subscription for this key"), .calm),
+            (.network("offline"), .transient),
+            (.timeout, .transient),
+            (.rateLimited(retryAfter: 60), .transient),
+            (.cliNotFound("claude"), .actionable),
+            (.notSignedIn, .actionable),
+            (.unauthorized, .actionable),
+            (.parse("shape"), .actionable),
+            (.unsupported("model turn"), .actionable),
+        ]
+        for (error, attention) in expected {
+            #expect(error.attention == attention, "\(error)")
+        }
+    }
+
     @Test func monthLengthFollowsTheMonthEndingAtReset() {
         #expect(UsageWindow.monthMinutes(endingAt: DateParsing.iso8601("2026-03-01T00:00:00Z")) == 28 * 1_440)
         #expect(UsageWindow.monthMinutes(endingAt: DateParsing.iso8601("2026-05-15T08:00:00Z")) == 30 * 1_440)

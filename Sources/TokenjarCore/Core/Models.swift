@@ -237,6 +237,24 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
     case parse(String)
     case unsupported(String)
 
+    /// How much a failed check asks of the user. The popover, menu bar, dashboard and Settings all read this one
+    /// classification, so they agree on what counts as a problem.
+    public enum Attention: Sendable {
+        /// Nothing to fix: the account has no plan to show, such as a key without a subscription.
+        case calm
+        /// Likely to clear on its own by the next check.
+        case transient
+        case actionable
+    }
+
+    public var attention: Attention {
+        switch self {
+        case .noSubscription: .calm
+        case .network, .timeout, .rateLimited: .transient
+        case .cliNotFound, .notSignedIn, .unauthorized, .parse, .unsupported: .actionable
+        }
+    }
+
     /// Safe for display and notifications: no ids, emails, tokens or raw bodies.
     public var userMessage: String {
         switch self {
