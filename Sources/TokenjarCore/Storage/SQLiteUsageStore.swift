@@ -9,14 +9,16 @@ public struct SQLiteError: Error, CustomStringConvertible {
 }
 
 /// SQLite-backed `UsageStore`, normally at `AppPaths.databaseFile`. Same contract as `InMemoryUsageStore`, plus:
-/// `record` skips a window sample identical to the previous one when it is less than `sampleDedupeInterval` newer,
+/// `record` skips a window sample identical to the previous one when it is less than `sampleDedupeInterval` newer
+/// (for a not-started window only the used % counts, since its reset time is synthetic),
 /// and deletes samples older than `sampleRetention` at most once a day. Dedupe keys are stored as `sha256Hex` digests,
 /// since they carry provider message, request and session ids; nothing reads them back.
 ///
 /// `@unchecked Sendable`: the store owns one connection, and every use of it and of its mutable state holds `lock`.
 public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
     public static let sampleRetention: TimeInterval = 180 * 86_400
-    public static let sampleDedupeInterval: TimeInterval = 5 * 60
+    /// Under the dashboard's 2-hour gap, so an idle window's line stays whole.
+    public static let sampleDedupeInterval: TimeInterval = 60 * 60
     static let upsertChunkSize = 2_000
     private static let busyTimeout: TimeInterval = 5
 
@@ -78,7 +80,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                     let resetsAt = window.resetsAt?.timeIntervalSince1970
                     try previous.bind([.text(snapshot.accountID), .text(window.id)])
                     if try previous.step() {
-                        let isRepeat = previous.double(1) == window.usedPercent && previous.optionalDouble(2) == resetsAt
+                        let isRepeat = previous.double(1) == window.usedPercent && (window.notStarted || previous.optionalDouble(2) == resetsAt)
                             && ts - previous.double(0) < Self.sampleDedupeInterval
                         previous.reset()
                         if isRepeat { continue }

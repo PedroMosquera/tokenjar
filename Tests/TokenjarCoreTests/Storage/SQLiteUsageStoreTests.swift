@@ -68,27 +68,47 @@ struct SQLiteUsageStoreTests {
         #expect(throws: SQLiteError.self) { try SQLiteUsageStore(url: url) }
     }
 
-    @Test func skipsARepeatedSampleWithinFiveMinutes() throws {
+    /// An idle window repeats the same numbers on every refresh. One sample an hour keeps its line unbroken (the
+    /// dashboard splits lines at a 2-hour gap) without a row every 10 minutes.
+    @Test func skipsARepeatedSampleWithinAnHour() throws {
         let store = try StoreKind.sqlite.make(in: temp.url)
-        let reset = now.addingTimeInterval(3600)
-        func record(_ offset: TimeInterval, _ used: Double, _ resetsAt: Date?) throws {
+        let reset = now.addingTimeInterval(86_400)
+        func record(_ minutes: TimeInterval, _ used: Double, _ resetsAt: Date?) throws {
             try store.record(UsageSnapshot(
-                accountID: "acct", provider: .claude, windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: used, resetsAt: resetsAt)],
-                fetchedAt: now.addingTimeInterval(offset), source: "test"
+                accountID: "acct", provider: .claude, windows: [UsageWindow(id: "weekly", label: "Week", usedPercent: used, resetsAt: resetsAt)],
+                fetchedAt: now.addingTimeInterval(minutes * 60), source: "test"
             ))
         }
         try record(0, 40, reset)
-        try record(60, 40, reset)       // repeat within 5 minutes: skipped
-        try record(299, 40, reset)      // still within 5 minutes of the kept sample at 0: skipped
-        try record(300, 40, reset)      // 5 minutes after the kept sample: kept
-        try record(360, 41, reset)      // value changed: kept
-        try record(420, 41, reset.addingTimeInterval(60)) // reset moved: kept
-        try record(480, 41, nil)        // reset dropped: kept
-        try record(540, 41, nil)        // repeat of a nil reset within 5 minutes: skipped
+        try record(10, 40, reset)       // repeat 10 minutes later: skipped
+        try record(59, 40, reset)       // still within the hour of the kept sample at 0: skipped
+        try record(61, 40, reset)       // 61 minutes after the kept sample: kept
+        try record(62, 41, reset)       // value changed: kept
+        try record(63, 41, reset.addingTimeInterval(60)) // reset moved: kept
+        try record(64, 41, nil)         // reset dropped: kept
+        try record(70, 41, nil)         // repeat of a nil reset within the hour: skipped
 
-        let offsets = try store.samples(accountID: "acct", windowID: "session", since: .distantPast).map { $0.timestamp.timeIntervalSince(now) }
-        #expect(offsets == [0, 300, 360, 420, 480])
-        #expect(try store.latestSnapshots().first?.fetchedAt == now.addingTimeInterval(540))
+        let minutes = try store.samples(accountID: "acct", windowID: "weekly", since: .distantPast).map { $0.timestamp.timeIntervalSince(now) / 60 }
+        #expect(minutes == [0, 61, 62, 63, 64])
+        #expect(try store.latestSnapshots().first?.fetchedAt == now.addingTimeInterval(70 * 60))
+    }
+
+    /// OpenCode Go reports an idle window as not started, with a reset time of now plus the window. That time moves on
+    /// every refresh and says nothing, so only the used % counts.
+    @Test func skipsARepeatedNotStartedWindowWhoseResetTimeMoved() throws {
+        let store = try StoreKind.sqlite.make(in: temp.url)
+        func record(_ minutes: TimeInterval) throws {
+            let at = now.addingTimeInterval(minutes * 60)
+            try store.record(UsageSnapshot(
+                accountID: "go", provider: .opencodeGo,
+                windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: 0, windowMinutes: 300, resetsAt: at.addingTimeInterval(5 * 3600), notStarted: true)],
+                fetchedAt: at, source: "test"
+            ))
+        }
+        for minutes in [0.0, 10, 20, 61] { try record(minutes) }
+
+        let minutes = try store.samples(accountID: "go", windowID: "session", since: .distantPast).map { $0.timestamp.timeIntervalSince(now) / 60 }
+        #expect(minutes == [0, 61])
     }
 
     /// The repeat check compares with the same window's last sample, never another window's with equal values.
