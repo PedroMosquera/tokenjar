@@ -50,8 +50,11 @@ final class AppModel {
     var popoverNow: Date
     /// Set by the popover's delegate.
     @ObservationIgnored var isPopoverShown = false
-    /// Bumped whenever stored samples or usage rows change, so history views reload.
+    /// Bumped whenever stored samples or usage rows change, and when the local day turns over, so history views reload.
     var historyRevision = 0
+    /// The local day of the last tick. History views total "today" from their last reload, and an idle account stores
+    /// no sample to trigger one after midnight.
+    @ObservationIgnored private var historyDay: Date
     /// nil until the app has asked macOS; see `refreshNotificationPermission`.
     var notificationPermission: NotificationPermission?
 
@@ -108,6 +111,7 @@ final class AppModel {
         let start = clock()
         now = start
         popoverNow = start
+        historyDay = Calendar.current.startOfDay(for: start)
         isAvailable = { AccountDiscovery.isAvailable($0, paths: paths) }
     }
 
@@ -199,6 +203,11 @@ final class AppModel {
     func tick() -> Task<Void, Never>? {
         now = clock()
         if isPopoverShown { popoverNow = now }
+        let day = Calendar.current.startOfDay(for: now)
+        if day != historyDay {
+            historyDay = day
+            historyRevision += 1
+        }
         guard !sleeping else { return nil }
         refreshAccounts()
         reloadConfigIfChanged()

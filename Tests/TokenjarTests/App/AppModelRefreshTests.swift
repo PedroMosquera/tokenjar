@@ -297,6 +297,38 @@ struct AppModelRefreshTests {
         #expect(model.historyRevision == first + 1)
     }
 
+    /// The dashboard totals "today" as of its last reload. With every refresh a repeat the store skips, only the day
+    /// turning over can tell it to reload.
+    @Test func historyRevisionMovesWhenTheLocalDayTurnsOver() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".codex")
+        let account = AccountConfig(id: "codex", provider: .codex, label: "Plus")
+        try home.writeConfig(AppConfig(accounts: [account]))
+        let log = FetchLog(), clock = TestClock()
+        let calendar = Calendar.current
+        let midnight = try #require(calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: clock.now)))
+        clock.now = midnight.addingTimeInterval(-45)
+        let fetchedAt = clock.now
+        let model = model(home, clock) { _ in FakeFetcher(log: log) { .success(usageSnapshot($0, fetchedAt: fetchedAt)) } }
+        await model.refresh(force: true)?.value
+        let first = model.historyRevision
+
+        clock.advance(30)
+        await model.tick()?.value
+        #expect(model.historyRevision == first)
+
+        clock.advance(30)
+        await model.tick()?.value
+        #expect(model.historyRevision == first + 1)
+
+        clock.advance(30)
+        await model.refresh(force: true)?.value
+        await model.tick()?.value
+        #expect(log.count("codex") == 2)
+        #expect(model.historyRevision == first + 1)
+    }
+
     /// Ticks land a little after their 30-second mark, by a different amount each time, and the clock moves between
     /// reads within a tick. A 10-minute account is still checked on the tick 10 minutes after its last check.
     @Test func aTenMinuteAccountIsCheckedOnTheTickTenMinutesLater() async throws {
