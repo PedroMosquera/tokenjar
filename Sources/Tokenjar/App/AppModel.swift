@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import os
 import TokenjarCore
 
 struct AccountStatus: Equatable {
@@ -55,6 +56,10 @@ final class AppModel {
     @ObservationIgnored var notifications: NotificationManager?
     /// Set by `AppModel.preview()`: shows every configured account regardless of what exists on this Mac.
     @ObservationIgnored var previewMode = false
+    /// Asked once per launch by the Headroom move; tests replace it.
+    @ObservationIgnored var legacyAppIsRunning: () -> Bool = {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: LegacyMigration.legacyBundleIdentifier).isEmpty
+    }
 
     @ObservationIgnored private var ticker: Timer?
     @ObservationIgnored private var workspaceObservers: [NSObjectProtocol] = []
@@ -112,8 +117,10 @@ final class AppModel {
         scanHistory()
     }
 
-    /// Everything `start` reads from disk, without timers or observers.
+    /// Everything `start` reads from disk, without timers or observers. The Headroom move comes first, so the config and
+    /// the database open under their new names.
     func loadState() {
+        moveLegacyData()
         loadConfig(firstRunAllowed: true)
         do {
             store = try SQLiteUsageStore(url: paths.databaseFile)
@@ -155,6 +162,17 @@ final class AppModel {
         try? await Task.sleep(for: networkDelay)
         sleeping = false
         return refresh(force: true)
+    }
+
+    private func moveLegacyData() {
+        let log = Logger(subsystem: AppPaths.bundleIdentifier, category: "legacy-move")
+        for event in LegacyMigration.run(paths: paths, legacyAppIsRunning: legacyAppIsRunning()) {
+            if case .failed(let reason) = event {
+                log.error("Headroom data not moved: \(reason, privacy: .public)")
+            } else {
+                log.notice("Headroom data: \(String(describing: event), privacy: .public)")
+            }
+        }
     }
 
     // MARK: Config

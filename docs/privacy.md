@@ -132,19 +132,29 @@ Antigravity has no history source; only the `agy` commands above.
 | `$TMPDIR/tokenjar-sign-in-<account id>.command` | 0700 | Written only when you click Sign In in Terminal: the script above, including the expanded profile folder path when the account sets one. It deletes itself when Terminal runs it. |
 | Tokenjar's own Keychain item, service `com.pedromosquera.tokenjar.apikeys` | Keychain | A key you paste, stored under the account's id with the label "Tokenjar API key" when you click Save Key. Deleted when you switch that account back to opencode's `auth.json` (after confirming) or remove the account. |
 | Tokenjar's preferences (domain `com.pedromosquera.tokenjar` for the installed app) | macOS default | The Dashboard and Settings window frames, saved by AppKit when those windows move or resize. |
+| `~/Library/Application Support/Headroom/` and `~/.config/headroom/`, when Headroom left them | Unchanged | Renamed once at launch to Tokenjar's folders, with the database files inside; see [Renamed from Headroom](#renamed-from-headroom). |
 
 Other changes on this Mac:
 
 - **Login item.** Tokenjar registers or unregisters itself as a login item (`SMAppService`) only when you flip Launch at login in Settings > General, and only when it runs as an app bundle.
 - **Notifications.** With alerts on, Tokenjar asks macOS for quiet provisional delivery at launch and when you turn alerts on; this shows no prompt. The system prompt for banners appears only when you click Allow Banners in Settings > Alerts. Alerts are local notifications titled with the account's name (for example "Claude · Personal"), with no emails, ids or raw errors in the text, and Tokenjar withdraws its own notifications when a window resets or a source recovers.
 
-Developer flags write nothing of yours: `--render-snapshots <dir>` writes PNG renders of built-in preview data into `<dir>`, and `--probe` and `--scan` print to the terminal (a probe may create the support and probe folders). Neither touches `tokenjar.sqlite` or `config.json`.
+Developer flags write nothing of yours: `--render-snapshots <dir>` writes PNG renders of built-in preview data into `<dir>`, and `--probe` and `--scan` print to the terminal (a probe may create the support and probe folders). Neither touches `tokenjar.sqlite` or `config.json`, and none of them runs the move from Headroom's folders described below.
 
 Never stored, logged or displayed: prompts, outputs, message or file contents, emails, names or organization names from your provider accounts, provider account ids, OAuth tokens, API keys (outside the Keychain item), raw error bodies, log file paths and the raw message, request, response or session ids.
 
 ## Renamed from Headroom
 
-Builds before the rename were called Headroom: bundle id `com.pedromosquera.headroom`, Keychain service `com.pedromosquera.headroom.apikeys`. Tokenjar never reads, writes or deletes that Keychain service, so a key pasted under it stays there until you delete it in Keychain Access, and has to be pasted again in Settings. macOS treats the new bundle id as a new app, so notification permission (Allow Banners) and Launch at login are granted and set again, and Tokenjar does not remove the old app's entries in System Settings.
+Builds before the rename were called Headroom: bundle id `com.pedromosquera.headroom`, Keychain service `com.pedromosquera.headroom.apikeys`, `~/.config/headroom/` and `~/Library/Application Support/Headroom/`.
+
+At launch, before the config or the database is opened, Tokenjar moves what Headroom left, once:
+
+- `~/Library/Application Support/Headroom/` is renamed to `~/Library/Application Support/Tokenjar/` when that does not exist yet. Inside it, `headroom.sqlite`, `headroom.sqlite-wal` and `headroom.sqlite-shm` are renamed to `tokenjar.sqlite`, `tokenjar.sqlite-wal` and `tokenjar.sqlite-shm` together (missing ones are skipped), and put back under their old names if one of them cannot be renamed. `alert-state.json`, `probe-latch.json` and `probe/` keep their names.
+- `~/.config/headroom` (`$XDG_CONFIG_HOME/headroom` when that variable is set in Tokenjar's own environment) is renamed to `~/.config/tokenjar` (or `$XDG_CONFIG_HOME/tokenjar`) when that does not exist yet. A rename keeps the folder's depth, so a relative stow link inside it, or a folder that is itself a relative stow link, still resolves; a folder that is a link moves as the link.
+- Where both names exist, even as a dangling link, nothing changes. While an app with bundle id `com.pedromosquera.headroom` is running, nothing moves, so its open database is never pulled away; Tokenjar then starts with new folders, and because both names exist after that, the move does not happen on a later launch.
+- Folders and files are only renamed: nothing is copied or deleted, and no file contents are read. Each step and each failure goes to the macOS unified log (subsystem `com.pedromosquera.tokenjar`, category `legacy-move`) with folder names and an error code, never a path. A failure never stops the launch.
+
+Tokenjar never reads, writes or deletes Headroom's Keychain service, so a key pasted under it stays there until you delete it in Keychain Access, and has to be pasted again in Settings. macOS treats the new bundle id as a new app, so notification permission (Allow Banners) and Launch at login are granted and set again, and Tokenjar does not remove the old app's entries in System Settings.
 
 ## What it never does
 
