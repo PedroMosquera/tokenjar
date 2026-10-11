@@ -22,7 +22,7 @@ struct AccountCard: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(12)
+        .padding(PopoverView.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {

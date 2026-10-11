@@ -10,7 +10,7 @@ struct PopoverHeader: View {
             Image(systemName: symbol(summary.tone))
                 .font(.title2)
                 .foregroundStyle(color(summary.tone))
-                .frame(width: 26)
+                .frame(width: 26, alignment: .leading)
             VStack(alignment: .leading, spacing: 1) {
                 Text(summary.text)
                     .font(.headline)
