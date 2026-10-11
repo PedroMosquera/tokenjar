@@ -12,16 +12,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         let args = CommandLine.arguments
-        if let flag = args.firstIndex(of: "--render-snapshots"), flag + 1 < args.count {
-            SnapshotRenderer.run(outputDirectory: URL(fileURLWithPath: args[flag + 1]))
+        switch LaunchMode.parse(args) {
+        case .renderSnapshots(let directory):
+            SnapshotRenderer.run(outputDirectory: directory)
             exit(0)
-        }
-        if args.contains("--probe") || args.contains("--scan") {
+        case .devCommand:
             Task {
                 _ = await DevCommands.handle(args)
                 exit(0)
             }
             return
+        case .invalid(let usage):
+            FileHandle.standardError.write(Data("\(usage)\n".utf8))
+            exit(64)
+        case .app:
+            break
         }
 
         model.presenter = .init(
