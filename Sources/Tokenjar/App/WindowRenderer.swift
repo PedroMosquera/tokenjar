@@ -240,7 +240,7 @@ private final class RenderSession {
            !(window.initialFirstResponder.map(window.makeFirstResponder) ?? false) {
             window.selectNextKeyView(nil)
         }
-        WindowPresenter.clearFieldFocus(in: window)
+        WindowPresenter.firstBecameKey(window)
         settle(Self.openDelay)
     }
 

@@ -151,8 +151,7 @@ struct DashboardSidebarFocusTests {
         override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
     }
 
-    /// WindowPresenter takes focus off a window the first time it becomes key. Without focus the sidebar draws its
-    /// selection in gray and ignores the arrow keys.
+    /// Without focus the sidebar draws its selection in gray and ignores the arrow keys.
     @Test func theSidebarTakesFocusWhenTheWindowIsLeftWithNone() async throws {
         let model = AppModel.preview()
         model.secrets = InMemorySecretStore()
