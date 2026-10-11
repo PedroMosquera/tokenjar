@@ -1,8 +1,8 @@
 import AppKit
 
-/// Keeps render runs off the user's screen. Every window a render captures is parked far off every display, but while a
-/// render spins the run loop SwiftUI can still open its empty Settings scene window on screen. Once started, any shown
-/// window that touches a display is hidden within one timer tick.
+/// Keeps render runs off the user's screen. Every window a render captures is parked far off every display, so any other
+/// shown window that touches one is a regression, such as the empty window a SwiftUI Settings scene used to open. Once
+/// started, such a window is hidden within one timer tick and reported on stderr.
 enum StrayWindowSweeper {
     private static var timer: Timer?
 

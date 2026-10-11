@@ -71,6 +71,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
+    @objc func openSettings(_ sender: Any?) {
+        model.showSettings()
+    }
+
     func popoverWillShow(_ notification: Notification) {
         model.isPopoverShown = true
     }
