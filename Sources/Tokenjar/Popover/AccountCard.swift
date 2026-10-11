@@ -109,7 +109,10 @@ private struct AccountMenu: View {
                 }
             }
             Divider()
-            Button("Show in Dashboard") { model.showDashboard(accountID: account.id) }
+            // A link card has no usage of its own, so its dashboard page would be empty.
+            if !account.provider.isLinkOnly {
+                Button("Show in Dashboard") { model.showDashboard(accountID: account.id) }
+            }
             Button("Settings for This Account") { model.showSettings(accountID: account.id) }
         } label: {
             Image(systemName: "ellipsis")
