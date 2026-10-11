@@ -25,10 +25,16 @@ final class WindowPresenter: NSObject, NSWindowDelegate {
         )
         /// Not minimizable: like System Settings, it is closed when done.
         static let settings = Spec(
-            id: "settings", title: "Tokenjar Settings", size: NSSize(width: 820, height: 720), minSize: SettingsView.minimumSize,
+            id: "settings", title: "Tokenjar Settings", size: NSSize(width: 820, height: 720), minSize: withTitleBar(SettingsView.minimumSize),
             autosaveName: "Tokenjar.settings.2", styleMask: [.titled, .closable, .resizable, .fullSizeContentView], sceneBridging: [.title],
             clearsFieldFocus: true
         )
+
+        /// With `.fullSizeContentView` SwiftUI insets its content below the title bar, which is shorter in a binary stamped
+        /// with an older SDK (a debug build), so its height is asked for here instead of written down.
+        private static func withTitleBar(_ content: NSSize) -> NSSize {
+            NSWindow.frameRect(forContentRect: NSRect(origin: .zero, size: content), styleMask: .titled).size
+        }
 
         static let all = [dashboard, settings]
     }
