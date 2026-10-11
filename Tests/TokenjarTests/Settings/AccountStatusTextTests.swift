@@ -48,10 +48,17 @@ struct AccountStatusTextTests {
 
     @Test func aSnapshotListsItsLimitsNotACount() {
         let line = text(claude, AccountStatus(snapshot: snapshot(claude, windows: ["5-hour", "Week", "Week \u{00B7} Fable"])))
-        #expect(line.text == "Updated \(age(60)) \u{00B7} 5-hour, Week, Week \u{00B7} Fable")
+        #expect(line.text == "Updated \(age(60))")
+        #expect(line.detail == "Limits: 5-hour, Week, Week \u{00B7} Fable")
         #expect(line.symbol == "checkmark.circle.fill")
         #expect(line.tone == .good)
         #expect(line.caption == nil)
+    }
+
+    @Test func aSnapshotWithNoLimitsShowsItsNoteUnderTheAge() {
+        let line = text(codex, AccountStatus(snapshot: snapshot(codex, notes: ["No usage limits reported for this account"])))
+        #expect(line.text == "Updated \(age(60))")
+        #expect(line.detail == "No usage limits reported for this account")
     }
 
     @Test func zenReportsLocalSpendNeverZeroWindows() {

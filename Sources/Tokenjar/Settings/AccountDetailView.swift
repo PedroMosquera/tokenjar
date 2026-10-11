@@ -439,10 +439,9 @@ struct AccountStatusText: Equatable {
             if !provider.reportsWindows {
                 return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Local spend only \u{00B7} updated \(age)", detail: zenNote)
             }
-            let limits = snapshot.windows.isEmpty ? snapshot.notes.first : snapshot.windows.map(\.label).joined(separator: ", ")
-            return AccountStatusText(
-                symbol: "checkmark.circle.fill", tone: .good, text: (["Updated \(age)"] + [limits].compactMap { $0 }).joined(separator: " \u{00B7} ")
-            )
+            // Its own line: some window labels contain a middle dot themselves, so a dot after the age would misread.
+            let limits = snapshot.windows.isEmpty ? snapshot.notes.first : "Limits: " + snapshot.windows.map(\.label).joined(separator: ", ")
+            return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Updated \(age)", detail: limits)
         }
         return AccountStatusText(symbol: "circle.dashed", tone: .neutral, text: "Not checked yet", detail: zenNote)
     }
