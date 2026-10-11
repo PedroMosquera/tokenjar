@@ -10,7 +10,8 @@ struct DocsPinTests {
         let calls = try await Self.recordedCalls()
         #expect(calls.map(\.executable.lastPathComponent) == ["claude", "codex", "agy", "agy", "gh"])
 
-        let everyInherited = Dictionary(uniqueKeysWithValues: ["HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL"].map { ($0, "set") })
+        let passed = CLILocator.inheritedVariables + CLILocator.proxyVariables
+        let everyInherited = Dictionary(uniqueKeysWithValues: passed.map { ($0, "set") })
         let environments = calls.map(\.environment) + [CLILocator().baseEnvironment(inherited: everyInherited)]
         let variables = Set(environments.flatMap { $0.map { "\($0.key)=\($0.value)" } })
 
