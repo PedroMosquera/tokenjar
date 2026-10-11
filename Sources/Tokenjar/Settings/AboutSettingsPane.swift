@@ -3,16 +3,17 @@ import SwiftUI
 import TokenjarCore
 
 /// States exactly what the app touches. Keep it in step with the fetchers, scanners and HTTPClient.allowedEndpoints.
+/// docs/privacy.md names every Runs, Reads and Contacts item by its `what`, and AboutSummaryTests fails when they differ.
 struct AboutSettingsPane: View {
     @Environment(AppModel.self) private var model
 
-    private struct Item: Identifiable {
+    struct Item: Identifiable {
         var id: String { what }
         var what: String
         var why: String
     }
 
-    private let runs = [
+    static let runs = [
         Item(what: "claude -p /usage --output-format stream-json", why: "Claude limits. Hooks and MCP off, no session saved, run from an empty private folder. Uses no tokens."),
         Item(what: "codex -s read-only -a never app-server", why: "Codex limits. Read-only sandbox, never asks for approval. Sends only initialize and account/rateLimits/read."),
         Item(what: "agy --version", why: "Checks agy is 1.1.11 or later before asking for usage, since older versions could send /\u{2060}usage to the model."),
@@ -20,7 +21,7 @@ struct AboutSettingsPane: View {
         Item(what: "gh api --method GET copilot_internal/user --jq <filter>", why: "GitHub Copilot limits, through your own gh login: gh sends this GET to api.github.com with its own token. The filter keeps only the plan, the reset date and the quota numbers. gh's telemetry and update check are off for it."),
     ]
 
-    private let reads = [
+    static let reads = [
         Item(what: "~/.claude/projects/**/*.jsonl", why: "Token counts, model ids, timestamps and project folder names. Also ~/.config/claude/projects, or the account's CLAUDE_CONFIG_DIR instead of both."),
         Item(what: "~/.claude.json", why: "Plan name, and Claude Code's cached limits when the CLI cannot report. Its account id is only compared with the one on the cached limits, so another login's limits are never shown. The one inside CLAUDE_CONFIG_DIR when the account sets one, or an older .config.json when present."),
         Item(what: "~/.claude/settings.json", why: "Only whether Bedrock, Vertex or Foundry is turned on, to tell a cloud login from being signed out. Or the account's CLAUDE_CONFIG_DIR."),
@@ -31,6 +32,10 @@ struct AboutSettingsPane: View {
         Item(what: "~/.local/share/opencode/opencode.db", why: "Read-only: cost and token counts per model. Same folder as auth.json."),
         Item(what: "~/.config/tokenjar/", why: "config.json, config.local.json and pricing.json."),
         Item(what: "CodexBar's settings", why: "Only when you click Import from CodexBar, which lists the changes before applying them: enabled providers, warning thresholds, refresh interval and notification setting. Never its keys or cookies."),
+    ]
+
+    static let contacts = [
+        Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits. The only network request Tokenjar makes. Usage pages open in your browser."),
     ]
 
     private let writes = [
@@ -58,13 +63,9 @@ struct AboutSettingsPane: View {
                 }
             }
 
-            itemSection("Runs", runs)
-            itemSection("Reads", reads)
-
-            Section("Contacts") {
-                itemRow(Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits. The only network request Tokenjar makes. Usage pages open in your browser."))
-            }
-
+            itemSection("Runs", Self.runs)
+            itemSection("Reads", Self.reads)
+            itemSection("Contacts", Self.contacts)
             itemSection("Writes", writes)
 
             Section("Never") {
