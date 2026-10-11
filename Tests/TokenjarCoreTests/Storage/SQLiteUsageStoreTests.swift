@@ -130,6 +130,16 @@ struct SQLiteUsageStoreTests {
         #expect(rows.map(\.inputTokens) == expected.map(\.input))
     }
 
+    /// The popover reads one window's samples on every render, so that read must walk the index in order.
+    @Test func oneWindowsSamplesAreReadInIndexOrder() throws {
+        let url = temp.url.appending(path: "tokenjar.sqlite")
+        _ = try SQLiteUsageStore(url: url)
+
+        let plan = try query(url, "EXPLAIN QUERY PLAN " + SQLiteUsageStore.windowSamplesSQL, column: 3)
+        #expect(plan.contains { $0.contains("(account_id=? AND window_id=? AND ts>?)") }, "\(plan)")
+        #expect(!plan.contains { $0.contains("TEMP B-TREE") }, "\(plan)")
+    }
+
     @Test func prunesSamplesOlderThanTheRetention() throws {
         let store = try StoreKind.sqlite.make(in: temp.url)
         func record(_ at: Date, window: String) throws {
@@ -203,7 +213,7 @@ struct SQLiteUsageStoreTests {
     }
 
     /// Reads the database through its own connection, so assertions do not depend on the store's code paths.
-    private func query(_ url: URL, _ sql: String) throws -> [String] {
+    private func query(_ url: URL, _ sql: String, column: Int32 = 0) throws -> [String] {
         var db: OpaquePointer?
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else { throw SQLiteError(code: SQLITE_CANTOPEN, message: "open") }
         defer { sqlite3_close_v2(db) }
@@ -212,7 +222,7 @@ struct SQLiteUsageStoreTests {
         defer { sqlite3_finalize(statement) }
         var out: [String] = []
         while sqlite3_step(statement) == SQLITE_ROW {
-            out.append(sqlite3_column_text(statement, 0).map { String(cString: $0) } ?? "")
+            out.append(sqlite3_column_text(statement, column).map { String(cString: $0) } ?? "")
         }
         return out
     }

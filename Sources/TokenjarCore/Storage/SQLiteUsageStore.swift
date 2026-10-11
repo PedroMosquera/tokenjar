@@ -154,16 +154,29 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         }
     }
 
+    /// Two statements rather than `(?2 IS NULL OR window_id = ?2)`: SQLite plans that form once for both cases, so one
+    /// window's read scanned every sample of the account and then sorted the matches.
+    static let windowSamplesSQL = """
+        SELECT window_id, ts, used_percent, resets_at FROM window_samples
+        WHERE account_id = ?1 AND window_id = ?2 AND ts >= ?3
+        ORDER BY ts, rowid
+        """
+    static let accountSamplesSQL = """
+        SELECT window_id, ts, used_percent, resets_at FROM window_samples
+        WHERE account_id = ?1 AND ts >= ?2
+        ORDER BY ts, rowid
+        """
+
     public func samples(accountID: String, windowID: String?, since: Date) throws -> [WindowSample] {
         try locked {
-            let statement = try prepare(
-                """
-                SELECT window_id, ts, used_percent, resets_at FROM window_samples
-                WHERE account_id = ?1 AND (?2 IS NULL OR window_id = ?2) AND ts >= ?3
-                ORDER BY ts, rowid
-                """
-            )
-            try statement.bind([.text(accountID), windowID.map(SQLValue.text) ?? .null, .real(since.timeIntervalSince1970)])
+            let statement: Statement
+            if let windowID {
+                statement = try prepare(Self.windowSamplesSQL)
+                try statement.bind([.text(accountID), .text(windowID), .real(since.timeIntervalSince1970)])
+            } else {
+                statement = try prepare(Self.accountSamplesSQL)
+                try statement.bind([.text(accountID), .real(since.timeIntervalSince1970)])
+            }
             var out: [WindowSample] = []
             while try statement.step() {
                 out.append(WindowSample(
