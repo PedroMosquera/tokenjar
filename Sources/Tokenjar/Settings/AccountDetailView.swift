@@ -183,10 +183,8 @@ struct AccountDetailView: View {
                 }
             } label: {
                 Text(title)
-                // The form stacks the field under the label when the label's one-line width leaves it no room; a
-                // capped subtitle wraps instead, so the field and Choose stay on the title's line.
-                Text("Use a separate folder for a second login")
-                    .frame(maxWidth: 140, alignment: .leading)
+                // Short on purpose: the form puts a field under its label once the label's one-line width leaves no room.
+                Text("For a second login")
             }
             .help("Sets \(variable.name) when Tokenjar runs \(cli). Leave empty for \(variable.defaultPath).")
             if let twin = SettingsLogic.profileTwin(of: account, in: model.config.accounts, paths: model.paths), account.enabled {
