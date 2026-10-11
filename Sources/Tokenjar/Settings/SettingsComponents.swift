@@ -38,18 +38,12 @@ struct SettingsPage<Content: View>: View {
     }
 }
 
+/// Secondary text outside a form, such as in a sheet. Inside a form, a note about a control is that control's
+/// second label Text, so it lines up with every other row's subtitle.
 struct HelpText: View {
     var text: String
-    /// Grouped-form footers sit flush with the box edge; this lines them up with section headers.
-    var inset: CGFloat = 0
 
     init(_ text: String) { self.text = text }
-
-    static func footer(_ text: String) -> HelpText {
-        var help = HelpText(text)
-        help.inset = 10
-        return help
-    }
 
     var body: some View {
         Text(text)
@@ -58,7 +52,19 @@ struct HelpText: View {
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, inset)
+    }
+}
+
+/// A form row with no control: a title and its subtitle, laid out like every labelled control's label.
+struct TextRow<Label: View>: View {
+    @ViewBuilder var label: Label
+
+    var body: some View {
+        LabeledContent {
+            EmptyView()
+        } label: {
+            label
+        }
     }
 }
 
@@ -116,6 +122,8 @@ struct PercentField: View {
 
 struct ThresholdRows: View {
     var values: [Int]
+    /// Shown under Add threshold, the row that sets them.
+    var note: String?
     var onChange: ([Int]) -> Void
 
     @SettingsState private var candidate = 90
@@ -135,7 +143,7 @@ struct ThresholdRows: View {
         if values.isEmpty {
             Text("No thresholds").foregroundStyle(.secondary)
         }
-        LabeledContent("Add threshold") {
+        LabeledContent {
             HStack(spacing: 6) {
                 TextField("Threshold", value: $candidate, format: .number)
                     .labelsHidden()
@@ -146,6 +154,9 @@ struct ThresholdRows: View {
                 Button("Add") { onChange(SettingsLogic.normalizedThresholds(values + [candidate])) }
                     .disabled(values.contains(candidate) || !SettingsLogic.thresholdRange.contains(candidate))
             }
+        } label: {
+            Text("Add threshold")
+            if let note { Text(note) }
         }
     }
 }

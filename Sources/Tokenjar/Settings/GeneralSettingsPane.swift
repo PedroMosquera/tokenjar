@@ -13,13 +13,14 @@ struct GeneralSettingsPane: View {
         SettingsPage {
             Section {
                 launchAtLoginRow
-                Picker("Refresh every", selection: model.configBinding(\.refreshMinutes)) {
+                Picker(selection: model.configBinding(\.refreshMinutes)) {
                     ForEach(SettingsLogic.refreshOptions(including: model.config.refreshMinutes), id: \.self) { minutes in
                         Text("\(minutes) minutes").tag(minutes)
                     }
+                } label: {
+                    Text("Refresh every")
+                    Text("Each account can override this.")
                 }
-            } footer: {
-                HelpText.footer("Each account can override the refresh interval.")
             }
 
             Section("Menu bar") {
@@ -60,15 +61,6 @@ struct GeneralSettingsPane: View {
             }
 
             configFileSection
-
-            Section {
-                LabeledContent {
-                    Button("Import from CodexBar\u{2026}", action: prepareImport)
-                } label: {
-                    Text("CodexBar")
-                    Text("Read only when you click. Lists the changes before applying them: enabled providers, alert thresholds, refresh interval and whether alerts are on. Never reads its keys or cookies.")
-                }
-            }
         }
         .onAppear {
             if !model.previewMode { loginState = model.launchAtLoginState() }
@@ -90,22 +82,23 @@ struct GeneralSettingsPane: View {
     private var configFileSection: some View {
         let file = model.paths.configFile
         let target = file.resolvingSymlinksInPath()
-        return Section {
-            LabeledContent("Config file") {
-                Text(abbreviated(file))
-                    .font(.system(.callout, design: .monospaced))
-                    .textSelection(.enabled)
+        let isLink = target.path != file.path
+        return Section("Configuration") {
+            LabeledContent {
+                HStack {
+                    Button("Reveal in Finder") {
+                        let exists = FileManager.default.fileExists(atPath: target.path)
+                        NSWorkspace.shared.activateFileViewerSelecting([exists ? target : target.deletingLastPathComponent()])
+                    }
+                    Button("Reload") { model.loadConfig() }
+                }
+            } label: {
+                Text("Config file")
+                // One line: a wrapped path breaks at a slash and reads like two paths. The tooltip has it whole.
+                (Text(isLink ? "Links to " : "") + Text(abbreviated(isLink ? target : file)).font(.system(.subheadline, design: .monospaced)))
                     .lineLimit(1)
                     .truncationMode(.middle)
-            }
-            if target.path != file.path {
-                LabeledContent("Links to") {
-                    Text(abbreviated(target))
-                        .font(.system(.callout, design: .monospaced))
-                        .textSelection(.enabled)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
+                    .help("\(target.path)\nHolds no keys, so it is safe in a dotfiles repo. Saves go through the link.")
             }
             if model.hasLocalOverrides {
                 Label("config.local.json overrides are active on this Mac. Edits here are saved to config.json; local values still win.", systemImage: "square.stack.3d.up")
@@ -117,18 +110,12 @@ struct GeneralSettingsPane: View {
                     .font(.callout)
                     .foregroundStyle(.red)
             }
-            HStack {
-                Spacer()
-                Button("Reveal in Finder") {
-                    let exists = FileManager.default.fileExists(atPath: target.path)
-                    NSWorkspace.shared.activateFileViewerSelecting([exists ? target : target.deletingLastPathComponent()])
-                }
-                Button("Reload") { model.loadConfig() }
+            LabeledContent {
+                Button("Import from CodexBar\u{2026}", action: prepareImport)
+            } label: {
+                Text("CodexBar")
+                Text("Reads CodexBar's settings only when you click, and lists the changes before applying them. Never its keys or cookies.")
             }
-        } header: {
-            Text("Configuration")
-        } footer: {
-            HelpText.footer("Safe to keep in a dotfiles repo: it holds no keys. Saves go through the symlink, so a stow link survives.")
         }
     }
 

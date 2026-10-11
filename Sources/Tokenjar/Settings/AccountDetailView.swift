@@ -131,8 +131,9 @@ struct AccountDetailView: View {
 
     private func profileSection(variable: (name: String, defaultPath: String)) -> some View {
         let title = account.provider == .copilot ? "gh config folder" : "Profile folder"
+        let cli = account.provider == .copilot ? "gh" : account.provider == .claude ? "claude" : "codex"
         return Section {
-            LabeledContent(title) {
+            LabeledContent {
                 HStack(spacing: 6) {
                     CommittingTextField(title: title, prompt: "\(variable.defaultPath) (CLI default)", value: account.profileDir ?? "", monospaced: true) { text in
                         model.updateAccount(account.id) { $0.profileDir = SettingsLogic.profileDir(from: text) }
@@ -140,6 +141,9 @@ struct AccountDetailView: View {
                     .labelsHidden()
                     Button("Choose\u{2026}", action: chooseProfileFolder)
                 }
+            } label: {
+                Text(title)
+                Text("Sets \(variable.name) when Tokenjar runs \(cli). Leave empty for \(variable.defaultPath).")
             }
             if let twin = SettingsLogic.profileTwin(of: account, in: model.config.accounts, paths: model.paths), account.enabled {
                 Label("Same profile as \(twin.displayName). Both will show the same login.", systemImage: "exclamationmark.triangle")
@@ -148,12 +152,6 @@ struct AccountDetailView: View {
             }
         } header: {
             Text("Profile")
-        } footer: {
-            if account.provider == .copilot {
-                HelpText.footer("Sets \(variable.name) when Tokenjar runs gh. Leave empty for \(variable.defaultPath), your usual gh login. A second GitHub account needs a folder of its own: enter it here, then sign in to it with the command below.")
-            } else {
-                HelpText.footer("Sets \(variable.name) when Tokenjar runs \(account.provider == .claude ? "claude" : "codex"). Leave empty for \(variable.defaultPath).")
-            }
         }
     }
 
@@ -162,13 +160,14 @@ struct AccountDetailView: View {
             if let command = signInCommand {
                 // One line: wrapping breaks at the hyphen in a profile path and reads like two paths. Copy Command
                 // copies it whole, and the tooltip shows it whole.
-                Text(command)
-                    .font(.system(.callout, design: .monospaced))
-                    .textSelection(.enabled)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .help(command)
+                TextRow {
+                    Text(command)
+                        .font(.system(.callout, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(command)
+                    Text(signInNote)
+                }
                 HStack {
                     if let signInError {
                         Text(signInError).font(.callout).foregroundStyle(.red)
@@ -187,13 +186,13 @@ struct AccountDetailView: View {
             }
         } header: {
             Text("Sign in")
-        } footer: {
-            if account.provider == .claude {
-                HelpText.footer("Runs the provider's own login in Terminal. With an older claude that has no auth command, run claude and type /\u{2060}login.")
-            } else if signInCommand != nil {
-                HelpText.footer("Runs the provider's own login in Terminal. Tokenjar never sees the credentials.")
-            }
         }
+    }
+
+    private var signInNote: String {
+        account.provider == .claude
+            ? "Runs the provider's own login in Terminal. With an older claude that has no auth command, run claude and type /\u{2060}login."
+            : "Runs the provider's own login in Terminal. Tokenjar never sees the credentials."
     }
 
     private var linkOnlySection: some View {
@@ -206,8 +205,6 @@ struct AccountDetailView: View {
             }
         } header: {
             Text("Usage")
-        } footer: {
-            HelpText.footer("On a grandfathered Windsurf plan, set Usage page URL below to https://windsurf.com/subscription/manage-plan.")
         }
     }
 
@@ -231,7 +228,7 @@ struct AccountDetailView: View {
                     }
                 }
             }
-            LabeledContent("Usage page URL") {
+            LabeledContent {
                 CommittingTextField(title: "Usage page URL", prompt: account.provider.defaultDashboardURL.absoluteString, value: account.dashboardURL ?? "") { text in
                     switch SettingsLogic.dashboardURL(from: text) {
                     case .providerDefault:
@@ -245,6 +242,11 @@ struct AccountDetailView: View {
                     }
                 }
                 .labelsHidden()
+            } label: {
+                Text("Usage page URL")
+                if account.provider == .devin {
+                    Text("On a grandfathered Windsurf plan, use https://windsurf.com/subscription/manage-plan.")
+                }
             }
             if dashboardError {
                 Text("Enter a web address starting with https://").font(.callout).foregroundStyle(.red)

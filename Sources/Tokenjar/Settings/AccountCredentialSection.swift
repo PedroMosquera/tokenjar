@@ -36,9 +36,12 @@ struct AccountCredentialSection: View {
 
     var body: some View {
         Section {
-            Picker("API key", selection: source) {
+            Picker(selection: source) {
                 Text("From opencode's auth.json").tag(Source.authFile)
                 Text("Pasted key, saved in Tokenjar's Keychain item").tag(Source.keychain)
+            } label: {
+                Text("API key")
+                Text("Keys never go into config.json. A pasted key lives only in this Mac's Keychain, under Tokenjar's own item, so paste it again on each Mac that shares this config.")
             }
             .pickerStyle(.radioGroup)
             .confirmationDialog("Stop using the pasted key?", isPresented: $confirmRemoveKey) {
@@ -63,8 +66,6 @@ struct AccountCredentialSection: View {
             }
         } header: {
             Text("Credential")
-        } footer: {
-            HelpText.footer("Keys never go into config.json. A pasted key lives only in this Mac's Keychain, under Tokenjar's own item, so paste it again on each Mac that shares this config.")
         }
     }
 

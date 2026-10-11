@@ -11,7 +11,7 @@ struct AlertsSettingsPane: View {
             Section {
                 Toggle(isOn: model.configBinding(\.alerts.enabled)) {
                     Text("Send alerts")
-                    Text(delivery.summary)
+                    Text("\(delivery.summary) Nothing fires on the first check after launch; that check only sets the baseline.")
                 }
                 if let action = delivery.action {
                     HStack {
@@ -28,14 +28,13 @@ struct AlertsSettingsPane: View {
                 }
             }
 
-            Section {
-                ThresholdRows(values: model.config.alerts.thresholds) { values in
+            Section("Usage thresholds") {
+                ThresholdRows(
+                    values: model.config.alerts.thresholds,
+                    note: "Fires once per window when used % crosses a threshold, and again after the window resets. Only the highest crossed threshold fires. Accounts can set their own."
+                ) { values in
                     model.updateConfig { $0.alerts.thresholds = SettingsLogic.normalizedThresholds(values) }
                 }
-            } header: {
-                Text("Usage thresholds")
-            } footer: {
-                HelpText.footer("Fires once per window when used % crosses a threshold, and again after the window resets. Only the highest crossed threshold fires. Accounts can set their own.")
             }
             .disabled(!model.config.alerts.enabled)
 
@@ -54,10 +53,6 @@ struct AlertsSettingsPane: View {
                 }
             }
             .disabled(!model.config.alerts.enabled)
-
-            Section {
-                HelpText("Nothing fires on the first check after launch; that check only sets the baseline.")
-            }
         }
         .onAppear { model.refreshNotificationPermission() }
         // The grant can change in System Settings while this pane is open.
