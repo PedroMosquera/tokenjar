@@ -33,6 +33,8 @@ struct DashboardContent {
     /// Keyed by the name the spend chart groups accounts by, so an account's bars match its limits line.
     var accountSlotByName: [String: Int] = [:]
 
+    /// Every account in scope has a color slot, so these are all the names the account grouping can give.
+    var accountNames: Set<String> { Set(accountSlotByName.keys) }
     var points: [LimitPoint] { series.flatMap { pointsBySeries[$0.id] ?? [] } }
     var linePoints: [LimitPoint] { series.filter { !$0.peaksOnly }.flatMap { pointsBySeries[$0.id] ?? [] } }
     var peakPoints: [LimitPoint] { series.filter(\.peaksOnly).flatMap { pointsBySeries[$0.id] ?? [] } }

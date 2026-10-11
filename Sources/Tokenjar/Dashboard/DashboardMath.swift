@@ -182,6 +182,31 @@ nonisolated enum DashboardMath {
         }
     }
 
+    /// A model id as the spend legend, tooltip and "Not priced" line show it: no release date, and a price tier
+    /// (`PriceTable.billedModel`'s `>100k`) in words. Grouping keys keep the raw id.
+    static func displayName(_ model: String) -> String {
+        var base = model
+        var tier = ""
+        if let marker = base.firstIndex(of: ">") {
+            tier = " (long prompts)"
+            base = String(base[..<marker])
+        }
+        if let date = base.range(of: #"-\d{8}$"#, options: .regularExpression) {
+            base.removeSubrange(date)
+        }
+        return base + tier
+    }
+
+    /// `accountNames` are the names `groupKey` gives accounts in config; any other account group is a raw id.
+    static func displayGroup(_ group: String, by grouping: UsageGrouping, accountNames: Set<String>) -> String {
+        guard group != otherGroup else { return group }
+        switch grouping {
+        case .model: return displayName(group)
+        case .account: return accountNames.contains(group) ? group : "Removed account"
+        case .harness, .project: return group
+        }
+    }
+
     static func harnessName(_ harness: Harness) -> String {
         switch harness {
         case .claudeCode: "Claude Code"

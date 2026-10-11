@@ -127,6 +127,23 @@ struct DashboardMathTests {
         #expect(byAccount.groups == ["Claude · Work", "home"])
     }
 
+    @Test func modelIdsReadWithoutTheirDateOrPriceTierSuffix() {
+        #expect(DashboardMath.displayName("claude-haiku-4-5-20251001") == "claude-haiku-4-5")
+        #expect(DashboardMath.displayName("claude-haiku-5-5>100k") == "claude-haiku-5-5 (long prompts)")
+        #expect(DashboardMath.displayName("gpt-5.5-codex") == "gpt-5.5-codex")
+        // Only an 8-digit date is a release suffix; a version number stays.
+        #expect(DashboardMath.displayName("model-2025") == "model-2025")
+    }
+
+    @Test func spendGroupsShowDisplayNamesWithoutChangingTheirKeys() {
+        let names: Set<String> = ["Claude · Work"]
+        #expect(DashboardMath.displayGroup("claude-haiku-4-5-20251001", by: .model, accountNames: names) == "claude-haiku-4-5")
+        #expect(DashboardMath.displayGroup("Claude · Work", by: .account, accountNames: names) == "Claude · Work")
+        #expect(DashboardMath.displayGroup("old-account-id", by: .account, accountNames: names) == "Removed account")
+        #expect(DashboardMath.displayGroup(DashboardMath.otherGroup, by: .account, accountNames: names) == DashboardMath.otherGroup)
+        #expect(DashboardMath.displayGroup("tokenjar-20251001", by: .project, accountNames: names) == "tokenjar-20251001")
+    }
+
     @Test func spendWithOnlyUnpricedRowsHasUsageButNoSegments() {
         let spend = DashboardMath.dailySpend([row(day: day(0), model: "glm", cost: nil)], by: .model, since: day(0), limit: 6)
         #expect(spend.hasUsage)

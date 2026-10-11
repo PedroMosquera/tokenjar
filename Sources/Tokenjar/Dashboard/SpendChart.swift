@@ -6,6 +6,8 @@ struct SpendChart: View {
     var breakdown: SpendBreakdown
     var days: [Date]
     var colors: [Color]
+    /// What the legend and tooltip call each of `breakdown.groups`, in the same order. Two groups may share one.
+    var labels: [String]
 
     /// Explicit State storage: the SDK's @State is a macro whose plugin ships only with Xcode.
     private let hoverState = State<Date?>(initialValue: nil)
@@ -25,7 +27,7 @@ struct SpendChart: View {
                     y: .value("Cost", segment.cost),
                     width: .ratio(days.count > 7 ? 0.7 : 0.5)
                 )
-                .foregroundStyle(by: .value("Group", segment.group))
+                .foregroundStyle(by: .value("Group", label(for: segment.group)))
                 .opacity(hoveredDay == nil || hoveredDay == segment.day ? 1 : 0.45)
             }
             if let day = hoveredDay {
@@ -36,7 +38,7 @@ struct SpendChart: View {
                     }
             }
         }
-        .chartForegroundStyleScale(domain: breakdown.groups, range: colors)
+        .chartForegroundStyleScale(domain: legend.map(\.label), range: legend.map(\.color))
         .chartXScale(domain: xDomain)
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
@@ -61,9 +63,31 @@ struct SpendChart: View {
         return days.contains(day) ? day : nil
     }
 
+    /// One entry per label: a scale with a repeated domain value would draw the second group in the wrong color.
+    private var legend: [(label: String, color: Color)] {
+        var seen: Set<String> = []
+        return breakdown.groups.compactMap { group in
+            let name = label(for: group)
+            return seen.insert(name).inserted ? (name, color(for: group)) : nil
+        }
+    }
+
+    private func label(for group: String) -> String {
+        guard let index = breakdown.groups.firstIndex(of: group), labels.indices.contains(index) else { return group }
+        return labels[index]
+    }
+
     private func tooltip(for day: Date) -> some View {
-        let segments = breakdown.segments.filter { $0.day == day }
-        let total = segments.reduce(0) { $0 + $1.cost }
+        var rows: [(label: String, color: Color, cost: Double)] = []
+        for segment in breakdown.segments where segment.day == day {
+            let name = label(for: segment.group)
+            if let index = rows.firstIndex(where: { $0.label == name }) {
+                rows[index].cost += segment.cost
+            } else {
+                rows.append((name, color(for: segment.group), segment.cost))
+            }
+        }
+        let total = rows.reduce(0) { $0 + $1.cost }
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(day.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
@@ -72,12 +96,12 @@ struct SpendChart: View {
                 Text(Format.money(total)).monospacedDigit().fontWeight(.semibold)
             }
             .font(.caption)
-            ForEach(segments.reversed()) { segment in
+            ForEach(rows.reversed(), id: \.label) { row in
                 HStack(spacing: 6) {
-                    Circle().fill(color(for: segment.group)).frame(width: 7, height: 7)
-                    Text(segment.group).lineLimit(1)
+                    Circle().fill(row.color).frame(width: 7, height: 7)
+                    Text(row.label).lineLimit(1)
                     Spacer(minLength: 8)
-                    Text(Format.money(segment.cost)).monospacedDigit()
+                    Text(Format.money(row.cost)).monospacedDigit()
                 }
                 .font(.caption)
             }

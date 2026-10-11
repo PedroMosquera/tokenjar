@@ -233,12 +233,12 @@ struct DashboardView: View {
                     if let message = spendEmptyMessage {
                         DashboardEmptyState(systemImage: "chart.bar.xaxis", message: message)
                     } else {
-                        SpendChart(breakdown: breakdown, days: content.periods.days(of: range), colors: spendColors)
+                        SpendChart(breakdown: breakdown, days: content.periods.days(of: range), colors: spendColors, labels: spendLabels)
                     }
                 }
                 .frame(height: 210)
                 if spendEmptyMessage == nil, !breakdown.unpricedModels.isEmpty {
-                    Text("Not priced: \(breakdown.unpricedModels.joined(separator: ", "))")
+                    Text("Not priced: \(unpricedModelNames)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -283,9 +283,18 @@ struct DashboardView: View {
         guard content.key != nil else { return nil }
         if !breakdown.hasUsage { return "No local usage \(range.inRangePhrase)." }
         if breakdown.segments.isEmpty {
-            return "No prices for these models: \(breakdown.unpricedModels.joined(separator: ", "))."
+            return "No prices for these models: \(unpricedModelNames)."
         }
         return nil
+    }
+
+    private var spendLabels: [String] {
+        breakdown.groups.map { DashboardMath.displayGroup($0, by: grouping, accountNames: content.accountNames) }
+    }
+
+    private var unpricedModelNames: String {
+        var seen: Set<String> = []
+        return breakdown.unpricedModels.map(DashboardMath.displayName).filter { seen.insert($0).inserted }.joined(separator: ", ")
     }
 
     /// Accounts keep the color they have in the limits chart; other groupings color by rank in the legend.
