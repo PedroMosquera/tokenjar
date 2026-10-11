@@ -41,4 +41,31 @@ struct PopoverPlacementTests {
         let anchor = NSRect(x: 1300, y: 944, width: 30, height: 38)
         #expect(PopoverPlacement.maxContentHeight(anchor: anchor, visibleFrame: visible) == (943.5 - PopoverPlacement.arrowAllowance).rounded(.down))
     }
+
+    /// A reported screenshot: about 640 pt of popover whose footer stayed in place while its top went 280 pt above
+    /// the screen.
+    @Test func aPopoverThatGrewOverTheMenuBarIsAboveItsAnchor() {
+        let window = NSRect(x: 1335, y: 806, width: 360, height: 643)
+        #expect(PopoverPlacement.isAboveAnchor(window: window, anchor: statusItem))
+    }
+
+    @Test func aPopoverHangingFromTheMenuBarIsNotAboveItsAnchor() {
+        let window = NSRect(x: 1335, y: 1130 - 671, width: 360, height: 671)
+        #expect(!PopoverPlacement.isAboveAnchor(window: window, anchor: statusItem))
+    }
+
+    /// The arrow may reach into the menu bar, never past the top of the status item, which is the top of the screen.
+    @Test func onlyATopPastTheStatusItemCounts() {
+        let window = { (top: CGFloat) in NSRect(x: 1335, y: top - 671, width: 360, height: 671) }
+        #expect(!PopoverPlacement.isAboveAnchor(window: window(statusItem.maxY), anchor: statusItem))
+        #expect(PopoverPlacement.isAboveAnchor(window: window(statusItem.maxY + 1), anchor: statusItem))
+    }
+
+    /// The log gets frames and nothing else, in whole points.
+    @Test func theLogLineHoldsTheThreeFramesInWholePoints() {
+        let line = PopoverPlacement.describe(
+            window: NSRect(x: 1335.25, y: 459, width: 360, height: 671.5), anchor: statusItem, visibleFrame: builtIn
+        )
+        #expect(line == "window 1335,459 360x672 anchor 1500,1130 30x39 visible 0,0 1800x1130")
+    }
 }

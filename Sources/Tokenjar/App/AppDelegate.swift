@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 import TokenjarCore
 
@@ -7,6 +8,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let windows = WindowPresenter()
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
+    private var popoverFrameObservers: [NSObjectProtocol] = []
+    private static let popoverLog = Logger(subsystem: AppPaths.bundleIdentifier, category: "popover")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -109,8 +112,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         model.isPopoverShown = true
     }
 
+    func popoverDidShow(_ notification: Notification) {
+        logPopoverGeometry(opening: true)
+        guard let window = popover.contentViewController?.view.window else { return }
+        popoverFrameObservers = [NSWindow.didMoveNotification, NSWindow.didResizeNotification].map { name in
+            NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.logPopoverGeometry(opening: false) }
+            }
+        }
+    }
+
     func popoverDidClose(_ notification: Notification) {
         model.isPopoverShown = false
+        popoverFrameObservers.forEach(NotificationCenter.default.removeObserver)
+        popoverFrameObservers = []
+    }
+
+    /// Where the popover went, so an open that ends up over the menu bar leaves a trace in the unified log. Frames only.
+    private func logPopoverGeometry(opening: Bool) {
+        guard let window = popover.contentViewController?.view.window, let button = statusItem?.button,
+              let geometry = Self.anchorGeometry(of: button) else { return }
+        let line = PopoverPlacement.describe(window: window.frame, anchor: geometry.anchor, visibleFrame: geometry.visibleFrame)
+        if PopoverPlacement.isAboveAnchor(window: window.frame, anchor: geometry.anchor) {
+            Self.popoverLog.warning("Above its status item: \(line, privacy: .public)")
+        } else if opening {
+            Self.popoverLog.notice("Opened: \(line, privacy: .public)")
+        } else {
+            Self.popoverLog.info("Moved: \(line, privacy: .public)")
+        }
     }
 
     private func showDashboard(accountID: String?) {
