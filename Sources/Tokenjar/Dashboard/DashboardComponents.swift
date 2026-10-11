@@ -73,6 +73,50 @@ extension PaceVerdict {
     var clause: String { text.prefix(1).lowercased() + text.dropFirst() }
 }
 
+/// Tiles in one row when each gets at least `minTileWidth`, else the first three over the rest, so no row ends in an
+/// empty cell. Tiles in a row share its width. Picks from the proposed width alone: ViewThatFits measured both
+/// arrangements, text scaling included, and added about 40 ms to every page switch.
+struct TileRowsLayout: Layout {
+    var spacing: CGFloat = 10
+    var minTileWidth: CGFloat = 126
+
+    private func rows(width: CGFloat, count: Int) -> [Range<Int>] {
+        let oneRow = CGFloat(count) * minTileWidth + CGFloat(count - 1) * spacing
+        return width >= oneRow || count <= 3 ? [0..<count] : [0..<3, 3..<count]
+    }
+
+    private func tileWidth(_ row: Range<Int>, in width: CGFloat) -> CGFloat {
+        (width - spacing * CGFloat(row.count - 1)) / CGFloat(row.count)
+    }
+
+    private func height(_ row: Range<Int>, width: CGFloat, subviews: Subviews) -> CGFloat {
+        let proposal = ProposedViewSize(width: tileWidth(row, in: width), height: nil)
+        return row.map { subviews[$0].sizeThatFits(proposal).height }.max() ?? 0
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard !subviews.isEmpty else { return .zero }
+        let width = proposal.width ?? CGFloat(subviews.count) * (minTileWidth + spacing) - spacing
+        let rows = rows(width: width, count: subviews.count)
+        let heights = rows.map { height($0, width: width, subviews: subviews) }
+        return CGSize(width: width, height: heights.reduce(0, +) + spacing * CGFloat(rows.count - 1))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in rows(width: bounds.width, count: subviews.count) {
+            let width = tileWidth(row, in: bounds.width)
+            let rowHeight = height(row, width: bounds.width, subviews: subviews)
+            var x = bounds.minX
+            for index in row {
+                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: width, height: rowHeight))
+                x += width + spacing
+            }
+            y += rowHeight + spacing
+        }
+    }
+}
+
 struct EstimateBadge: View {
     var body: some View {
         Text("est.")

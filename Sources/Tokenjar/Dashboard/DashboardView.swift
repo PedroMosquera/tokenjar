@@ -139,39 +139,14 @@ private struct DashboardDetail: View {
 
     // MARK: KPIs
 
-    /// The narrowest a tile gets in the one-row layout before the tiles wrap to two rows.
-    private static let kpiTileWidth: CGFloat = 126
-
-    /// One row of five when it fits, else the three costs over tokens and requests, so no row ends in an empty cell.
     private var kpis: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                costTiles
-                usageTiles
-            }
-            VStack(spacing: 10) {
-                HStack(spacing: 10) { costTiles }
-                HStack(spacing: 10) { usageTiles }
-            }
+        TileRowsLayout {
+            costTile("Today", content.costToday, caption: "since midnight")
+            costTile("7 days", content.costLastSevenDays, caption: "including today")
+            costTile("This month", content.costThisMonth, caption: content.periods.thisMonth.formatted(.dateTime.month(.wide)))
+            KPITile(title: "Tokens", value: Format.tokens(content.totals.tokens), caption: range.dayCaption)
+            KPITile(title: "Requests", value: content.totals.requests.formatted(), caption: range.dayCaption)
         }
-    }
-
-    @ViewBuilder
-    private var costTiles: some View {
-        costTile("Today", content.costToday, caption: "since midnight")
-            .frame(minWidth: 0, idealWidth: Self.kpiTileWidth, maxWidth: .infinity)
-        costTile("7 days", content.costLastSevenDays, caption: "including today")
-            .frame(minWidth: 0, idealWidth: Self.kpiTileWidth, maxWidth: .infinity)
-        costTile("This month", content.costThisMonth, caption: content.periods.thisMonth.formatted(.dateTime.month(.wide)))
-            .frame(minWidth: 0, idealWidth: Self.kpiTileWidth, maxWidth: .infinity)
-    }
-
-    @ViewBuilder
-    private var usageTiles: some View {
-        KPITile(title: "Tokens", value: Format.tokens(content.totals.tokens), caption: range.dayCaption)
-            .frame(minWidth: 0, idealWidth: Self.kpiTileWidth, maxWidth: .infinity)
-        KPITile(title: "Requests", value: content.totals.requests.formatted(), caption: range.dayCaption)
-            .frame(minWidth: 0, idealWidth: Self.kpiTileWidth, maxWidth: .infinity)
     }
 
     private func costTile(_ title: String, _ cost: CostTotal, caption: String) -> some View {
