@@ -287,6 +287,13 @@ struct PopoverSummaryTests {
         #expect(PopoverHeader.updateLine(hasAccounts: true, isRefreshing: false, lastRefreshAt: now.addingTimeInterval(-60), now: now) == "Updated 1m ago")
     }
 
+    @MainActor
+    @Test func refreshIsOffWithNothingToCheck() {
+        #expect(!PopoverHeader.canRefresh(hasAccounts: false, isRefreshing: false))
+        #expect(!PopoverHeader.canRefresh(hasAccounts: true, isRefreshing: true))
+        #expect(PopoverHeader.canRefresh(hasAccounts: true, isRefreshing: false))
+    }
+
     private let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go")
     private let noSubscription = AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"))
 

@@ -59,6 +59,11 @@ struct PopoverHeader: View {
         return "Updated \(Format.age(of: last, now: now))"
     }
 
+    /// Without accounts a refresh has nothing to check, so the button and Command-R stay off rather than do nothing.
+    static func canRefresh(hasAccounts: Bool, isRefreshing: Bool) -> Bool {
+        hasAccounts && !isRefreshing
+    }
+
     @ViewBuilder
     private func toneIcon(_ tone: PopoverSummary.Tone) -> some View {
         if let symbol = symbol(tone) {
@@ -115,7 +120,7 @@ private struct RefreshButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(QuietButtonStyle())
-        .disabled(model.isRefreshing)
+        .disabled(!PopoverHeader.canRefresh(hasAccounts: !model.accounts.isEmpty, isRefreshing: model.isRefreshing))
         .keyboardShortcut("r", modifiers: .command)
         .help("Refresh now (⌘R)")
         .accessibilityLabel(model.isRefreshing ? "Refreshing" : "Refresh")
