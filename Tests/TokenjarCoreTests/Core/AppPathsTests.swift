@@ -20,6 +20,12 @@ struct AppPathsTests {
         #expect(paths.probeDirectory.path == "/Users/tester/Library/Application Support/Tokenjar/probe")
     }
 
+    @Test func managedSettingsPathFollowsTheSystemRoot() {
+        #expect(AppPaths(home: home, environment: [:]).claudeManagedSettingsFile.path == "/Library/Application Support/ClaudeCode/managed-settings.json")
+        let root = URL(fileURLWithPath: "/private/var/empty/test-root")
+        #expect(AppPaths(home: home, environment: [:], systemRoot: root).claudeManagedSettingsFile.path == "/private/var/empty/test-root/Library/Application Support/ClaudeCode/managed-settings.json")
+    }
+
     @Test func xdgConfigHomeHoldsTheConfigFolderOnlyWhenSet() {
         #expect(AppPaths(home: home, environment: ["XDG_CONFIG_HOME": "/Users/tester/xdg"]).configDirectory.path == "/Users/tester/xdg/tokenjar")
         #expect(AppPaths(home: home, environment: ["XDG_CONFIG_HOME": ""]).configDirectory.path == "/Users/tester/.config/tokenjar")
