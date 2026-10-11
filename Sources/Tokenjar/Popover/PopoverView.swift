@@ -3,7 +3,8 @@ import TokenjarCore
 
 struct PopoverView: View {
     @Environment(AppModel.self) private var model
-    /// Cards grow with their content up to this height, then scroll; header and footer stay put.
+    /// Cards grow with their content up to this height, then scroll; header and footer stay put. Under a lower
+    /// `popoverMaxHeight` the cards give up the difference, as the only part of the stack that can shrink.
     var maxCardsHeight: CGFloat = 540
     @StateObject private var burnUps = BurnUpSamples()
 
@@ -43,7 +44,6 @@ struct PopoverView: View {
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .frame(maxHeight: maxCardsHeight)
-                .fixedSize(horizontal: false, vertical: true)
             }
             Divider()
                 .padding(.horizontal, Self.dividerInset)
@@ -54,6 +54,7 @@ struct PopoverView: View {
                 .padding(.vertical, 6)
         }
         .frame(width: 360)
+        .frame(maxHeight: model.popoverMaxHeight)
     }
 }
 

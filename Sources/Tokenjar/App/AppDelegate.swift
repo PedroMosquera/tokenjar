@@ -65,7 +65,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if popover.isShown {
             popover.performClose(sender)
         } else {
-            Self.open(popover, willOpen: { model.popoverWillOpen() }) {
+            Self.open(popover, willOpen: {
+                model.popoverMaxHeight = Self.anchorGeometry(of: sender).map {
+                    PopoverPlacement.maxContentHeight(anchor: $0.anchor, visibleFrame: $0.visibleFrame)
+                }
+                model.popoverWillOpen()
+            }) {
                 popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             }
             popover.contentViewController?.view.window?.makeKey()
@@ -88,6 +93,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         controller.view.layoutSubtreeIfNeeded()
         let size = controller.preferredContentSize
         return size.width > 0 && size.height > 0 ? size : nil
+    }
+
+    /// The status button's frame on screen and its screen's visible frame. nil while the button is in no window.
+    private static func anchorGeometry(of button: NSView) -> (anchor: NSRect, visibleFrame: NSRect)? {
+        guard let window = button.window, let screen = window.screen else { return nil }
+        return (window.convertToScreen(button.convert(button.bounds, to: nil)), screen.visibleFrame)
     }
 
     @objc func openSettings(_ sender: Any?) {

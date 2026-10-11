@@ -24,6 +24,12 @@ private func idealSize(of model: AppModel) -> NSSize {
 }
 
 @MainActor
+private func scrollViews(in view: NSView) -> [NSScrollView] {
+    if let scrollView = view as? NSScrollView { return [scrollView] }
+    return view.subviews.flatMap(scrollViews)
+}
+
+@MainActor
 struct PopoverSizingTests {
     /// NSPopover can only follow the content's size through the preferred size; the default options keep it at 0x0.
     @Test func theContentReportsItsSizeAsItChanges() {
@@ -37,6 +43,42 @@ struct PopoverSizingTests {
 
         #expect(before > 0)
         #expect(controller.preferredContentSize.height > before)
+    }
+
+    /// On a screen too short for the popover the cards give up the difference and scroll, so the popover still fits
+    /// under the menu bar with its header and footer.
+    @Test func aShortScreenScrollsTheCardsInsteadOfGrowingThePopover() {
+        let model = previewModel()
+        #expect(idealSize(of: model).height > 400)
+
+        model.popoverMaxHeight = 400
+
+        #expect(idealSize(of: model).height == 400)
+    }
+
+    /// Laid out at the capped height, as the popover lays it out, the cards' scroll view gets shorter than its own cap
+    /// and leaves the header and the footer their room. A stack that were only clipped to the cap would push the
+    /// 540 pt scroll view past both edges.
+    @Test func aShortScreenKeepsTheHeaderAndFooterInside() throws {
+        let model = previewModel()
+        model.popoverMaxHeight = 400
+        let controller = AppDelegate.popoverContent(model)
+        controller.view.frame = NSRect(x: 0, y: 0, width: 360, height: 400)
+        controller.view.layoutSubtreeIfNeeded()
+
+        let scrollView = try #require(scrollViews(in: controller.view).first)
+        let frame = scrollView.convert(scrollView.bounds, to: controller.view)
+        #expect(frame.height < PopoverView().maxCardsHeight, "scroll view \(frame)")
+        #expect(min(frame.minY, 400 - frame.maxY) >= 30, "scroll view \(frame)")
+    }
+
+    @Test func roomToSpareLeavesThePopoverAsTallAsItsContent() {
+        let model = previewModel()
+        let free = idealSize(of: model)
+
+        model.popoverMaxHeight = 1102
+
+        #expect(idealSize(of: model) == free)
     }
 
     /// The popover is placed from its content size when it shows. The controller is laid out for the closed state
