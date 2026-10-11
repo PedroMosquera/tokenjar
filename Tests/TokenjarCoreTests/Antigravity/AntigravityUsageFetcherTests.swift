@@ -229,6 +229,7 @@ final class AntigravityUsageFetcherTests {
         #"{"type":"result","response":"Sure, here is a summary of your usage.","stats":{"tokens":812}}"#,
         #"{"response":"Here is your usage.","stats":{"models":{"gemini-3-pro":{"tokens":{"total":640}}}}}"#,
         #"{"response":"Here is your usage.","num_turns":1,"command":{"name":"usage"}}"#,
+        #"{"response":"Here is your usage.","num_turns":0}"#,
         #"{"response":"Here is your usage.","num_turns":0,"stats":{"tokens":812},"command":{"name":"usage"}}"#,
         #"{"response":"Here is your usage.","num_turns":0,"usage":{"input_tokens":0,"total_tokens":120},"command":{"name":"usage"}}"#,
     ])
