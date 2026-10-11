@@ -41,6 +41,14 @@ nonisolated enum DashboardRange: String, CaseIterable, Identifiable, Sendable {
         case .month: "last 30 days"
         }
     }
+
+    var inRangePhrase: String {
+        switch self {
+        case .day: "today or yesterday"
+        case .week: "in the last 7 days"
+        case .month: "in the last 30 days"
+        }
+    }
 }
 
 /// Calendar boundaries for the KPI tiles and day-grained sections, all at local midnight.

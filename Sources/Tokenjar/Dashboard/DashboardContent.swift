@@ -175,12 +175,13 @@ struct DashboardSections: Equatable {
         return DashboardSections(history: account.provider.harness != nil, limits: limits)
     }
 
-    /// One message in place of the cost tiles, daily spend and top projects when none of them has anything to show
-    /// over the whole period the page loads. nil while the first load runs.
-    static func historyEmptyMessage(account: AccountConfig?, content: DashboardContent) -> String? {
+    /// The daily spend card's message, standing in for the cost tiles and top projects too, when none of them has
+    /// anything to show over the whole period the page loads. That period holds every range, so the message names the
+    /// one on screen. nil while the first load runs.
+    static func historyEmptyMessage(account: AccountConfig?, content: DashboardContent, range: DashboardRange) -> String? {
         guard content.key != nil, !content.hasUsage else { return nil }
-        guard let account else { return "No usage in the last 30 days." }
-        return "No \(AccountTitle(provider: account.provider, label: account.label).name) usage in the last 30 days."
+        guard let account else { return "No usage \(range.inRangePhrase)." }
+        return "No \(AccountTitle(provider: account.provider, label: account.label).name) usage \(range.inRangePhrase)."
     }
 
     /// `status` is the selected account's, nil for All.

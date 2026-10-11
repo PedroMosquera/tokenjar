@@ -67,18 +67,14 @@ private struct DashboardDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             let sections = DashboardSections.make(account: account, accounts: accounts, status: account.map { model.status(for: $0) })
-            let noUsage = sections.history ? DashboardSections.historyEmptyMessage(account: account, content: content) : nil
+            let noUsage = sections.history ? DashboardSections.historyEmptyMessage(account: account, content: content, range: range) : nil
             header(sections)
             if sections.history, noUsage == nil { kpis }
             if let account { windowTiles(account) }
             if sections.limits { limitsCard }
-            if let noUsage {
-                DashboardEmptyState(systemImage: "chart.bar.xaxis", message: noUsage)
-                    .frame(height: 180)
-                    .dashboardSurface()
-            } else if sections.history {
-                spendCard
-                projectsCard
+            if sections.history {
+                spendCard(emptyMessage: noUsage ?? spendEmptyMessage)
+                if noUsage == nil { projectsCard }
             } else if let account, account.provider.isLinkOnly {
                 linkOnlyPanel(account)
             } else {
@@ -247,10 +243,10 @@ private struct DashboardDetail: View {
         content.spend[grouping] ?? SpendBreakdown()
     }
 
-    private var spendCard: some View {
+    private func spendCard(emptyMessage: String?) -> some View {
         DashboardCard(title: "Daily spend", subtitle: spendSubtitle) {
             // Regrouping an empty chart changes nothing, so the control would only invite a click that does nothing.
-            if spendEmptyMessage == nil {
+            if emptyMessage == nil {
                 Picker("Group by", selection: Binding(get: { grouping }, set: { groupingSelection.wrappedValue = $0 })) {
                     ForEach(groupingOptions, id: \.self) { Text($0.title).tag($0) }
                 }
@@ -263,8 +259,8 @@ private struct DashboardDetail: View {
                 Group {
                     if content.key == nil {
                         Color.clear
-                    } else if let message = spendEmptyMessage {
-                        DashboardEmptyState(systemImage: "chart.bar.xaxis", message: message)
+                    } else if let emptyMessage {
+                        DashboardEmptyState(systemImage: "chart.bar.xaxis", message: emptyMessage)
                     } else {
                         SpendChart(
                             contentKey: content.key, grouping: grouping, range: content.key?.range ?? range, breakdown: breakdown,
@@ -274,7 +270,7 @@ private struct DashboardDetail: View {
                     }
                 }
                 .frame(height: 210)
-                if spendEmptyMessage == nil, !breakdown.unpricedModels.isEmpty {
+                if emptyMessage == nil, !breakdown.unpricedModels.isEmpty {
                     Text("Not priced: \(unpricedModelNames)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -455,16 +451,6 @@ private extension UsageGrouping {
         case .harness: "Harness"
         case .project: "Project"
         case .account: "Account"
-        }
-    }
-}
-
-private extension DashboardRange {
-    var inRangePhrase: String {
-        switch self {
-        case .day: "today or yesterday"
-        case .week: "in the last 7 days"
-        case .month: "in the last 30 days"
         }
     }
 }

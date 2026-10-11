@@ -190,16 +190,17 @@ struct DashboardSectionsTests {
         #expect(DashboardSections.make(account: devin, accounts: [devin, claude], status: AccountStatus()) == DashboardSections(history: false, limits: false))
     }
 
-    @Test func noUsageInTheWholeLoadPeriodIsOneEmptyState() {
+    /// Nothing in the whole period the page loads means nothing in any range, so the message names the range on screen.
+    @Test func noUsageInTheWholeLoadPeriodIsOneEmptyStateForTheRangeShown() {
         var content = DashboardContent()
         // Still loading: nothing to say yet.
-        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content) == nil)
+        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content, range: .week) == nil)
         content.key = DashboardLoadKey(accountIDs: ["zen"], range: .week, historyRevision: 0)
-        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content) == "No OpenCode Zen usage in the last 30 days.")
-        #expect(DashboardSections.historyEmptyMessage(account: claude, content: content) == "No Claude · Work usage in the last 30 days.")
-        #expect(DashboardSections.historyEmptyMessage(account: nil, content: content) == "No usage in the last 30 days.")
+        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content, range: .week) == "No OpenCode Zen usage in the last 7 days.")
+        #expect(DashboardSections.historyEmptyMessage(account: claude, content: content, range: .day) == "No Claude · Work usage today or yesterday.")
+        #expect(DashboardSections.historyEmptyMessage(account: nil, content: content, range: .month) == "No usage in the last 30 days.")
         content.hasUsage = true
-        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content) == nil)
+        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content, range: .week) == nil)
     }
 
     @Test func allAccountsKeepsHistoryWhenAnyAccountHasLogs() {
