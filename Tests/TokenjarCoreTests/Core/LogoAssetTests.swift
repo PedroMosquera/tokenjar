@@ -16,4 +16,13 @@ struct LogoAssetTests {
         let image = try #require(NSImage(contentsOf: url), "missing or unreadable \(url.lastPathComponent)")
         #expect(image.size.width > 0 && image.size.height > 0)
     }
+
+    /// Marks committed ahead of their providers (GitHub Copilot, and Windsurf standing in for Devin), so they are known
+    /// to load before any code draws them.
+    @Test(arguments: ["copilot", "windsurf"])
+    func logosForProvidersStillToComeLoadAtMenuBarSize(_ name: String) throws {
+        let url = logos.appending(path: "\(name).svg")
+        let image = try #require(NSImage(contentsOf: url), "missing or unreadable \(url.lastPathComponent)")
+        #expect(image.size == NSSize(width: 16, height: 16))
+    }
 }
