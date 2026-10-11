@@ -161,28 +161,36 @@ struct AccountDetailView: View {
     }
 
     private func profileSection(variable: (name: String, defaultPath: String)) -> some View {
-        let title = account.provider == .copilot ? "gh config folder" : "Profile folder"
-        let cli = account.provider == .copilot ? "gh" : account.provider == .claude ? "claude" : "codex"
+        let title = account.provider == .copilot ? "GitHub CLI folder" : "Profile folder"
+        let cli = account.provider.cliName ?? account.provider.displayName
         return Section {
             LabeledContent {
                 HStack(spacing: 6) {
-                    CommittingTextField(title: title, prompt: "\(variable.defaultPath) (CLI default)", value: account.profileDir ?? "", monospaced: true) { text in
+                    // A fixed width keeps the row on one line; a long path truncates in the middle instead.
+                    CommittingTextField(title: title, prompt: variable.defaultPath, value: account.profileDir ?? "", monospaced: true) { text in
                         model.updateAccount(account.id) { $0.profileDir = SettingsLogic.profileDir(from: text) }
                     }
                     .labelsHidden()
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(width: 120)
                     Button("Choose\u{2026}", action: chooseProfileFolder)
                 }
             } label: {
                 Text(title)
-                Text("Sets \(variable.name) when Tokenjar runs \(cli). Leave empty for \(variable.defaultPath).")
+                // The form stacks the field under the label when the label's one-line width leaves it no room; a
+                // capped subtitle wraps instead, so the field and Choose stay on the title's line.
+                Text("Use a separate folder for a second login")
+                    .frame(maxWidth: 140, alignment: .leading)
             }
+            .help("Sets \(variable.name) when Tokenjar runs \(cli). Leave empty for \(variable.defaultPath).")
             if let twin = SettingsLogic.profileTwin(of: account, in: model.config.accounts, paths: model.paths), account.enabled {
                 Label("Same profile as \(twin.displayName). Both will show the same login.", systemImage: "exclamationmark.triangle")
                     .font(.callout)
                     .foregroundStyle(.orange)
             }
         } header: {
-            Text("Profile")
+            Text("Login")
         }
     }
 
