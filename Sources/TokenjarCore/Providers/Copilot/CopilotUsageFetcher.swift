@@ -8,7 +8,7 @@ public struct CopilotUsageFetcher: UsageFetcher {
     public static let source = "gh CLI"
     static let noAccessMessage = "No Copilot access for this GitHub account"
 
-    static let filter = "{copilot_plan, access_type_sku, token_based_billing, quota_reset_date, quota_reset_date_utc, quota_snapshots: ((.quota_snapshots // {}) | map_values({entitlement, remaining, quota_remaining, percent_remaining, unlimited, has_quota, overage_count, overage_permitted, credits_used, token_based_billing})), monthly_quotas, limited_user_quotas}"
+    static let filter = "{copilot_plan, access_type_sku, token_based_billing, quota_reset_date, quota_reset_date_utc, quota_snapshots: ((.quota_snapshots // {}) | map_values({entitlement, remaining, quota_remaining, percent_remaining, unlimited, has_quota, overage_count, overage_permitted, credits_used, token_based_billing})), monthly_quotas: (.monthly_quotas | if type == \"object\" then {chat, completions} else null end), limited_user_quotas: (.limited_user_quotas | if type == \"object\" then {chat, completions} else null end)}"
 
     /// GET with no field flags: any -f/-F/--input makes gh send a POST, and --cache writes the answer to disk. The API
     /// version is pinned as VS Code pins it, so a new default on this undocumented endpoint cannot change the shape.
@@ -79,19 +79,22 @@ extension CopilotUsageFetcher {
 
         var windows: [UsageWindow] = []
         var notes: [String] = []
-        // VS Code reads premium_models before premium_interactions: the same allowance under a newer name.
-        let premiumKey = snapshots["premium_models"] != nil ? "premium_models" : "premium_interactions"
-        if let premium = Quota(snapshots[premiumKey]) {
+        // VS Code reads `premium_models ?? premium_interactions`: the same allowance under a newer name. The filter
+        // turns a null premium_models into an object of nulls, so an empty one falls through like a missing one.
+        let premium = ["premium_models", "premium_interactions"].lazy.compactMap { Quota(snapshots[$0]) }.first(where: { !$0.isBlank })
+        if let premium {
             // Since 2026-06-01 premium requests are billed as AI credits, still under the old key.
             let credits = json["token_based_billing"] as? Bool == true || premium.tokenBased
+            let unit = credits ? "AI credits" : "premium requests"
             if let used = premium.usedPercent {
                 windows.append(window("monthly", credits ? "AI credits" : "Premium requests", usedPercent: used))
                 if let overage = premium.overageCount, overage > 0 {
-                    notes.append("\(count(overage)) \(credits ? "AI credits" : "premium requests") over the allowance this cycle")
+                    notes.append("\(count(overage)) \(unit) over the allowance this cycle")
                 }
-            } else if premium.unlimited, let used = premium.creditsUsed {
-                // A pooled seat has no per-user budget, so the count is all there is to show.
-                notes.append("\(count(used)) AI credits used this cycle (no per-user limit)")
+            } else if let used = premium.creditsUsed, premium.unlimited || (credits && (premium.entitlement ?? 0) == 0) {
+                // A pooled seat has no per-user budget, so the count is all there is to show. Token-billed Business
+                // seats can arrive as a zero-entitlement placeholder without the unlimited flag.
+                notes.append("\(count(used)) \(unit) used this cycle (no per-user limit)")
             }
         }
 
@@ -172,6 +175,10 @@ private struct Quota {
         overageCount = number(object["overage_count"])
         creditsUsed = number(object["credits_used"])
         tokenBased = object["token_based_billing"] as? Bool == true
+    }
+
+    var isBlank: Bool {
+        !unlimited && entitlement == nil && quotaRemaining == nil && percentRemaining == nil && creditsUsed == nil
     }
 
     /// nil unless the allowance is capped per user: unlimited ones, and the zero-entitlement placeholders sent for

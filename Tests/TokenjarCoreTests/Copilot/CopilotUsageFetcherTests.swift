@@ -31,7 +31,7 @@ final class CopilotUsageFetcherTests {
         #expect(call.executable.path == home.appending(path: "bin/gh").path)
         #expect(call.arguments == [
             "api", "--method", "GET", "-H", "X-GitHub-Api-Version: 2025-04-01", "copilot_internal/user", "--jq",
-            "{copilot_plan, access_type_sku, token_based_billing, quota_reset_date, quota_reset_date_utc, quota_snapshots: ((.quota_snapshots // {}) | map_values({entitlement, remaining, quota_remaining, percent_remaining, unlimited, has_quota, overage_count, overage_permitted, credits_used, token_based_billing})), monthly_quotas, limited_user_quotas}",
+            #"{copilot_plan, access_type_sku, token_based_billing, quota_reset_date, quota_reset_date_utc, quota_snapshots: ((.quota_snapshots // {}) | map_values({entitlement, remaining, quota_remaining, percent_remaining, unlimited, has_quota, overage_count, overage_permitted, credits_used, token_based_billing})), monthly_quotas: (.monthly_quotas | if type == "object" then {chat, completions} else null end), limited_user_quotas: (.limited_user_quotas | if type == "object" then {chat, completions} else null end)}"#,
         ])
         let methodIndex = try #require(call.arguments.firstIndex(of: "--method"))
         #expect(call.arguments[methodIndex + 1] == "GET")
@@ -78,26 +78,33 @@ final class CopilotUsageFetcherTests {
          "quota_reset_date_utc":"2026-11-01T00:00:00.000Z","quota_snapshots":{"premium_interactions":{"entitlement":5000,
          "remaining":4998,"quota_remaining":4998.2,"percent_remaining":99.9,"unlimited":false,"has_quota":true,"overage_count":0,
          "overage_permitted":true,"overage_entitlement":0,"credits_used":2,"token_based_billing":true,"quota_id":"placeholder",
-         "quota_reset_at":0,"timestamp_utc":"2026-10-11T12:00:00Z"}}}
+         "quota_reset_at":0,"timestamp_utc":"2026-10-11T12:00:00Z"}},
+         "monthly_quotas":{"chat":50,"completions":2000,"organization_login":"placeholder-org","id":7},
+         "limited_user_quotas":{"chat":40,"completions":1500,"login":"placeholder-login"}}
         """
-        let filter = try #require(CopilotUsageFetcher.arguments.last)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/jq")
-        process.arguments = ["-c", filter]
-        let input = Pipe(), out = Pipe()
-        process.standardInput = input
-        process.standardOutput = out
-        try process.run()
-        input.fileHandleForWriting.write(Data(full.utf8))
-        try input.fileHandleForWriting.close()
-        process.waitUntilExit()
-        let filtered = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        let (status, filtered) = try runFilter(full)
 
-        #expect(process.terminationStatus == 0)
+        #expect(status == 0)
         for leaked in ["placeholder", "1234", "login", "\"id\"", "organization", "enterprise_list", "endpoints", "assigned_date", "quota_id", "timestamp_utc"] {
             #expect(!filtered.contains(leaked), "\(leaked)")
         }
         #expect(filtered.contains("\"credits_used\":2"))
+        #expect(filtered.contains(#""monthly_quotas":{"chat":50,"completions":2000}"#))
+        #expect(filtered.contains(#""limited_user_quotas":{"chat":40,"completions":1500}"#))
+    }
+
+    /// Free's quota objects are read only for chat and completions. A value that is not an object must not make the
+    /// filter fail, since that fails the whole check and hides the numbers that did arrive.
+    @Test(.enabled(if: FileManager.default.isExecutableFile(atPath: "/usr/bin/jq")), arguments: [
+        #"{"copilot_plan":"free"}"#,
+        #"{"copilot_plan":"free","monthly_quotas":null,"limited_user_quotas":null}"#,
+        #"{"copilot_plan":"free","monthly_quotas":"unexpected","limited_user_quotas":[1]}"#,
+    ])
+    func filterTurnsMissingOrOddFreeQuotasIntoNull(response: String) throws {
+        let (status, filtered) = try runFilter(response)
+        #expect(status == 0)
+        #expect(filtered.contains(#""monthly_quotas":null"#))
+        #expect(filtered.contains(#""limited_user_quotas":null"#))
     }
 
     // MARK: Mapping
@@ -160,6 +167,52 @@ final class CopilotUsageFetcherTests {
             UsageWindow(id: "monthly", label: "AI credits", usedPercent: 25, windowMinutes: 31 * 1_440, resetsAt: cycleEnd),
         ])
         #expect(snapshot.plan == "Pro+")
+    }
+
+    /// The filter turns a null premium_models into an object of nulls, and VS Code reads `premium_models ??
+    /// premium_interactions`, so an empty premium_models must not hide the real allowance.
+    @Test(arguments: [
+        #"{"entitlement":null,"remaining":null,"quota_remaining":null,"percent_remaining":null,"unlimited":null,"has_quota":null,"overage_count":null,"overage_permitted":null,"credits_used":null,"token_based_billing":null}"#,
+        "null",
+    ])
+    func anEmptyPremiumModelsFallsBackToPremiumInteractions(premiumModels: String) throws {
+        let json = """
+        {"copilot_plan":"individual","quota_reset_date_utc":"2026-11-01T00:00:00Z","quota_snapshots":{"premium_models":\(premiumModels),
+         "premium_interactions":{"entitlement":300,"quota_remaining":150,"unlimited":false}}}
+        """
+        let snapshot = try CopilotUsageFetcher.snapshot(from: Data(json.utf8), account: account, now: now)
+        #expect(snapshot.windows == [
+            UsageWindow(id: "monthly", label: "Premium requests", usedPercent: 50, windowMinutes: 31 * 1_440, resetsAt: cycleEnd),
+        ])
+        #expect(snapshot.notes.isEmpty)
+    }
+
+    /// A token-billed Business seat can arrive as a zero-entitlement placeholder without `unlimited`. The count is
+    /// still the only number there is.
+    @Test func aTokenBilledPlaceholderWithoutTheUnlimitedFlagKeepsItsCreditsUsed() throws {
+        let json = """
+        {"copilot_plan":"business","token_based_billing":true,"quota_snapshots":{"premium_interactions":{"entitlement":0,
+         "remaining":0,"quota_remaining":0,"percent_remaining":100,"credits_used":31,"unlimited":false}}}
+        """
+        let snapshot = try CopilotUsageFetcher.snapshot(from: Data(json.utf8), account: account, now: now)
+        #expect(snapshot.windows.isEmpty)
+        #expect(snapshot.notes == ["31 AI credits used this cycle (no per-user limit)"])
+    }
+
+    /// Outside token billing a zero entitlement is Free's placeholder, not a pooled seat, so a zero count is no news.
+    @Test func aRequestBilledPlaceholderGetsNoCreditsNote() throws {
+        let json = """
+        {"copilot_plan":"free","token_based_billing":false,"quota_snapshots":{"premium_interactions":{"entitlement":0,
+         "quota_remaining":0,"percent_remaining":0,"credits_used":0,"unlimited":false}}}
+        """
+        let snapshot = try CopilotUsageFetcher.snapshot(from: Data(json.utf8), account: account, now: now)
+        #expect(snapshot.notes == ["No per-user limits for this account"])
+    }
+
+    @Test func aPooledSeatOnPremiumRequestsCountsPremiumRequests() throws {
+        let json = #"{"copilot_plan":"business","token_based_billing":false,"quota_snapshots":{"premium_interactions":{"entitlement":0,"unlimited":true,"credits_used":5}}}"#
+        let snapshot = try CopilotUsageFetcher.snapshot(from: Data(json.utf8), account: account, now: now)
+        #expect(snapshot.notes == ["5 premium requests used this cycle (no per-user limit)"])
     }
 
     @Test func legacyPremiumRequestsFallBackToPercentRemainingAndTheResetDate() async throws {
@@ -269,6 +322,23 @@ final class CopilotUsageFetcherTests {
 
     private func fetch(_ runner: FakeGh) async throws -> UsageSnapshot {
         try await CopilotUsageFetcher().fetch(account, context: context(runner))
+    }
+
+    private func runFilter(_ response: String) throws -> (status: Int32, output: String) {
+        let filter = try #require(CopilotUsageFetcher.arguments.last)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/jq")
+        process.arguments = ["-c", filter]
+        let input = Pipe(), out = Pipe()
+        process.standardInput = input
+        process.standardOutput = out
+        process.standardError = Pipe()
+        try process.run()
+        input.fileHandleForWriting.write(Data(response.utf8))
+        try input.fileHandleForWriting.close()
+        let output = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        return (process.terminationStatus, output)
     }
 
     private func fixture(_ name: String) throws -> String {
