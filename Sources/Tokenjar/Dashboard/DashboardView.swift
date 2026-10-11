@@ -67,11 +67,16 @@ private struct DashboardDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             let sections = DashboardSections.make(account: account, accounts: accounts, status: account.map { model.status(for: $0) })
+            let noUsage = sections.history ? DashboardSections.historyEmptyMessage(account: account, content: content) : nil
             header
-            if sections.history { kpis }
+            if sections.history, noUsage == nil { kpis }
             if let account { windowTiles(account) }
             if sections.limits { limitsCard }
-            if sections.history {
+            if let noUsage {
+                DashboardEmptyState(systemImage: "chart.bar.xaxis", message: noUsage)
+                    .frame(height: 180)
+                    .dashboardSurface()
+            } else if sections.history {
                 spendCard
                 projectsCard
             } else if let account, account.provider.isLinkOnly {
@@ -225,12 +230,15 @@ private struct DashboardDetail: View {
 
     private var spendCard: some View {
         DashboardCard(title: "Daily spend", subtitle: spendSubtitle) {
-            Picker("Group by", selection: Binding(get: { grouping }, set: { groupingSelection.wrappedValue = $0 })) {
-                ForEach(groupingOptions, id: \.self) { Text($0.title).tag($0) }
+            // Regrouping an empty chart changes nothing, so the control would only invite a click that does nothing.
+            if spendEmptyMessage == nil {
+                Picker("Group by", selection: Binding(get: { grouping }, set: { groupingSelection.wrappedValue = $0 })) {
+                    ForEach(groupingOptions, id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
         } content: {
             VStack(alignment: .leading, spacing: 6) {
                 Group {

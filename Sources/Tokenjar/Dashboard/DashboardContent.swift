@@ -54,6 +54,8 @@ nonisolated struct DashboardContent: Sendable {
     var projects: [ProjectSummary] = []
     /// Keyed by the name the spend chart groups accounts by, so an account's bars match its limits line.
     var accountSlotByName: [String: Int] = [:]
+    /// Any usage at all since `periods.loadStart` (about a month), whatever range is on screen.
+    var hasUsage = false
 
     /// Every account in scope has a color slot, so these are all the names the account grouping can give.
     var accountNames: Set<String> { Set(accountSlotByName.keys) }
@@ -77,6 +79,7 @@ nonisolated struct DashboardContent: Sendable {
 
         let daily = (try? input.store?.dailyUsage(accountIDs: scope.map(\.id), since: periods.loadStart)) ?? []
         let rows = daily.map(input.priceTable.priced)
+        content.hasUsage = rows.contains { $0.row.requests > 0 }
         content.costToday = DashboardMath.cost(rows, since: periods.today)
         content.costLastSevenDays = DashboardMath.cost(rows, since: periods.lastSevenDays)
         content.costThisMonth = DashboardMath.cost(rows, since: periods.thisMonth)
@@ -156,6 +159,14 @@ struct DashboardSections: Equatable {
         let hasLimits = status?.snapshot.map { !$0.windows.isEmpty } ?? (status?.error?.attention != .calm)
         let limits = !account.provider.isLinkOnly && hasLimits
         return DashboardSections(history: account.provider.harness != nil, limits: limits)
+    }
+
+    /// One message in place of the cost tiles, daily spend and top projects when none of them has anything to show
+    /// over the whole period the page loads. nil while the first load runs.
+    static func historyEmptyMessage(account: AccountConfig?, content: DashboardContent) -> String? {
+        guard content.key != nil, !content.hasUsage else { return nil }
+        guard let account else { return "No usage in the last 30 days." }
+        return "No \(AccountTitle(provider: account.provider, label: account.label).name) usage in the last 30 days."
     }
 
     /// `status` is the selected account's, nil for All.

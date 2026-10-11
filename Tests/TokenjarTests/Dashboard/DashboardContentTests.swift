@@ -105,6 +105,18 @@ struct DashboardContentLoadTests {
         #expect(content.accountSlotByName == ["Claude · Work": 0, "OpenCode Go": 1, "Antigravity · Google": 2, "OpenCode Zen": 3])
     }
 
+    @Test func contentKnowsWhetherTheLoadPeriodHasAnyUsage() throws {
+        let model = model()
+        let zen = try #require(model.accounts.first { $0.id == "opencode-zen" })
+        #expect(!load(model, account: zen, range: .week).hasUsage)
+        try model.store?.upsert([UsageEvent(
+            dedupeKey: "zen:1", timestamp: now.addingTimeInterval(-20 * 86_400), accountID: "opencode-zen", harness: .opencode,
+            model: "kimi-k3", project: "tokenjar", inputTokens: 100, reportedCostUSD: 0.01
+        )])
+        // Twenty days back is outside the week on screen but inside the period the page loads.
+        #expect(load(model, account: zen, range: .week).hasUsage)
+    }
+
     @Test func oneAccountMarksWindowsThatOnlyShowPeaks() {
         let model = model()
         let content = load(model, account: model.accounts.first, range: .month)
@@ -160,6 +172,18 @@ struct DashboardSectionsTests {
         let link = AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page"))
         #expect(DashboardSections.make(account: devin, accounts: [devin, claude], status: link) == DashboardSections(history: false, limits: false))
         #expect(DashboardSections.make(account: devin, accounts: [devin, claude], status: AccountStatus()) == DashboardSections(history: false, limits: false))
+    }
+
+    @Test func noUsageInTheWholeLoadPeriodIsOneEmptyState() {
+        var content = DashboardContent()
+        // Still loading: nothing to say yet.
+        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content) == nil)
+        content.key = DashboardLoadKey(accountIDs: ["zen"], range: .week, historyRevision: 0)
+        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content) == "No OpenCode Zen usage in the last 30 days.")
+        #expect(DashboardSections.historyEmptyMessage(account: claude, content: content) == "No Claude · Work usage in the last 30 days.")
+        #expect(DashboardSections.historyEmptyMessage(account: nil, content: content) == "No usage in the last 30 days.")
+        content.hasUsage = true
+        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content) == nil)
     }
 
     @Test func allAccountsKeepsHistoryWhenAnyAccountHasLogs() {
