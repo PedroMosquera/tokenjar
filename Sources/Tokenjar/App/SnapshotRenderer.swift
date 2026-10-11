@@ -129,7 +129,7 @@ enum SnapshotRenderer {
         return [
             ("000", "0 %", state(entry(0))),
             ("030", "30 %", state(entry(30))),
-            ("085", "85 %, under Amber at", state(entry(85))),
+            ("085", "85 %, untinted (Amber at set above 85)", state(entry(85))),
             ("100", "100 %, full", state(entry(100, .critical))),
             ("warn", "85 %, amber", state(entry(85, .warning))),
             ("critical", "97 %, red", state(entry(97, .critical))),
