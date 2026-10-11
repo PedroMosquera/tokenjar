@@ -14,6 +14,10 @@ final class WindowPresenter: NSObject, NSWindowDelegate {
         var styleMask: NSWindow.StyleMask
         /// What SwiftUI may set on the window; `.title` lets the content's navigationTitle name it.
         var sceneBridging: NSHostingSceneBridgingOptions = []
+        /// AppKit focuses a window's first key view the first time it becomes key. In Settings that is a field, which then
+        /// shows its value selected as if the user were about to retype it. The Dashboard's is its sidebar, which needs
+        /// the focus for the arrow keys to move between pages.
+        var clearsFieldFocus = false
 
         static let dashboard = Spec(
             id: "dashboard", title: "Tokenjar Dashboard", size: NSSize(width: 980, height: 660), minSize: NSSize(width: 760, height: 520),
@@ -21,9 +25,18 @@ final class WindowPresenter: NSObject, NSWindowDelegate {
         )
         /// Not minimizable: like System Settings, it is closed when done.
         static let settings = Spec(
-            id: "settings", title: "Tokenjar Settings", size: NSSize(width: 820, height: 720), minSize: NSSize(width: 640, height: 460),
-            autosaveName: "Tokenjar.settings.2", styleMask: [.titled, .closable, .resizable, .fullSizeContentView], sceneBridging: [.title]
+            id: "settings", title: "Tokenjar Settings", size: NSSize(width: 820, height: 720), minSize: withTitleBar(SettingsView.minimumSize),
+            autosaveName: "Tokenjar.settings.2", styleMask: [.titled, .closable, .resizable, .fullSizeContentView], sceneBridging: [.title],
+            clearsFieldFocus: true
         )
+
+        /// With `.fullSizeContentView` SwiftUI insets its content below the title bar, which is shorter in a binary stamped
+        /// with an older SDK (a debug build), so its height is asked for here instead of written down.
+        private static func withTitleBar(_ content: NSSize) -> NSSize {
+            NSWindow.frameRect(forContentRect: NSRect(origin: .zero, size: content), styleMask: .titled).size
+        }
+
+        static let all = [dashboard, settings]
     }
 
     private var windows: [String: NSWindow] = [:]
@@ -83,13 +96,15 @@ final class WindowPresenter: NSObject, NSWindowDelegate {
 
     func windowDidBecomeKey(_ notification: Notification) {
         guard let window = notification.object as? NSWindow, let id = window.identifier?.rawValue, keyed.insert(id).inserted else { return }
-        Self.clearFieldFocus(in: window)
+        Self.firstBecameKey(window)
     }
 
-    /// A window that becomes key for the first time focuses its first text field, which shows the value selected as if
-    /// the user were about to retype it. The window takes focus instead, and Tab still moves to the fields. The hosting
-    /// view cannot be the initialFirstResponder: it refuses focus, and SwiftUI passes focus on to that same field.
-    static func clearFieldFocus(in window: NSWindow) {
+    /// What a window does the first time it becomes key. `--render-windows` runs it as each window opens.
+    ///
+    /// Where the spec clears field focus, the window takes the focus itself, and Tab still moves to the fields. The
+    /// hosting view cannot be the initialFirstResponder: it refuses focus, and SwiftUI passes focus on to that same field.
+    static func firstBecameKey(_ window: NSWindow) {
+        guard Spec.all.first(where: { $0.id == window.identifier?.rawValue })?.clearsFieldFocus == true else { return }
         window.makeFirstResponder(nil)
     }
 

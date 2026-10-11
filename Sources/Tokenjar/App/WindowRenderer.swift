@@ -52,6 +52,7 @@ private final class RenderSession {
             guard let appearance = NSAppearance(named: name) else { continue }
             NSApp.appearance = appearance
             renderSettings(data.model, appearance: appearance, suffix: suffix)
+            renderSettingsAccounts(data.model, prefix: "settings-narrow", size: WindowPresenter.Spec.settings.minSize, appearance: appearance, suffix: suffix)
             renderDashboard(data.model, appearance: appearance, suffix: suffix)
             renderPopover(data.model, screen: "popover", appearance: appearance, suffix: suffix)
             if let states = data.states {
@@ -114,9 +115,10 @@ private final class RenderSession {
         }
     }
 
-    /// Opens Settings on Accounts, as "Settings for This Account" does, then moves through the accounts.
-    private func renderSettingsAccounts(_ model: AppModel, prefix: String, appearance: NSAppearance, suffix: String) {
-        renderSettings(model, opening: .accounts, appearance: appearance, suffix: suffix) { _ in
+    /// Opens Settings on Accounts, as "Settings for This Account" does, then moves through the accounts. `size` replaces
+    /// the window's default content size; `settings-narrow` uses the minimum, where a row is first to wrap.
+    private func renderSettingsAccounts(_ model: AppModel, prefix: String, size: NSSize? = nil, appearance: NSAppearance, suffix: String) {
+        renderSettings(model, opening: .accounts, size: size, appearance: appearance, suffix: suffix) { _ in
             [Step(screen: "\(prefix)-accounts") { model.settingsSelection = nil }] + model.config.accounts.map { account in
                 Step(screen: "\(prefix)-account-\(self.slug(account.id))") { model.settingsSelection = account.id }
             }
@@ -126,12 +128,14 @@ private final class RenderSession {
     /// Settings opened on `pane` (nil follows `settingsSelection`, as the app does), then `steps`, which get the
     /// controller so they can switch panes.
     private func renderSettings(
-        _ model: AppModel, opening pane: SettingsPane?, appearance: NSAppearance, suffix: String,
+        _ model: AppModel, opening pane: SettingsPane?, size: NSSize? = nil, appearance: NSAppearance, suffix: String,
         steps: (NSHostingController<SettingsRoot>) -> [Step]
     ) {
         let controller = WindowPresenter.makeController(.settings, rootView: SettingsRoot(model: model, pane: pane))
         walk(steps(controller), appearance: appearance, suffix: suffix) {
-            WindowPresenter.makeWindow(.settings, controller: controller, make: CaptureWindow.init(contentViewController:))
+            let window = WindowPresenter.makeWindow(.settings, controller: controller, make: CaptureWindow.init(contentViewController:))
+            if let size { window.setContentSize(size) }
+            return window
         }
     }
 
@@ -240,7 +244,7 @@ private final class RenderSession {
            !(window.initialFirstResponder.map(window.makeFirstResponder) ?? false) {
             window.selectNextKeyView(nil)
         }
-        WindowPresenter.clearFieldFocus(in: window)
+        WindowPresenter.firstBecameKey(window)
         settle(Self.openDelay)
     }
 

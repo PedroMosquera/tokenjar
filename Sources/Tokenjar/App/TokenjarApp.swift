@@ -1,11 +1,15 @@
-import SwiftUI
+import AppKit
 
+/// An AppKit entry point rather than a SwiftUI App: an App needs a scene, and a Settings scene opened its own empty
+/// window for Command-comma instead of Tokenjar's Settings window.
 @main
-struct TokenjarApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-
-    var body: some Scene {
-        // Settings live in an AppKit-owned window (see WindowPresenter); this keeps Cmd-, wired.
-        Settings { EmptyView() }
+enum TokenjarApp {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        MainMenu.install(in: app, appName: "Tokenjar", settingsTarget: delegate, settingsAction: #selector(AppDelegate.openSettings(_:)))
+        // NSApplication holds its delegate weakly.
+        withExtendedLifetime(delegate) { app.run() }
     }
 }

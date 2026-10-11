@@ -44,8 +44,7 @@ struct DashboardSidebar: View {
 }
 
 /// Calls `onUnfocused` whenever its window is left with nothing focused, so the sidebar can take keyboard focus: its
-/// selection then draws in the accent color and the arrow keys move between pages. It happens without the user doing
-/// anything: WindowPresenter takes focus off a window it opens the first time that window becomes key.
+/// selection then draws in the accent color and the arrow keys move between pages.
 private struct UnfocusedWindowWatcher: NSViewRepresentable {
     var onUnfocused: () -> Void
 

@@ -21,3 +21,11 @@ struct StrayWindowSweeperTests {
         #expect(!StrayWindowSweeper.isStray(frame: NSRect(x: 450, y: 251, width: 900, height: 450), isVisible: false, screens: screens))
     }
 }
+
+struct StrayWindowReportTests {
+    /// A render run that hides a window is a regression: each one leaves a line on stderr that a reviewer can see.
+    @Test func eachHiddenWindowIsReportedByItsSize() {
+        #expect(StrayWindowSweeper.report(hiding: NSRect(x: 450, y: 251, width: 900, height: 450)) == "stray window hidden: 900x450\n")
+        #expect(StrayWindowSweeper.report(hiding: NSRect(x: 0, y: 0, width: 640.4, height: 459.6)) == "stray window hidden: 640x460\n")
+    }
+}
