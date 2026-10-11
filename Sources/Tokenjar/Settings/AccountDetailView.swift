@@ -95,7 +95,6 @@ struct AccountDetailView: View {
         .accessibilityAddTraits(.isHeader)
     }
 
-    /// The status line, with the state's one fix beside it.
     private func statusRow(_ scroller: ScrollViewProxy) -> some View {
         let line = statusText
         let symbol = Text(Image(systemName: line.symbol)).foregroundStyle(line.tone.color)

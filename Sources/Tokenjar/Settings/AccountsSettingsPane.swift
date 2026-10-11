@@ -80,7 +80,6 @@ struct AccountsSettingsPane: View {
         .onDeleteCommand { if model.canEditConfig { removing = selectedAccount } }
     }
 
-    /// The list's add and remove buttons, as in other macOS source lists.
     private var listBar: some View {
         VStack(spacing: 0) {
             Divider()
@@ -173,7 +172,6 @@ struct AccountListRow: View {
     }
 }
 
-/// What one row of the accounts list shows.
 struct AccountListRowContent: Equatable {
     var title: String
     var caption: String?
