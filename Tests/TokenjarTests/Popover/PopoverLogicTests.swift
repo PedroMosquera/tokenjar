@@ -309,7 +309,21 @@ struct StatusIconRendererTests {
             }
         }
         #expect(pixels(StatusIconRenderer.render(state([])).image) == pixels(StatusGlyph.neutral(.app, dot: false)))
-        #expect(StatusIconRenderer.render(state([entry("a", used: 90)], mode: mode, icon: .logoClaude)).image?.accessibilityDescription == "Tokenjar")
+        #expect(StatusIconRenderer.render(state([entry("a", used: 90)], mode: mode, icon: .logoClaude)).image?.accessibilityDescription == "Tokenjar, 5-hour 90% used")
+    }
+
+    /// Icon mode has no title, so the image's description is all VoiceOver has to read the level from.
+    @Test(arguments: [MenuBarMode.worst, .icon])
+    func theIconDescribesTheTightestLevelForVoiceOver(_ mode: MenuBarMode) {
+        func described(_ entries: [MenuBarState.Entry], icon: MenuBarIcon = .app) -> String? {
+            StatusIconRenderer.render(state(entries, mode: mode, icon: icon)).image?.accessibilityDescription
+        }
+        #expect(described([entry("a", used: 42), entry("b", used: 85, severity: .warning)]) == "Tokenjar, 5-hour 85% used")
+        #expect(described([entry("a", used: 85, severity: .warning)], icon: .symbolBrain) == "Tokenjar, 5-hour 85% used")
+        #expect(described([entry("a", used: 42, stale: true)]) == "Tokenjar, 5-hour 42% used, out of date")
+        #expect(described([entry("a", used: 42, stale: true, error: true)]) == "Tokenjar, 5-hour 42% used, last check failed")
+        #expect(described([entry("a", used: nil)]) == "Tokenjar")
+        #expect(described([entry("a", used: nil, error: true)]) == "Tokenjar, last check failed")
     }
 
     @Test(arguments: [MenuBarIcon.markMana, .logoClaude, .symbolBrain])

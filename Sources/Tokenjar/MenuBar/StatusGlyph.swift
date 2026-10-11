@@ -18,14 +18,14 @@ enum StatusGlyph {
 
     /// The image for worst and icon modes. The default, the cooldown slot, is filled to `fraction` (0...1) of the
     /// tightest window. Every other choice is a static glyph that still takes the tint, fade and dot, so warnings show.
-    static func image(_ icon: MenuBarIcon, fraction: Double, tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
-        compose(glyph(icon) ?? slot(fraction), description: "Tokenjar", tint: tint, alpha: alpha, dot: dot)
+    static func image(_ icon: MenuBarIcon, fraction: Double, tint: NSColor?, alpha: CGFloat, dot: Bool, description: String = "Tokenjar") -> NSImage {
+        compose(glyph(icon) ?? slot(fraction), description: description, tint: tint, alpha: alpha, dot: dot)
     }
 
     /// Shown when nothing is configured or no account has reported yet. The slot shows its base pose faint, so it
     /// never reads as a real level.
-    static func neutral(_ icon: MenuBarIcon, dot: Bool) -> NSImage {
-        compose(glyph(icon) ?? neutralSlot, description: "Tokenjar", tint: nil, alpha: 1, dot: dot)
+    static func neutral(_ icon: MenuBarIcon, dot: Bool, description: String = "Tokenjar") -> NSImage {
+        compose(glyph(icon) ?? neutralSlot, description: description, tint: nil, alpha: 1, dot: dot)
     }
 
     /// The template glyph of a choice other than the app mark; nil for the app mark or a file that did not load, so
