@@ -270,6 +270,13 @@ final class AppModel {
         }
     }
 
+    /// What the app shows after a reload of `file` fails, for window renders: nothing is read, and edits stop.
+    func showFailedReload(of file: String) {
+        hasLoadedConfig = true
+        configLoadFailed = true
+        configProblem = loadFailureMessage(ConfigError.invalidJSON(file: file, detail: "render"))
+    }
+
     private func configLoaded() {
         configLoadFailed = false
         hasLoadedConfig = true

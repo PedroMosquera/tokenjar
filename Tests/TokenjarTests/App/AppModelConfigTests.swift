@@ -171,6 +171,14 @@ struct AppModelConfigTests {
         #expect(try home.readConfig().refreshMinutes == 10)
     }
 
+    /// `--render-windows` captures Settings in this state, so it must read as the app's own after a failed reload.
+    @Test func aRenderedReloadFailureMatchesTheAppsOwn() {
+        let model = AppModel.preview()
+        model.showFailedReload(of: "config.json")
+        #expect(model.configError == "Could not read config.json. Using the last good settings, and nothing is saved until it is fixed and reloaded.")
+        #expect(!model.canEditConfig)
+    }
+
     /// Settings disables its controls while edits cannot be saved.
     @Test func configIsEditableOnlyAfterAGoodLoad() throws {
         let home = try ModelHome()

@@ -34,8 +34,10 @@ private final class RenderSession {
 
     private struct RenderData {
         var model: AppModel
-        /// The popover's edge states, for preview data only.
+        /// Edge states, no accounts at all, and a config that failed to reload: preview data only.
         var states: AppModel?
+        var empty: AppModel?
+        var configError: AppModel?
         var menuBar: [(name: String, state: MenuBarState)]
     }
 
@@ -54,6 +56,20 @@ private final class RenderSession {
             renderPopover(data.model, screen: "popover", appearance: appearance, suffix: suffix)
             if let states = data.states {
                 renderPopover(states, screen: "popover-states", appearance: appearance, suffix: suffix)
+                renderSettingsAccounts(states, prefix: "settings-states", appearance: appearance, suffix: suffix)
+                renderDashboard(states, prefix: "dashboard-states", sizes: ["default"], appearance: appearance, suffix: suffix)
+            }
+            if let empty = data.empty {
+                renderSettings(empty, opening: .accounts, appearance: appearance, suffix: suffix) { _ in [Step(screen: "settings-accounts-empty") {}] }
+                renderPopover(empty, screen: "popover-empty", appearance: appearance, suffix: suffix)
+            }
+            if let failed = data.configError {
+                renderSettings(failed, opening: .accounts, appearance: appearance, suffix: suffix) { controller in
+                    [
+                        Step(screen: "settings-config-error-accounts") {},
+                        Step(screen: "settings-config-error-alerts") { controller.rootView = SettingsRoot(model: failed, pane: .alerts) },
+                    ]
+                }
             }
             renderMenuBar(data.menuBar, appearance: appearance, suffix: suffix)
         }
@@ -67,39 +83,67 @@ private final class RenderSession {
         }
         let model = AppModel.preview()
         let states = AppModel.previewStates()
-        for preview in [model, states] { preview.secrets = InMemorySecretStore() }
+        let empty = AppModel.previewEmpty()
+        let configError = AppModel.preview()
+        configError.showFailedReload(of: "config.json")
+        for preview in [model, states, empty, configError] { preview.secrets = InMemorySecretStore() }
         let slots = SnapshotRenderer.slotStates(now: model.now).map { (name: "slot-\($0.name)", state: $0.state) }
-        return RenderData(model: model, states: states, menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + slots)
+        return RenderData(
+            model: model, states: states, empty: empty, configError: configError,
+            menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + slots
+        )
     }
 
     // MARK: Screens
 
     /// Opens Settings on General, as the app does, then moves through the panes and accounts the way clicks would.
     private func renderSettings(_ model: AppModel, appearance: NSAppearance, suffix: String) {
-        let controller = WindowPresenter.makeController(.settings, rootView: SettingsRoot(model: model, pane: nil))
-        var steps: [Step] = [Step(screen: "settings-general") { model.settingsSelection = nil }]
-        steps.append(Step(screen: "settings-accounts") { controller.rootView = SettingsRoot(model: model, pane: .accounts) })
-        for account in model.config.accounts {
-            steps.append(Step(screen: "settings-account-\(slug(account.id))") { model.settingsSelection = account.id })
+        renderSettings(model, opening: nil, appearance: appearance, suffix: suffix) { controller in
+            var steps: [Step] = [Step(screen: "settings-general") { model.settingsSelection = nil }]
+            steps.append(Step(screen: "settings-accounts") { controller.rootView = SettingsRoot(model: model, pane: .accounts) })
+            for account in model.config.accounts {
+                steps.append(Step(screen: "settings-account-\(self.slug(account.id))") { model.settingsSelection = account.id })
+            }
+            for pane in [SettingsPane.alerts, .about] {
+                steps.append(Step(screen: "settings-\(pane.rawValue)") {
+                    model.settingsSelection = nil
+                    controller.rootView = SettingsRoot(model: model, pane: pane)
+                })
+            }
+            return steps
         }
-        for pane in [SettingsPane.alerts, .about] {
-            steps.append(Step(screen: "settings-\(pane.rawValue)") {
-                model.settingsSelection = nil
-                controller.rootView = SettingsRoot(model: model, pane: pane)
-            })
+    }
+
+    /// Opens Settings on Accounts, as "Settings for This Account" does, then moves through the accounts.
+    private func renderSettingsAccounts(_ model: AppModel, prefix: String, appearance: NSAppearance, suffix: String) {
+        renderSettings(model, opening: .accounts, appearance: appearance, suffix: suffix) { _ in
+            [Step(screen: "\(prefix)-accounts") { model.settingsSelection = nil }] + model.config.accounts.map { account in
+                Step(screen: "\(prefix)-account-\(self.slug(account.id))") { model.settingsSelection = account.id }
+            }
         }
-        walk(steps, appearance: appearance, suffix: suffix) {
+    }
+
+    /// Settings opened on `pane` (nil follows `settingsSelection`, as the app does), then `steps`, which get the
+    /// controller so they can switch panes.
+    private func renderSettings(
+        _ model: AppModel, opening pane: SettingsPane?, appearance: NSAppearance, suffix: String,
+        steps: (NSHostingController<SettingsRoot>) -> [Step]
+    ) {
+        let controller = WindowPresenter.makeController(.settings, rootView: SettingsRoot(model: model, pane: pane))
+        walk(steps(controller), appearance: appearance, suffix: suffix) {
             WindowPresenter.makeWindow(.settings, controller: controller, make: CaptureWindow.init(contentViewController:))
         }
     }
 
     /// One window per size, opened on All and then moved through the sidebar's accounts.
-    private func renderDashboard(_ model: AppModel, appearance: NSAppearance, suffix: String) {
+    private func renderDashboard(
+        _ model: AppModel, prefix: String = "dashboard", sizes: Set<String> = ["default", "small", "large"], appearance: NSAppearance, suffix: String
+    ) {
         let spec = WindowPresenter.Spec.dashboard
-        for (sizeName, size) in [("default", spec.size), ("small", spec.minSize), ("large", Self.largeDashboard)] {
-            var steps = [Step(screen: "dashboard-all-\(sizeName)") { model.dashboardSelection = nil }]
+        for (sizeName, size) in [("default", spec.size), ("small", spec.minSize), ("large", Self.largeDashboard)] where sizes.contains(sizeName) {
+            var steps = [Step(screen: "\(prefix)-all-\(sizeName)") { model.dashboardSelection = nil }]
             for account in model.accounts {
-                steps.append(Step(screen: "dashboard-\(slug(account.id))-\(sizeName)") { model.dashboardSelection = account.id })
+                steps.append(Step(screen: "\(prefix)-\(slug(account.id))-\(sizeName)") { model.dashboardSelection = account.id })
             }
             walk(steps, appearance: appearance, suffix: suffix) {
                 let controller = WindowPresenter.makeController(spec, rootView: DashboardView().environment(model))
