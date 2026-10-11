@@ -8,11 +8,11 @@ struct AccountCard: View {
     var body: some View {
         let status = model.status(for: account)
         let refreshMinutes = account.refreshMinutes ?? model.config.refreshMinutes
-        let isStale = status.isStale(now: model.now, refreshMinutes: refreshMinutes)
+        let isStale = status.isStale(now: model.popoverNow, refreshMinutes: refreshMinutes)
         VStack(alignment: .leading, spacing: 10) {
             AccountCardHeader(account: account, status: status, isStale: isStale)
             if let error = status.error {
-                ErrorRow(account: account, error: error, needsAttention: status.failureNeedsAttention(now: model.now, refreshMinutes: refreshMinutes))
+                ErrorRow(account: account, error: error, needsAttention: status.failureNeedsAttention(now: model.popoverNow, refreshMinutes: refreshMinutes))
             }
             if let snapshot = status.snapshot {
                 SnapshotBody(account: account, snapshot: snapshot)
@@ -80,7 +80,7 @@ private struct AccountCardHeader: View {
                 ProgressView()
                     .controlSize(.mini)
             } else if isStale, let fetchedAt = status.snapshot?.fetchedAt {
-                let age = Format.duration(model.now.timeIntervalSince(fetchedAt))
+                let age = Format.duration(model.popoverNow.timeIntervalSince(fetchedAt))
                 Label(String(age.prefix { $0 != " " }), systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -181,7 +181,7 @@ private struct SnapshotBody: View {
     var snapshot: UsageSnapshot
 
     var body: some View {
-        let now = model.now
+        let now = model.popoverNow
         VStack(alignment: .leading, spacing: 10) {
             if !snapshot.windows.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {

@@ -5,7 +5,7 @@ struct PopoverHeader: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let summary = PopoverSummary.make(accounts: model.accounts, statuses: model.statuses, config: model.config, now: model.now)
+        let summary = PopoverSummary.make(accounts: model.accounts, statuses: model.statuses, config: model.config, now: model.popoverNow)
         HStack(spacing: 10) {
             Image(systemName: symbol(summary.tone))
                 .font(.title2)
@@ -52,7 +52,7 @@ struct PopoverHeader: View {
     private var updatedText: String {
         if model.isRefreshing { return "Updating" }
         guard let last = model.lastRefreshAt else { return "Not updated yet" }
-        return "Updated \(Format.age(of: last, now: model.now))"
+        return "Updated \(Format.age(of: last, now: model.popoverNow))"
     }
 
     private func symbol(_ tone: PopoverSummary.Tone) -> String {
