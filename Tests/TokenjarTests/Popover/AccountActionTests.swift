@@ -73,9 +73,18 @@ struct AccountActionTests {
         #expect(titles(.unauthorized) == ["Settings\u{2026}"])
         #expect(titles(.network("offline")) == ["Retry"])
         #expect(titles(modelTurn) == ["Try Once More", "Disable"])
+        #expect(titles(.keychainDenied) == ["Try Again"])
         let check = AccountAction.check(claude, status: AccountStatus(), model: model)
         #expect(check.title == "Check Now")
         #expect(check.help == "Fetch this account's usage now")
+    }
+
+    /// Check Now would not say that this check is the one that brings the macOS prompt back.
+    @Test func settingsOffersTryAgainAfterAKeychainDeny() {
+        let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go", credential: .keychain(account: "go"))
+        let check = AccountAction.check(go, status: AccountStatus(error: .keychainDenied), model: AppModel.preview())
+        #expect(check.title == "Try Again")
+        #expect(check.help == "Ask macOS for the pasted key again")
     }
 
     /// The latch blocks refresh(accountID:), so a plain check would silently do nothing.

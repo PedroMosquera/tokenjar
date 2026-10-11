@@ -20,6 +20,7 @@ struct AccountAction {
         case .notSignedIn: [AccountAction(title: "Sign In\u{2026}") { model.showSettings(accountID: account.id) }]
         case .unauthorized: [AccountAction(title: "Settings\u{2026}") { model.showSettings(accountID: account.id) }]
         case .network, .timeout, .rateLimited, .parse: [AccountAction(title: "Retry") { model.refresh(accountID: account.id) }]
+        case .keychainDenied: [AccountAction(title: "Try Again") { model.refresh(accountID: account.id) }]
         case .noSubscription, .unsupported: []
         }
     }
@@ -30,6 +31,9 @@ struct AccountAction {
             return AccountAction(title: "Try Once More", help: "Checks stopped because the last one spent tokens. Run one more; a repeat stops them again.") {
                 model.retryProbe(accountID: account.id)
             }
+        }
+        if status.error == .keychainDenied {
+            return AccountAction(title: "Try Again", help: "Ask macOS for the pasted key again") { model.refresh(accountID: account.id) }
         }
         return AccountAction(title: "Check Now", help: "Fetch this account's usage now") { model.refresh(accountID: account.id) }
     }

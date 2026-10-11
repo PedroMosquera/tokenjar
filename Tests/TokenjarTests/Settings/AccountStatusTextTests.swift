@@ -82,6 +82,14 @@ struct AccountStatusTextTests {
         #expect(line.caption == AccountStatusText.Caption(text: "Signed out", isActionable: true))
     }
 
+    @Test func aDeniedKeychainReadSaysSoAndThatNothingAsksAgain() {
+        let pasted = AccountConfig(id: "go", provider: .opencodeGo, label: "Go", credential: .keychain(account: "go"))
+        let line = text(pasted, AccountStatus(error: .keychainDenied))
+        #expect(line.text == "Keychain access was denied. Tokenjar won't ask again on its own.")
+        #expect(line.tone == .warning)
+        #expect(line.caption == AccountStatusText.Caption(text: "Keychain denied", isActionable: true))
+    }
+
     @Test func actionableCaptionsSayWhatToFix() {
         #expect(text(go, AccountStatus(error: .unauthorized)).caption == AccountStatusText.Caption(text: "Key rejected", isActionable: true))
         let latched = FetchError.unsupported(ClaudeUsageFetcher.modelTurnMessage)

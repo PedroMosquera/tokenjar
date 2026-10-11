@@ -259,6 +259,8 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
     case timeout
     case parse(String)
     case unsupported(String)
+    /// The user refused Tokenjar's own Keychain item. Only the account's Try Again asks again.
+    case keychainDenied
 
     /// How much a failed check asks of the user. The popover, menu bar, dashboard and Settings all read this one
     /// classification, so they agree on what counts as a problem.
@@ -274,7 +276,7 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
         switch self {
         case .noSubscription: .calm
         case .network, .timeout, .rateLimited: .transient
-        case .cliNotFound, .notSignedIn, .unauthorized, .parse, .unsupported: .actionable
+        case .cliNotFound, .notSignedIn, .unauthorized, .parse, .unsupported, .keychainDenied: .actionable
         }
     }
 
@@ -290,6 +292,7 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
         case .timeout: "No answer in time. Tokenjar tries again at the next refresh."
         case .parse: "Couldn't read the usage answer. An update may have changed it."
         case .unsupported(let detail): detail
+        case .keychainDenied: "Keychain access was denied. Tokenjar won't ask again on its own."
         }
     }
 }

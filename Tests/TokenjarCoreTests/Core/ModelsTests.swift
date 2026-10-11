@@ -107,6 +107,7 @@ struct ModelsTests {
             (.unauthorized, .actionable),
             (.parse("shape"), .actionable),
             (.unsupported("model turn"), .actionable),
+            (.keychainDenied, .actionable),
         ]
         for (error, attention) in expected {
             #expect(error.attention == attention, "\(error)")
@@ -123,6 +124,7 @@ struct ModelsTests {
             (.timeout, "No answer in time. Tokenjar tries again at the next refresh."),
             (.parse("unrecognized output"), "Couldn't read the usage answer. An update may have changed it."),
             (.rateLimited(retryAfter: 60), "Checking too often. Tokenjar waits before the next check."),
+            (.keychainDenied, "Keychain access was denied. Tokenjar won't ask again on its own."),
         ]
         for (error, message) in expected {
             #expect(error.userMessage == message)

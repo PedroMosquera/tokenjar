@@ -1,11 +1,12 @@
 import Foundation
+import Security
 import Testing
 @testable import TokenjarCore
 
 struct OpenCodeLocalDataTests {
     private let openAIOAuth = #""openai":{"type":"oauth","access":"placeholder-access","refresh":"placeholder-refresh","expires":0}"#
 
-    private func key(_ account: AccountConfig, in dir: OpenCodeTempDirectory, secrets: InMemorySecretStore = InMemorySecretStore()) throws -> String {
+    private func key(_ account: AccountConfig, in dir: OpenCodeTempDirectory, secrets: any SecretStore = InMemorySecretStore()) throws -> String {
         try OpenCodeLocalData.apiKey(for: account, secrets: secrets, paths: AppPaths(home: dir.url), dataDirectory: dir.url)
     }
 
@@ -60,6 +61,17 @@ struct OpenCodeLocalDataTests {
         let secrets = InMemorySecretStore(["work-go": "sk-pasted"])
         #expect(try key(account(.keychain(account: "work-go")), in: dir, secrets: secrets) == "sk-pasted")
         #expect(throws: FetchError.notSignedIn) { try key(account(.keychain(account: "other")), in: dir, secrets: secrets) }
+    }
+
+    /// Signed out would send the user to paste a key they already have.
+    @Test func aRefusedKeychainReadIsDeniedNotSignedOut() throws {
+        let dir = try OpenCodeTempDirectory()
+        let keychain = CountingSecretStore(["go": "sk-pasted"])
+        keychain.refuse(with: errSecAuthFailed)
+        #expect(throws: FetchError.keychainDenied) { try key(account(.keychain(account: "go")), in: dir, secrets: keychain) }
+
+        keychain.refuse(with: errSecDecode)
+        #expect(throws: FetchError.notSignedIn) { try key(account(.keychain(account: "go")), in: dir, secrets: keychain) }
     }
 
     @Test func noAuthFileIsNotSignedIn() throws {

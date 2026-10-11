@@ -17,6 +17,11 @@ struct AccountFixTests {
         #expect(AccountFix.primary(for: .notSignedIn, provider: .opencodeGo, credential: .keychain(account: "go")) == .changeKey)
     }
 
+    /// The key is still in the Keychain; changing it would not get past the prompt.
+    @Test func aDeniedKeychainReadIsTriedAgainNotChanged() {
+        #expect(AccountFix.primary(for: .keychainDenied, provider: .opencodeGo, credential: .keychain(account: "go")) == .tryAgain)
+    }
+
     @Test func aRejectedCLILoginSignsInAgain() {
         #expect(AccountFix.primary(for: .unauthorized, provider: .copilot, credential: nil) == .signIn)
     }

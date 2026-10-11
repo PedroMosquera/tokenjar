@@ -120,3 +120,40 @@ func waitUntil(_ condition: () -> Bool, sourceLocation: SourceLocation = #_sourc
     }
     Issue.record("condition did not hold within 3 s", sourceLocation: sourceLocation)
 }
+
+/// Stands in for the Keychain: counts reads and refuses with any status, as a Deny on the prompt does.
+nonisolated final class CountingSecretStore: SecretStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String: String]
+    private var refusal: OSStatus?
+    private var reads = 0
+
+    init(_ values: [String: String] = [:]) { self.values = values }
+
+    var readCount: Int { lock.withLock { reads } }
+    func refuse(with status: OSStatus?) { lock.withLock { refusal = status } }
+
+    func read(account: String) throws -> String? {
+        try lock.withLock {
+            reads += 1
+            if let refusal { throw SecretStoreError.keychain(refusal) }
+            return values[account]
+        }
+    }
+
+    func write(_ secret: String, account: String) throws { lock.withLock { values[account] = secret } }
+    func delete(account: String) throws { _ = lock.withLock { values.removeValue(forKey: account) } }
+}
+
+/// Reads a pasted key through the context the way the OpenCode Go fetcher does, and logs each key it was given.
+nonisolated struct PastedKeyFetcher: UsageFetcher {
+    var keys: FetchLog
+
+    func fetch(_ account: AccountConfig, context: FetchContext) async throws -> UsageSnapshot {
+        guard case .keychain(let name) = account.credential, let key = try context.secrets.pastedKey(account: name) else {
+            throw FetchError.notSignedIn
+        }
+        keys.record(key)
+        return usageSnapshot(account)
+    }
+}

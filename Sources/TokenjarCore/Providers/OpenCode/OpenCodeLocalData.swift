@@ -16,15 +16,16 @@ enum OpenCodeLocalData {
     /// opencode's auth.json entries that may hold a Go key, most specific first.
     static let defaultAuthEntries = ["opencode-go", "opencode"]
 
-    /// Resolves the API key for an OpenCode account. Missing key: `FetchError.notSignedIn`. From auth.json it decodes
-    /// only the named entries and accepts only API-key and well-known logins, never OAuth ones (opencode's "openai").
+    /// Resolves the API key for an OpenCode account. Missing key: `FetchError.notSignedIn`; a refused Keychain read:
+    /// `FetchError.keychainDenied`. From auth.json it decodes only the named entries and accepts only API-key and
+    /// well-known logins, never OAuth ones (opencode's "openai").
     static func apiKey(for account: AccountConfig, secrets: any SecretStore, paths: AppPaths, dataDirectory: URL) throws -> String {
         let key: String?
         switch account.credential {
         case .file(let path, let entry):
             key = apiKey(inAuthFile: paths.expand(path), entries: [entry])
         case .keychain(let name):
-            key = try? secrets.read(account: name)
+            key = try secrets.pastedKey(account: name)
         case nil:
             key = apiKey(inAuthFile: dataDirectory.appending(path: "auth.json"), entries: defaultAuthEntries)
         }
