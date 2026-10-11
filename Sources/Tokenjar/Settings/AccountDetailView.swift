@@ -363,7 +363,7 @@ extension AppModel {
     /// Mac, so nothing is missing there.
     func missingPath(of account: AccountConfig) -> String? {
         guard !previewMode, !AccountDiscovery.isAvailable(account, paths: paths),
-              let location = AccountDiscovery.location(of: account, paths: paths)
+              let location = AccountDiscovery.location(of: account, paths: paths, environment: ProcessInfo.processInfo.environment)
         else { return nil }
         return SettingsLogic.tildePath(location.path, home: paths.home.path)
     }
@@ -411,7 +411,7 @@ struct AccountStatusText: Equatable {
         if provider.isLinkOnly {
             return AccountStatusText(
                 symbol: "link", tone: .neutral, text: "Opens \(account.resolvedDashboardURL.host() ?? provider.displayName)",
-                detail: "\(provider.displayName) doesn't share your quota with local apps yet, so this account opens its plan page. Tokenjar runs nothing for it and reads nothing.",
+                detail: "\(provider.displayName) doesn't share your quota with local apps yet, so this account opens its usage page. Tokenjar runs nothing for it and reads nothing.",
                 offersCheck: false
             )
         }

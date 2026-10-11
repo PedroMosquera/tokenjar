@@ -98,7 +98,7 @@ struct AccountCredentialSection: View {
         if case .file(let path, let key) = account.credential {
             return "Uses the key opencode saved when you signed in (\(path), entry \(key))."
         }
-        let file = SettingsLogic.tildePath(AccountDiscovery.openCodeAuthFile(paths: model.paths).path, home: model.paths.home.path)
+        let file = SettingsLogic.tildePath(AccountDiscovery.openCodeAuthFile(paths: model.paths, environment: ProcessInfo.processInfo.environment).path, home: model.paths.home.path)
         return "Uses the key opencode saved when you signed in (\(file), entry opencode-go, else opencode)."
     }
 

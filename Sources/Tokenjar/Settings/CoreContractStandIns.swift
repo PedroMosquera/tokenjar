@@ -29,9 +29,7 @@ extension ProviderID {
 }
 
 extension AccountDiscovery {
-    static func location(
-        of account: AccountConfig, paths: AppPaths, environment: [String: String] = ProcessInfo.processInfo.environment
-    ) -> URL? {
+    static func location(of account: AccountConfig, paths: AppPaths, environment: [String: String]) -> URL? {
         switch account.provider {
         case .claude: account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".claude")
         case .codex: account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".codex")
@@ -46,7 +44,7 @@ extension AccountDiscovery {
         }
     }
 
-    static func openCodeAuthFile(paths: AppPaths, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+    static func openCodeAuthFile(paths: AppPaths, environment: [String: String]) -> URL {
         if let xdg = environment["XDG_DATA_HOME"], !xdg.isEmpty {
             return URL(fileURLWithPath: xdg).appending(path: "opencode/auth.json")
         }
@@ -55,6 +53,7 @@ extension AccountDiscovery {
 }
 
 extension AppModel {
+    /// core-app defines it as !configLoadFailed, which is private to AppModel; its messages stand in for it here.
     var canEditConfig: Bool {
         guard let problem = configError else { return true }
         return !["Could not read", "config.json is missing", "Headroom"].contains { problem.hasPrefix($0) }
