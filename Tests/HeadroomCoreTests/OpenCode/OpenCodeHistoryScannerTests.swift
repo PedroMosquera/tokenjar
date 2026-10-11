@@ -171,6 +171,8 @@ struct OpenCodeHistoryScannerTests {
         #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/work/site/.claude/worktrees/agent-a3fc8a67", home: home) == "site")
         #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/work/site/.claude/worktrees/chat-persona/web", home: home) == "site")
         #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/.claude/worktrees/x", home: home) == "~")
+        #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/work/site/.superpowers/sdd/2026-09-30-plan", home: home) == "site")
+        #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/.config/nvim", home: home) == "nvim")
         #expect(UsageEvent.project(fromWorkingDirectory: "relative/dir", home: home) == nil)
         #expect(UsageEvent.project(fromWorkingDirectory: nil, home: home) == nil)
     }

@@ -290,11 +290,20 @@ public struct UsageEvent: Codable, Hashable, Sendable {
     static func project(fromWorkingDirectory cwd: String?, home: URL) -> String? {
         guard let cwd, cwd.hasPrefix("/") else { return nil }
         var url = URL(fileURLWithPath: cwd).standardizedFileURL
+        let homePath = home.standardizedFileURL.path
         // Claude Code runs subagents and parallel sessions in <repo>/.claude/worktrees/<name>; the work belongs to <repo>.
         if let range = url.path.range(of: "/.claude/worktrees/") {
             url = URL(fileURLWithPath: String(url.path[..<range.lowerBound]))
+        } else {
+            // Tool workspaces inside a repo (.superpowers/sdd/<plan>, .cursor/...) belong to the repo. Hidden folders
+            // directly under home (~/.config/nvim) are projects of their own.
+            let parts = url.pathComponents
+            if let hidden = parts.indices.dropFirst().first(where: { parts[$0].hasPrefix(".") }), hidden > 1 {
+                let parent = NSString.path(withComponents: Array(parts[..<hidden]))
+                if parent != homePath { url = URL(fileURLWithPath: parent) }
+            }
         }
-        if url.path == home.standardizedFileURL.path { return "~" }
+        if url.path == homePath { return "~" }
         let last = url.lastPathComponent
         return last == "/" ? nil : last
     }
