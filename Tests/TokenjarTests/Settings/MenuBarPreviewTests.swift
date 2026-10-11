@@ -32,6 +32,14 @@ struct MenuBarPreviewTests {
         #expect(MenuBarPreview.caption(MenuBarConfig(showResetCountdownWhenFull: false)) == "Healthy, amber and full")
     }
 
+    @Test func barsAndIconOnlyNeverShowTheCountdownSoTheCaptionLeavesItOut() {
+        for mode in [MenuBarMode.bars, .icon] {
+            let config = MenuBarConfig(mode: mode, showResetCountdownWhenFull: true)
+            #expect(MenuBarPreview.samples(config).map(\.title) == ["", "", ""], "\(mode)")
+            #expect(MenuBarPreview.caption(config) == "Healthy, amber and full", "\(mode)")
+        }
+    }
+
     @Test func voiceOverReadsTheThreeSamplesAsOneDescription() {
         #expect(MenuBarPreview.accessibilityText(MenuBarConfig(warnAt: 80)) == "Healthy at \(Format.percent(40)), amber at \(Format.percent(80)), full at \(Format.percent(100))")
     }

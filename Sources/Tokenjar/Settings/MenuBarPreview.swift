@@ -37,8 +37,9 @@ struct MenuBarPreview: View {
 
     static let sampleTime = Date(timeIntervalSince1970: 0)
 
+    /// Only the tightest-account mode has a title, so only there can the full sample show its countdown.
     static func caption(_ config: MenuBarConfig) -> String {
-        config.showResetCountdownWhenFull ? "Healthy, amber and full (time to reset)" : "Healthy, amber and full"
+        config.mode == .worst && config.showResetCountdownWhenFull ? "Healthy, amber and full (time to reset)" : "Healthy, amber and full"
     }
 
     static func accessibilityText(_ config: MenuBarConfig) -> String {
