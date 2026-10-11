@@ -68,7 +68,7 @@ private struct DashboardDetail: View {
         VStack(alignment: .leading, spacing: 14) {
             let sections = DashboardSections.make(account: account, accounts: accounts, status: account.map { model.status(for: $0) })
             let noUsage = sections.history ? DashboardSections.historyEmptyMessage(account: account, content: content) : nil
-            header
+            header(sections)
             if sections.history, noUsage == nil { kpis }
             if let account { windowTiles(account) }
             if sections.limits { limitsCard }
@@ -91,7 +91,7 @@ private struct DashboardDetail: View {
 
     // MARK: Header
 
-    private var header: some View {
+    private func header(_ sections: DashboardSections) -> some View {
         HStack(alignment: .center, spacing: 12) {
             if let account {
                 ProviderLogoView(provider: account.provider, size: 30)
@@ -114,7 +114,8 @@ private struct DashboardDetail: View {
                 HeaderSubtitle(account: account, accountCount: accounts.count)
             }
             Spacer(minLength: 16)
-            if let account {
+            // A link-only page has its own titled button in the panel below.
+            if let account, !account.provider.isLinkOnly {
                 // Icon only: a titled button truncates the account name at the window's 760 pt minimum width.
                 Button {
                     model.openProviderDashboard(account)
@@ -124,13 +125,15 @@ private struct DashboardDetail: View {
                 .labelStyle(.iconOnly)
                 .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
             }
-            Picker("Range", selection: rangeBinding) {
-                ForEach(DashboardRange.allCases) { Text($0.rawValue).tag($0) }
+            if sections.history || sections.limits {
+                Picker("Range", selection: rangeBinding) {
+                    ForEach(DashboardRange.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .help("Range for the charts, tokens, requests and projects")
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            .help("Range for the charts, tokens, requests and projects")
         }
     }
 
@@ -355,7 +358,8 @@ private struct HeaderSubtitle: View {
         var parts: [String] = []
         if let snapshot = status.snapshot {
             parts.append(snapshot.source)
-            parts.append("updated \(Format.age(of: snapshot.fetchedAt, now: model.now))")
+            // A link-only snapshot is built locally and says nothing new when it was made.
+            if !account.provider.isLinkOnly { parts.append("updated \(Format.age(of: snapshot.fetchedAt, now: model.now))") }
         }
         if let error = status.error { parts.append(error.userMessage) }
         if parts.isEmpty { parts.append("Not checked yet") }
