@@ -73,4 +73,35 @@ struct StatusGlyphTests {
     @Test func theMarkIsSizedForTheMenuBar() {
         #expect(StatusGlyph.slot(0.5).size == NSSize(width: 18, height: 18))
     }
+
+    /// Alpha of each device pixel along the slot's middle row, drawn at `scale`, from the left edge.
+    private func rowAlphas(_ image: NSImage, scale: CGFloat) -> [CGFloat] {
+        let side = Int(StatusGlyph.glyphSide * scale)
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return [] }
+        rep.size = image.size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        image.draw(in: NSRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        return (0..<side).map { rep.colorAt(x: $0, y: side / 2)?.alphaComponent ?? -1 }
+    }
+
+    /// A 1.5 pt stroke covers one and a half pixels on a 1x display, which draws the frame with a soft gray column.
+    @Test func theFrameLandsOnWholePixelsAt1x() {
+        let row = rowAlphas(StatusGlyph.slot(0.3), scale: 1)
+        let frame = Array(row.prefix(4)) + Array(row.suffix(4))
+        #expect(frame.allSatisfy { $0 < 0.05 || $0 > 0.95 }, "\(frame)")
+        #expect(row[1] > 0.95 && row[16] > 0.95)
+    }
+
+    /// The 2x frame was already on whole pixels: 3 device pixels from 2 to 4, and the gap clear to the square at 8.
+    @Test func theFrameAt2xKeepsItsGeometry() {
+        let row = rowAlphas(StatusGlyph.slot(0), scale: 2)
+        #expect(row[0...1].allSatisfy { $0 < 0.05 }, "\(row)")
+        #expect(row[2...4].allSatisfy { $0 > 0.95 }, "\(row)")
+        #expect(row[5...7].allSatisfy { $0 < 0.05 }, "\(row)")
+    }
 }

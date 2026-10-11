@@ -79,14 +79,19 @@ enum StatusGlyph {
     static func slot(_ fraction: Double, wedgeAlpha: CGFloat = 1) -> NSImage {
         let side = glyphSide
         let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
+            let deviceScale = NSGraphicsContext.current.map { abs($0.cgContext.userSpaceToDeviceSpaceTransform.a) } ?? 2
             let grid = NSAffineTransform()
             grid.scale(by: side / 18)
             grid.concat()
             NSColor.black.set()
-            // The SVG source has the frame at 2...16 with a 1.6 stroke and the square at 4.3...13.7. These keep its
-            // proportions and the 1.5 gap, but land every straight edge on a whole pixel at 2x, so the frame stays crisp.
-            let frame = NSBezierPath(roundedRect: NSRect(x: 1.75, y: 1.75, width: 14.5, height: 14.5), xRadius: 2.75, yRadius: 2.75)
-            frame.lineWidth = 1.5
+            // The SVG source has the frame at 2...16 with a 1.6 stroke and the square at 4.3...13.7. At 2x these keep its
+            // proportions and the 1.5 gap with every straight edge on a whole pixel. At 1x a 1.5 stroke would straddle
+            // a pixel and draw a soft gray column, so the frame is one whole pixel with the same outer edge and corner,
+            // which matches the menu bar text's 1x stroke and keeps the gap to the square.
+            let frame = deviceScale < 1.5
+                ? NSBezierPath(roundedRect: NSRect(x: 1.5, y: 1.5, width: 15, height: 15), xRadius: 3, yRadius: 3)
+                : NSBezierPath(roundedRect: NSRect(x: 1.75, y: 1.75, width: 14.5, height: 14.5), xRadius: 2.75, yRadius: 2.75)
+            frame.lineWidth = deviceScale < 1.5 ? 1 : 1.5
             frame.stroke()
             let square = NSBezierPath(roundedRect: NSRect(x: 4, y: 4, width: 10, height: 10), xRadius: 1, yRadius: 1)
             NSColor.black.withAlphaComponent(wedgeAlpha).setFill()
