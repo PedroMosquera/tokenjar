@@ -35,6 +35,9 @@ struct SettingsView: View {
         _chosenPane = SettingsState(initialValue: pane)
     }
 
+    /// Narrower, the account page beside the sidebar and the account list puts its fields under their labels.
+    static let minimumSize = NSSize(width: 800, height: 460)
+
     // Until the user picks something, follow `settingsSelection` so "Settings for this account" lands on that account.
     private var pane: SettingsPane {
         chosenPane ?? (model.settingsSelection == nil ? .general : .accounts)
@@ -53,8 +56,7 @@ struct SettingsView: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        // Narrower, the account page beside the sidebar and the account list puts its fields under their labels.
-        .frame(minWidth: 800, minHeight: 460)
+        .frame(minWidth: Self.minimumSize.width, minHeight: Self.minimumSize.height)
         .navigationTitle(pane.title)
         .onChange(of: model.settingsSelection) { _, id in
             guard let id else { return }

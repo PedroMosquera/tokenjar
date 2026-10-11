@@ -25,7 +25,7 @@ final class WindowPresenter: NSObject, NSWindowDelegate {
         )
         /// Not minimizable: like System Settings, it is closed when done.
         static let settings = Spec(
-            id: "settings", title: "Tokenjar Settings", size: NSSize(width: 820, height: 720), minSize: NSSize(width: 640, height: 460),
+            id: "settings", title: "Tokenjar Settings", size: NSSize(width: 820, height: 720), minSize: SettingsView.minimumSize,
             autosaveName: "Tokenjar.settings.2", styleMask: [.titled, .closable, .resizable, .fullSizeContentView], sceneBridging: [.title],
             clearsFieldFocus: true
         )
