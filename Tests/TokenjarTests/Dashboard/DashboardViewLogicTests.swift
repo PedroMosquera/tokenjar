@@ -47,6 +47,32 @@ struct SidebarBadgeTests {
     }
 }
 
+/// The same failed check reads the same in the sidebar as in the popover's error row.
+@MainActor
+struct SidebarErrorIconTests {
+    @Test func aFailureToFixIsOrangeAsInThePopover() {
+        for error in [FetchError.notSignedIn, .unauthorized, .cliNotFound("claude"), .timeout] {
+            let failed = AccountStatus(error: error)
+            #expect(failed.failureNeedsAttention(now: now, refreshMinutes: 10))
+            #expect(
+                SidebarErrorIcon.make(status: failed, now: now, refreshMinutes: 10)
+                    == SidebarErrorIcon(symbol: ErrorRow.symbol(for: error, needsAttention: true), isWarning: true)
+            )
+        }
+    }
+
+    /// A spend-only snapshot has no window to badge, so its blip shows here as the popover's gray Wi-Fi mark.
+    @Test func aBlipOverFreshDataStaysGrayWithThePopoversSymbol() {
+        let snapshot = UsageSnapshot(accountID: "zen", provider: .opencodeZen, fetchedAt: now.addingTimeInterval(-60), source: "opencode.db")
+        let blip = AccountStatus(snapshot: snapshot, error: .network("offline"))
+        #expect(SidebarErrorIcon.make(status: blip, now: now, refreshMinutes: 10) == SidebarErrorIcon(symbol: "wifi.exclamationmark", isWarning: false))
+    }
+
+    @Test func notSubscribedHasNoMark() {
+        #expect(SidebarErrorIcon.make(status: AccountStatus(error: .noSubscription("none")), now: now, refreshMinutes: 10) == nil)
+    }
+}
+
 struct WindowTileTextTests {
     private let config = MenuBarConfig()
 

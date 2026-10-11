@@ -151,12 +151,27 @@ private struct SidebarBadgeView: View {
                 .help(badge.detail)
                 .accessibilityLabel(badge.percent)
                 .accessibilityValue(badge.detail)
-        } else if let error = status.error, error.attention != .calm {
-            Image(systemName: "exclamationmark.triangle.fill")
+        } else if let error = status.error,
+                  let icon = SidebarErrorIcon.make(status: status, now: model.now, refreshMinutes: account.refreshMinutes ?? model.config.refreshMinutes) {
+            Image(systemName: icon.symbol)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(icon.isWarning && !onSelection ? AnyShapeStyle(Severity.warning.color) : AnyShapeStyle(.secondary))
                 .help(error.userMessage)
                 .accessibilityLabel(error.userMessage)
         }
+    }
+}
+
+/// The mark for a failed check on a row with no live window to badge: the popover error row's symbol and tint, so a
+/// signed-out account is orange in both and a blip over fresh data stays gray in both.
+struct SidebarErrorIcon: Equatable {
+    var symbol: String
+    var isWarning: Bool
+
+    /// nil for a calm failure, which the row's caption already answers.
+    static func make(status: AccountStatus, now: Date, refreshMinutes: Int) -> SidebarErrorIcon? {
+        guard let error = status.error, error.attention != .calm else { return nil }
+        let needsAttention = status.failureNeedsAttention(now: now, refreshMinutes: refreshMinutes)
+        return SidebarErrorIcon(symbol: ErrorRow.symbol(for: error, needsAttention: needsAttention), isWarning: needsAttention)
     }
 }
