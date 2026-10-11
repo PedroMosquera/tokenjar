@@ -60,9 +60,11 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
 
     // MARK: UsageStore
 
-    public func record(_ snapshot: UsageSnapshot) throws {
+    @discardableResult
+    public func record(_ snapshot: UsageSnapshot) throws -> Bool {
         let json = try String(decoding: JSONEncoder().encode(snapshot), as: UTF8.self)
         let ts = snapshot.fetchedAt.timeIntervalSince1970
+        var stored = false
         try locked {
             try transaction {
                 try run(
@@ -87,6 +89,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                     }
                     try insert.bind([.text(snapshot.accountID), .text(window.id), .real(ts), .real(window.usedPercent), resetsAt.map(SQLValue.real) ?? .null])
                     try insert.run()
+                    stored = true
                 }
                 if lastPrune.map({ snapshot.fetchedAt.timeIntervalSince($0) > 86_400 }) ?? true {
                     try run("DELETE FROM window_samples WHERE ts < ?1", [.real(ts - Self.sampleRetention)])
@@ -94,6 +97,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                 }
             }
         }
+        return stored
     }
 
     /// Transactions committed since the store opened, for tests.

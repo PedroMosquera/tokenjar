@@ -219,4 +219,45 @@ struct AppModelRefreshTests {
         await model.tick()?.value
         #expect(log.count("codex") == 3)
     }
+
+    /// History views reload on every bump, so a refresh that stored nothing new must not bump.
+    @Test func historyRevisionMovesOnlyWhenASampleIsStored() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".codex")
+        let account = AccountConfig(id: "codex", provider: .codex, label: "Plus")
+        try home.writeConfig(AppConfig(accounts: [account]))
+        let log = FetchLog(), clock = TestClock(), used = UsedPercent()
+        let fetchedAt = clock.now
+        let model = model(home, clock) { _ in
+            FakeFetcher(log: log) {
+                .success(UsageSnapshot(
+                    accountID: $0.id, provider: $0.provider,
+                    windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: used.value, windowMinutes: 300, resetsAt: fetchedAt.addingTimeInterval(3600))],
+                    fetchedAt: fetchedAt, source: "test"
+                ))
+            }
+        }
+        await model.refresh(force: true)?.value
+        let first = model.historyRevision
+
+        await model.refresh(force: true)?.value
+        #expect(log.count("codex") == 2)
+        #expect(model.historyRevision == first)
+
+        used.value = 20
+        await model.refresh(force: true)?.value
+        #expect(model.historyRevision == first + 1)
+    }
+}
+
+/// The used % a fake fetch reports, changed by the test between refreshes.
+private nonisolated final class UsedPercent: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored = 10.0
+
+    var value: Double {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
 }

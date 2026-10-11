@@ -22,7 +22,7 @@ private nonisolated final class RejectingStore: UsageStore, @unchecked Sendable 
     let inner = InMemoryUsageStore()
     var rejectsEvents = false
 
-    func record(_ snapshot: UsageSnapshot) throws { try inner.record(snapshot) }
+    func record(_ snapshot: UsageSnapshot) throws -> Bool { try inner.record(snapshot) }
     func upsert(_ events: [UsageEvent]) throws {
         if rejectsEvents { throw CocoaError(.fileWriteUnknown) }
         try inner.upsert(events)

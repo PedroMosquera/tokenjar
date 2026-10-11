@@ -340,7 +340,7 @@ final class AppModel {
         let context = FetchContext(secrets: secrets, cli: cliLocator(for: config), paths: paths)
         let jobs = targets.map { ($0, fetcher($0.provider)) }
         return Task {
-            var dropped = false
+            var dropped = false, stored = false
             await withTaskGroup(of: (AccountConfig, Result<UsageSnapshot, FetchError>).self) { group in
                 for (account, fetcher) in jobs {
                     group.addTask {
@@ -355,20 +355,29 @@ final class AppModel {
                     }
                 }
                 for await (account, result) in group {
-                    if !apply(result, to: account) { dropped = true }
+                    switch apply(result, to: account) {
+                    case .dropped: dropped = true
+                    case .applied(let sampled): stored = stored || sampled
+                    }
                     isRefreshing = !scheduler.inFlight.isEmpty
                 }
             }
             lastRefreshAt = clock()
             now = clock()
-            historyRevision += 1
+            if stored { historyRevision += 1 }
             if dropped { refresh(force: false) }
         }
     }
 
-    /// Returns false when the account was edited, disabled or removed while its fetch ran. Such a result describes
-    /// the old settings, so it is not shown, stored or alerted on, and the account is due again at once.
-    private func apply(_ result: Result<UsageSnapshot, FetchError>, to account: AccountConfig) -> Bool {
+    private enum Applied {
+        /// The account was edited, disabled or removed while its fetch ran. The result describes the old settings, so
+        /// it is not shown, stored or alerted on, and the account is due again at once.
+        case dropped
+        /// `sampled` is true when the store kept a new window sample.
+        case applied(sampled: Bool)
+    }
+
+    private func apply(_ result: Result<UsageSnapshot, FetchError>, to account: AccountConfig) -> Applied {
         let current = clock()
         var modelTurn: ProbeLatch.CLI?, rateLimited = false
         if case .failure(let error) = result {
@@ -380,17 +389,18 @@ final class AppModel {
         guard live == account || modelTurn != nil else {
             scheduler.finish(account.id, at: current, delay: nil, rateLimited: false)
             statuses[account.id]?.isRefreshing = false
-            return false
+            return .dropped
         }
 
         var status = statuses[account.id] ?? AccountStatus()
         status.isRefreshing = false
         status.lastAttempt = current
+        var sampled = false
         switch result {
         case .success(let snapshot):
             status.snapshot = snapshot
             status.error = nil
-            try? store?.record(snapshot)
+            sampled = (try? store?.record(snapshot)) ?? false
         case .failure(let error):
             status.error = error
         }
@@ -408,7 +418,7 @@ final class AppModel {
         let outcome = AlertEngine.evaluate(account: live ?? account, result: result, config: config, state: &alertState, now: current)
         notifications?.handle(outcome)
         saveAlertState()
-        return true
+        return .applied(sampled: sampled)
     }
 
     /// Accounts whose last probe spent tokens or quota stay out, unless the binary of the CLI that ran it has changed.

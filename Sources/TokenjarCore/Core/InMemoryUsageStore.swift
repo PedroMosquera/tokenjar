@@ -13,12 +13,14 @@ public final class InMemoryUsageStore: UsageStore, @unchecked Sendable {
         self.calendar = calendar
     }
 
-    public func record(_ snapshot: UsageSnapshot) throws {
+    @discardableResult
+    public func record(_ snapshot: UsageSnapshot) throws -> Bool {
         lock.withLock {
             snapshots[snapshot.accountID] = snapshot
             for window in snapshot.windows {
                 windowSamples.append(WindowSample(accountID: snapshot.accountID, windowID: window.id, timestamp: snapshot.fetchedAt, usedPercent: window.usedPercent, resetsAt: window.resetsAt))
             }
+            return !snapshot.windows.isEmpty
         }
     }
 

@@ -36,7 +36,10 @@ public enum UsageGrouping: String, CaseIterable, Sendable {
 }
 
 public protocol UsageStore: Sendable {
-    func record(_ snapshot: UsageSnapshot) throws
+    /// Keeps the snapshot as the account's latest and stores a sample per window. Returns whether any sample was
+    /// stored, so callers reload history only when it changed.
+    @discardableResult
+    func record(_ snapshot: UsageSnapshot) throws -> Bool
     /// Upsert by dedupeKey, keeping the larger token counts for each field.
     func upsert(_ events: [UsageEvent]) throws
     func checkpoints(scanner: String, accountID: String) throws -> ScanCheckpoints
