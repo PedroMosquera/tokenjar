@@ -112,9 +112,7 @@ struct GeneralSettingsPane: View {
                     .foregroundStyle(.secondary)
             }
             if let error = model.configError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                SettingsNotice(kind: .error, text: error)
             }
             LabeledContent {
                 Button("Import from CodexBar\u{2026}", action: prepareImport)

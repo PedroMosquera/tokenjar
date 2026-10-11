@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 import TokenjarCore
 
@@ -16,6 +17,8 @@ struct AccountCredentialSection: View {
     @SettingsState private var confirmRemoveKey = false
     @SettingsState private var draftKey = ""
     @SettingsState private var message: (text: String, isError: Bool)?
+
+    private static let log = Logger(subsystem: AppPaths.bundleIdentifier, category: "keychain")
 
     private var isKeychain: Bool {
         if case .keychain = account.credential { return true }
@@ -75,7 +78,11 @@ struct AccountCredentialSection: View {
                 SecureField("New API key", text: $draftKey, prompt: Text(isKeychain ? "Paste a key to use on this Mac" : "Paste an OpenCode API key"))
                 HStack {
                     if let message {
-                        Text(message.text).font(.callout).foregroundStyle(message.isError ? .red : .secondary)
+                        if message.isError {
+                            SettingsNotice(kind: .error, text: message.text)
+                        } else {
+                            Text(message.text).font(.callout).foregroundStyle(.secondary)
+                        }
                     }
                     Spacer()
                     Button("Save Key", action: saveKey)
@@ -104,10 +111,9 @@ struct AccountCredentialSection: View {
             choosingKeychain = false
             model.updateAccount(account.id) { $0.credential = .keychain(account: account.id) }
             message = ("Saved to the Keychain.", false)
-        } catch SecretStoreError.keychain(let status) {
-            message = ("Keychain refused the key (status \(status)).", true)
         } catch {
-            message = ("Keychain refused the key.", true)
+            Self.log.error("Saving the pasted key failed: \(String(describing: error), privacy: .public)")
+            message = ("Couldn't save the key to the Keychain. Unlock the login keychain and try again.", true)
         }
     }
 
@@ -117,10 +123,9 @@ struct AccountCredentialSection: View {
             draftKey = ""
             choosingKeychain = false
             model.updateAccount(account.id) { $0.credential = remaining }
-        } catch SecretStoreError.keychain(let status) {
-            message = ("Keychain refused to delete the key (status \(status)).", true)
         } catch {
-            message = ("Keychain refused to delete the key.", true)
+            Self.log.error("Deleting the pasted key failed: \(String(describing: error), privacy: .public)")
+            message = ("Couldn't delete the key from the Keychain. Unlock the login keychain and try again.", true)
         }
     }
 }

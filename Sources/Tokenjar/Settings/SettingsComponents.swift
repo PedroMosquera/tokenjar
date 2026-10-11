@@ -55,6 +55,29 @@ struct HelpText: View {
     }
 }
 
+/// A warning or error line. Only the symbol carries the color: orange or red text is hard to read on the grouped
+/// form's background, in light and dark.
+struct SettingsNotice: View {
+    enum Kind { case warning, error }
+
+    var kind: Kind
+    var text: String
+    /// Secondary for a heads-up the user may ignore, primary for something that failed.
+    var isSecondary = false
+
+    var body: some View {
+        Label {
+            Text(text)
+                .foregroundStyle(isSecondary ? .secondary : .primary)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(kind == .error ? .red : .orange)
+        }
+        .font(.callout)
+    }
+}
+
 /// A form row with no control: a title and its subtitle, laid out like every labelled control's label.
 struct TextRow<Label: View>: View {
     @ViewBuilder var label: Label

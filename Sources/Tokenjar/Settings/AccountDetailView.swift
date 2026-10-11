@@ -185,9 +185,11 @@ struct AccountDetailView: View {
             }
             .help("Sets \(variable.name) when Tokenjar runs \(cli). Leave empty for \(variable.defaultPath).")
             if let twin = SettingsLogic.profileTwin(of: account, in: model.config.accounts, paths: model.paths), account.enabled {
-                Label("Same profile as \(twin.displayName). Both will show the same login.", systemImage: "exclamationmark.triangle")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
+                LabeledContent {
+                    Button("Choose\u{2026}", action: chooseProfileFolder)
+                } label: {
+                    SettingsNotice(kind: .warning, text: "Same profile as \(twin.displayName). Both will show the same login.", isSecondary: true)
+                }
             }
         } header: {
             Text("Login")
@@ -286,7 +288,7 @@ struct AccountDetailView: View {
                 }
             }
             if dashboardError {
-                Text("Enter a web address starting with https://").font(.callout).foregroundStyle(.red)
+                SettingsNotice(kind: .error, text: "Enter a web address starting with https://")
             }
         }
     }
