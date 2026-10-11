@@ -175,9 +175,9 @@ extension MenuBarMode {
 
     var summary: String {
         switch self {
-        case .worst: "Logo and used % of the account with the least headroom."
+        case .worst: "Headroom's mark and the used % of the account with the least headroom."
         case .bars: "One thin bar per account shown in the menu bar."
-        case .icon: "Logo only, tinted amber or red when an account runs low."
+        case .icon: "Headroom's mark only, tinted amber or red when an account runs low."
         }
     }
 }

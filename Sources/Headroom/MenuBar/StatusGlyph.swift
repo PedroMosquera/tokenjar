@@ -16,16 +16,31 @@ enum StatusGlyph {
         var dimmed: Bool
     }
 
-    /// The provider logo, or an SF Symbol stand-in when the SVG is not bundled.
-    static func provider(_ provider: ProviderID, tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
-        let base = ProviderLogo.image(provider, template: true) ?? symbol(fallbackSymbol(provider), description: provider.displayName)
-        return compose(base, description: provider.displayName, tint: tint, alpha: alpha, dot: dot)
+    /// Headroom's own mark, the app icon's ceiling over three rising bars. The menu bar uses it instead of a
+    /// provider logo, which would be mistaken for that provider's own app sitting next to it.
+    static func brand(tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
+        compose(mark, description: "Headroom", tint: tint, alpha: alpha, dot: dot)
     }
 
     /// Shown when nothing is configured or no account has reported yet.
     static func neutral(dot: Bool) -> NSImage {
-        compose(symbol("gauge.with.dots.needle.33percent", description: "Headroom"), description: "Headroom", tint: nil, alpha: 1, dot: dot)
+        brand(tint: nil, alpha: 1, dot: dot)
     }
+
+    private static let mark: NSImage = {
+        let side = glyphSide
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: NSRect(x: 1, y: 13.2, width: 14, height: 1.8), xRadius: 0.9, yRadius: 0.9).fill()
+            // Heights rise left to right and stop short of the ceiling: the gap is the headroom.
+            for (x, height) in [(1.6, 5.2), (6.3, 7.6), (11.0, 9.8)] as [(CGFloat, CGFloat)] {
+                NSBezierPath(roundedRect: NSRect(x: x, y: 1, width: 3.4, height: height), xRadius: 1.1, yRadius: 1.1).fill()
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }()
 
     static func bars(_ bars: [Bar]) -> NSImage {
         let count = CGFloat(max(bars.count, 1))
@@ -54,21 +69,6 @@ enum StatusGlyph {
         if colored { image.cacheMode = .never }
         image.accessibilityDescription = "Usage bars"
         return image
-    }
-
-    private static func fallbackSymbol(_ provider: ProviderID) -> String {
-        switch provider {
-        case .claude: "sparkle"
-        case .codex: "terminal"
-        case .opencodeGo, .opencodeZen: "chevron.left.forwardslash.chevron.right"
-        case .antigravity: "arrow.up.circle"
-        }
-    }
-
-    private static func symbol(_ name: String, description: String) -> NSImage {
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-        return NSImage(systemSymbolName: name, accessibilityDescription: description)?.withSymbolConfiguration(config)
-            ?? NSImage(size: NSSize(width: glyphSide, height: glyphSide))
     }
 
     /// Fits `base` into a 16 pt box, optionally tinted, faded, and badged with a dot that knocks a ring

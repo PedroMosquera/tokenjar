@@ -292,6 +292,16 @@ struct StatusIconRendererTests {
         return rendered.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
     }
 
+    /// A provider's logo here would read as that provider's own menu bar app (Claude's spark sits right beside it).
+    @Test(arguments: [MenuBarMode.worst, .icon])
+    func menuBarShowsHeadroomsOwnMarkNeverAProviderLogo(_ mode: MenuBarMode) {
+        for severity in [Severity.ok, .warning, .critical] {
+            let rendered = StatusIconRenderer.render(state([entry("a", used: 90, severity: severity)], mode: mode))
+            #expect(rendered.image?.accessibilityDescription == "Headroom")
+        }
+        #expect(StatusIconRenderer.render(state([])).image?.accessibilityDescription == "Headroom")
+    }
+
     @Test func showsTheTightestPercentInTheMenuBarColor() {
         let rendered = StatusIconRenderer.render(state([entry("a", used: 42), entry("b", used: 63)]))
         #expect(rendered.title == "63%")

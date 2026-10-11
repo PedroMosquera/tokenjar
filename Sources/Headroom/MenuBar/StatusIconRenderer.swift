@@ -19,7 +19,7 @@ enum StatusIconRenderer {
         case .worst:
             let text = title(for: worst, showResetCountdownWhenFull: state.showResetCountdownWhenFull, now: state.now)
             return RenderedStatusIcon(
-                image: StatusGlyph.provider(worst.provider, tint: tint(worst.severity), alpha: alpha, dot: worst.hasError),
+                image: StatusGlyph.brand(tint: tint(worst.severity), alpha: alpha, dot: worst.hasError),
                 title: text,
                 attributedTitle: attributedTitle(text, severity: worst.severity, isStale: worst.isStale),
                 toolTip: toolTip
@@ -31,7 +31,7 @@ enum StatusIconRenderer {
             return RenderedStatusIcon(image: StatusGlyph.bars(bars), toolTip: toolTip)
         case .icon:
             return RenderedStatusIcon(
-                image: StatusGlyph.provider(worst.provider, tint: tint(worst.severity), alpha: alpha, dot: worst.hasError),
+                image: StatusGlyph.brand(tint: tint(worst.severity), alpha: alpha, dot: worst.hasError),
                 toolTip: toolTip
             )
         }

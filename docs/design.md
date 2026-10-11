@@ -67,9 +67,9 @@ SwiftPM package, Swift tools 6.2, macOS 14 or later, built with Command Line Too
 
 **Menu bar.** Only accounts with `showInMenuBar` count. Three modes (`menuBar.mode`):
 
-- `worst` (default): the template logo of the account with the least headroom (highest severity, then highest used %) plus its tightest used %. Monochrome while healthy, amber at `menuBar.warnAt` (default 80 %) or when any window is projected to run out (at least 50 % used, at least 10 % elapsed, ETA 15 minutes or more before reset), red at `menuBar.criticalAt` (default 95 %). At 100 % the number becomes the reset countdown (`showResetCountdownWhenFull`, on by default).
+- `worst` (default): Headroom's own mark (a ceiling over three rising bars, never a provider logo, which would look like that provider's own menu bar app) plus the tightest used % of the account with the least headroom (highest severity, then highest used %). Monochrome while healthy, amber at `menuBar.warnAt` (default 80 %) or when any window is projected to run out (at least 50 % used, at least 10 % elapsed, ETA 15 minutes or more before reset), red at `menuBar.criticalAt` (default 95 %). At 100 % the number becomes the reset countdown (`showResetCountdownWhenFull`, on by default).
 - `bars`: one thin bar per account, filled to its tightest window. Bars take severity colors when any account is not healthy, and are dimmed when stale or failing.
-- `icon`: the logo only, tinted by the worst state.
+- `icon`: Headroom's mark only, tinted by the worst state.
 
 Data older than twice the account's refresh interval is drawn at half opacity, and a dot on the logo means the last check failed. With no data yet the item shows a neutral gauge. The tooltip lists every menu bar account with its tightest window and reset countdown.
 
