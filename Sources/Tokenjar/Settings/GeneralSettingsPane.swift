@@ -23,7 +23,15 @@ struct GeneralSettingsPane: View {
             }
 
             Section("Menu bar") {
-                Picker("Icon", selection: model.configBinding(\.menuBar.icon)) {
+                Picker(selection: model.configBinding(\.menuBar.mode)) {
+                    ForEach(MenuBarMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                } label: {
+                    Text("Show")
+                    Text(model.config.menuBar.mode.summary(for: model.config.menuBar.icon))
+                }
+                Picker(selection: model.configBinding(\.menuBar.icon)) {
                     ForEach(MenuBarIcon.Group.allCases, id: \.self) { group in
                         Section(group.title) {
                             ForEach(group.icons, id: \.self) { icon in
@@ -31,18 +39,16 @@ struct GeneralSettingsPane: View {
                             }
                         }
                     }
-                }
-                .disabled(!model.config.menuBar.mode.usesIcon)
-                Picker("Show", selection: model.configBinding(\.menuBar.mode)) {
-                    ForEach(MenuBarMode.allCases, id: \.self) { mode in
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(mode.title)
-                            Text(mode.summary(for: model.config.menuBar.icon)).font(.caption).foregroundStyle(.secondary)
-                        }
-                        .tag(mode)
+                } label: {
+                    if model.config.menuBar.mode.usesIcon {
+                        Text("Icon")
+                    } else {
+                        // A disabled pop-up greys itself but not the form's label.
+                        Text("Icon").foregroundStyle(.secondary)
+                        Text("Not used with \(MenuBarMode.bars.title)")
                     }
                 }
-                .pickerStyle(.radioGroup)
+                .disabled(!model.config.menuBar.mode.usesIcon)
                 LabeledContent {
                     MenuBarPreview(config: model.config.menuBar)
                 } label: {
@@ -209,13 +215,14 @@ extension MenuBarMode {
         }
     }
 
+    /// One sentence, shown under the Show picker for the selected mode.
     func summary(for icon: MenuBarIcon) -> String {
         switch (self, icon) {
-        case (.worst, .app): return "The slot, filled to the used share of the account with the least room left, and that used %."
-        case (.worst, _): return "\(icon.phrase) and the used % of the account with the least room left."
-        case (.bars, _): return "One thin bar per account shown in the menu bar, in place of the icon."
-        case (.icon, .app): return "The slot only, filled to the tightest used share and tinted amber or red when an account runs low."
-        case (.icon, _): return "\(icon.phrase) only, tinted amber or red when an account runs low."
+        case (.worst, .app): return "The cooldown slot fills to the tightest account's used share, next to its %."
+        case (.worst, _): return "\(icon.phrase), next to the tightest account's used %."
+        case (.bars, _): return "One bar per menu bar account, in place of the icon."
+        case (.icon, .app): return "The cooldown slot alone, filled and tinted for the tightest account."
+        case (.icon, _): return "\(icon.phrase) alone, tinted amber or red when an account runs low."
         }
     }
 }

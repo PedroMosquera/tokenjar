@@ -81,12 +81,12 @@ struct MenuBarIconTests {
     }
 
     @Test func modeDescriptionsNameTheChosenIcon() {
-        #expect(MenuBarMode.worst.summary(for: .app) == "The slot, filled to the used share of the account with the least room left, and that used %.")
-        #expect(MenuBarMode.worst.summary(for: .logoClaude) == "The Claude logo and the used % of the account with the least room left.")
-        #expect(MenuBarMode.icon.summary(for: .app) == "The slot only, filled to the tightest used share and tinted amber or red when an account runs low.")
-        #expect(MenuBarMode.icon.summary(for: .symbolBrain) == "The Brain symbol only, tinted amber or red when an account runs low.")
-        #expect(MenuBarMode.icon.summary(for: .markMana) == "The Mana mark only, tinted amber or red when an account runs low.")
-        #expect(MenuBarMode.bars.summary(for: .logoClaude) == "One thin bar per account shown in the menu bar, in place of the icon.")
+        #expect(MenuBarMode.worst.summary(for: .app) == "The cooldown slot fills to the tightest account's used share, next to its %.")
+        #expect(MenuBarMode.worst.summary(for: .logoClaude) == "The Claude logo, next to the tightest account's used %.")
+        #expect(MenuBarMode.icon.summary(for: .app) == "The cooldown slot alone, filled and tinted for the tightest account.")
+        #expect(MenuBarMode.icon.summary(for: .symbolBrain) == "The Brain symbol alone, tinted amber or red when an account runs low.")
+        #expect(MenuBarMode.icon.summary(for: .markMana) == "The Mana mark alone, tinted amber or red when an account runs low.")
+        #expect(MenuBarMode.bars.summary(for: .logoClaude) == "One bar per menu bar account, in place of the icon.")
     }
 }
 

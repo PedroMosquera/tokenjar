@@ -90,7 +90,7 @@ struct AboutSettingsPane: View {
         if Bundle.main.bundleURL.pathExtension == "app" {
             Image(nsImage: NSApp.applicationIconImage).resizable()
         } else {
-            Image(systemName: "gauge.with.dots.needle.33percent")
+            Image(nsImage: StatusGlyph.picture(.app))
                 .resizable()
                 .scaledToFit()
                 .foregroundStyle(Color.accentColor)
