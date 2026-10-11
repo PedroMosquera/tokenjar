@@ -43,7 +43,7 @@ enum Format {
         amount >= 100 || amount == amount.rounded() ? 0 : 2
     }
 
-    private static func money(_ amount: Double, currency: String, fractionDigits: Int, locale: Locale) -> String {
+    static func money(_ amount: Double, currency: String, fractionDigits: Int, locale: Locale) -> String {
         amount.formatted(.currency(code: currency).precision(.fractionLength(fractionDigits)).locale(locale))
     }
 
