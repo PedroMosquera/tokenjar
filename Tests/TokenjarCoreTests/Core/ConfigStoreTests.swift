@@ -333,6 +333,41 @@ struct ConfigStoreTests {
         #expect(!reloaded.base.accounts.contains { $0.id == "claude-work" })
     }
 
+    /// config.json syncs to Macs that may run a newer build; a save here must not drop what that build added.
+    @Test func saveKeepsKeysThisBuildDoesNotKnow() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"""
+            {"futureTop": {"nested": [1, 2]}, "menuBar": {"mode": "bars", "futureMenuBarKey": "x"},
+             "alerts": {"futureAlertKey": true}, "cliPaths": {"agy": "/opt/agy", "codex": "/opt/codex"},
+             "accounts": [{"id": "claude", "provider": "claude", "dashboardURL": "https://x.example", "futureAccountKey": 7},
+                          {"id": "codex", "provider": "codex", "futureAccountKey": 8}]}
+            """#, to: paths.configFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        edited.refreshMinutes = 5
+        edited.cliPaths["agy"] = nil
+        edited.accounts[0].dashboardURL = nil
+        edited.accounts.remove(at: 1)
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        let raw = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: paths.configFile)) as? [String: Any])
+        #expect(raw["futureTop"] as? [String: [Int]] == ["nested": [1, 2]])
+        #expect((raw["menuBar"] as? [String: Any])?["futureMenuBarKey"] as? String == "x")
+        #expect((raw["menuBar"] as? [String: Any])?["mode"] as? String == "bars")
+        #expect((raw["alerts"] as? [String: Any])?["futureAlertKey"] as? Bool == true)
+        #expect(raw["refreshMinutes"] as? Int == 5)
+        // Keys this build knows follow the edit, so a removed value stays removed.
+        #expect(raw["cliPaths"] as? [String: String] == ["codex": "/opt/codex"])
+        let accounts = try #require(raw["accounts"] as? [[String: Any]])
+        #expect(accounts.map { $0["id"] as? String } == ["claude"])
+        #expect(accounts.first?["futureAccountKey"] as? Int == 7)
+        #expect(accounts.first?["dashboardURL"] == nil)
+    }
+
     @Test func aConfigWithoutTheNewKeysLoadsTheDefaults() throws {
         let config = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"alerts": {"thresholds": [70]}, "accounts": []}"#.utf8))
         #expect(config.alerts.thresholds == [70])

@@ -214,10 +214,14 @@ public struct ConfigStore: Sendable {
         return updated
     }
 
+    /// Keys that config.json holds and this build does not read are kept, so a save here keeps what a newer build on
+    /// another Mac added. A file that is missing or does not load is replaced whole.
     public func write(_ config: AppConfig) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        let data = try encoder.encode(config)
+        var object = try Self.jsonObject(config)
+        if let onDisk = try? readJSONObject(paths.configFile), let known = try? Self.jsonObject(decode(onDisk, file: paths.configFile)) {
+            object = Self.keepingUnknownKeys(of: onDisk, known: known, in: object)
+        }
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         let target = try Self.writeTarget(paths.configFile)
         try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
         try (data + Data("\n".utf8)).write(to: target, options: .atomic)
@@ -313,6 +317,34 @@ public struct ConfigStore: Sendable {
             }
         }
         return out
+    }
+
+    /// Adds back what `onDisk` holds at any depth that `known`, this build's own encoding of `onDisk`, lacks. Accounts
+    /// match by `id`. Keys this build reads come from `written` alone, so a value the edit removed stays removed.
+    static func keepingUnknownKeys(of onDisk: [String: Any], known: [String: Any], in written: [String: Any]) -> [String: Any] {
+        var out = written
+        for (key, value) in onDisk {
+            guard let knownValue = known[key] else {
+                if out[key] == nil { out[key] = value }
+                continue
+            }
+            if key == "accounts", let diskAccounts = value as? [[String: Any]], let knownAccounts = knownValue as? [[String: Any]],
+               let writtenAccounts = out[key] as? [[String: Any]] {
+                out[key] = writtenAccounts.map { account in
+                    func byID(_ list: [[String: Any]]) -> [String: Any]? { list.first { $0["id"] as? String == account["id"] as? String } }
+                    guard let disk = byID(diskAccounts), let known = byID(knownAccounts) else { return account }
+                    return keepingUnknownKeys(of: disk, known: known, in: account)
+                }
+            } else if let disk = value as? [String: Any], let known = knownValue as? [String: Any], let edited = out[key] as? [String: Any] {
+                out[key] = keepingUnknownKeys(of: disk, known: known, in: edited)
+            }
+        }
+        return out
+    }
+
+    private static func jsonObject(_ config: AppConfig) throws -> [String: Any] {
+        // AppConfig encodes a keyed container, so the top level is always an object.
+        try JSONSerialization.jsonObject(with: JSONEncoder().encode(config)) as! [String: Any]
     }
 
     private func readJSONObject(_ url: URL) throws -> [String: Any] {

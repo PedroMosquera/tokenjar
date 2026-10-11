@@ -86,6 +86,8 @@ The plan pill comes from the login itself, so it reads Max on one Mac and Enterp
 
 Claude, Codex and GitHub Copilot accounts whose profile folder is missing on a Mac (for Copilot, gh's config folder, `~/.config/gh` by default), OpenCode Go accounts whose credential file (else opencode's default `auth.json`) is missing, and OpenCode Zen accounts without an `opencode.db` are hidden there (Settings lists them as "Not on this Mac"), so one shared file can list `~/.claude-work` and still work on another Mac. Antigravity, Devin and accounts with a pasted API key have no file to check; turn one off on a single Mac with `"enabled": false` in that Mac's `config.local.json`.
 
+Settings keeps keys it does not know when it saves, so a setting a newer build added survives an edit on a Mac that has not updated yet. Builds from before that rule drop such keys, so update every Mac that shares the file together.
+
 Settings writes only `config.json`. Editing a field that `config.local.json` overrides changes the shared value for your other Macs, while this Mac keeps its local one, so change such a field in `config.local.json` by hand.
 
 History and alert state stay on each Mac and are never synced. `tokenjar.sqlite` (usage history and limit samples), `alert-state.json` and `probe-latch.json` live in `~/Library/Application Support/Tokenjar/`. The same account `id` on two Macs keeps two separate histories, which is what lets one id stand for a different login on each. A pasted API key lives only in that Mac's Keychain, so paste it again on each Mac. Launch at login is registered per Mac.
