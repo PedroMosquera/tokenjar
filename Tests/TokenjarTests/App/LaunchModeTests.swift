@@ -16,6 +16,22 @@ struct LaunchModeTests {
         #expect(LaunchMode.parse(["Tokenjar", "--scan", "codex"]) == .devCommand)
     }
 
+    @Test func captureIsADevCommand() {
+        #expect(LaunchMode.parse(["Tokenjar", "--capture", "claude"]) == .devCommand)
+        #expect(LaunchMode.parse(["Tokenjar", "--capture", "opencode-go", "--credential-file", "/tmp/auth.json", "--credential-key", "opencode"]) == .devCommand)
+    }
+
+    /// A missing provider would otherwise fall through to a normal launch, which starts probes and writes the live data.
+    @Test func captureNeedsAProvider() {
+        for args in [["Tokenjar", "--capture"], ["Tokenjar", "--capture", ""], ["Tokenjar", "--capture", "--profile-dir", "/tmp/p"]] {
+            guard case .invalid(let usage) = LaunchMode.parse(args) else {
+                Issue.record("\(args) should be refused")
+                continue
+            }
+            #expect(usage.contains("--capture <provider>"))
+        }
+    }
+
     /// An unset shell variable drops the folder. Falling through to a normal launch would move Headroom's folders and
     /// start probes from a command meant only to draw PNGs.
     @Test func renderSnapshotsWithoutAFolderIsRefused() {

@@ -1,0 +1,149 @@
+import Foundation
+
+/// Makes a `--capture` document safe to paste into an issue. Every key, bool and null is kept, so the shape survives.
+/// A number is kept unless its key names an id. A string survives only at a path pinned for that provider, and even
+/// there only when it does not look like an email, a UUID or a key. A key that looks like one of those is replaced too.
+/// The Copilot half of this runs inside gh, as `jqProgram`, so gh's answer is redacted before it reaches Tokenjar.
+public enum CaptureRedactor {
+    public static let placeholder = "<redacted>"
+
+    /// Paths from the root of each provider's capture document: keys joined by ".", "[]" for each array level, "*" for
+    /// any one key and "**" for any run of keys. docs/privacy.md lists them; widening one is a privacy decision.
+    static let allowlist: [ProviderID: [String]] = {
+        let limit = "probe.lines[].usage_report.rate_limits.limits[]"
+        let agyGroup = "usage.stdout.**.groups[]"
+        let codexLimitFields = ["planType", "limitId", "limitName", "rateLimitReachedType"]
+        let goWindows = ["rolling", "weekly", "monthly"]
+        return [
+            .claude: [
+                "capture",
+                "probe.lines[].type", "probe.lines[].subtype", "probe.lines[].apiKeySource", "probe.lines[].claude_code_version",
+                "probe.lines[].local_command", "probe.lines[].local_command_run.command",
+                "\(limit).kind", "\(limit).group", "\(limit).severity",
+                "\(limit).scope.model.display_name", "\(limit).scope.surface.display_name",
+                "probe.lines[].usage_report.rate_limits.extra_usage.currency",
+                "claudeJSON.oauthAccount.organizationType", "claudeJSON.oauthAccount.seatTier", "claudeJSON.oauthAccount.billingType",
+                "claudeJSON.oauthAccount.organizationRateLimitTier", "claudeJSON.oauthAccount.userRateLimitTier",
+                "settingsEnvKeys[]", "managedSettingsEnvKeys[]",
+            ],
+            .codex: ["capture", "error", "classifiedAs"]
+                + codexLimitFields.map { "response.result.rateLimits.\($0)" }
+                + codexLimitFields.map { "response.result.rateLimitsByLimitId.*.\($0)" }
+                + ["status", "state", "type", "kind"].map { "response.result.rateLimitResetCredits.**.\($0)" }
+                + ["response.result.**.service_tier", "response.result.**.serviceTier"],
+            .copilot: [
+                "capture",
+                "response.copilot_plan", "response.access_type_sku", "response.sku", "response.quota_snapshots.*.quota_id",
+                "stderr.phrases[]",
+            ],
+            .antigravity: ["capture"]
+                + ["name", "displayName", "display_name", "label", "title"].map { "\(agyGroup).\($0)" }
+                + ["\(agyGroup).buckets[].window", "usage.stderr.phrases[]"],
+            .opencodeGo: ["capture", "error", "response._tag", "response.error.type", "response.**.currency"]
+                + goWindows.map { "response.\($0).status" }
+                + goWindows.map { "response.usage.\($0).status" },
+        ]
+    }()
+
+    /// An email, a UUID, a token with a known key prefix, or a long run of key-like characters. Written for ICU, RE2
+    /// (gh's jq) and Oniguruma (the system jq the tests run) alike, so no lookaround and no word-boundary escapes.
+    static let secretPattern = [
+        #"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#,
+        #"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}"#,
+        #"(^|[^A-Za-z0-9_])(sk-|sk_|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|oc_sk_|xox[abpr]-|AKIA|AIza|ya29\.|eyJ)[A-Za-z0-9_.-]{8,}"#,
+        #"[A-Za-z0-9]{32,}"#,
+        #"[A-Za-z0-9_.+/=-]{48,}"#,
+    ].joined(separator: "|")
+
+    public static func redact(_ value: Any, provider: ProviderID) -> Any {
+        redact(value, path: "", key: "", allowed: (allowlist[provider] ?? []).map(pathRegex))
+    }
+
+    /// Redacts `document` and prints it as sorted, pretty JSON.
+    public static func render(_ document: Any, provider: ProviderID) throws -> String {
+        let options: JSONSerialization.WritingOptions = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]
+        return String(decoding: try JSONSerialization.data(withJSONObject: redact(document, provider: provider), options: options), as: UTF8.self)
+    }
+
+    /// The rules of `redact` as a jq program, for the part of `provider`'s document under `prefix`. gh runs it, so only
+    /// what survives it leaves gh's process.
+    static func jqProgram(for provider: ProviderID, under prefix: String) -> String {
+        let patterns = (allowlist[provider] ?? []).compactMap { path in
+            path.hasPrefix(prefix + ".") ? pathRegex(String(path.dropFirst(prefix.count + 1))) : nil
+        }
+        let suffixes = idSuffixes.map { "($l | endswith(\(jqString($0))))" }.joined(separator: " or ")
+        let camel = camelIDSuffixes.map { "endswith(\(jqString($0)))" }.joined(separator: " or ")
+        return [
+            "def secret: test(\(jqString(secretPattern)));",
+            "def idkey: ascii_downcase as $l | ($l == \"id\" or $l == \"ids\" or \(suffixes) or \(camel));",
+            "def allowed($p): any(\(jqArray(patterns))[]; . as $re | $p | test($re));",
+            "def r($p; $k): if type == \"object\" then to_entries | [range(0; length) as $i | .[$i]",
+            "| (if (.key | secret) then \"<redacted-key-\\($i)>\" else .key end) as $name",
+            "| {key: $name, value: (.value | r(if $p == \"\" then $name else \"\\($p).\\($name)\" end; $name))}] | from_entries",
+            "elif type == \"array\" then map(r(\"\\($p)[]\"; $k))",
+            "elif type == \"string\" then (if allowed($p) and (secret | not) then . else \(jqString(placeholder)) end)",
+            "elif type == \"number\" then (if ($k | idkey) then \(jqString(placeholder)) else . end)",
+            "else . end;",
+            "r(\"\"; \"\")",
+        ].joined(separator: " ")
+    }
+
+    static func isIDKey(_ key: String) -> Bool {
+        let lower = key.lowercased()
+        return lower == "id" || lower == "ids" || idSuffixes.contains { lower.hasSuffix($0) } || camelIDSuffixes.contains { key.hasSuffix($0) }
+    }
+
+    static func looksSecret(_ text: String) -> Bool {
+        text.range(of: secretPattern, options: .regularExpression) != nil
+    }
+
+    private static let idSuffixes = ["_id", "_ids", "-id", "uuid"]
+    private static let camelIDSuffixes = ["Id", "ID", "Ids", "IDs"]
+
+    private static func redact(_ value: Any, path: String, key: String, allowed: [String]) -> Any {
+        if let object = value as? [String: Any] {
+            var out: [String: Any] = [:]
+            for (index, name) in object.keys.sorted().enumerated() {
+                let safe = looksSecret(name) ? "<redacted-key-\(index)>" : name
+                out[safe] = redact(object[name] as Any, path: path.isEmpty ? safe : "\(path).\(safe)", key: safe, allowed: allowed)
+            }
+            return out
+        }
+        if let array = value as? [Any] {
+            return array.map { redact($0, path: path + "[]", key: key, allowed: allowed) }
+        }
+        if let string = value as? String {
+            let pinned = allowed.contains { path.range(of: $0, options: .regularExpression) != nil }
+            return pinned && !looksSecret(string) ? string : placeholder
+        }
+        if let number = value as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() { return number }
+            return isIDKey(key) ? placeholder : number
+        }
+        return value is NSNull ? value : placeholder
+    }
+
+    /// An anchored regex for one allowlist path. "*" never crosses a "." or an array level; "**" may match nothing.
+    static func pathRegex(_ path: String) -> String {
+        let segments = path.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        var regex = "^"
+        for (index, segment) in segments.enumerated() {
+            if segment == "**" {
+                regex += #"([^.]+\.)*"#
+                continue
+            }
+            regex += segment == "*" ? #"[^.\[\]]+"# : NSRegularExpression.escapedPattern(for: segment)
+            if index < segments.count - 1 { regex += #"\."# }
+        }
+        return regex + "$"
+    }
+
+    private static func jqString(_ text: String) -> String {
+        String(jqArray([text]).dropFirst().dropLast())
+    }
+
+    private static func jqArray(_ items: [String]) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: items, options: [.withoutEscapingSlashes])) ?? Data("[]".utf8)
+        return String(decoding: data, as: UTF8.self)
+    }
+}
