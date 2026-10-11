@@ -2,29 +2,29 @@
 import PackageDescription
 
 let package = Package(
-    name: "Headroom",
+    name: "Tokenjar",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "Headroom", targets: ["Headroom"]),
+        .executable(name: "Tokenjar", targets: ["Tokenjar"]),
     ],
     targets: [
         .target(
-            name: "HeadroomCore",
+            name: "TokenjarCore",
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
         .executableTarget(
-            name: "Headroom",
-            dependencies: ["HeadroomCore"],
+            name: "Tokenjar",
+            dependencies: ["TokenjarCore"],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
         .testTarget(
-            name: "HeadroomCoreTests",
-            dependencies: ["HeadroomCore"],
+            name: "TokenjarCoreTests",
+            dependencies: ["TokenjarCore"],
             exclude: ["Fixtures"]
         ),
         .testTarget(
-            name: "HeadroomTests",
-            dependencies: ["Headroom", "HeadroomCore"],
+            name: "TokenjarTests",
+            dependencies: ["Tokenjar", "TokenjarCore"],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
     ]
