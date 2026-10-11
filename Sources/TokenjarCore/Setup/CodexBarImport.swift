@@ -75,8 +75,9 @@ public enum CodexBarImport {
         return out
     }
 
-    /// Same provider and same profile dir or credential file. Antigravity and Devin have one login per Mac. Two entries of one
-    /// auth.json are different logins, but an account without a credential uses the key discovery would pick.
+    /// Same provider and same `AccountDiscovery.location`: the profile dir, the credential file, or opencode.db for Zen.
+    /// Antigravity and Devin have one login per Mac. Two entries of one auth.json are different Go logins, but an account
+    /// without a credential uses the key discovery would pick. Zen reads no key, so its credential never splits a login.
     static func isSameLogin(_ a: AccountConfig, _ b: AccountConfig, paths: AppPaths, environment: [String: String]) -> Bool {
         guard a.provider == b.provider else { return false }
         if a.provider == .antigravity || a.provider == .devin { return true }
@@ -84,7 +85,7 @@ public enum CodexBarImport {
               let locationB = AccountDiscovery.location(of: b, paths: paths, environment: environment),
               locationA.standardizedFileURL.path == locationB.standardizedFileURL.path
         else { return false }
-        if case .file(_, let keyA) = a.credential, case .file(_, let keyB) = b.credential { return keyA == keyB }
+        if a.provider == .opencodeGo, case .file(_, let keyA) = a.credential, case .file(_, let keyB) = b.credential { return keyA == keyB }
         return true
     }
 

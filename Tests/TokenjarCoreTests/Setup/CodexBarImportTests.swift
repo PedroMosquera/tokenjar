@@ -184,6 +184,20 @@ struct CodexBarImportTests {
         #expect(applied.accounts.map(\.enabled) == [false, true])
     }
 
+    /// Zen reads only opencode.db, so its data folder is the login whatever key its credential names.
+    @Test func applyMatchesZenByItsDatabase() {
+        let config = AppConfig(accounts: [
+            AccountConfig(id: "zen-pasted", provider: .opencodeZen, label: "Zen", credential: .keychain(account: "zen-pasted")),
+            AccountConfig(id: "zen-go-entry", provider: .opencodeZen, label: "Zen", credential: .file(path: authFile, key: "opencode-go")),
+            AccountConfig(id: "zen-elsewhere", provider: .opencodeZen, label: "Zen", profileDir: "~/elsewhere/opencode"),
+        ])
+
+        let applied = apply(CodexBarImportPreview(enabledProviders: []), to: config, discovered: [discovered[3]])
+
+        #expect(applied.accounts.map(\.id) == config.accounts.map(\.id))
+        #expect(applied.accounts.map(\.enabled) == [false, false, true])
+    }
+
     @Test func applyAddsAnotherLoginUnderAFreeID() throws {
         let config = AppConfig(accounts: [
             AccountConfig(id: "claude", provider: .claude, label: "Work", profileDir: "~/.claude-work"),
