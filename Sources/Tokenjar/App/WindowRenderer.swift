@@ -8,7 +8,7 @@ import TokenjarCore
 /// are also saved at 1x as `<screen>-<light|dark>@1x.png`. Prints each file written.
 ///
 /// Windows stay off every screen and the app never activates, so the frontmost app keeps keyboard focus. `CaptureWindow`
-/// stands in for the key window an activation would give: it draws as key and gets the first key view AppKit would pick.
+/// stands in for the key window an activation would give: it draws as key and ends up with the focus the app leaves it.
 ///
 /// Data is `AppModel.preview()`, or with `--real-data` this Mac's config and a copy of its history (`RealDataLoader`).
 enum WindowRenderer {
@@ -76,7 +76,7 @@ private final class RenderSession {
 
     /// Opens Settings on General, as the app does, then moves through the panes and accounts the way clicks would.
     private func renderSettings(_ model: AppModel, appearance: NSAppearance, suffix: String) {
-        let controller = NSHostingController(rootView: SettingsRoot(model: model, pane: nil))
+        let controller = WindowPresenter.makeController(.settings, rootView: SettingsRoot(model: model, pane: nil))
         var steps: [Step] = [Step(screen: "settings-general") { model.settingsSelection = nil }]
         steps.append(Step(screen: "settings-accounts") { controller.rootView = SettingsRoot(model: model, pane: .accounts) })
         for account in model.config.accounts {
@@ -102,7 +102,7 @@ private final class RenderSession {
                 steps.append(Step(screen: "dashboard-\(slug(account.id))-\(sizeName)") { model.dashboardSelection = account.id })
             }
             walk(steps, appearance: appearance, suffix: suffix) {
-                let controller = NSHostingController(rootView: DashboardView().environment(model))
+                let controller = WindowPresenter.makeController(spec, rootView: DashboardView().environment(model))
                 let window = WindowPresenter.makeWindow(spec, controller: controller, make: CaptureWindow.init(contentViewController:))
                 window.setContentSize(size)
                 return window
@@ -189,11 +189,14 @@ private final class RenderSession {
         window.becomeKey()
         window.becomeMain()
         window.contentView?.layoutSubtreeIfNeeded()
-        // A window that becomes key moves focus to its first key view when nothing that takes typing has it yet.
-        // Without activation it never becomes key, so that step runs here.
-        if let responder = window.firstResponder, responder === window || !responder.acceptsFirstResponder {
+        // A window that becomes key moves focus to its initialFirstResponder, or else to its first key view, when
+        // nothing that takes typing has it yet. Without activation it never becomes key, so that step runs here, and
+        // then what WindowPresenter does when a window it opened first becomes key.
+        if let responder = window.firstResponder, responder === window || !responder.acceptsFirstResponder,
+           !(window.initialFirstResponder.map(window.makeFirstResponder) ?? false) {
             window.selectNextKeyView(nil)
         }
+        WindowPresenter.clearFieldFocus(in: window)
         settle(Self.openDelay)
     }
 
