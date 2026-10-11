@@ -5,9 +5,9 @@ import TokenjarCore
 struct AccountDetailView: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
-    var onRemoved: () -> Void
+    /// Asks the accounts pane to confirm removing this account; the list's minus button asks the same way.
+    var onRemove: () -> Void
 
-    @SettingsState private var confirmRemove = false
     @SettingsState private var dashboardError = false
     @SettingsState private var signInFailed = false
 
@@ -45,7 +45,7 @@ struct AccountDetailView: View {
                 Section {
                     HStack {
                         Spacer()
-                        Button("Remove Account\u{2026}", role: .destructive) { confirmRemove = true }
+                        Button("Remove Account\u{2026}", role: .destructive, action: onRemove)
                     }
                 }
             }
@@ -53,11 +53,6 @@ struct AccountDetailView: View {
             .scrollContentBackground(.hidden)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .confirmationDialog("Remove \(account.displayName)?", isPresented: $confirmRemove) {
-            Button("Remove", role: .destructive, action: remove)
-        } message: {
-            Text(removeMessage)
-        }
         .alert("Couldn't open Terminal", isPresented: $signInFailed) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -138,17 +133,9 @@ struct AccountDetailView: View {
         return AccountFix.primary(for: error, provider: account.provider, credential: account.credential)
     }
 
-    private var statusText: AccountStatusText {
-        AccountStatusText.make(account: account, status: model.status(for: account), missingPath: missingPath, now: model.now)
-    }
+    private var statusText: AccountStatusText { model.statusText(for: account) }
 
-    /// Preview data describes accounts on no real Mac, so nothing is missing there.
-    private var missingPath: String? {
-        guard !model.previewMode, !AccountDiscovery.isAvailable(account, paths: model.paths),
-              let location = AccountDiscovery.location(of: account, paths: model.paths)
-        else { return nil }
-        return SettingsLogic.tildePath(location.path, home: model.paths.home.path)
-    }
+    private var missingPath: String? { model.missingPath(of: account) }
 
     // MARK: Sections
 
@@ -327,20 +314,6 @@ struct AccountDetailView: View {
         )
     }
 
-    private var removeMessage: String {
-        var text = "It is removed from config.json. Its history stays in the local database."
-        if case .keychain = account.credential { text += " Its pasted API key is deleted from this Mac's Keychain." }
-        return text
-    }
-
-    private func remove() {
-        if case .keychain(let keyAccount) = account.credential {
-            try? model.secrets.delete(account: keyAccount)
-        }
-        model.updateConfig { $0.accounts.removeAll { $0.id == account.id } }
-        onRemoved()
-    }
-
     private func openSignIn(_ command: String) {
         do {
             try SignInLauncher.run(command: command, account: account)
@@ -361,6 +334,21 @@ struct AccountDetailView: View {
         panel.directoryURL = model.paths.expand(current)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         model.updateAccount(account.id) { $0.profileDir = SettingsLogic.tildePath(url.path, home: model.paths.home.path) }
+    }
+}
+
+extension AppModel {
+    func statusText(for account: AccountConfig) -> AccountStatusText {
+        AccountStatusText.make(account: account, status: status(for: account), missingPath: missingPath(of: account), now: now)
+    }
+
+    /// The tilde path of what the account reads when it is not on this Mac. Preview data describes accounts on no real
+    /// Mac, so nothing is missing there.
+    func missingPath(of account: AccountConfig) -> String? {
+        guard !previewMode, !AccountDiscovery.isAvailable(account, paths: paths),
+              let location = AccountDiscovery.location(of: account, paths: paths)
+        else { return nil }
+        return SettingsLogic.tildePath(location.path, home: paths.home.path)
     }
 }
 

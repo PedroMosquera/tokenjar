@@ -6,63 +6,100 @@ struct AccountsSettingsPane: View {
     var selection: String?
     var onSelect: (String?) -> Void
 
+    @SettingsState private var removing: AccountConfig?
+
     var body: some View {
         HStack(spacing: 0) {
             accountList
-                .frame(width: 180)
+                .frame(width: 220)
             Divider().ignoresSafeArea()
-            if let id = selection, let account = model.config.accounts.first(where: { $0.id == id }) {
-                AccountDetailView(account: account, onRemoved: { onSelect(nil) })
+            if let account = selectedAccount {
+                AccountDetailView(account: account, onRemove: { removing = account })
                     .id(account.id)
             } else {
                 emptyDetail
             }
         }
+        .confirmationDialog(
+            "Remove \(removing?.displayName ?? "account")?",
+            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+            presenting: removing
+        ) { account in
+            Button("Remove", role: .destructive) { remove(account) }
+        } message: { account in
+            Text(removeMessage(account))
+        }
+    }
+
+    private var selectedAccount: AccountConfig? {
+        selection.flatMap { id in model.config.accounts.first { $0.id == id } }
     }
 
     private var accountList: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(ProviderID.allCases, id: \.self) { provider in
-                        let accounts = model.config.accounts.filter { $0.provider == provider }
-                        if !accounts.isEmpty {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    ProviderLogoView(provider: provider, size: 14)
-                                    Text(provider.displayName)
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.bottom, 2)
-                                ForEach(accounts) { account in
-                                    AccountListRow(account: account, note: note(for: account), isSelected: account.id == selection) {
-                                        onSelect(account.id)
-                                    }
-                                }
-                            }
+            list
+            listBar
+        }
+    }
+
+    private var list: some View {
+        List(selection: Binding(get: { selection }, set: { if let id = $0 { onSelect(id) } })) {
+            ForEach(ProviderID.allCases, id: \.self) { provider in
+                let accounts = model.config.accounts.filter { $0.provider == provider }
+                if !accounts.isEmpty {
+                    Section {
+                        ForEach(accounts) { account in
+                            AccountListRow(content: AccountListRowContent.make(account: account, status: model.statusText(for: account)))
+                                .tag(account.id)
+                                .listRowSeparator(.hidden)
+                        }
+                    } header: {
+                        HStack(spacing: 6) {
+                            ProviderLogoView(provider: provider, size: 14)
+                            Text(provider.displayName)
                         }
                     }
                 }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+        .listStyle(.inset)
+        .onDeleteCommand { removing = selectedAccount }
+    }
+
+    /// The list's add and remove buttons, as in other macOS source lists.
+    private var listBar: some View {
+        VStack(spacing: 0) {
             Divider()
-            HStack {
+            HStack(spacing: 0) {
                 Menu {
                     ForEach(ProviderID.allCases, id: \.self) { provider in
                         Button(provider.displayName) { add(provider) }
                     }
                 } label: {
-                    Label("Add Account", systemImage: "plus")
+                    Image(systemName: "plus")
+                        .frame(width: 24, height: 22)
                 }
                 .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .fixedSize()
+                .help("Add Account")
+                .accessibilityLabel("Add Account")
+                Divider().frame(height: 16)
+                Button {
+                    removing = selectedAccount
+                } label: {
+                    Image(systemName: "minus")
+                        .frame(width: 24, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .disabled(selectedAccount == nil)
+                .help("Remove Account")
+                .accessibilityLabel("Remove Account")
                 Spacer()
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
         }
     }
 
@@ -78,39 +115,64 @@ struct AccountsSettingsPane: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func note(for account: AccountConfig) -> String? {
-        if !account.enabled { return "Off" }
-        if !model.previewMode, !AccountDiscovery.isAvailable(account, paths: model.paths) { return "Not on this Mac" }
-        return nil
-    }
-
     private func add(_ provider: ProviderID) {
         let account = SettingsLogic.newAccount(provider: provider, existing: model.config.accounts)
         model.updateConfig { $0.accounts.append(account) }
         onSelect(account.id)
     }
+
+    private func removeMessage(_ account: AccountConfig) -> String {
+        var text = "It is removed from config.json. Its history stays in the local database."
+        if case .keychain = account.credential { text += " Its pasted API key is deleted from this Mac's Keychain." }
+        return text
+    }
+
+    private func remove(_ account: AccountConfig) {
+        if case .keychain(let keyAccount) = account.credential {
+            try? model.secrets.delete(account: keyAccount)
+        }
+        model.updateConfig { $0.accounts.removeAll { $0.id == account.id } }
+        removing = nil
+        onSelect(nil)
+    }
 }
 
 struct AccountListRow: View {
-    var account: AccountConfig
-    var note: String?
-    var isSelected: Bool
-    var action: () -> Void
+    var content: AccountListRowContent
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Text(account.label)
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                if let note {
-                    Text(note)
-                        .font(.caption)
-                        .foregroundStyle(isSelected ? AnyShapeStyle(.white.opacity(0.8)) : AnyShapeStyle(.secondary))
+        HStack(spacing: 6) {
+            Text(content.title)
+                .lineLimit(1)
+                .layoutPriority(1)
+            Spacer(minLength: 4)
+            if let caption = content.caption {
+                HStack(spacing: 3) {
+                    if content.isActionable {
+                        Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
+                    }
+                    Text(caption)
                 }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
-            .selectableRow(isSelected)
         }
-        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(content.title)
+        .accessibilityValue(content.caption ?? "")
+    }
+}
+
+/// What one row of the accounts list shows.
+struct AccountListRowContent: Equatable {
+    var title: String
+    var caption: String?
+    /// Only a caption the user has to act on carries the warning symbol.
+    var isActionable = false
+
+    static func make(account: AccountConfig, status: AccountStatusText) -> AccountListRowContent {
+        let title = AccountTitle(provider: account.provider, label: account.label)
+        return AccountListRowContent(title: title.label ?? title.provider, caption: status.caption?.text, isActionable: status.caption?.isActionable ?? false)
     }
 }
