@@ -428,8 +428,9 @@ struct AccountStatusText: Equatable {
             case .calm:
                 return AccountStatusText(symbol: "minus.circle", tone: .neutral, text: "Not subscribed to \(provider.displayName)", caption: caption)
             case .transient:
-                let text = status.snapshot.map { "\(error.userMessage) \u{00B7} showing data from \(Format.age(of: $0.fetchedAt, now: now))" } ?? error.userMessage
-                return AccountStatusText(symbol: "exclamationmark.arrow.triangle.2.circlepath", tone: .neutral, text: text, detail: zenNote)
+                // Its own line: messages are full sentences, and the age would read as part of the last one.
+                let shown = status.snapshot.map { "Showing data from \(Format.age(of: $0.fetchedAt, now: now))." }
+                return AccountStatusText(symbol: "exclamationmark.arrow.triangle.2.circlepath", tone: .neutral, text: error.userMessage, detail: shown ?? zenNote)
             case .actionable:
                 return AccountStatusText(symbol: "exclamationmark.triangle.fill", tone: .warning, text: actionableText(error, account: account), caption: caption)
             }

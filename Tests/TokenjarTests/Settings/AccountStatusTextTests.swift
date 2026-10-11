@@ -62,7 +62,8 @@ struct AccountStatusTextTests {
 
     @Test func aTransientErrorKeepsTheLastDataAndSaysHowOld() {
         let line = text(claude, AccountStatus(snapshot: snapshot(claude, windows: ["5-hour"], ago: 50 * 60), error: .network("offline")))
-        #expect(line.text == "\(FetchError.network("offline").userMessage) \u{00B7} showing data from \(age(50 * 60))")
+        #expect(line.text == FetchError.network("offline").userMessage)
+        #expect(line.detail == "Showing data from \(age(50 * 60)).")
         #expect(line.tone == .neutral)
         #expect(line.caption == nil)
     }
