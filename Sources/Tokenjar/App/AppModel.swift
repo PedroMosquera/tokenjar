@@ -35,6 +35,10 @@ final class AppModel {
     private var configProblem: String?
     private var historyProblem: String?
 
+    /// False while the last load of config.json or config.local.json failed: an edit is then neither applied nor
+    /// saved, so Settings should not offer one.
+    var canEditConfig: Bool { !configLoadFailed }
+
     /// Keyed by AccountConfig.id.
     var statuses: [String: AccountStatus] = [:]
     var isRefreshing = false
@@ -85,7 +89,7 @@ final class AppModel {
     @ObservationIgnored private var configStamp: [Date?] = []
     /// config.json or config.local.json did not load. Saving would overwrite whatever is in the file, which may be a
     /// merge conflict or a hand edit in progress, so nothing is saved until a load succeeds.
-    @ObservationIgnored private var configLoadFailed = false
+    private var configLoadFailed = false
     @ObservationIgnored private var hasLoadedConfig = false
     /// Headroom's data is still under its old names. Nothing loads for the rest of this launch: a config, database or
     /// alert state written under Tokenjar's names would take them, and the move never runs onto a taken name.
@@ -289,7 +293,8 @@ final class AppModel {
     }
 
     /// Applies an edit from Settings and saves it to config.json (through the stow symlink if there is one).
-    /// While the last load failed, the edit is neither applied nor saved; the banner says why.
+    /// While the last load failed, the edit is neither applied nor saved, and an edit whose save fails is undone; the
+    /// banner says why.
     func updateConfig(_ edit: (inout AppConfig) -> Void) {
         // An outside change since the last tick is the base of this edit, or saving would revert it.
         reloadConfigIfChanged()
@@ -304,12 +309,13 @@ final class AppModel {
             baseConfig = try ConfigStore(paths: paths).save(old: old, new: new, base: baseConfig)
             configProblem = nil
         } catch {
+            config = old
             configProblem = "Could not save config.json."
         }
         configStamp = currentConfigStamp()
         refreshEditedAccounts(from: old.accounts)
         // Quiet grant only: the Alerts pane's "Allow banners" is the one place the system prompt appears.
-        if new.alerts.enabled, !old.alerts.enabled { requestNotificationPermission(prominent: false) }
+        if config.alerts.enabled, !old.alerts.enabled { requestNotificationPermission(prominent: false) }
     }
 
     private func refreshEditedAccounts(from old: [AccountConfig]) {

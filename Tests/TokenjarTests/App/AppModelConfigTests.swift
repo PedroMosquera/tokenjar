@@ -151,4 +151,38 @@ struct AppModelConfigTests {
         #expect(model.config.accounts.isEmpty)
         #expect(model.configError != nil)
     }
+
+    /// Settings would otherwise show the new value as if it had been saved.
+    @Test func anEditThatCannotBeSavedIsUndone() throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.writeConfig(AppConfig(refreshMinutes: 10))
+        let model = model(home)
+        model.loadState()
+        let folder = home.paths.configDirectory
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: folder.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder.path) }
+        let before = model.config
+
+        model.updateConfig { $0.refreshMinutes = 30 }
+
+        #expect(model.config == before)
+        #expect(model.configError == "Could not save config.json.")
+        #expect(try home.readConfig().refreshMinutes == 10)
+    }
+
+    /// Settings disables its controls while edits cannot be saved.
+    @Test func configIsEditableOnlyAfterAGoodLoad() throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.write(".config/tokenjar/config.json", #"{"refreshMinutes": "soon"}"#)
+        let model = model(home)
+        model.loadState()
+        #expect(!model.canEditConfig)
+
+        try home.writeConfig(AppConfig(refreshMinutes: 15))
+        model.loadConfig()
+        #expect(model.canEditConfig)
+        #expect(AppModel.preview().canEditConfig)
+    }
 }
