@@ -66,9 +66,7 @@ private struct DashboardDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            let sections = DashboardSections.make(
-                account: account, accounts: accounts, snapshot: account.flatMap { model.status(for: $0).snapshot }
-            )
+            let sections = DashboardSections.make(account: account, accounts: accounts, status: account.map { model.status(for: $0) })
             header
             if sections.history { kpis }
             if let account { windowTiles(account) }

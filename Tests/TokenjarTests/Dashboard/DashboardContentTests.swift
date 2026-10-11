@@ -131,37 +131,48 @@ struct DashboardDimTests {
 struct DashboardSectionsTests {
     private let antigravity = AccountConfig(id: "agy", provider: .antigravity, label: "Google")
     private let zen = AccountConfig(id: "zen", provider: .opencodeZen, label: "Zen")
+    private let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go")
     private let claude = AccountConfig(id: "claude", provider: .claude, label: "Work")
 
     @Test func anAccountWithoutLocalLogsSkipsTheHistoryCards() {
-        let sections = DashboardSections.make(account: antigravity, accounts: [antigravity, claude], snapshot: snapshot("agy", [window("w", used: 1, minutes: 10_080, resetIn: 86_400)]))
-        #expect(sections == DashboardSections(history: false, limits: true))
+        let status = AccountStatus(snapshot: snapshot("agy", [window("w", used: 1, minutes: 10_080, resetIn: 86_400)]))
+        #expect(DashboardSections.make(account: antigravity, accounts: [antigravity, claude], status: status) == DashboardSections(history: false, limits: true))
     }
 
     @Test func aSpendOnlyAccountSkipsTheLimitsCard() {
-        let spendOnly = UsageSnapshot(accountID: "zen", provider: .opencodeZen, fetchedAt: now, source: "test")
-        #expect(DashboardSections.make(account: zen, accounts: [zen], snapshot: spendOnly) == DashboardSections(history: true, limits: false))
+        let spendOnly = AccountStatus(snapshot: UsageSnapshot(accountID: "zen", provider: .opencodeZen, fetchedAt: now, source: "test"))
+        #expect(DashboardSections.make(account: zen, accounts: [zen], status: spendOnly) == DashboardSections(history: true, limits: false))
         // Before the first check nothing says it has no limits yet, so the card stays to explain the wait.
-        #expect(DashboardSections.make(account: zen, accounts: [zen], snapshot: nil) == DashboardSections(history: true, limits: true))
+        #expect(DashboardSections.make(account: zen, accounts: [zen], status: AccountStatus()) == DashboardSections(history: true, limits: true))
+    }
+
+    /// No subscription is an answer, not a wait: there is no limit to chart, and nothing to explain in an empty card.
+    @Test func anAccountWithoutASubscriptionSkipsTheLimitsCard() {
+        let noSubscription = AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"))
+        #expect(DashboardSections.make(account: go, accounts: [go], status: noSubscription) == DashboardSections(history: true, limits: false))
+        // A failure that needs the user keeps the card, which says what went wrong.
+        #expect(DashboardSections.make(account: go, accounts: [go], status: AccountStatus(error: .unauthorized)) == DashboardSections(history: true, limits: true))
     }
 
     /// Devin is a link: no limits card, not even the one that explains the wait before the first check.
     @Test func aLinkOnlyAccountSkipsBothCards() {
         let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
-        let link = UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page")
-        #expect(DashboardSections.make(account: devin, accounts: [devin, claude], snapshot: link) == DashboardSections(history: false, limits: false))
-        #expect(DashboardSections.make(account: devin, accounts: [devin, claude], snapshot: nil) == DashboardSections(history: false, limits: false))
+        let link = AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page"))
+        #expect(DashboardSections.make(account: devin, accounts: [devin, claude], status: link) == DashboardSections(history: false, limits: false))
+        #expect(DashboardSections.make(account: devin, accounts: [devin, claude], status: AccountStatus()) == DashboardSections(history: false, limits: false))
     }
 
     @Test func allAccountsKeepsHistoryWhenAnyAccountHasLogs() {
-        #expect(DashboardSections.make(account: nil, accounts: [antigravity, claude], snapshot: nil) == DashboardSections(history: true, limits: true))
-        #expect(DashboardSections.make(account: nil, accounts: [antigravity], snapshot: nil) == DashboardSections(history: false, limits: true))
+        #expect(DashboardSections.make(account: nil, accounts: [antigravity, claude], status: nil) == DashboardSections(history: true, limits: true))
+        #expect(DashboardSections.make(account: nil, accounts: [antigravity], status: nil) == DashboardSections(history: false, limits: true))
     }
 
     @Test func aFailedCheckReadsAsOneSentence() {
+        func sentence(_ message: String) -> String { message.hasSuffix(".") ? message : message + "." }
         let signedOut = DashboardSections.limitsEmptyMessage(status: AccountStatus(error: .notSignedIn), anyAccountHasWindows: false)
-        #expect(signedOut == "No limits yet. Last check: Signed out. Sign in with the provider CLI.")
+        #expect(signedOut == "No limits yet. Last check: \(sentence(FetchError.notSignedIn.userMessage))")
         let timedOut = DashboardSections.limitsEmptyMessage(status: AccountStatus(error: .timeout), anyAccountHasWindows: false)
-        #expect(timedOut == "No limits yet. Last check: Timed out.")
+        #expect(timedOut == "No limits yet. Last check: \(sentence(FetchError.timeout.userMessage))")
+        #expect(timedOut.hasSuffix(".") && !timedOut.hasSuffix(".."))
     }
 }

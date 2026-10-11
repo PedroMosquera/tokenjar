@@ -41,17 +41,21 @@ struct DashboardSidebar: View {
 }
 
 private struct AccountRow: View {
+    @Environment(AppModel.self) private var model
     var account: AccountConfig
 
     var body: some View {
         let title = AccountTitle(provider: account.provider, label: account.label)
+        // A calm failure is an answer, not a problem: it reads as a caption instead of a warning.
+        let notSubscribed = model.status(for: account).error?.attention == .calm
+        let caption = [title.label == nil ? nil : title.provider, notSubscribed ? "Not subscribed" : nil].compactMap { $0 }
         HStack(spacing: 8) {
             ProviderLogoView(provider: account.provider, size: 18)
             VStack(alignment: .leading, spacing: 0) {
                 Text(title.label ?? title.provider)
                     .lineLimit(1)
-                if title.label != nil {
-                    Text(title.provider)
+                if !caption.isEmpty {
+                    Text(caption.joined(separator: " · "))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -113,11 +117,12 @@ private struct SidebarBadgeView: View {
                 .help(badge.detail)
                 .accessibilityLabel(badge.percent)
                 .accessibilityValue(badge.detail)
-        } else if let error = status.error {
+        } else if let error = status.error, error.attention != .calm {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .help(error.userMessage)
+                .accessibilityLabel(error.userMessage)
         }
     }
 }

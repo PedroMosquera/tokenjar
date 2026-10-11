@@ -146,13 +146,15 @@ struct DashboardSections: Equatable {
     var history: Bool
     var limits: Bool
 
-    /// `snapshot` is the selected account's; All ignores it.
-    static func make(account: AccountConfig?, accounts: [AccountConfig], snapshot: UsageSnapshot?) -> DashboardSections {
+    /// `status` is the selected account's; All ignores it.
+    static func make(account: AccountConfig?, accounts: [AccountConfig], status: AccountStatus?) -> DashboardSections {
         guard let account else {
             return DashboardSections(history: accounts.contains { $0.provider.harness != nil }, limits: true)
         }
         // Before the first check nothing says whether the account has limits, so the card stays to explain the wait.
-        let limits = !account.provider.isLinkOnly && (snapshot.map { !$0.windows.isEmpty } ?? true)
+        // A calm failure (no subscription) is the answer itself, so there is nothing to wait for.
+        let hasLimits = status?.snapshot.map { !$0.windows.isEmpty } ?? (status?.error?.attention != .calm)
+        let limits = !account.provider.isLinkOnly && hasLimits
         return DashboardSections(history: account.provider.harness != nil, limits: limits)
     }
 
