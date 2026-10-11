@@ -37,7 +37,7 @@ enum StatusGlyph {
         case .slot: return nil
         case .mark(let name): image = ProviderLogo.resourceURL("Marks/\(name).svg").flatMap(NSImage.init(contentsOf:))
         case .logo(let name): image = ProviderLogo.logoURL(name).flatMap(NSImage.init(contentsOf:))
-        case .symbol(let name): image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(symbolConfiguration)
+        case .symbol(let name): image = symbol(name)
         }
         image?.isTemplate = true
         glyphs[icon] = image
@@ -58,7 +58,18 @@ enum StatusGlyph {
     }
 
     private static var glyphs: [MenuBarIcon: NSImage] = [:]
-    private static let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+
+    /// Semibold matches the marks' 1.5 pt strokes. A symbol too big for the glyph box is requested smaller rather
+    /// than scaled down by `fitted`, which would thin its strokes (brain is 23 pt wide at 15 pt).
+    private static func symbol(_ name: String) -> NSImage? {
+        guard let base = NSImage(systemSymbolName: name, accessibilityDescription: nil) else { return nil }
+        var pointSize: CGFloat = 15
+        while let image = base.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)) {
+            if max(image.size.width, image.size.height) <= glyphSide || pointSize <= 9 { return image }
+            pointSize -= 0.5
+        }
+        return nil
+    }
 
     /// The pose the app icon and the SVG source are drawn in.
     static let basePose = 0.8
