@@ -13,6 +13,9 @@ struct PopoverView: View {
     static let cardPadding: CGFloat = 12
     private static let contentEdge = cardMargin + cardPadding
     private static let dividerInset: CGFloat = 14
+    /// SF Symbols start their ink this far inside their frame at the header's and footer's sizes, where the cards'
+    /// logos and text start right on the edge, so a leading symbol is pulled left by this much.
+    static let symbolBearing: CGFloat = 1.5
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,7 +49,8 @@ struct PopoverView: View {
                 .padding(.horizontal, Self.dividerInset)
             // The footer's buttons pad their labels by 8 pt for the hover highlight.
             PopoverFooter()
-                .padding(.horizontal, Self.contentEdge - 8)
+                .padding(.leading, Self.contentEdge - 8 - Self.symbolBearing)
+                .padding(.trailing, Self.contentEdge - 8)
                 .padding(.vertical, 6)
         }
         .frame(width: 360)

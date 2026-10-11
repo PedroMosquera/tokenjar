@@ -8,6 +8,7 @@ struct PopoverHeader: View {
         let summary = PopoverSummary.make(accounts: model.accounts, statuses: model.statuses, config: model.config, now: model.popoverNow)
         HStack(spacing: 10) {
             toneIcon(summary.tone)
+                .padding(.leading, -PopoverView.symbolBearing)
                 .frame(width: 26, alignment: .leading)
                 .spoken(PopoverSpeech.tone(summary.tone))
             VStack(alignment: .leading, spacing: 1) {
