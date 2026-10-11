@@ -73,10 +73,10 @@ extension AntigravityUsageFetcher {
                 if mentionsSignIn(error) { throw FetchError.notSignedIn }
                 throw FetchError.parse("agy /usage reported an error")
             }
-            if isModelReply(root) { throw FetchError.unsupported(modelTurnMessage) }
             if let message = firstValue(forKey: "data", in: root, as: [String: Any].self)?["message"] as? String, !message.isEmpty {
                 return []
             }
+            if isModelReply(root) { throw FetchError.unsupported(modelTurnMessage) }
             throw FetchError.parse("agy /usage has no groups")
         }
         var windows: [UsageWindow] = []
@@ -120,10 +120,14 @@ extension AntigravityUsageFetcher {
     }
 
     /// Any top-level marker of the headless reply agy and Gemini CLI print when a prompt reached the model: `response`
-    /// text, a `stats` object or a `num_turns` count.
+    /// text, a `stats` object or a `num_turns` count. agy answers a local slash command in that same envelope, with
+    /// `num_turns` 0 and a `command` object, so that shape is a model reply only when it also shows something spent.
     private static func isModelReply(_ root: Any) -> Bool {
         guard let object = root as? [String: Any] else { return false }
-        return object["response"] is String || object["stats"] is [String: Any] || object["num_turns"] != nil
+        let stats = object["stats"] is [String: Any]
+        let spentTokens = (object["usage"] as? [String: Any])?.values.contains { ($0 as? Double ?? 0) > 0 } == true
+        if object["num_turns"] as? Double == 0, object["command"] is [String: Any], !stats, !spentTokens { return false }
+        return object["response"] is String || stats || object["num_turns"] != nil
     }
 
     static func mentionsSignIn(_ text: String) -> Bool {

@@ -203,6 +203,8 @@ final class AntigravityUsageFetcherTests {
         #"{"command":{"error":null,"data":{"message":"Usage is not available for this account type"}}}"#,
         #"{"command":{"data":{"groups":[{"name":"Gemini models","buckets":[{"window":"weekly","remaining_fraction":1,"disabled":true}]}]}}}"#,
         #"{"command":{"data":{"groups":[{"name":"Gemini models","buckets":[]}]}}}"#,
+        #"{"response":"Usage is not available for this account type","num_turns":0,"usage":{"total_tokens":0},"command":{"name":"usage","data":{"message":"Usage is not available for this account type"}}}"#,
+        #"{"response":"Usage is not available for this account type","command":{"data":{"message":"Usage is not available for this account type"}}}"#,
     ])
     func emptyReportShowsANoteInsteadOfWindows(stdout: String) async throws {
         let snapshot = try await fetch(FakeAgy(usage: output(stdout)))
@@ -216,6 +218,7 @@ final class AntigravityUsageFetcherTests {
         #"{"command":{"data":{"pools":[{"name":"Gemini models","buckets":[{"window":"weekly","remaining_fraction":0.5}]}]}}}"#,
         #"{"command":{"data":{}}}"#,
         #"{}"#,
+        #"{"response":"Synthetic quota report","num_turns":0,"usage":{"total_tokens":0},"command":{"name":"usage","data":{}}}"#,
     ])
     func outputWithoutGroupsOrAReasonIsAParseError(stdout: String) async throws {
         let runner = FakeAgy(usage: output(stdout))
@@ -225,10 +228,28 @@ final class AntigravityUsageFetcherTests {
     @Test(arguments: [
         #"{"type":"result","response":"Sure, here is a summary of your usage.","stats":{"tokens":812}}"#,
         #"{"response":"Here is your usage.","stats":{"models":{"gemini-3-pro":{"tokens":{"total":640}}}}}"#,
+        #"{"response":"Here is your usage.","num_turns":1,"command":{"name":"usage"}}"#,
+        #"{"response":"Here is your usage.","num_turns":0,"stats":{"tokens":812},"command":{"name":"usage"}}"#,
+        #"{"response":"Here is your usage.","num_turns":0,"usage":{"input_tokens":0,"total_tokens":120},"command":{"name":"usage"}}"#,
     ])
     func aModelReplySaysTheProbeSpentQuota(stdout: String) async throws {
         let runner = FakeAgy(usage: output(stdout))
         await #expect(throws: FetchError.unsupported(AntigravityUsageFetcher.modelTurnMessage)) { try await self.fetch(runner) }
+    }
+
+    /// agy wraps a local slash command's answer in the same envelope as a model reply (`response`, `num_turns`), so
+    /// those keys alone must not latch the account and pause its checks.
+    @Test func aLocalUsageAnswerWithoutGroupsIsNotAModelTurn() async throws {
+        let local = FakeAgy(usage: output(try fixture("enterprise-no-quota.stdout.json")))
+        let noQuota = try? await fetch(local)
+        #expect(noQuota?.windows == [])
+        #expect(noQuota?.notes == ["No usage limits reported for this account"])
+
+        let renamed = FakeAgy(usage: output(try fixture("renamed-groups-envelope.stdout.json")))
+        await #expect(throws: FetchError.parse("agy /usage has no groups")) { try await self.fetch(renamed) }
+
+        let turn = FakeAgy(usage: output(try fixture("model-turn.stdout.json")))
+        await #expect(throws: FetchError.unsupported(AntigravityUsageFetcher.modelTurnMessage)) { try await self.fetch(turn) }
     }
 
     @Test func nonJSONOutputIsAParseError() async throws {
