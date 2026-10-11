@@ -2,12 +2,19 @@ import Charts
 import SwiftUI
 import TokenjarCore
 
-struct SpendChart: View {
+struct SpendChart: View, Equatable {
+    /// With `grouping` and `days`, all that `breakdown`, `colors` and `labels` are built from.
+    var contentKey: DashboardLoadKey?
+    var grouping: UsageGrouping
     var breakdown: SpendBreakdown
     var days: [Date]
     var colors: [Color]
     /// What the legend and tooltip call each of `breakdown.groups`, in the same order. Two groups may share one.
     var labels: [String]
+
+    static func == (a: SpendChart, b: SpendChart) -> Bool {
+        a.contentKey == b.contentKey && a.grouping == b.grouping && a.days == b.days
+    }
 
     /// Explicit State storage: the SDK's @State is a macro whose plugin ships only with Xcode.
     private let hoverState = State<Date?>(initialValue: nil)

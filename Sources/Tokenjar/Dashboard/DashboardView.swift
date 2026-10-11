@@ -13,54 +13,76 @@ struct DashboardView: View {
         groupingState = State(initialValue: grouping)
     }
 
-    private var range: DashboardRange { rangeState.wrappedValue }
-    private var content: DashboardContent { contentState.wrappedValue }
-
-    /// nil for All, and for a selection that is no longer shown on this Mac.
-    private var account: AccountConfig? {
-        model.dashboardSelection.flatMap { id in model.accounts.first { $0.id == id } }
-    }
-
-    private var loadKey: DashboardLoadKey {
-        DashboardLoadKey(accountIDs: account.map { [$0.id] } ?? model.accounts.map(\.id), range: range, historyRevision: model.historyRevision)
-    }
-
+    /// Reads no clock: the pieces that count down are subviews that read `model.now`, so a tick does not rebuild the page.
     var body: some View {
+        // Resolved once: `model.accounts` checks the filesystem for every account.
+        let accounts = model.accounts
+        // nil for All, and for a selection that is no longer shown on this Mac.
+        let account = model.dashboardSelection.flatMap { id in accounts.first { $0.id == id } }
+        let range = rangeState.wrappedValue
+        let key = DashboardLoadKey(accountIDs: account.map { [$0.id] } ?? accounts.map(\.id), range: range, historyRevision: model.historyRevision)
         HStack(spacing: 0) {
             DashboardSidebar()
                 .frame(width: 230)
             Divider().ignoresSafeArea()
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    let sections = DashboardSections.make(
-                        account: account, accounts: model.accounts, snapshot: account.flatMap { model.status(for: $0).snapshot }
-                    )
-                    header
-                    if sections.history { kpis }
-                    if let account { windowTiles(account) }
-                    if sections.limits { limitsCard }
-                    if sections.history {
-                        spendCard
-                        projectsCard
-                    } else if let account, account.provider.isLinkOnly {
-                        linkOnlyPanel(account)
-                    } else {
-                        Label(noHistoryMessage, systemImage: "info.circle")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                DashboardDetail(
+                    account: account, accounts: accounts, content: contentState.wrappedValue,
+                    range: rangeState.projectedValue, groupingSelection: groupingState.projectedValue
+                )
                 .padding(20)
-                .opacity(DashboardLoadKey.dims(shown: content.key, wanted: loadKey) ? 0.6 : 1)
+                .opacity(DashboardLoadKey.dims(shown: contentState.wrappedValue.key, wanted: key) ? 0.6 : 1)
             }
         }
         .frame(minWidth: 760, minHeight: 520)
-        .task(id: loadKey) {
-            let input = DashboardContent.Input(model: model, accounts: model.accounts, account: account, range: range, now: model.now, key: loadKey)
+        .task(id: key) {
+            let input = DashboardContent.Input(model: model, accounts: accounts, account: account, range: range, now: model.now, key: key)
             let loaded = await Task.detached(priority: .userInitiated) { DashboardContent.load(input) }.value
             // A newer key has started its own load; this result would overwrite it with older content.
             guard !Task.isCancelled else { return }
             contentState.wrappedValue = loaded
+        }
+    }
+}
+
+/// The detail pane for one selection. `account` and `accounts` are resolved by the caller.
+private struct DashboardDetail: View {
+    @Environment(AppModel.self) private var model
+    var account: AccountConfig?
+    var accounts: [AccountConfig]
+    var content: DashboardContent
+    var rangeBinding: Binding<DashboardRange>
+    var groupingSelection: Binding<UsageGrouping>
+
+    init(account: AccountConfig?, accounts: [AccountConfig], content: DashboardContent, range: Binding<DashboardRange>, groupingSelection: Binding<UsageGrouping>) {
+        self.account = account
+        self.accounts = accounts
+        self.content = content
+        self.rangeBinding = range
+        self.groupingSelection = groupingSelection
+    }
+
+    private var range: DashboardRange { rangeBinding.wrappedValue }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            let sections = DashboardSections.make(
+                account: account, accounts: accounts, snapshot: account.flatMap { model.status(for: $0).snapshot }
+            )
+            header
+            if sections.history { kpis }
+            if let account { windowTiles(account) }
+            if sections.limits { limitsCard }
+            if sections.history {
+                spendCard
+                projectsCard
+            } else if let account, account.provider.isLinkOnly {
+                linkOnlyPanel(account)
+            } else {
+                Label(noHistoryMessage, systemImage: "info.circle")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -86,10 +108,7 @@ struct DashboardView: View {
                         PlanPill(plan)
                     }
                 }
-                Text(headerSubtitle)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                HeaderSubtitle(account: account, accountCount: accounts.count)
             }
             Spacer(minLength: 16)
             if let account {
@@ -102,7 +121,7 @@ struct DashboardView: View {
                 .labelStyle(.iconOnly)
                 .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
             }
-            Picker("Range", selection: rangeState.projectedValue) {
+            Picker("Range", selection: rangeBinding) {
                 ForEach(DashboardRange.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -110,22 +129,6 @@ struct DashboardView: View {
             .fixedSize()
             .help("Range for the charts, tokens, requests and projects")
         }
-    }
-
-    private var headerSubtitle: String {
-        guard let account else {
-            let count = model.accounts.count
-            return "\(count) account\(count == 1 ? "" : "s") · updated \(Format.age(of: model.lastRefreshAt, now: model.now))"
-        }
-        let status = model.status(for: account)
-        var parts: [String] = []
-        if let snapshot = status.snapshot {
-            parts.append(snapshot.source)
-            parts.append("updated \(Format.age(of: snapshot.fetchedAt, now: model.now))")
-        }
-        if let error = status.error { parts.append(error.userMessage) }
-        if parts.isEmpty { parts.append("Not checked yet") }
-        return parts.joined(separator: " · ")
     }
 
     // MARK: KPIs
@@ -170,7 +173,7 @@ struct DashboardView: View {
                 ForEach(Array(stride(from: 0, to: windows.count, by: columns)), id: \.self) { start in
                     GridRow {
                         ForEach(windows[start..<min(start + columns, windows.count)]) { window in
-                            WindowTile(window: window, config: model.config.menuBar, now: model.now)
+                            WindowTile(window: window)
                         }
                     }
                 }
@@ -190,6 +193,7 @@ struct DashboardView: View {
                     DashboardEmptyState(systemImage: "chart.line.uptrend.xyaxis", message: message)
                 } else {
                     LimitsChart(content: content, range: range, warnAt: model.config.menuBar.warnAt, criticalAt: model.config.menuBar.criticalAt)
+                        .equatable()
                 }
             }
             .frame(height: 210)
@@ -205,7 +209,7 @@ struct DashboardView: View {
         guard content.key != nil, content.points.isEmpty else { return nil }
         return DashboardSections.limitsEmptyMessage(
             status: account.map { model.status(for: $0) },
-            anyAccountHasWindows: model.accounts.contains { !(model.status(for: $0).snapshot?.windows.isEmpty ?? true) }
+            anyAccountHasWindows: accounts.contains { !(model.status(for: $0).snapshot?.windows.isEmpty ?? true) }
         )
     }
 
@@ -214,7 +218,7 @@ struct DashboardView: View {
     }
 
     private var grouping: UsageGrouping {
-        groupingOptions.contains(groupingState.wrappedValue) ? groupingState.wrappedValue : .model
+        groupingOptions.contains(groupingSelection.wrappedValue) ? groupingSelection.wrappedValue : .model
     }
 
     private var breakdown: SpendBreakdown {
@@ -223,7 +227,7 @@ struct DashboardView: View {
 
     private var spendCard: some View {
         DashboardCard(title: "Daily spend", subtitle: spendSubtitle) {
-            Picker("Group by", selection: Binding(get: { grouping }, set: { groupingState.wrappedValue = $0 })) {
+            Picker("Group by", selection: Binding(get: { grouping }, set: { groupingSelection.wrappedValue = $0 })) {
                 ForEach(groupingOptions, id: \.self) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -235,7 +239,11 @@ struct DashboardView: View {
                     if let message = spendEmptyMessage {
                         DashboardEmptyState(systemImage: "chart.bar.xaxis", message: message)
                     } else {
-                        SpendChart(breakdown: breakdown, days: content.periods.days(of: range), colors: spendColors, labels: spendLabels)
+                        SpendChart(
+                            contentKey: content.key, grouping: grouping, breakdown: breakdown, days: content.periods.days(of: range),
+                            colors: spendColors, labels: spendLabels
+                        )
+                        .equatable()
                     }
                 }
                 .frame(height: 210)
@@ -320,10 +328,42 @@ struct DashboardView: View {
     }
 }
 
+/// Reads `model.now` itself, so a tick redraws this line and not the page around it.
+private struct HeaderSubtitle: View {
+    @Environment(AppModel.self) private var model
+    var account: AccountConfig?
+    var accountCount: Int
+
+    var body: some View {
+        Text(text)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+    }
+
+    private var text: String {
+        guard let account else {
+            return "\(accountCount) account\(accountCount == 1 ? "" : "s") · updated \(Format.age(of: model.lastRefreshAt, now: model.now))"
+        }
+        let status = model.status(for: account)
+        var parts: [String] = []
+        if let snapshot = status.snapshot {
+            parts.append(snapshot.source)
+            parts.append("updated \(Format.age(of: snapshot.fetchedAt, now: model.now))")
+        }
+        if let error = status.error { parts.append(error.userMessage) }
+        if parts.isEmpty { parts.append("Not checked yet") }
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// Reads `model.now` itself, so a tick redraws the tiles and not the page around them.
 private struct WindowTile: View {
+    @Environment(AppModel.self) private var model
     var window: UsageWindow
-    var config: MenuBarConfig
-    var now: Date
+
+    private var config: MenuBarConfig { model.config.menuBar }
+    private var now: Date { model.now }
 
     var body: some View {
         let severity = Severity.of(window, config: config, now: now)

@@ -4,11 +4,16 @@ import TokenjarCore
 
 /// Used % per window (one account) or per account's tightest window (All), with the warn and critical
 /// thresholds and a faint vertical rule at each reset.
-struct LimitsChart: View {
+struct LimitsChart: View, Equatable {
     var content: DashboardContent
     var range: DashboardRange
     var warnAt: Int
     var criticalAt: Int
+
+    /// Content is only ever rebuilt for a new key, so the key stands in for comparing every point.
+    static func == (a: LimitsChart, b: LimitsChart) -> Bool {
+        a.content.key == b.content.key && a.range == b.range && a.warnAt == b.warnAt && a.criticalAt == b.criticalAt
+    }
 
     /// Explicit State storage: the SDK's @State is a macro whose plugin ships only with Xcode.
     private let hoverState = State<Date?>(initialValue: nil)
