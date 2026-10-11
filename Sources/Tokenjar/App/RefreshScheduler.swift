@@ -10,6 +10,10 @@ struct RefreshScheduler {
     private var backoffUntil: [String: Date] = [:]
     private var startedAt: [String: Date] = [:]
 
+    static let tickInterval: TimeInterval = 30
+    /// An account is due on the tick nearest its time. Each tick lands a little after its mark, by a different amount
+    /// each time, so a strict comparison would often leave it for the next tick: a 10-minute account checked every 10m 30s.
+    static let dueSlack = tickInterval / 2
     static let popoverRefreshAge: TimeInterval = 120
     static let scanInterval: TimeInterval = 5 * 60
 
@@ -17,7 +21,7 @@ struct RefreshScheduler {
     func due(_ ids: [String], now: Date, force: Bool) -> [String] {
         ids.filter { id in
             guard !inFlight.contains(id), (backoffUntil[id] ?? .distantPast) <= now else { return false }
-            return force || (nextDue[id] ?? .distantPast) <= now
+            return force || (nextDue[id] ?? .distantPast) <= now.addingTimeInterval(Self.dueSlack)
         }
     }
 

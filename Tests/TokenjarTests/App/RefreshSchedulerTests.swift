@@ -14,12 +14,14 @@ struct RefreshSchedulerTests {
         #expect(scheduler.due(["a", "b"], now: t0, force: false) == ["b"])
     }
 
-    @Test func anAccountIsDueOnceItsDelayHasPassed() {
+    /// Due on the tick nearest its time: a tick that lands a moment early still counts, the tick before it does not.
+    @Test func anAccountIsDueOnTheTickNearestItsDelay() {
         var scheduler = RefreshScheduler()
         scheduler.begin(["a"], at: t0)
         scheduler.finish("a", at: t0, delay: 600, rateLimited: false)
-        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(599), force: false).isEmpty)
-        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(599), force: true) == ["a"])
+        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(570), force: false).isEmpty)
+        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(570), force: true) == ["a"])
+        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(599.9), force: false) == ["a"])
         #expect(scheduler.due(["a"], now: t0.addingTimeInterval(600), force: false) == ["a"])
     }
 

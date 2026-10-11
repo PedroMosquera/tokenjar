@@ -138,7 +138,7 @@ final class AppModel {
         signal(SIGPIPE, SIG_IGN)
         loadState()
 
-        ticker = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        ticker = Timer.scheduledTimer(withTimeInterval: RefreshScheduler.tickInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
         let center = NSWorkspace.shared.notificationCenter
@@ -346,14 +346,16 @@ final class AppModel {
     /// `force` skips the refresh interval (popover open, wake, the header button) but not a rate-limit backoff.
     @discardableResult
     func refresh(force: Bool) -> Task<Void, Never>? {
-        let due = Set(scheduler.due(accounts.map(\.id), now: clock(), force: force))
-        return fetch(accounts.filter { due.contains($0.id) })
+        // Read once: a later reading for the start would push every next check back by the time this one took to begin.
+        let current = clock()
+        let due = Set(scheduler.due(accounts.map(\.id), now: current, force: force))
+        return fetch(accounts.filter { due.contains($0.id) }, startedAt: current)
     }
 
     /// An explicit per-account check, such as Settings > Test: it overrides the interval and a rate-limit backoff.
     @discardableResult
     func refresh(accountID: String) -> Task<Void, Never>? {
-        fetch(accounts.filter { $0.id == accountID && !scheduler.inFlight.contains($0.id) })
+        fetch(accounts.filter { $0.id == accountID && !scheduler.inFlight.contains($0.id) }, startedAt: clock())
     }
 
     /// The one way to probe an account again after its probe spent tokens or quota: one run, latched again if it
@@ -364,11 +366,11 @@ final class AppModel {
         return refresh(accountID: accountID)
     }
 
-    private func fetch(_ targets: [AccountConfig]) -> Task<Void, Never>? {
+    private func fetch(_ targets: [AccountConfig], startedAt: Date) -> Task<Void, Never>? {
         guard !isInert else { return nil }
         let targets = withoutLatchedProbes(targets)
         guard !targets.isEmpty else { return nil }
-        scheduler.begin(targets.map(\.id), at: clock())
+        scheduler.begin(targets.map(\.id), at: startedAt)
         for account in targets {
             statuses[account.id, default: AccountStatus()].isRefreshing = true
         }

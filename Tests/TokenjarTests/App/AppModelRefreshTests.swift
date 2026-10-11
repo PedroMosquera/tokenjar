@@ -296,6 +296,49 @@ struct AppModelRefreshTests {
         await model.refresh(force: true)?.value
         #expect(model.historyRevision == first + 1)
     }
+
+    /// Ticks land a little after their 30-second mark, by a different amount each time, and the clock moves between
+    /// reads within a tick. A 10-minute account is still checked on the tick 10 minutes after its last check.
+    @Test func aTenMinuteAccountIsCheckedOnTheTickTenMinutesLater() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".codex")
+        let account = AccountConfig(id: "codex", provider: .codex, label: "Plus", refreshMinutes: 10)
+        try home.writeConfig(AppConfig(accounts: [account]))
+        let log = FetchLog(), clock = MovingClock()
+        let model = AppModel(paths: home.paths, fetcher: { _ in FakeFetcher(log: log) { .success(usageSnapshot($0)) } }, clock: { clock.read() })
+        model.loadState()
+
+        var checkedAt: [TimeInterval] = []
+        for mark in stride(from: 0.0, through: 1230, by: 30) {
+            clock.fire(at: mark, late: mark == 0 ? 0.5 : 0.001)
+            let before = log.count("codex")
+            await model.tick()?.value
+            if log.count("codex") > before { checkedAt.append(mark) }
+        }
+
+        #expect(checkedAt == [0, 600, 1200])
+    }
+}
+
+/// A clock for timer ticks: each tick fires a little after its mark, and every read moves the clock on a little more.
+@MainActor
+private final class MovingClock {
+    private let start = Date(timeIntervalSince1970: 1_791_660_000)
+    private var firedAt: Date
+    private var reads = 0
+
+    init() { firedAt = start }
+
+    func fire(at mark: TimeInterval, late: TimeInterval) {
+        firedAt = start.addingTimeInterval(mark + late)
+        reads = 0
+    }
+
+    func read() -> Date {
+        reads += 1
+        return firedAt.addingTimeInterval(Double(reads) * 0.0001)
+    }
 }
 
 /// The used % a fake fetch reports, changed by the test between refreshes.
