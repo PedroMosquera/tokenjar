@@ -44,7 +44,12 @@ final class AppModel {
     var isRefreshing = false
     var lastRefreshAt: Date?
     /// Ticks every 30 s so countdowns and "updated 2m ago" stay current.
-    var now = Date()
+    var now: Date
+    /// `now` for the popover's views. It moves only while the popover is shown, so the popover's long-lived content
+    /// does not redraw every 30 seconds while closed; opening it brings the clock up to date first.
+    var popoverNow: Date
+    /// Set by the popover's delegate.
+    @ObservationIgnored var isPopoverShown = false
     /// Bumped whenever stored samples or usage rows change, so history views reload.
     var historyRevision = 0
     /// nil until the app has asked macOS; see `refreshNotificationPermission`.
@@ -100,6 +105,9 @@ final class AppModel {
         self.paths = paths
         self.fetcher = fetcher
         self.clock = clock
+        let start = clock()
+        now = start
+        popoverNow = start
         isAvailable = { AccountDiscovery.isAvailable($0, paths: paths) }
     }
 
@@ -182,6 +190,7 @@ final class AppModel {
 
     func popoverWillOpen() {
         now = clock()
+        popoverNow = now
         guard RefreshScheduler.shouldRefreshOnPopoverOpen(lastRefreshAt: lastRefreshAt, now: now) else { return }
         refresh(force: true)
     }
@@ -189,6 +198,7 @@ final class AppModel {
     @discardableResult
     func tick() -> Task<Void, Never>? {
         now = clock()
+        if isPopoverShown { popoverNow = now }
         guard !sleeping else { return nil }
         refreshAccounts()
         reloadConfigIfChanged()
@@ -383,6 +393,7 @@ final class AppModel {
             }
             lastRefreshAt = clock()
             now = clock()
+            if isPopoverShown { popoverNow = now }
             if stored { historyRevision += 1 }
             if dropped { refresh(force: false) }
         }

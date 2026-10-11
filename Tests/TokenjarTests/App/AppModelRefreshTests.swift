@@ -242,6 +242,31 @@ struct AppModelRefreshTests {
         #expect(log.count("codex") == 3)
     }
 
+    /// The popover's views read `popoverNow`, so a closed popover does not redraw on every 30-second tick.
+    @Test func thePopoverClockMovesOnlyWhileThePopoverIsShown() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.writeConfig(AppConfig())
+        let log = FetchLog(), clock = TestClock()
+        let model = model(home, clock) { _ in FakeFetcher(log: log) { .success(usageSnapshot($0)) } }
+        let start = clock.now
+        #expect(model.popoverNow == start)
+
+        clock.advance(30)
+        await model.tick()?.value
+        #expect(model.now == clock.now)
+        #expect(model.popoverNow == start)
+
+        clock.advance(30)
+        model.popoverWillOpen()
+        #expect(model.popoverNow == clock.now)
+        model.isPopoverShown = true
+        clock.advance(30)
+        await model.tick()?.value
+        #expect(model.now == clock.now)
+        #expect(model.popoverNow == clock.now)
+    }
+
     /// History views reload on every bump, so a refresh that stored nothing new must not bump.
     @Test func historyRevisionMovesOnlyWhenASampleIsStored() async throws {
         let home = try ModelHome()

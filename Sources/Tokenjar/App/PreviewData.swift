@@ -6,6 +6,7 @@ extension AppModel {
     static func preview(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
         let model = AppModel()
         model.now = now
+        model.popoverNow = now
         model.lastRefreshAt = now.addingTimeInterval(-90)
         model.config = AppConfig(
             refreshMinutes: 10,
@@ -173,6 +174,7 @@ extension AppModel {
         let model = AppModel()
         model.previewMode = true
         model.now = now
+        model.popoverNow = now
         model.lastRefreshAt = now.addingTimeInterval(-40)
         model.config = AppConfig(accounts: [
             AccountConfig(id: "full", provider: .claude, label: "Personal"),

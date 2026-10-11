@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import TokenjarCore
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let model = AppModel()
     private let windows = WindowPresenter()
     private var statusItem: NSStatusItem?
@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         popover.behavior = .transient
         popover.animates = true
+        popover.delegate = self
         popover.contentViewController = Self.popoverContent(model)
 
         let notifications = NotificationManager()
@@ -66,6 +67,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
+    }
+
+    func popoverWillShow(_ notification: Notification) {
+        model.isPopoverShown = true
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        model.isPopoverShown = false
     }
 
     private func showDashboard(accountID: String?) {
