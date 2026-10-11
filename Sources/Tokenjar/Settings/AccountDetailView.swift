@@ -217,28 +217,30 @@ struct AccountDetailView: View {
                     Button("Copy Command") { SignInLauncher.copy(command) }
                     Button("Sign In in Terminal\u{2026}") { openSignIn(command) }
                 }
-            } else if needsAgy {
-                LabeledContent {
-                    Link("Install agy", destination: SignInCommand.antigravityInstallURL)
-                } label: {
-                    Text("Antigravity CLI")
-                    Text("Tokenjar reads limits from agy. Install it and sign in there.")
-                }
             } else {
-                TextRow {
-                    Text("Antigravity CLI")
-                    Text("Signed in through agy. To switch Google accounts, sign in again in agy.")
+                switch AgySignInRow.make(status: model.status(for: account)) {
+                case .install:
+                    LabeledContent {
+                        Link("Install agy", destination: SignInCommand.antigravityInstallURL)
+                    } label: {
+                        Text("Antigravity CLI")
+                        Text("Tokenjar reads limits from agy. Install it and sign in there.")
+                    }
+                case .signedOut:
+                    TextRow {
+                        Text("Antigravity CLI")
+                        Text("Signed out. Run agy in Terminal and sign in again.")
+                    }
+                case .signedIn:
+                    TextRow {
+                        Text("Antigravity CLI")
+                        Text("Signed in through agy. To switch Google accounts, sign in again in agy.")
+                    }
                 }
             }
         } header: {
             Text("Sign in")
         }
-    }
-
-    /// An account that has worked has agy already; offering the install then reads as if something were missing.
-    private var needsAgy: Bool {
-        let status = model.status(for: account)
-        return status.error == .cliNotFound("agy") || status.snapshot == nil
     }
 
     private var signInNote: String {
@@ -499,6 +501,22 @@ extension ProviderID {
 
     /// Whether SignInCommand has a login to hand to Terminal. agy has none, and Devin runs nothing.
     var hasSignInCommand: Bool { self != .antigravity && self != .devin }
+}
+
+/// What the Sign in section says for an Antigravity account. agy has no login command to hand to Terminal, so this row
+/// is the only place the page says how to sign in again.
+enum AgySignInRow: Equatable {
+    case install, signedOut, signedIn
+
+    /// A failed check keeps the last snapshot, so the current error decides first. Without one, an account that has
+    /// worked has agy already, and offering the install would read as if something were missing.
+    static func make(status: AccountStatus) -> AgySignInRow {
+        switch status.error {
+        case .cliNotFound: .install
+        case .notSignedIn: .signedOut
+        default: status.snapshot == nil ? .install : .signedIn
+        }
+    }
 }
 
 /// The one fix the status box offers next to a failed check's message.
