@@ -166,13 +166,18 @@ struct PaceVerdict: Equatable {
         }
     }
 
-    var text: String {
+    var text: String { phrase(duration: Format.duration, about: "~") }
+
+    /// `text` with the units spelled out, for VoiceOver.
+    var spokenText: String { phrase(duration: Format.spokenDuration, about: "about ") }
+
+    private func phrase(duration: (TimeInterval) -> String, about: String) -> String {
         switch kind {
         case .onPace: "On pace"
         case .ahead(let points): "Ahead of pace +\(Format.percent(points))"
         case .under(let points): "Under pace -\(Format.percent(points))"
-        case .runsOut(let gap): "Runs out ~\(Format.duration(gap)) before reset"
-        case .exhausted(let untilReset): "Limit reached, resets in \(Format.duration(untilReset))"
+        case .runsOut(let gap): "Runs out \(about)\(duration(gap)) before reset"
+        case .exhausted(let untilReset): "Limit reached, resets in \(duration(untilReset))"
         }
     }
 }

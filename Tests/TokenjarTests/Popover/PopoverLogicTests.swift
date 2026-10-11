@@ -392,7 +392,7 @@ struct StatusIconRendererTests {
             }
         }
         #expect(pixels(StatusIconRenderer.render(state([])).image) == pixels(StatusGlyph.neutral(.app, dot: false)))
-        #expect(StatusIconRenderer.render(state([entry("a", used: 90)], mode: mode, icon: .logoClaude)).image?.accessibilityDescription == "Tokenjar, 5-hour 90% used")
+        #expect(StatusIconRenderer.render(state([entry("a", used: 90)], mode: mode, icon: .logoClaude)).image?.accessibilityDescription == "Tokenjar, Claude 5-hour 90% used")
     }
 
     /// Icon mode has no title, so the image's description is all VoiceOver has to read the level from.
@@ -401,12 +401,37 @@ struct StatusIconRendererTests {
         func described(_ entries: [MenuBarState.Entry], icon: MenuBarIcon = .app) -> String? {
             StatusIconRenderer.render(state(entries, mode: mode, icon: icon)).image?.accessibilityDescription
         }
-        #expect(described([entry("a", used: 42), entry("b", used: 85, severity: .warning)]) == "Tokenjar, 5-hour 85% used")
-        #expect(described([entry("a", used: 85, severity: .warning)], icon: .symbolBrain) == "Tokenjar, 5-hour 85% used")
-        #expect(described([entry("a", used: 42, stale: true)]) == "Tokenjar, 5-hour 42% used, out of date")
-        #expect(described([entry("a", used: 42, stale: true, attention: .actionable)]) == "Tokenjar, 5-hour 42% used, Claude check failed")
+        #expect(described([entry("a", used: 42), entry("b", used: 85, severity: .warning, provider: .codex)]) == "Tokenjar, Codex 5-hour 85% used")
+        // Two accounts of one provider need the label to tell them apart.
+        #expect(described([entry("Personal", used: 42), entry("Work", used: 85, severity: .warning)]) == "Tokenjar, Claude Work 5-hour 85% used")
+        #expect(described([entry("a", used: 85, severity: .warning)], icon: .symbolBrain) == "Tokenjar, Claude 5-hour 85% used")
+        #expect(described([entry("a", used: 42, stale: true)]) == "Tokenjar, Claude 5-hour 42% used, out of date")
+        #expect(described([entry("a", used: 42, stale: true, attention: .actionable)]) == "Tokenjar, Claude 5-hour 42% used, Claude check failed")
         #expect(described([entry("a", used: nil)]) == "Tokenjar")
         #expect(described([entry("a", used: nil, attention: .actionable)]) == "Tokenjar, Claude check failed")
+        #expect(described([entry("a", used: 100, severity: .critical, resetIn: 47 * 60)]) == "Tokenjar, Claude 5-hour full, resets in 47 minutes")
+    }
+
+    /// Bars shows no number, so VoiceOver needs every account's level.
+    @Test func barsDescribeEveryAccount() {
+        let entries = [entry("a", used: 42), entry("b", used: 0, provider: .codex), entry("c", used: nil, provider: .copilot)]
+        #expect(StatusIconRenderer.render(state(entries, mode: .bars)).image?.accessibilityDescription == "Tokenjar, Claude 42%, Codex 0%, GitHub Copilot no data")
+        let troubled = [entry("a", used: 42, stale: true), entry("b", used: nil, attention: .actionable, provider: .codex)]
+        #expect(StatusIconRenderer.render(state(troubled, mode: .bars)).image?.accessibilityDescription == "Tokenjar, Claude 42%, Codex no data, Claude out of date, Codex check failed")
+    }
+
+    /// The number is the tightest window's, so an amber mark at 75 % needs the window whose projection colored it.
+    @Test func aProjectionNamesTheWindowThatColorsTheMark() {
+        var projected = entry("a", used: 75, severity: .warning)
+        projected.tightest = window("weekly", "Week", used: 75, minutes: 10_080, resetIn: 86_400)
+        projected.cause = PaceVerdict(window: window("session", "5-hour", used: 60, resetIn: 150 * 60), kind: .runsOut(50 * 60))
+        let rendered = StatusIconRenderer.render(state([projected]))
+        #expect(rendered.image?.accessibilityDescription == "Tokenjar, Claude Week 75% used, 5-hour runs out about 50 minutes before reset")
+        #expect(rendered.toolTip == "Claude · a: Week 75%, resets in 1d; 5-hour runs out ~50m before reset")
+
+        var itself = entry("a", used: 60, severity: .warning, resetIn: 150 * 60)
+        itself.cause = PaceVerdict(window: itself.tightest!, kind: .runsOut(50 * 60))
+        #expect(StatusIconRenderer.render(state([itself])).toolTip == "Claude · a: 5-hour 60%, resets in 2h 30m; runs out ~50m before reset")
     }
 
     @Test(arguments: [MenuBarIcon.markMana, .logoClaude, .symbolBrain])

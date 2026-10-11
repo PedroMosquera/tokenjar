@@ -12,6 +12,8 @@ struct MenuBarState: Equatable {
         var isStale: Bool
         /// How much the last check's failure matters; nil when it passed.
         var attention: FetchError.Attention? = nil
+        /// Set when a projection, not the tightest window's own number, gives `severity`.
+        var cause: PaceVerdict? = nil
 
         /// A calm failure, such as no subscription, is a state of the account rather than a check that failed.
         var checkFailed: Bool { attention.map { $0 != .calm } ?? false }
@@ -44,18 +46,28 @@ struct MenuBarState: Equatable {
         let entries = accounts.compactMap { account -> Entry? in
             let status = statuses[account.id] ?? AccountStatus()
             guard account.provider.reportsWindows, status.snapshot != nil || status.error?.attention != .calm else { return nil }
+            let windows = status.snapshot?.windows ?? []
             let tightest = status.snapshot?.tightestWindow(now: now)
+            // Every window counts: a lower window projected to run out still needs to color the menu bar.
+            let severity = Severity.worst(of: windows, config: config.menuBar, now: now)
             return Entry(
                 accountID: account.id,
                 provider: account.provider,
                 label: account.label,
                 tightest: tightest,
-                // Every window counts: a lower window projected to run out still needs to color the menu bar.
-                severity: Severity.worst(of: status.snapshot?.windows ?? [], config: config.menuBar, now: now),
+                severity: severity,
                 isStale: status.isStale(now: now, refreshMinutes: account.refreshMinutes ?? config.refreshMinutes),
-                attention: status.error?.attention
+                attention: status.error?.attention,
+                cause: cause(of: severity, windows: windows, tightest: tightest, config: config.menuBar, now: now)
             )
         }
         return MenuBarState(mode: config.menuBar.mode, icon: config.menuBar.icon, entries: entries, showResetCountdownWhenFull: config.menuBar.showResetCountdownWhenFull, now: now)
+    }
+
+    /// The verdict behind a color the tightest window's own number does not explain: a projected run-out, on that
+    /// window or on another one.
+    private static func cause(of severity: Severity, windows: [UsageWindow], tightest: UsageWindow?, config: MenuBarConfig, now: Date) -> PaceVerdict? {
+        guard let tightest, severity > Severity.ofUse(tightest.usedPercent, config: config) else { return nil }
+        return PaceVerdict.make(windows: windows.filter { Severity.of($0, config: config, now: now) == severity }, config: config, now: now)
     }
 }

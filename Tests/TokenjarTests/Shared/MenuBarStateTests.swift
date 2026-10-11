@@ -35,6 +35,7 @@ struct MenuBarStateTests {
             config: AppConfig(), now: now
         )
         #expect(state.worst?.accountID == "work")
+        #expect(state.entries.map(\.cause?.window.id) == [nil, "session"])
         let rendered = StatusIconRenderer.render(state)
         #expect(rendered.title == "60%")
         #expect(color(rendered) == .systemOrange)
@@ -45,9 +46,20 @@ struct MenuBarStateTests {
         let state = MenuBarState.make(accounts: [personal], statuses: ["personal": status([weeklyOnPace, sessionRunsOut])], config: AppConfig(), now: now)
         #expect(state.entries.first?.tightest?.id == "weekly")
         #expect(state.entries.first?.severity == .warning)
+        #expect(state.entries.first?.cause?.window.id == "session")
+        let tip = StatusIconRenderer.toolTip(for: state)
+        #expect(tip == "Claude · Personal: weekly 75%, resets in 1d; session runs out ~50m before reset")
         let rendered = StatusIconRenderer.render(state)
         #expect(rendered.title == "75%")
         #expect(color(rendered) == .systemOrange)
+    }
+
+    /// At warnAt the number on the mark already explains the color.
+    @Test func aWindowPastWarnAtNeedsNoCause() {
+        let high = window("weekly", used: 85, minutes: 10_080, resetIn: 6 * 86_400)
+        let state = MenuBarState.make(accounts: [personal], statuses: ["personal": status([high])], config: AppConfig(), now: now)
+        #expect(state.entries.first?.severity == .warning)
+        #expect(state.entries.first?.cause == nil)
     }
 
     @Test func staleUsesTheAccountsOwnInterval() {

@@ -109,7 +109,7 @@ enum StatusGlyph {
 
     private static let neutralSlot = slot(basePose, wedgeAlpha: 0.35)
 
-    static func bars(_ bars: [Bar]) -> NSImage {
+    static func bars(_ bars: [Bar], description: String) -> NSImage {
         let count = CGFloat(max(bars.count, 1))
         let size = NSSize(width: count * barWidth + (count - 1) * barGap, height: barsHeight)
         let colored = bars.contains { $0.severity > .ok }
@@ -134,7 +134,7 @@ enum StatusGlyph {
         image.isTemplate = !colored
         // Non-template colors resolve against the menu bar's appearance at draw time, so never cache a rendering.
         if colored { image.cacheMode = .never }
-        image.accessibilityDescription = "Usage bars"
+        image.accessibilityDescription = description
         return image
     }
 

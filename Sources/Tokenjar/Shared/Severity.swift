@@ -12,12 +12,19 @@ enum Severity: Int, Comparable {
     /// Ok once the reset has passed: the use shown is the old cycle's until the next check replaces it.
     static func of(_ window: UsageWindow, config: MenuBarConfig, now: Date) -> Severity {
         if window.hasReset(now: now) { return .ok }
-        if window.usedPercent >= Double(config.criticalAt) { return .critical }
-        if window.usedPercent >= Double(config.warnAt) { return .warning }
+        let byUse = ofUse(window.usedPercent, config: config)
+        if byUse > .ok { return byUse }
         if window.usedPercent >= 50, let pace = Pace.compute(window, now: now), pace.fractionElapsed >= 0.1,
            let eta = pace.secondsToExhaustion, pace.secondsToReset - eta >= 15 * 60 {
             return .warning
         }
+        return .ok
+    }
+
+    /// The thresholds alone, without the projection.
+    static func ofUse(_ usedPercent: Double, config: MenuBarConfig) -> Severity {
+        if usedPercent >= Double(config.criticalAt) { return .critical }
+        if usedPercent >= Double(config.warnAt) { return .warning }
         return .ok
     }
 
