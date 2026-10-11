@@ -196,11 +196,12 @@ private struct SnapshotBody: View {
                 }
             }
             let verdict = PaceVerdict.make(windows: snapshot.windows, config: model.config.menuBar, now: now)
+            let namesWindow = VerdictLine.namesWindow(among: snapshot.windows)
             if let verdict {
-                VerdictLine(verdict: verdict, severity: verdict.severity(config: model.config.menuBar, now: now))
+                VerdictLine(verdict: verdict, severity: verdict.severity(config: model.config.menuBar, now: now), showsWindow: namesWindow)
                     .font(.callout)
             }
-            chart(now: now, verdictWindowID: verdict?.window.id)
+            chart(now: now, verdictWindowID: verdict?.window.id, namesWindow: namesWindow)
             if !snapshot.money.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(snapshot.money.enumerated()), id: \.offset) { _, line in
@@ -233,14 +234,17 @@ private struct SnapshotBody: View {
     }
 
     @ViewBuilder
-    private func chart(now: Date, verdictWindowID: String?) -> some View {
+    private func chart(now: Date, verdictWindowID: String?, namesWindow: Bool) -> some View {
         // A window past its reset would chart the cycle that just ended.
         let live = snapshot.windows.filter { !$0.hasReset(now: now) }
         if let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
             let samples = model.samples(accountID: account.id, windowID: window.id, since: start)
             let points = BurnUpChart.points(samples: samples, window: window, start: start, now: now)
             if BurnUpChart.isWorthDrawing(points, start: start, end: window.resetsAt ?? now) {
-                BurnUpChart(window: window, start: start, points: points, tint: Severity.of(window, config: model.config.menuBar, now: now).color)
+                BurnUpChart(
+                    window: window, start: start, points: points, tint: Severity.of(window, config: model.config.menuBar, now: now).color,
+                    caption: namesWindow && window.id != verdictWindowID ? window.label : nil
+                )
             }
         }
     }
@@ -249,7 +253,7 @@ private struct SnapshotBody: View {
 struct VerdictLine: View {
     var verdict: PaceVerdict
     var severity: Severity
-    /// Off where the window is already named, such as a dashboard tile titled with it.
+    /// Off where the window is already named: a dashboard tile titled with it, or a card with one window.
     var showsWindow = true
 
     var body: some View {
@@ -265,12 +269,18 @@ struct VerdictLine: View {
     private var message: Text {
         let text = Text(verdict.text).foregroundStyle(severity == .ok ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
         guard showsWindow else { return text }
-        return Text("\(text) \(Text(Self.windowSuffix(verdict.window.label)).foregroundStyle(.secondary))")
+        return Text("\(Text(Self.windowLead(verdict.window.label)).foregroundStyle(.secondary)) \(text)")
     }
 
-    /// Non-breaking spaces, so a wrap moves the whole label to the next line rather than splitting it.
-    static func windowSuffix(_ label: String) -> String {
-        "·\u{00A0}" + label.replacingOccurrences(of: " ", with: "\u{00A0}")
+    /// A card names the verdict's window only when it shows more than one; with one, the row above names it.
+    static func namesWindow(among windows: [UsageWindow]) -> Bool {
+        windows.filter { !$0.notStarted }.count > 1
+    }
+
+    /// "Week:" ahead of the verdict, with non-breaking spaces so a wrap never splits the label or starts a line with
+    /// its "·".
+    static func windowLead(_ label: String) -> String {
+        label.replacingOccurrences(of: " ", with: "\u{00A0}") + ":"
     }
 
     private var symbol: String {

@@ -15,6 +15,8 @@ struct BurnUpChart: View {
     var start: Date
     var points: [Point]
     var tint: Color
+    /// The window's name, only where nothing nearby names it.
+    var caption: String?
 
     /// The window the verdict line judges when it lasts a day or more, so the chart never contradicts the line
     /// above it. Otherwise the weekly window, else the longest one; nil when no window has a known cycle.
@@ -59,9 +61,23 @@ struct BurnUpChart: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let caption {
+                Text(caption)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            plot
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(window.label) usage this cycle")
+        .accessibilityValue("\(Format.percent(window.usedPercent)) used")
+    }
+
+    private var plot: some View {
         let end = window.resetsAt ?? start
         let top = max(100, points.map(\.used).max() ?? 0)
-        Chart {
+        return Chart {
             LineMark(x: .value("Time", start), y: .value("Used", 0), series: .value("Series", "pace"))
                 .foregroundStyle(Color.secondary)
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
@@ -94,13 +110,5 @@ struct BurnUpChart: View {
             }
         }
         .frame(height: 44)
-        .overlay(alignment: .topLeading) {
-            Text(window.label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .allowsHitTesting(false)
-        }
-        .accessibilityLabel("\(window.label) usage this cycle")
-        .accessibilityValue("\(Format.percent(window.usedPercent)) used")
     }
 }

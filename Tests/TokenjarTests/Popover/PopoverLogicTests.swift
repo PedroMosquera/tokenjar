@@ -130,8 +130,16 @@ struct PaceVerdictTests {
         #expect(PaceVerdict(window: full, kind: .exhausted(1_500)).severity(config: MenuBarConfig(), now: now) == .critical)
     }
 
-    @Test func theWindowLabelWrapsAsOneUnit() {
-        #expect(VerdictLine.windowSuffix("Claude and GPT · Week") == "·\u{00A0}Claude\u{00A0}and\u{00A0}GPT\u{00A0}·\u{00A0}Week")
+    /// A card with one window already names it in the row above; with several the name leads, so a wrap never starts
+    /// a line with "·" and never splits the label.
+    @Test func theVerdictLeadsWithItsWindowOnlyOnACardWithSeveral() {
+        let pooled = window("claude-and-gpt:weekly", "Claude and GPT · Week", used: 71, minutes: 10_080, resetIn: 4 * 86_400)
+        let gemini = window("gemini:weekly", "Gemini · Week", used: 38, minutes: 10_080, resetIn: 4 * 86_400)
+        let idle = window("session", "5-hour", used: 0, resetIn: 300 * 60, notStarted: true)
+        #expect(!VerdictLine.namesWindow(among: [pooled]))
+        #expect(!VerdictLine.namesWindow(among: [idle, pooled]))
+        #expect(VerdictLine.namesWindow(among: [gemini, pooled]))
+        #expect(VerdictLine.windowLead("Claude and GPT · Week") == "Claude\u{00A0}and\u{00A0}GPT\u{00A0}·\u{00A0}Week:")
     }
 
     /// 2 of 5,000 credits is "under pace" by any measure, and saying so is noise.
