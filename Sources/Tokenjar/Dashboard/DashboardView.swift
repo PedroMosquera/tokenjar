@@ -51,14 +51,16 @@ struct DashboardView: View {
                     }
                 }
                 .padding(20)
-                .opacity(content.key == loadKey ? 1 : 0.6)
+                .opacity(DashboardLoadKey.dims(shown: content.key, wanted: loadKey) ? 0.6 : 1)
             }
         }
         .frame(minWidth: 760, minHeight: 520)
         .task(id: loadKey) {
-            contentState.wrappedValue = DashboardContent.load(
-                model: model, accounts: model.accounts, account: account, range: range, now: model.now, key: loadKey
-            )
+            let input = DashboardContent.Input(model: model, accounts: model.accounts, account: account, range: range, now: model.now, key: loadKey)
+            let loaded = await Task.detached(priority: .userInitiated) { DashboardContent.load(input) }.value
+            // A newer key has started its own load; this result would overwrite it with older content.
+            guard !Task.isCancelled else { return }
+            contentState.wrappedValue = loaded
         }
     }
 

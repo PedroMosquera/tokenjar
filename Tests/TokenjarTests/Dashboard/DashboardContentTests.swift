@@ -89,10 +89,10 @@ struct DashboardContentLoadTests {
     }
 
     private func load(_ model: AppModel, account: AccountConfig? = nil, range: DashboardRange) -> DashboardContent {
-        DashboardContent.load(
+        DashboardContent.load(DashboardContent.Input(
             model: model, accounts: model.accounts, account: account, range: range, now: now,
             key: DashboardLoadKey(accountIDs: model.accounts.map(\.id), range: range, historyRevision: 0)
-        )
+        ))
     }
 
     @Test func allAccountsDrawsReadableWindowsInStableColorsUnderShortNames() {
@@ -110,6 +110,21 @@ struct DashboardContentLoadTests {
         let content = load(model, account: model.accounts.first, range: .month)
         #expect(content.series.map(\.id) == ["session", "weekly"])
         #expect(content.series.map(\.peaksOnly) == [true, false])
+    }
+}
+
+struct DashboardDimTests {
+    private let shown = DashboardLoadKey(accountIDs: ["claude"], range: .week, historyRevision: 4)
+
+    @Test func newHistoryForTheSamePageKeepsItAtFullOpacity() {
+        #expect(!DashboardLoadKey.dims(shown: shown, wanted: DashboardLoadKey(accountIDs: ["claude"], range: .week, historyRevision: 5)))
+        #expect(!DashboardLoadKey.dims(shown: shown, wanted: shown))
+    }
+
+    @Test func anotherAccountOrRangeDimsUntilItsContentLands() {
+        #expect(DashboardLoadKey.dims(shown: shown, wanted: DashboardLoadKey(accountIDs: ["codex"], range: .week, historyRevision: 4)))
+        #expect(DashboardLoadKey.dims(shown: shown, wanted: DashboardLoadKey(accountIDs: ["claude"], range: .month, historyRevision: 4)))
+        #expect(DashboardLoadKey.dims(shown: nil, wanted: shown))
     }
 }
 
