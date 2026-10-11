@@ -23,7 +23,9 @@ public enum LegacyMigration {
         var events: [Event] = []
         // Each old folder is the new one's sibling, so XDG_CONFIG_HOME applies to both and a move never leaves the volume.
         let support = paths.supportDirectory
-        if move(support.deletingLastPathComponent().appending(path: "Headroom"), to: support, events: &events) {
+        let oldSupport = support.deletingLastPathComponent().appending(path: "Headroom")
+        if exists(oldSupport) { removeIfOnlyAnEmptyProbeFolder(support) }
+        if move(oldSupport, to: support, events: &events) {
             events.append(.movedSupportFolder)
         }
         renameDatabase(to: paths.databaseFile, events: &events)
@@ -45,6 +47,13 @@ public enum LegacyMigration {
             events.append(.failed("could not move \(old.lastPathComponent) to \(new.lastPathComponent): \(code(error))"))
             return false
         }
+    }
+
+    /// `--probe` before the first launch creates the support folder with an empty probe folder in it, which would keep
+    /// Headroom's from moving. rmdir(2) removes only an empty folder, never a file or a link, so nothing else can go.
+    private static func removeIfOnlyAnEmptyProbeFolder(_ support: URL) {
+        guard (try? FileManager.default.contentsOfDirectory(atPath: support.path)) == ["probe"] else { return }
+        if rmdir(support.appending(path: "probe").path) == 0 { _ = rmdir(support.path) }
     }
 
     /// SQLite pairs a database with its -wal by name, and the -wal can hold transactions not yet in the database, so the

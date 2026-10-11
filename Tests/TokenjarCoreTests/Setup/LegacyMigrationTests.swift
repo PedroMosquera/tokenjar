@@ -130,6 +130,29 @@ struct LegacyMigrationTests {
         #expect(read(".config/tokenjar/config.json") == "new config")
     }
 
+    /// `--probe` run before the first launch leaves only this behind, and it must not keep Headroom's history from moving.
+    @Test func aSupportFolderHoldingOnlyTheEmptyProbeFolderStillMoves() throws {
+        defer { home.remove() }
+        try home.write("\(oldSupport)/headroom.sqlite", "db")
+        try paths.createProbeDirectory()
+
+        #expect(LegacyMigration.run(paths: paths, legacyAppIsRunning: false) == [.movedSupportFolder, .renamedDatabase])
+
+        #expect(!exists(oldSupport))
+        #expect(read("\(newSupport)/tokenjar.sqlite") == "db")
+    }
+
+    @Test func aProbeFolderWithAnythingInItStillCountsAsTokenjarsOwn() throws {
+        defer { home.remove() }
+        try home.write("\(oldSupport)/headroom.sqlite", "db")
+        try home.write("\(newSupport)/probe/kept", "kept")
+
+        #expect(LegacyMigration.run(paths: paths, legacyAppIsRunning: false) == [])
+
+        #expect(read("\(newSupport)/probe/kept") == "kept")
+        #expect(read("\(oldSupport)/headroom.sqlite") == "db")
+    }
+
     /// A dangling stow link at the new path is still the user's, so it counts as existing.
     @Test func aDanglingLinkAtTheNewConfigPathIsLeftAlone() throws {
         defer { home.remove() }
