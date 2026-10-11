@@ -16,7 +16,7 @@ public enum SettingsLogic {
         }
         let siblings = existing.filter { $0.provider == provider }.count
         return AccountConfig(
-            id: id, provider: provider, label: siblings == 0 ? "Default" : "Account \(siblings + 1)", showInMenuBar: !provider.isLinkOnly
+            id: id, provider: provider, label: siblings == 0 ? "Default" : "Account \(siblings + 1)", showInMenuBar: provider.reportsWindows
         )
     }
 

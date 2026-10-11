@@ -52,6 +52,15 @@ struct ModelsTests {
         #expect(ProviderID.allCases.filter(\.isLinkOnly) == [.devin])
     }
 
+    @Test func onlyZenAndDevinReportNoWindows() {
+        let expected: [ProviderID: Bool] = [
+            .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
+        ]
+        for provider in ProviderID.allCases {
+            #expect(provider.reportsWindows == expected[provider], "\(provider)")
+        }
+    }
+
     @Test func httpsOverrideIsUsed() {
         let account = AccountConfig(id: "a", provider: .codex, label: "x", dashboardURL: "https://example.com/usage")
         #expect(account.resolvedDashboardURL.absoluteString == "https://example.com/usage")

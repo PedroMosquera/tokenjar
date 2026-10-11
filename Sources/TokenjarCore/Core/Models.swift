@@ -61,6 +61,15 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         }
     }
 
+    /// False when the provider never reports a limit window (Zen shows local spend, Devin is a link), so the menu bar,
+    /// thresholds and limit charts have nothing to show for it.
+    public var reportsWindows: Bool {
+        switch self {
+        case .opencodeZen, .devin: false
+        case .claude, .codex, .opencodeGo, .antigravity, .copilot: true
+        }
+    }
+
     /// The harness whose local logs feed this provider's history, if any.
     public var harness: Harness? {
         switch self {
