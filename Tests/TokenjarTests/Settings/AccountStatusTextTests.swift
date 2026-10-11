@@ -47,6 +47,16 @@ struct AccountStatusTextTests {
         #expect(line.caption == AccountStatusText.Caption(text: "Not on this Mac", isActionable: false))
     }
 
+    /// Zen has neither a profile folder nor a credential it reads, so Test's tooltip names the file that is missing.
+    @Test func testIsBlockedByTheFileThatIsMissing() {
+        #expect(AccountDetailView.testBlocker(enabled: true, missingPath: nil) == nil)
+        #expect(AccountDetailView.testBlocker(enabled: false, missingPath: "~/.claude-work") == "Turn the account on to test it")
+        #expect(
+            AccountDetailView.testBlocker(enabled: true, missingPath: "~/.local/share/opencode/opencode.db")
+                == "~/.local/share/opencode/opencode.db is not on this Mac"
+        )
+    }
+
     @Test func aSnapshotListsItsLimitsNotACount() {
         let line = text(claude, AccountStatus(snapshot: snapshot(claude, windows: ["5-hour", "Week", "Week \u{00B7} Fable"])))
         #expect(line.text == "Updated \(age(60))")

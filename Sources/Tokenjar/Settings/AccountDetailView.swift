@@ -329,12 +329,12 @@ struct AccountDetailView: View {
         return SignInLine(command: command, shown: shown)
     }
 
+    private var testBlocker: String? { Self.testBlocker(enabled: account.enabled, missingPath: missingPath) }
+
     /// Refresh only fetches enabled accounts that exist on this Mac, so Test would silently do nothing for the rest.
-    private var testBlocker: String? {
-        if !account.enabled { return "Turn the account on to test it" }
-        if !model.previewMode, !AccountDiscovery.isAvailable(account, paths: model.paths) {
-            return "Its profile folder or credential is not on this Mac"
-        }
+    static func testBlocker(enabled: Bool, missingPath: String?) -> String? {
+        if !enabled { return "Turn the account on to test it" }
+        if let missingPath { return "\(missingPath) is not on this Mac" }
         return nil
     }
 
@@ -415,8 +415,8 @@ struct AccountStatusText: Equatable {
     var caption: Caption?
     var offersCheck = true
 
-    /// `missingPath` is the tilde path of the profile folder or credential file the account reads, when it does not
-    /// exist on this Mac. Being off or missing outranks any old snapshot, which no longer describes this Mac.
+    /// `missingPath` is the tilde path of what the account reads (`AccountDiscovery.location`), when it does not exist on
+    /// this Mac. Being off or missing outranks any old snapshot, which no longer describes this Mac.
     static func make(account: AccountConfig, status: AccountStatus, missingPath: String?, now: Date) -> AccountStatusText {
         let provider = account.provider
         if !account.enabled {
