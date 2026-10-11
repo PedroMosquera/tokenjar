@@ -150,7 +150,7 @@ nonisolated struct PastedKeyFetcher: UsageFetcher {
     var keys: FetchLog
 
     func fetch(_ account: AccountConfig, context: FetchContext) async throws -> UsageSnapshot {
-        guard case .keychain(let name) = account.credential, let key = try? context.secrets.read(account: name) else {
+        guard case .keychain(let name) = account.credential, let key = try context.secrets.pastedKey(account: name) else {
             throw FetchError.notSignedIn
         }
         keys.record(key)

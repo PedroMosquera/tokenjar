@@ -27,6 +27,20 @@ struct KeychainSecretStoreTests {
     }
 }
 
+/// What SecItemCopyMatching returns when the user is asked and says no: Deny on the access prompt (errSecAuthFailed),
+/// Cancel on an unlock prompt (errSecUserCanceled), or no way to ask at all.
+struct SecretStoreRefusalTests {
+    @Test(arguments: [errSecAuthFailed, errSecUserCanceled, errSecInteractionNotAllowed, errSecInteractionRequired])
+    func aRefusedReadIsARefusal(status: OSStatus) {
+        #expect(SecretStoreError.keychain(status).isRefusal)
+    }
+
+    @Test(arguments: [errSecItemNotFound, errSecDecode, errSecParam, errSecNotAvailable])
+    func otherFailuresAreNot(status: OSStatus) {
+        #expect(!SecretStoreError.keychain(status).isRefusal)
+    }
+}
+
 /// Each read of the real store can put a Keychain prompt on screen, so these count reads of a fake one.
 struct SessionSecretStoreTests {
     @Test func aKeyIsReadFromTheKeychainOncePerLaunch() throws {

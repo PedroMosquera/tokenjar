@@ -170,7 +170,7 @@ extension AppModel {
 
 extension AppModel {
     /// Edge states for visual review: stale, refreshing, full window, signed out, no subscription, network error,
-    /// and a window whose reset has passed since the last check.
+    /// a window whose reset has passed since the last check, and a pasted key the Keychain refused.
     static func previewStates(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
         let model = AppModel()
         model.previewMode = true
@@ -187,6 +187,7 @@ extension AppModel {
             AccountConfig(id: "no-limits", provider: .claude, label: "API"),
             AccountConfig(id: "devin", provider: .devin, label: "Devin"),
             AccountConfig(id: "past-reset", provider: .claude, label: "Max"),
+            AccountConfig(id: "pasted-key", provider: .opencodeGo, label: "Pasted key", credential: .keychain(account: "pasted-key")),
         ])
         func window(_ id: String, _ label: String, _ used: Double, _ minutes: Int, resetIn: TimeInterval) -> UsageWindow {
             UsageWindow(id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: now.addingTimeInterval(resetIn))
@@ -213,6 +214,7 @@ extension AppModel {
             "past-reset": AccountStatus(snapshot: UsageSnapshot(accountID: "past-reset", provider: .claude, plan: "Max 5x", windows: [
                 window("session", "5-hour", 100, 300, resetIn: -5 * 60), window("weekly", "Week", 64, 10_080, resetIn: 3 * 86_400),
             ], fetchedAt: now.addingTimeInterval(-8 * 60), source: "claude CLI")),
+            "pasted-key": AccountStatus(error: .keychainDenied, lastAttempt: now.addingTimeInterval(-30)),
         ]
         model.store = InMemoryUsageStore()
         return model

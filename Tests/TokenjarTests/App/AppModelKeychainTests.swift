@@ -35,12 +35,15 @@ struct AppModelKeychainTests {
         let model = try model(home, clock, keychain: keychain, keys: keys)
 
         await model.refresh(force: true)?.value
-        #expect(model.statuses["go"]?.error != nil)
+        #expect(model.statuses["go"]?.error == .keychainDenied)
         await scheduledChecks(model, clock)
         #expect(keychain.readCount == 1)
+        #expect(model.statuses["go"]?.error == .keychainDenied)
 
         keychain.refuse(with: nil)
-        await model.refresh(accountID: "go")?.value
+        let tryAgain = try #require(AccountAction.forError(.keychainDenied, account: go, model: model).first)
+        tryAgain.run()
+        try await waitUntil { keys.count("sk-placeholder") == 1 && !model.isRefreshing }
         #expect(keychain.readCount == 2)
         #expect(model.statuses["go"]?.error == nil)
 
@@ -57,7 +60,7 @@ struct AppModelKeychainTests {
         keychain.refuse(with: errSecUserCanceled)
         let model = try model(home, clock, keychain: keychain, keys: keys)
         await model.refresh(force: true)?.value
-        #expect(model.statuses["go"]?.error != nil)
+        #expect(model.statuses["go"]?.error == .keychainDenied)
 
         try model.savePastedKey("sk-new", accountID: "go")
         try await waitUntil { keys.count("sk-new") == 1 && !model.isRefreshing }

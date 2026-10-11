@@ -10,6 +10,29 @@ public protocol SecretStore: Sendable {
 
 public enum SecretStoreError: Error {
     case keychain(OSStatus)
+
+    /// The user was asked and said no: Deny on the access prompt (errSecAuthFailed), Cancel on an unlock prompt
+    /// (errSecUserCanceled), or there was no way to ask.
+    public var isRefusal: Bool {
+        switch self {
+        case .keychain(let status):
+            [errSecAuthFailed, errSecUserCanceled, errSecInteractionNotAllowed, errSecInteractionRequired].contains(status)
+        }
+    }
+}
+
+extension SecretStore {
+    /// The key stored under `account`, or nil when there is none or it could not be read. A refusal throws
+    /// `FetchError.keychainDenied` instead, because pasting the key again would not get past the prompt.
+    public func pastedKey(account: String) throws -> String? {
+        do {
+            return try read(account: account)
+        } catch let error as SecretStoreError where error.isRefusal {
+            throw FetchError.keychainDenied
+        } catch {
+            return nil
+        }
+    }
 }
 
 public struct KeychainSecretStore: SecretStore {

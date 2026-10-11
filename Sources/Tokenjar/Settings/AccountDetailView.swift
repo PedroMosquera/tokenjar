@@ -20,7 +20,7 @@ struct AccountDetailView: View {
                     statusRow(scroller)
                     HStack {
                         Spacer()
-                        if statusText.offersCheck, fix != .tryOnceMore {
+                        if statusText.offersCheck, fix != .tryOnceMore, fix != .tryAgain {
                             checkButton
                         }
                         Button("Open Usage Page") { model.openProviderDashboard(account) }
@@ -108,7 +108,7 @@ struct AccountDetailView: View {
                 Button("Change Key\u{2026}") {
                     withAnimation { scroller.scrollTo(Self.credentialAnchor, anchor: .top) }
                 }
-            case .tryOnceMore:
+            case .tryOnceMore, .tryAgain:
                 checkButton
             case .searchedFolders, nil:
                 EmptyView()
@@ -471,6 +471,7 @@ struct AccountStatusText: Equatable {
         case .notSignedIn: "Signed out"
         case .unauthorized: account.provider.usesAPIKey ? "Key rejected" : "Login rejected"
         case .cliNotFound: "Not installed"
+        case .keychainDenied: "Keychain denied"
         case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported: "Check failed"
         }
         return Caption(text: text, isActionable: true)
@@ -529,6 +530,8 @@ enum AccountFix: Equatable {
     case tryOnceMore
     /// No button: a line saying where Tokenjar looked for the CLI.
     case searchedFolders
+    /// Try Again, which asks macOS for a pasted key once more after a Deny.
+    case tryAgain
 
     static func primary(for error: FetchError, provider: ProviderID, credential: CredentialRef?) -> AccountFix? {
         if ProbeLatch.spentTokens(error) { return .tryOnceMore }
@@ -542,6 +545,8 @@ enum AccountFix: Equatable {
             return provider.hasSignInCommand ? .signIn : nil
         case .cliNotFound:
             return .searchedFolders
+        case .keychainDenied:
+            return .tryAgain
         case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported:
             return nil
         }
