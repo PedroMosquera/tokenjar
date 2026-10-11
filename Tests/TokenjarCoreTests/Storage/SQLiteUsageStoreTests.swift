@@ -93,6 +93,47 @@ struct SQLiteUsageStoreTests {
         #expect(try store.latestSnapshots().first?.fetchedAt == now.addingTimeInterval(70 * 60))
     }
 
+    /// A flat run that ends in a change keeps its last skipped repeat, so a chart draws flat-then-jump instead of a ramp
+    /// from the run's first sample to the change.
+    @Test func aFlatRunKeepsItsLastRepeatBeforeAChange() throws {
+        let store = try StoreKind.sqlite.make(in: temp.url)
+        let reset = now.addingTimeInterval(86_400)
+        func record(_ minutes: TimeInterval, _ used: Double) throws -> Bool {
+            try store.record(UsageSnapshot(
+                accountID: "acct", provider: .claude, windows: [UsageWindow(id: "weekly", label: "Week", usedPercent: used, resetsAt: reset)],
+                fetchedAt: now.addingTimeInterval(minutes * 60), source: "test"
+            ))
+        }
+        #expect(try record(0, 40))
+        #expect(try !record(10, 40))
+        #expect(try !record(40, 40))
+        #expect(try record(50, 55))
+        #expect(try !record(60, 55))
+
+        let samples = try store.samples(accountID: "acct", windowID: "weekly", since: .distantPast)
+        #expect(samples.map { $0.timestamp.timeIntervalSince(now) / 60 } == [0, 40, 50])
+        #expect(samples.map(\.usedPercent) == [40, 40, 55])
+    }
+
+    /// Claude's cache reports the time it was written, which can be older than the last live check. The repeat held
+    /// from that check is not written after the older change, where it would draw the old value again.
+    @Test func aChangeOlderThanTheHeldRepeatDropsIt() throws {
+        let store = try StoreKind.sqlite.make(in: temp.url)
+        let reset = now.addingTimeInterval(86_400)
+        func record(_ minutes: TimeInterval, _ used: Double) throws {
+            try store.record(UsageSnapshot(
+                accountID: "acct", provider: .claude, windows: [UsageWindow(id: "weekly", label: "Week", usedPercent: used, resetsAt: reset)],
+                fetchedAt: now.addingTimeInterval(minutes * 60), source: "test"
+            ))
+        }
+        try record(0, 40)
+        try record(30, 40)
+        try record(20, 55)
+
+        let samples = try store.samples(accountID: "acct", windowID: "weekly", since: .distantPast)
+        #expect(samples.map { $0.timestamp.timeIntervalSince(now) / 60 } == [0, 20])
+    }
+
     /// OpenCode Go reports an idle window as not started, with a reset time of now plus the window. That time moves on
     /// every refresh and says nothing, so only the used % counts.
     @Test func skipsARepeatedNotStartedWindowWhoseResetTimeMoved() throws {

@@ -10,9 +10,10 @@ public struct SQLiteError: Error, CustomStringConvertible {
 
 /// SQLite-backed `UsageStore`, normally at `AppPaths.databaseFile`. Same contract as `InMemoryUsageStore`, plus:
 /// `record` skips a window sample identical to the previous one when it is less than `sampleDedupeInterval` newer
-/// (for a not-started window only the used % counts, since its reset time is synthetic),
-/// and deletes samples older than `sampleRetention` at most once a day. Dedupe keys are stored as `sha256Hex` digests,
-/// since they carry provider message, request and session ids; nothing reads them back.
+/// (for a not-started window only the used % counts, since its reset time is synthetic) and writes the last one it
+/// skipped just before the window's next change. It deletes samples older than `sampleRetention` at most once a day.
+/// Dedupe keys are stored as `sha256Hex` digests, since they carry provider message, request and session ids; nothing
+/// reads them back.
 ///
 /// `@unchecked Sendable`: the store owns one connection, and every use of it and of its mutable state holds `lock`.
 public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
@@ -26,6 +27,14 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
     private let lock = FairLock()
     private var lastPrune: Date?
     private var commitCount = 0
+    /// The newest repeat `record` skipped for each window. Written before the window's next change, it makes a chart
+    /// draw a flat run then a jump rather than a ramp across the run. Memory only: a relaunch loses at most one per window.
+    private var skippedRepeats: [WindowKey: WindowSample] = [:]
+
+    private struct WindowKey: Hashable {
+        var accountID: String
+        var windowID: String
+    }
 
     private var db: OpaquePointer { connection.handle }
 
@@ -66,6 +75,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         let ts = snapshot.fetchedAt.timeIntervalSince1970
         var stored = false
         try locked {
+            var skipped = skippedRepeats
             try transaction {
                 try run(
                     """
@@ -78,17 +88,37 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                     "SELECT ts, used_percent, resets_at FROM window_samples WHERE account_id = ?1 AND window_id = ?2 ORDER BY ts DESC, rowid DESC LIMIT 1"
                 )
                 let insert = try prepare("INSERT INTO window_samples (account_id, window_id, ts, used_percent, resets_at) VALUES (?1, ?2, ?3, ?4, ?5)")
+                func insertSample(_ sample: WindowSample) throws {
+                    try insert.bind([
+                        .text(sample.accountID), .text(sample.windowID), .real(sample.timestamp.timeIntervalSince1970), .real(sample.usedPercent),
+                        sample.resetsAt.map { .real($0.timeIntervalSince1970) } ?? .null,
+                    ])
+                    try insert.run()
+                }
                 for window in snapshot.windows {
-                    let resetsAt = window.resetsAt?.timeIntervalSince1970
+                    let sample = WindowSample(
+                        accountID: snapshot.accountID, windowID: window.id, timestamp: snapshot.fetchedAt,
+                        usedPercent: window.usedPercent, resetsAt: window.resetsAt
+                    )
+                    let key = WindowKey(accountID: snapshot.accountID, windowID: window.id)
+                    var changed = true
                     try previous.bind([.text(snapshot.accountID), .text(window.id)])
                     if try previous.step() {
-                        let isRepeat = previous.double(1) == window.usedPercent && (window.notStarted || previous.optionalDouble(2) == resetsAt)
-                            && ts - previous.double(0) < Self.sampleDedupeInterval
+                        changed = previous.double(1) != window.usedPercent
+                            || (!window.notStarted && previous.optionalDouble(2) != window.resetsAt?.timeIntervalSince1970)
+                        let isRecent = ts - previous.double(0) < Self.sampleDedupeInterval
                         previous.reset()
-                        if isRepeat { continue }
+                        if !changed, isRecent {
+                            skipped[key] = sample
+                            continue
+                        }
                     }
-                    try insert.bind([.text(snapshot.accountID), .text(window.id), .real(ts), .real(window.usedPercent), resetsAt.map(SQLValue.real) ?? .null])
-                    try insert.run()
+                    // A repeat stored for its age already marks the run. A snapshot read from Claude's cache or a Codex
+                    // session log carries the time it was written, which can be older than the held repeat.
+                    if let held = skipped.removeValue(forKey: key), changed, held.timestamp < sample.timestamp {
+                        try insertSample(held)
+                    }
+                    try insertSample(sample)
                     stored = true
                 }
                 if lastPrune.map({ snapshot.fetchedAt.timeIntervalSince($0) > 86_400 }) ?? true {
@@ -96,6 +126,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                     lastPrune = snapshot.fetchedAt
                 }
             }
+            skippedRepeats = skipped
         }
         return stored
     }
