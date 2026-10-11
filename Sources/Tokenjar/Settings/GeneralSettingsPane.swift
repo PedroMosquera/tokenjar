@@ -12,13 +12,7 @@ struct GeneralSettingsPane: View {
     var body: some View {
         SettingsPage(title: "General") {
             Section {
-                Toggle("Launch at login", isOn: Binding(get: { launchesAtLogin }, set: setLaunchAtLogin))
-                if let hint = loginHint {
-                    HelpText(hint)
-                }
-                if loginState == .requiresApproval {
-                    Button("Open Login Items Settings") { LaunchAtLogin.openLoginItemsSettings() }
-                }
+                launchAtLoginRow
                 Picker("Refresh every", selection: model.configBinding(\.refreshMinutes)) {
                     ForEach(SettingsLogic.refreshOptions(including: model.config.refreshMinutes), id: \.self) { minutes in
                         Text("\(minutes) minutes").tag(minutes)
@@ -132,6 +126,30 @@ struct GeneralSettingsPane: View {
         }
     }
 
+    @ViewBuilder private var launchAtLoginRow: some View {
+        let isOn = Binding(get: { launchesAtLogin }, set: setLaunchAtLogin)
+        if loginState == .requiresApproval {
+            LabeledContent {
+                HStack(spacing: 10) {
+                    Button("Open Login Items Settings") { LaunchAtLogin.openLoginItemsSettings() }
+                    Toggle("Launch at login", isOn: isOn)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+            } label: {
+                launchAtLoginLabel
+            }
+        } else {
+            Toggle(isOn: isOn) { launchAtLoginLabel }
+        }
+    }
+
+    @ViewBuilder private var launchAtLoginLabel: some View {
+        Text("Launch at login")
+        if let hint = loginHint { Text(hint) }
+    }
+
     // config.json syncs between Macs, so the registration on this one wins when macOS can report it.
     private var launchesAtLogin: Bool {
         switch loginState {
@@ -145,7 +163,7 @@ struct GeneralSettingsPane: View {
         if let loginError { return loginError }
         switch loginState {
         case .requiresApproval: return "macOS is waiting for approval. Turn Tokenjar on in System Settings > General > Login Items."
-        case .unavailable: return "Works only from the installed app in ~/Applications."
+        case .unavailable: return "Available only in the installed app."
         case .enabled, .disabled, nil: return nil
         }
     }
