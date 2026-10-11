@@ -77,7 +77,7 @@ struct AccountCredentialSection: View {
         let key = draftKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return }
         do {
-            try KeychainSecretStore().write(key, account: account.id)
+            try model.secrets.write(key, account: account.id)
             draftKey = ""
             choosingKeychain = false
             model.updateAccount(account.id) { $0.credential = .keychain(account: account.id) }
@@ -91,7 +91,7 @@ struct AccountCredentialSection: View {
 
     private func removePastedKey() {
         do {
-            let remaining = try SettingsLogic.removingPastedKey(from: account.credential, secrets: KeychainSecretStore())
+            let remaining = try SettingsLogic.removingPastedKey(from: account.credential, secrets: model.secrets)
             draftKey = ""
             choosingKeychain = false
             model.updateAccount(account.id) { $0.credential = remaining }

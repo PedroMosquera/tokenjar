@@ -126,7 +126,7 @@ enum SnapshotRenderer {
     }
 
     /// Every look of the app mark: fill levels, severity tints, stale, the error dot and the neutral state.
-    private static func slotStates(now: Date) -> [(name: String, label: String, state: MenuBarState)] {
+    static func slotStates(now: Date) -> [(name: String, label: String, state: MenuBarState)] {
         func entry(_ used: Double?, _ severity: Severity = .ok, stale: Bool = false, error: Bool = false) -> MenuBarState.Entry {
             let window = used.map { UsageWindow(id: "session", label: "5-hour", usedPercent: $0, windowMinutes: 300, resetsAt: now.addingTimeInterval(47 * 60)) }
             return MenuBarState.Entry(accountID: "preview", provider: .claude, label: "Preview", tightest: window, severity: severity, isStale: stale, hasError: error)

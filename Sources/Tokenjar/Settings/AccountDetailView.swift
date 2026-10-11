@@ -289,7 +289,7 @@ struct AccountDetailView: View {
 
     private func remove() {
         if case .keychain(let keyAccount) = account.credential {
-            try? KeychainSecretStore().delete(account: keyAccount)
+            try? model.secrets.delete(account: keyAccount)
         }
         model.updateConfig { $0.accounts.removeAll { $0.id == account.id } }
         onRemoved()
