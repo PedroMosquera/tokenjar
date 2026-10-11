@@ -1,0 +1,8 @@
+{
+  "conversation_id": "00000000-0000-0000-0000-000000000000",
+  "status": "SUCCESS",
+  "response": "Here is a summary of your usage so far.",
+  "duration_seconds": 4.2,
+  "num_turns": 1,
+  "usage": { "input_tokens": 1830, "output_tokens": 96, "thinking_tokens": 210, "cache_read_tokens": 0, "total_tokens": 2136 }
+}

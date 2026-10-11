@@ -1,0 +1,4 @@
+{
+  "forceLoginMethod": "gateway",
+  "forceLoginGatewayUrl": "https://gateway.example.invalid"
+}

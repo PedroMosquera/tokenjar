@@ -1,0 +1,4 @@
+{
+  "acme-gateway": { "type": "api", "key": "REDACTED" },
+  "openai": { "type": "oauth", "refresh": "REDACTED", "access": "REDACTED", "expires": 0 }
+}

@@ -1,0 +1,239 @@
+[
+  {
+    "id": "opencode-go.active",
+    "provider": "opencode-go",
+    "confidence": "documented",
+    "inputs": {
+      "usage": "fixtures:OpenCode/go-usage.json",
+      "history": "opencode/go-history-notional-cost.sql"
+    }
+  },
+  {
+    "id": "opencode-go.idle",
+    "provider": "opencode-go",
+    "confidence": "recorded",
+    "inputs": {
+      "usage": "fixtures:OpenCode/go-usage-idle.json"
+    }
+  },
+  {
+    "id": "opencode-go.rate-limited",
+    "provider": "opencode-go",
+    "confidence": "recorded",
+    "inputs": {
+      "usage": "fixtures:OpenCode/go-usage-rate-limited.json"
+    }
+  },
+  {
+    "id": "opencode-go.monthly-exhausted",
+    "provider": "opencode-go",
+    "confidence": "documented",
+    "inputs": {
+      "usage": "opencode/go-usage-monthly-exhausted.json"
+    }
+  },
+  {
+    "id": "opencode-go.use-balance",
+    "provider": "opencode-go",
+    "confidence": "documented",
+    "inputs": {
+      "usage": "opencode/go-usage-use-balance-overflow.json",
+      "history": "opencode/go-history-notional-cost.sql"
+    }
+  },
+  {
+    "id": "opencode-go.plus",
+    "provider": "opencode-go",
+    "confidence": "documented",
+    "inputs": {
+      "usage": "opencode/go-plus-usage.json"
+    }
+  },
+  {
+    "id": "opencode-go.v2-meters",
+    "provider": "opencode-go",
+    "confidence": "inferred",
+    "inputs": {
+      "usage": "opencode/go-usage-v2-console-meters.json"
+    },
+    "blocked": "Capture 2d: the 200 shape of the v2 backend is unknown."
+  },
+  {
+    "id": "opencode-go.no-sub",
+    "provider": "opencode-go",
+    "confidence": "inferred",
+    "inputs": {
+      "error": "fixtures:OpenCode/go-error-403.json",
+      "errorV2": "opencode/go-error-403-v2-forbidden.json"
+    }
+  },
+  {
+    "id": "opencode-go.lapsed",
+    "provider": "opencode-go",
+    "confidence": "documented",
+    "inputs": {
+      "sequence": "opencode/go-lapsed-sequence.json"
+    }
+  },
+  {
+    "id": "opencode-go.revoked",
+    "provider": "opencode-go",
+    "confidence": "documented",
+    "inputs": {
+      "error": "opencode/go-error-401-revoked.json"
+    }
+  },
+  {
+    "id": "opencode-go.legacy-unmigrated",
+    "provider": "opencode-go",
+    "confidence": "documented",
+    "inputs": {
+      "error": "opencode/go-error-401-legacy-unmigrated.json"
+    }
+  },
+  {
+    "id": "opencode-go.no-key",
+    "provider": "opencode-go",
+    "confidence": "recorded",
+    "inputs": {
+      "auth": "fixtures:Setup/opencode-auth.json"
+    }
+  },
+  {
+    "id": "opencode-go.connect-oauth",
+    "provider": "opencode-go",
+    "confidence": "inferred",
+    "inputs": {
+      "auth": "opencode/auth-v2-connect-oauth.json"
+    }
+  },
+  {
+    "id": "opencode-go.throttled",
+    "provider": "opencode-go",
+    "confidence": "inferred",
+    "inputs": {
+      "error": "opencode/go-error-429-retry-after.json"
+    }
+  },
+  {
+    "id": "opencode-go.unavailable",
+    "provider": "opencode-go",
+    "confidence": "recorded",
+    "inputs": {
+      "error": "fixtures:OpenCode/go-error-503.json"
+    }
+  },
+  {
+    "id": "opencode-go.client-error",
+    "provider": "opencode-go",
+    "confidence": "documented",
+    "inputs": {
+      "error": "opencode/go-error-400-migrated-notfound.json"
+    }
+  },
+  {
+    "id": "opencode-zen.payg",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "history": "opencode/zen-payg-spend.sql"
+    }
+  },
+  {
+    "id": "opencode-zen.no-spend",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "history": "opencode/zen-payg-no-spend-this-month.sql"
+    }
+  },
+  {
+    "id": "opencode-zen.free-only",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "history": "opencode/zen-free-models-only.sql"
+    }
+  },
+  {
+    "id": "opencode-zen.no-db",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {}
+  },
+  {
+    "id": "opencode-zen.team-member",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "history": "opencode/zen-month-boundary-utc.sql"
+    }
+  },
+  {
+    "id": "opencode-zen.budget-exceeded",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "history": "opencode/zen-budget-exceeded-429.sql"
+    }
+  },
+  {
+    "id": "opencode-zen.balance-zero",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "history": "opencode/zen-balance-exhausted-402.sql"
+    }
+  },
+  {
+    "id": "opencode-zen.invoiced",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "history": "opencode/zen-payg-spend.sql"
+    }
+  },
+  {
+    "id": "opencode-zen.admin-service-key",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "budgets": "opencode/zen-v2-budgets-members.json"
+    }
+  },
+  {
+    "id": "opencode-zen.black",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "history": "opencode/zen-payg-spend.sql"
+    }
+  },
+  {
+    "id": "opencode-zen.byok",
+    "provider": "opencode-zen",
+    "confidence": "inferred",
+    "inputs": {
+      "history": "opencode/zen-payg-spend.sql"
+    },
+    "blocked": "No signal in opencode.db separates bring-your-own-key rows from Zen spend; the preview shows the payg card."
+  },
+  {
+    "id": "opencode-zen.two-workspaces",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "config": "opencode/config-two-zen-workspaces-one-mac.json",
+      "history": "opencode/zen-payg-spend.sql"
+    }
+  },
+  {
+    "id": "opencode.enterprise-gateway",
+    "provider": "opencode-zen",
+    "confidence": "documented",
+    "inputs": {
+      "auth": "opencode/auth-enterprise-gateway.json"
+    },
+    "preview": false
+  }
+]

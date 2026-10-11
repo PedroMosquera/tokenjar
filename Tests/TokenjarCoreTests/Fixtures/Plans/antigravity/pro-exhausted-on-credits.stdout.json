@@ -1,0 +1,24 @@
+{
+  "conversation_id": "",
+  "status": "SUCCESS",
+  "response": "Synthetic quota report",
+  "duration_seconds": 0,
+  "num_turns": 0,
+  "usage": { "input_tokens": 0, "output_tokens": 0, "thinking_tokens": 0, "cache_read_tokens": 0, "total_tokens": 0 },
+  "command": {
+    "name": "usage",
+    "data": {
+      "description": "Models share limits",
+      "groups": [
+        {
+          "name": "Gemini Models",
+          "description": "Gemini models",
+          "buckets": [
+            { "id": "gemini-weekly", "name": "Weekly Limit Remaining", "description": "Weekly limit", "window": "weekly", "remaining_fraction": 0.31, "reset_time": "2026-10-16T09:00:00Z" },
+            { "id": "gemini-5h", "name": "Five Hour Limit Remaining", "description": "5-hour limit", "window": "5h", "remaining_fraction": 0, "reset_time": "2026-10-11T03:00:00Z" }
+          ]
+        }
+      ]
+    }
+  }
+}

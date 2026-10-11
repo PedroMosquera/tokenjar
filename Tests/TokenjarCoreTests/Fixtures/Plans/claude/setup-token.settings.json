@@ -1,0 +1,5 @@
+{
+  "env": {
+    "CLAUDE_CODE_OAUTH_TOKEN": "OAUTH_TOKEN_PLACEHOLDER"
+  }
+}
