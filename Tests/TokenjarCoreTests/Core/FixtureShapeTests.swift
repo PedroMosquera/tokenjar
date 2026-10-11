@@ -135,12 +135,13 @@ struct PlanManifestTests {
             window("session", "5-hour", nil),
             window("gemini:session", "Gemini · 5-hour", 10_080),
             window("pool", "Claude and GPT · 5h", nil),
+            window("x:session", "Session", nil),
             window("spark:session", "Spark · 5-hour", 300),
             window("lane", "5-hour", 1_440),
             window("weekly", "Week", nil),
             window("monthly", "Month", 44_640),
         ], fetchedAt: Date(timeIntervalSince1970: 1_791_660_000), source: "test")
 
-        #expect(PlanManifest.shortLaneWindowsKnowTheirLength(snapshot) == ["session", "gemini:session", "pool"])
+        #expect(PlanManifest.shortLaneWindowsKnowTheirLength(snapshot) == ["session", "gemini:session", "pool", "x:session"])
     }
 }
