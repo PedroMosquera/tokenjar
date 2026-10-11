@@ -48,7 +48,8 @@ struct PopoverSummary: Equatable {
             if status.error != nil || Severity.worst(of: status.snapshot?.windows ?? [], config: config, now: now) > .ok {
                 needsALook.append(account)
             }
-            guard let snapshot = status.snapshot else { continue }
+            // A link card is ready at once and has no limits, so it must not stand in for accounts still being checked.
+            guard let snapshot = status.snapshot, !account.provider.isLinkOnly else { continue }
             withData += 1
             for window in snapshot.windows {
                 let severity = Severity.of(window, config: config, now: now)
@@ -79,7 +80,10 @@ struct PopoverSummary: Equatable {
         if failing > 0 {
             return PopoverSummary(tone: .problem, text: failing == 1 ? "1 account needs attention" : "\(failing) accounts need attention")
         }
-        if withData == 0 { return PopoverSummary(tone: .empty, text: "Waiting for usage data") }
+        if withData == 0 {
+            if accounts.allSatisfy(\.provider.isLinkOnly) { return PopoverSummary(tone: .empty, text: "No limits to track") }
+            return PopoverSummary(tone: .empty, text: "Waiting for usage data")
+        }
         guard let nextReset else { return PopoverSummary(tone: .clear, text: "All clear") }
         return PopoverSummary(tone: .clear, text: "All clear · next reset in \(Format.duration(nextReset.timeIntervalSince(now)))")
     }

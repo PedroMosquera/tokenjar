@@ -60,19 +60,20 @@ struct MenuBarStateTests {
         #expect(state.entries.map(\.isStale) == [true, false])
     }
 
-    /// A Devin link card has no window, so even in the menu bar it never outranks an account that has one.
-    @Test func aLinkOnlyAccountIsNeverTheWorst() {
-        let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
+    /// A Devin link card has no window: in the menu bar it would be an empty bar and a "no data" line that reads
+    /// like a failure, even when showInMenuBar was set by hand.
+    @Test func aLinkOnlyAccountStaysOutOfTheMenuBar() {
+        let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin", showInMenuBar: true)
         let link = AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"]))
         let calm = window("weekly", used: 3, minutes: 10_080, resetIn: 6 * 86_400)
         let state = MenuBarState.make(accounts: [devin, personal], statuses: ["devin": link, "personal": status([calm])], config: AppConfig(), now: now)
-        #expect(state.worst?.accountID == "personal")
-        #expect(state.entries.first?.severity == .ok)
-        #expect(state.entries.first?.hasError == false)
+        #expect(state.entries.map(\.accountID) == ["personal"])
+        #expect(!StatusIconRenderer.toolTip(for: state).contains("Devin"))
         #expect(StatusIconRenderer.render(state).title == "3%")
 
         let alone = MenuBarState.make(accounts: [devin], statuses: ["devin": link], config: AppConfig(), now: now)
-        #expect(StatusIconRenderer.render(alone).title == "")
+        #expect(alone.entries.isEmpty)
+        #expect(StatusIconRenderer.toolTip(for: alone) == "Tokenjar: no accounts in the menu bar")
     }
 
     @Test func aFailedCheckIsFlagged() {

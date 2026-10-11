@@ -215,8 +215,17 @@ struct PopoverSummaryTests {
         ]
         let summary = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: MenuBarConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .clear, text: "All clear · next reset in 2h 10m"))
+    }
+
+    /// Devin's card is ready the moment the app starts, so it cannot stand in for the accounts still being checked,
+    /// and on its own it has no limits to call clear.
+    @Test func aLinkOnlyAccountIsNotUsageData() {
+        let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
+        let statuses = ["devin": AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"]))]
+        let waiting = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: MenuBarConfig(), now: now)
+        #expect(waiting == PopoverSummary(tone: .empty, text: "Waiting for usage data"))
         let alone = PopoverSummary.make(accounts: [devin], statuses: statuses, config: MenuBarConfig(), now: now)
-        #expect(alone == PopoverSummary(tone: .clear, text: "All clear"))
+        #expect(alone == PopoverSummary(tone: .empty, text: "No limits to track"))
     }
 
     @Test func emptyStates() {

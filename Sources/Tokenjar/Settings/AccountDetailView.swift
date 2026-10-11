@@ -113,7 +113,10 @@ struct AccountDetailView: View {
                 let label = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 model.updateAccount(account.id) { $0.label = label.isEmpty ? account.provider.displayName : label }
             }
-            Toggle("Show in menu bar", isOn: model.accountBinding(account.id, \.showInMenuBar, fallback: account.showInMenuBar))
+            // MenuBarState leaves link-only accounts out, so the toggle would do nothing.
+            if !account.provider.isLinkOnly {
+                Toggle("Show in menu bar", isOn: model.accountBinding(account.id, \.showInMenuBar, fallback: account.showInMenuBar))
+            }
             LabeledContent("ID") {
                 Text(account.id)
                     .font(.system(.callout, design: .monospaced))
@@ -207,19 +210,22 @@ struct AccountDetailView: View {
 
     private var overridesSection: some View {
         Section("Overrides") {
-            Picker("Refresh", selection: model.accountBinding(account.id, \.refreshMinutes, fallback: account.refreshMinutes)) {
-                Text("Global (\(model.config.refreshMinutes) minutes)").tag(Int?.none)
-                ForEach(SettingsLogic.refreshOptions(including: account.refreshMinutes), id: \.self) { minutes in
-                    Text("Every \(minutes) minutes").tag(Int?.some(minutes))
+            // A link-only account has no window to refresh or alert on; its usage page is the one thing to set.
+            if !account.provider.isLinkOnly {
+                Picker("Refresh", selection: model.accountBinding(account.id, \.refreshMinutes, fallback: account.refreshMinutes)) {
+                    Text("Global (\(model.config.refreshMinutes) minutes)").tag(Int?.none)
+                    ForEach(SettingsLogic.refreshOptions(including: account.refreshMinutes), id: \.self) { minutes in
+                        Text("Every \(minutes) minutes").tag(Int?.some(minutes))
+                    }
                 }
-            }
-            Toggle(isOn: customThresholds) {
-                Text("Custom alert thresholds")
-                Text("Global: \(SettingsLogic.percentList(model.config.alerts.thresholds)) used")
-            }
-            if let thresholds = account.alertThresholds {
-                ThresholdRows(values: thresholds) { values in
-                    model.updateAccount(account.id) { $0.alertThresholds = values }
+                Toggle(isOn: customThresholds) {
+                    Text("Custom alert thresholds")
+                    Text("Global: \(SettingsLogic.percentList(model.config.alerts.thresholds)) used")
+                }
+                if let thresholds = account.alertThresholds {
+                    ThresholdRows(values: thresholds) { values in
+                        model.updateAccount(account.id) { $0.alertThresholds = values }
+                    }
                 }
             }
             LabeledContent("Usage page URL") {
