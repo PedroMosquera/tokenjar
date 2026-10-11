@@ -44,15 +44,18 @@ private struct AccountRow: View {
     var account: AccountConfig
 
     var body: some View {
+        let title = AccountTitle(provider: account.provider, label: account.label)
         HStack(spacing: 8) {
             ProviderLogoView(provider: account.provider, size: 18)
             VStack(alignment: .leading, spacing: 0) {
-                Text(account.label)
+                Text(title.label ?? title.provider)
                     .lineLimit(1)
-                Text(account.provider.displayName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if title.label != nil {
+                    Text(title.provider)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             .truncationMode(.tail)
             Spacer(minLength: 4)
