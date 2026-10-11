@@ -248,7 +248,8 @@ struct ConfigStoreTests {
             }
         }
 
-        /// A value for the same leaf in config.local.json, different from the edit.
+        /// A config.local.json value for this leaf that differs from its default, the value config.json holds, so a
+        /// leak shows in the saved file.
         var localOverride: [String: Any] {
             switch self {
             case .shortThresholds: ["alerts": ["shortThresholds": [50]]]
@@ -330,7 +331,7 @@ struct ConfigStoreTests {
 
         let reloaded = try #require(try store.load())
         #expect(reloaded.merged.accounts.last?.id == "claude-work")
-        #expect(!reloaded.base.accounts.contains { $0.id == "claude-work" })
+        #expect(reloaded.base.accounts.map(\.id) == edited.accounts.map(\.id).filter { $0 != "claude-work" })
     }
 
     /// config.json syncs to Macs that may run a newer build; a save here must not drop what that build added.
