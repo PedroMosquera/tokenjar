@@ -99,7 +99,25 @@ struct MenuBarStateTests {
             accounts: [personal, work], statuses: ["personal": status([weeklyOnPace], error: .timeout), "work": status([weeklyOnPace])],
             config: AppConfig(), now: now
         )
-        #expect(state.entries.map(\.hasError) == [true, false])
+        #expect(state.entries.map(\.attention) == [.transient, nil])
+    }
+
+    /// Zen only has spend and a Go key without a subscription has nothing at all: either would be an empty bar and a
+    /// "no data" line that reads as a failure.
+    @Test func accountsWithNoLimitsToShowStayOut() {
+        let zen = AccountConfig(id: "zen", provider: .opencodeZen, label: "Zen", showInMenuBar: true)
+        let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go")
+        let spend = AccountStatus(snapshot: UsageSnapshot(accountID: "zen", provider: .opencodeZen, money: [MoneyLine(label: "Spent", amount: 3)], fetchedAt: now, source: "opencode.db"))
+        let unsubscribed = AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"))
+        let calm = window("weekly", used: 3, minutes: 10_080, resetIn: 6 * 86_400)
+        let state = MenuBarState.make(accounts: [zen, go, personal], statuses: ["zen": spend, "go": unsubscribed, "personal": status([calm])], config: AppConfig(), now: now)
+        #expect(state.entries.map(\.accountID) == ["personal"])
+        let tip = StatusIconRenderer.toolTip(for: state)
+        #expect(!tip.contains("last check failed"))
+        #expect(!tip.contains("OpenCode"))
+
+        let withData = MenuBarState.make(accounts: [go], statuses: ["go": status([calm], error: .noSubscription("none"))], config: AppConfig(), now: now)
+        #expect(withData.entries.map(\.attention) == [.calm])
     }
 }
 

@@ -10,7 +10,11 @@ struct MenuBarState: Equatable {
         var tightest: UsageWindow?
         var severity: Severity
         var isStale: Bool
-        var hasError: Bool
+        /// How much the last check's failure matters; nil when it passed.
+        var attention: FetchError.Attention? = nil
+
+        /// A calm failure, such as no subscription, is a state of the account rather than a check that failed.
+        var checkFailed: Bool { attention.map { $0 != .calm } ?? false }
     }
 
     var mode: MenuBarMode
@@ -27,10 +31,19 @@ struct MenuBarState: Equatable {
         }
     }
 
+    /// The account the failure dot speaks for: the worst one when its check failed, else the first whose failure
+    /// needs the user. A timeout on another account is most likely gone by the next check.
+    var failing: Entry? {
+        if let worst, worst.checkFailed { return worst }
+        return entries.first { $0.attention == .actionable }
+    }
+
     static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date) -> MenuBarState {
-        // A link-only account has no window: it would draw an empty bar and a "no data" line that reads as a failure.
-        let entries = accounts.filter { !$0.provider.isLinkOnly }.map { account -> Entry in
+        // An account with no window to show (a link, spend only, or no subscription) would draw an empty bar and a
+        // "no data" line that reads as a failure.
+        let entries = accounts.compactMap { account -> Entry? in
             let status = statuses[account.id] ?? AccountStatus()
+            guard account.provider.reportsWindows, status.snapshot != nil || status.error?.attention != .calm else { return nil }
             let tightest = status.snapshot?.tightestWindow(now: now)
             return Entry(
                 accountID: account.id,
@@ -40,7 +53,7 @@ struct MenuBarState: Equatable {
                 // Every window counts: a lower window projected to run out still needs to color the menu bar.
                 severity: Severity.worst(of: status.snapshot?.windows ?? [], config: config.menuBar, now: now),
                 isStale: status.isStale(now: now, refreshMinutes: account.refreshMinutes ?? config.refreshMinutes),
-                hasError: status.error != nil
+                attention: status.error?.attention
             )
         }
         return MenuBarState(mode: config.menuBar.mode, icon: config.menuBar.icon, entries: entries, showResetCountdownWhenFull: config.menuBar.showResetCountdownWhenFull, now: now)

@@ -355,11 +355,14 @@ struct BurnUpChartTests {
 
 @MainActor
 struct StatusIconRendererTests {
-    private func entry(_ id: String, used: Double?, severity: Severity = .ok, resetIn: TimeInterval? = 50 * 60, stale: Bool = false, error: Bool = false) -> MenuBarState.Entry {
+    private func entry(
+        _ id: String, used: Double?, severity: Severity = .ok, resetIn: TimeInterval? = 50 * 60, stale: Bool = false,
+        attention: FetchError.Attention? = nil, provider: ProviderID = .claude
+    ) -> MenuBarState.Entry {
         MenuBarState.Entry(
-            accountID: id, provider: .claude, label: id,
+            accountID: id, provider: provider, label: id,
             tightest: used.map { window("session", "5-hour", used: $0, resetIn: resetIn) },
-            severity: severity, isStale: stale, hasError: error
+            severity: severity, isStale: stale, attention: attention
         )
     }
 
@@ -401,9 +404,9 @@ struct StatusIconRendererTests {
         #expect(described([entry("a", used: 42), entry("b", used: 85, severity: .warning)]) == "Tokenjar, 5-hour 85% used")
         #expect(described([entry("a", used: 85, severity: .warning)], icon: .symbolBrain) == "Tokenjar, 5-hour 85% used")
         #expect(described([entry("a", used: 42, stale: true)]) == "Tokenjar, 5-hour 42% used, out of date")
-        #expect(described([entry("a", used: 42, stale: true, error: true)]) == "Tokenjar, 5-hour 42% used, last check failed")
+        #expect(described([entry("a", used: 42, stale: true, attention: .actionable)]) == "Tokenjar, 5-hour 42% used, Claude check failed")
         #expect(described([entry("a", used: nil)]) == "Tokenjar")
-        #expect(described([entry("a", used: nil, error: true)]) == "Tokenjar, last check failed")
+        #expect(described([entry("a", used: nil, attention: .actionable)]) == "Tokenjar, Claude check failed")
     }
 
     @Test(arguments: [MenuBarIcon.markMana, .logoClaude, .symbolBrain])
@@ -413,7 +416,7 @@ struct StatusIconRendererTests {
         let stale = StatusIconRenderer.render(state([entry("a", used: 42, stale: true)], icon: icon))
         #expect(abs(peakAlpha(stale.image) - 0.5) < 0.02)
         let plain = StatusIconRenderer.render(state([entry("a", used: 42)], icon: icon))
-        let failing = StatusIconRenderer.render(state([entry("a", used: 42, error: true)], icon: icon))
+        let failing = StatusIconRenderer.render(state([entry("a", used: 42, attention: .actionable)], icon: icon))
         #expect((failing.image?.size.width ?? 0) > (plain.image?.size.width ?? 0))
         let neutral = StatusIconRenderer.render(state([entry("a", used: nil)], icon: icon)).image
         #expect(pixels(neutral) == pixels(StatusGlyph.neutral(icon, dot: false)))
@@ -481,9 +484,30 @@ struct StatusIconRendererTests {
     }
 
     @Test func errorAddsADotBesideTheGlyph() {
-        let plain = StatusIconRenderer.render(state([entry("a", used: 42)]))
-        let failing = StatusIconRenderer.render(state([entry("a", used: 42, error: true)]))
-        #expect((failing.image?.size.width ?? 0) > (plain.image?.size.width ?? 0))
+        let failing = StatusIconRenderer.render(state([entry("a", used: 42, attention: .actionable)]))
+        #expect(pixels(failing.image) == pixels(dotted))
+        #expect(pixels(StatusIconRenderer.render(state([entry("a", used: 42)])).image) == pixels(undotted))
+    }
+
+    private let dotted = StatusGlyph.image(.app, fraction: 0.42, tint: nil, alpha: 1, dot: true)
+    private let undotted = StatusGlyph.image(.app, fraction: 0.42, tint: nil, alpha: 1, dot: false)
+
+    /// The worst account can be healthy while another one is signed out; the dot must still say a check failed.
+    @Test func anActionableFailureOnAnyAccountShowsTheDot() {
+        let rendered = StatusIconRenderer.render(state([entry("a", used: 42), entry("b", used: nil, attention: .actionable, provider: .codex)]))
+        #expect(pixels(rendered.image) == pixels(dotted))
+        #expect(rendered.image?.accessibilityDescription?.hasSuffix(", Codex check failed") == true)
+    }
+
+    /// A timeout elsewhere is likely gone by the next check, and a missing subscription is nothing to fix.
+    @Test func onlyTheWorstAccountsPassingFailureShowsTheDot() {
+        let elsewhere = StatusIconRenderer.render(state([entry("a", used: 42), entry("b", used: 12, attention: .transient)]))
+        #expect(pixels(elsewhere.image) == pixels(undotted))
+        let worst = StatusIconRenderer.render(state([entry("a", used: 42, attention: .transient), entry("b", used: 12)]))
+        #expect(pixels(worst.image) == pixels(dotted))
+        let calm = StatusIconRenderer.render(state([entry("a", used: 42, attention: .calm)]))
+        #expect(pixels(calm.image) == pixels(undotted))
+        #expect(calm.toolTip?.contains("failed") == false)
     }
 
     @Test func noDataShowsTheNeutralGaugeWithoutText() {
@@ -510,7 +534,7 @@ struct StatusIconRendererTests {
     }
 
     @Test func toolTipListsEveryAccount() {
-        let tip = StatusIconRenderer.render(state([entry("Personal", used: 42), entry("Work", used: nil, error: true)])).toolTip ?? ""
+        let tip = StatusIconRenderer.render(state([entry("Personal", used: 42), entry("Work", used: nil, attention: .actionable)])).toolTip ?? ""
         #expect(tip == "Claude · Personal: 5-hour 42%, resets in 50m\nClaude · Work: no data (last check failed)")
         #expect(StatusIconRenderer.render(state([])).toolTip == "Tokenjar: no accounts in the menu bar")
     }
