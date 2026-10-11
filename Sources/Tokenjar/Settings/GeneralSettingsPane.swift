@@ -71,7 +71,7 @@ struct GeneralSettingsPane: View {
             }
         }
         .onAppear {
-            if !model.previewMode { loginState = LaunchAtLogin.state }
+            if !model.previewMode { loginState = model.launchAtLoginState() }
         }
         .sheet(item: $pendingImport) { pending in
             CodexBarImportSheet(changes: pending.changes) {

@@ -56,6 +56,12 @@ final class AppModel {
     @ObservationIgnored var notifications: NotificationManager?
     /// Set by `AppModel.preview()`: shows every configured account regardless of what exists on this Mac.
     @ObservationIgnored var previewMode = false
+    /// Set by `loadReadOnly`: this Mac's settings and history, shown without saving, fetching, scanning or asking macOS.
+    @ObservationIgnored private(set) var readOnly = false
+    /// What General shows for launch at login. Window renders replace it so they never ask macOS.
+    @ObservationIgnored var launchAtLoginState: () -> LaunchAtLogin.State = { LaunchAtLogin.state }
+    /// Where pasted API keys live. Window renders replace it so they never reach the Keychain.
+    @ObservationIgnored var secrets: any SecretStore = KeychainSecretStore()
     /// Asked once per launch by the Headroom move; tests replace it.
     @ObservationIgnored var legacyAppIsRunning: () -> Bool = {
         !NSRunningApplication.runningApplications(withBundleIdentifier: LegacyMigration.legacyBundleIdentifier).isEmpty
@@ -94,6 +100,9 @@ final class AppModel {
     func status(for account: AccountConfig) -> AccountStatus {
         statuses[account.id] ?? AccountStatus()
     }
+
+    /// Nothing leaves the model: no save, fetch, scan, state file or permission request.
+    private var isInert: Bool { previewMode || readOnly }
 
     var menuBarState: MenuBarState {
         MenuBarState.make(accounts: accounts.filter(\.showInMenuBar), statuses: statuses, config: config, now: now)
@@ -141,6 +150,17 @@ final class AppModel {
         priceTable = PriceTable.load(bundled: ProviderLogo.resourceURL("pricing.json"), override: paths.pricingOverrideFile)
         seedFromStore()
         loadAlertState()
+        loadProbeLatch()
+    }
+
+    /// What `loadState` shows, for `--render-windows --real-data`: config.json without a first run or the Headroom move,
+    /// history from `store` (a copy the caller made), and the probe latch. The model is read-only from here on.
+    func loadReadOnly(store: any UsageStore) {
+        readOnly = true
+        loadConfig()
+        self.store = store
+        priceTable = PriceTable.load(bundled: ProviderLogo.resourceURL("pricing.json"), override: paths.pricingOverrideFile)
+        seedFromStore()
         loadProbeLatch()
     }
 
@@ -243,7 +263,7 @@ final class AppModel {
 
     /// Picks up edits made outside the app, e.g. a `git pull` in the dotfiles repo the config is stowed from.
     private func reloadConfigIfChanged() {
-        guard !previewMode, currentConfigStamp() != configStamp else { return }
+        guard !isInert, currentConfigStamp() != configStamp else { return }
         let before = config.accounts
         loadConfig()
         refreshEditedAccounts(from: before)
@@ -260,13 +280,13 @@ final class AppModel {
     func updateConfig(_ edit: (inout AppConfig) -> Void) {
         // An outside change since the last tick is the base of this edit, or saving would revert it.
         reloadConfigIfChanged()
-        guard previewMode || !configLoadFailed else { return }
+        guard isInert || !configLoadFailed else { return }
         let old = config
         var new = config
         edit(&new)
         guard new != old else { return }
         config = new
-        guard !previewMode else { return }
+        guard !isInert else { return }
         do {
             baseConfig = try ConfigStore(paths: paths).save(old: old, new: new, base: baseConfig)
             configProblem = nil
@@ -309,7 +329,7 @@ final class AppModel {
     }
 
     private func fetch(_ targets: [AccountConfig]) -> Task<Void, Never>? {
-        guard !previewMode else { return nil }
+        guard !isInert else { return nil }
         let targets = withoutLatchedProbes(targets)
         guard !targets.isEmpty else { return nil }
         scheduler.begin(targets.map(\.id))
@@ -317,7 +337,7 @@ final class AppModel {
             statuses[account.id, default: AccountStatus()].isRefreshing = true
         }
         isRefreshing = true
-        let context = FetchContext(cli: cliLocator(for: config), paths: paths)
+        let context = FetchContext(secrets: secrets, cli: cliLocator(for: config), paths: paths)
         let jobs = targets.map { ($0, fetcher($0.provider)) }
         return Task {
             var dropped = false
@@ -407,7 +427,7 @@ final class AppModel {
 
     /// Reads local harness logs incrementally off the main thread and stores per-response token counts.
     func scanHistory() {
-        guard !scanning, !previewMode, let store else { return }
+        guard !scanning, !isInert, let store else { return }
         scanning = true
         let jobs = accounts.compactMap { account in FetcherRegistry.scanner(for: account.provider).map { (account, $0) } }
         let paths = self.paths
@@ -450,7 +470,7 @@ final class AppModel {
     }
 
     private func saveAlertState() {
-        guard !previewMode, let data = try? JSONEncoder().encode(alertState) else { return }
+        guard !isInert, let data = try? JSONEncoder().encode(alertState) else { return }
         writeOwnerOnly(data, to: alertStateFile)
     }
 
@@ -464,7 +484,7 @@ final class AppModel {
     }
 
     private func saveProbeLatch() {
-        guard !previewMode, let data = try? JSONEncoder().encode(probeLatch) else { return }
+        guard !isInert, let data = try? JSONEncoder().encode(probeLatch) else { return }
         writeOwnerOnly(data, to: probeLatchFile)
     }
 
@@ -480,7 +500,7 @@ final class AppModel {
     /// Without `prominent` this is the quiet provisional grant (no prompt). `prominent` shows the system prompt
     /// and is only called from an explicit user action.
     func requestNotificationPermission(prominent: Bool) {
-        guard let notifications, !previewMode else { return }
+        guard let notifications, !isInert else { return }
         Task {
             notificationPermission = await notifications.requestAuthorization(prominent: prominent)
         }
@@ -488,7 +508,7 @@ final class AppModel {
 
     /// Reads the current grant without asking, so Settings can show whether alerts arrive as banners or quietly.
     func refreshNotificationPermission() {
-        guard let notifications, !previewMode else { return }
+        guard let notifications, !isInert else { return }
         Task {
             notificationPermission = await notifications.permission()
         }
