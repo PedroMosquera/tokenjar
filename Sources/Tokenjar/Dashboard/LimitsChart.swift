@@ -36,6 +36,9 @@ struct LimitsChart: View, Equatable {
                     .foregroundStyle(color(for: marker.seriesID).opacity(0.35))
                     .lineStyle(StrokeStyle(lineWidth: 1))
             }
+            // Before the data, so a line or dot near a threshold draws over its label instead of under it.
+            threshold(warnAt, severity: .warning, name: "amber", below: criticalAt - warnAt < Self.closeThresholds)
+            threshold(criticalAt, severity: .critical, name: "red", below: false)
             ForEach(content.linePoints) { point in
                 LineMark(
                     x: .value("Time", point.date),
@@ -52,9 +55,6 @@ struct LimitsChart: View, Equatable {
                     .foregroundStyle(by: .value("Series", point.label))
                     .symbolSize(16)
             }
-            // After the data, so the labels draw over a line or dot that passes under them.
-            threshold(warnAt, severity: .warning, name: "amber", below: criticalAt - warnAt < Self.closeThresholds)
-            threshold(criticalAt, severity: .critical, name: "red", below: false)
             if let hover, domain.contains(hover) {
                 RuleMark(x: .value("Hover", hover))
                     .foregroundStyle(Color.secondary.opacity(0.5))
@@ -109,9 +109,7 @@ struct LimitsChart: View, Equatable {
                 Text("\(percent)% \(name)")
                     .font(.caption2)
                     .foregroundStyle(severity.color)
-                    .padding(.horizontal, 3)
-                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.85), in: RoundedRectangle(cornerRadius: 3))
-                    .padding(.leading, 2)
+                    .padding(.leading, 5)
             }
     }
 
