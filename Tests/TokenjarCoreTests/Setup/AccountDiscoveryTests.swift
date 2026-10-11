@@ -73,7 +73,9 @@ struct AccountDiscoveryTests {
         let home = try TempHome()
         defer { home.remove() }
         try home.write(".config/gh/hosts.yml", "unreadable on purpose", permissions: 0o000)
-        #expect(try discover(home, gh: true) == [AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")])
+        try home.write("bin/gh", "#!/bin/sh\ntouch \"$0.ran\"\n", permissions: 0o755)
+        #expect(try discover(home) == [AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")])
+        #expect(!FileManager.default.fileExists(atPath: home.url.appending(path: "bin/gh.ran").path))
     }
 
     @Test(arguments: [
