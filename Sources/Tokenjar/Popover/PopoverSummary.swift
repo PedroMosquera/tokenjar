@@ -125,6 +125,11 @@ struct PaceVerdict: Equatable {
             case .exhausted: 3
             }
         }
+
+        fileprivate var lockout: TimeInterval {
+            if case .runsOut(let gap) = self { return gap }
+            return 0
+        }
     }
 
     var window: UsageWindow
@@ -133,9 +138,10 @@ struct PaceVerdict: Equatable {
     /// Deltas inside this band read as "On pace"; smaller ones are noise from sampling and rounding.
     static let tolerance = 5.0
 
-    /// Judges every paced window and keeps the most urgent kind, then the higher severity, then the higher used %.
-    /// "Runs out" uses the projected-exhaustion alert thresholds in docs/design.md, so whenever that alert fires the
-    /// verdict reads "Runs out" or "Limit reached"; earlier or smaller overuse reads as "Ahead of pace".
+    /// Judges every paced window and keeps the most urgent kind, then among run-outs the longer lockout before the
+    /// reset, then the higher severity, then the higher used %. "Runs out" uses the projected-exhaustion alert
+    /// thresholds in docs/design.md, so whenever that alert fires the verdict reads "Runs out" or "Limit reached";
+    /// earlier or smaller overuse reads as "Ahead of pace".
     static func make(windows: [UsageWindow], config: MenuBarConfig, now: Date) -> PaceVerdict? {
         let judged = windows.compactMap { window in
             Pace.compute(window, now: now).map { pace in
@@ -143,7 +149,8 @@ struct PaceVerdict: Equatable {
             }
         }
         return judged.max { a, b in
-            (a.verdict.kind.urgency, a.severity, a.verdict.window.usedPercent) < (b.verdict.kind.urgency, b.severity, b.verdict.window.usedPercent)
+            (a.verdict.kind.urgency, a.verdict.kind.lockout, a.severity, a.verdict.window.usedPercent)
+                < (b.verdict.kind.urgency, b.verdict.kind.lockout, b.severity, b.verdict.window.usedPercent)
         }?.verdict
     }
 

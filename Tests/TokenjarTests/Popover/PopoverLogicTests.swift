@@ -107,6 +107,21 @@ struct PaceVerdictTests {
         #expect(verdict.text == "Runs out ~50m before reset")
     }
 
+    /// A week locked out for 41 hours explains an orange Week bar; a 5-hour that runs out 15 minutes early does not.
+    @Test func theLongerLockoutWinsAmongRunOuts() throws {
+        let windows = [
+            window("session", "5-hour", used: 88, resetIn: 50 * 60),
+            window("weekly", "Week", used: 71, minutes: 10_080, resetIn: 3 * 86_400 + 6 * 3_600),
+        ]
+        let verdict = try #require(PaceVerdict.make(windows: windows, config: MenuBarConfig(), now: now))
+        #expect(verdict.window.label == "Week")
+        guard case .runsOut(let gap) = verdict.kind else {
+            Issue.record("expected runsOut, got \(verdict.kind)")
+            return
+        }
+        #expect(abs(gap - 41.2 * 3_600) < 0.1 * 3_600)
+    }
+
     @Test func aRunOutVerdictIsAtLeastAWarning() {
         let calm = window("session", "5-hour", used: 40, resetIn: 150 * 60)
         #expect(PaceVerdict(window: calm, kind: .runsOut(1_000)).severity(config: MenuBarConfig(), now: now) == .warning)
