@@ -71,7 +71,7 @@ private struct EmptyAccounts: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("Add an account in Settings, or sign in to Claude Code, Codex or OpenCode and refresh.")
+            Text("No accounts on this Mac yet. Add one in Settings.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -79,8 +79,7 @@ private struct EmptyAccounts: View {
             Button("Open Settings") { model.showSettings() }
         }
         .padding(.horizontal, 24)
-        .padding(.top, 4)
-        .padding(.bottom, 16)
+        .padding(.vertical, 16)
         .frame(maxWidth: .infinity)
     }
 }

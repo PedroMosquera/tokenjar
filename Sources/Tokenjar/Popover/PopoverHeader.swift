@@ -7,9 +7,7 @@ struct PopoverHeader: View {
     var body: some View {
         let summary = PopoverSummary.make(accounts: model.accounts, statuses: model.statuses, config: model.config, now: model.popoverNow)
         HStack(spacing: 10) {
-            Image(systemName: symbol(summary.tone))
-                .font(.title2)
-                .foregroundStyle(color(summary.tone))
+            toneIcon(summary.tone)
                 .frame(width: 26, alignment: .leading)
             VStack(alignment: .leading, spacing: 1) {
                 Text(summary.text)
@@ -55,13 +53,29 @@ struct PopoverHeader: View {
         return "Updated \(Format.age(of: last, now: model.popoverNow))"
     }
 
+    /// With nothing to judge yet the header shows the app's own slot, the mark the menu bar shows.
+    @ViewBuilder
+    private func toneIcon(_ tone: PopoverSummary.Tone) -> some View {
+        switch tone {
+        case .empty:
+            Image(nsImage: StatusGlyph.picture(.app))
+                .renderingMode(.template)
+                .resizable()
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.secondary)
+        case .clear, .warning, .critical, .problem:
+            Image(systemName: symbol(tone))
+                .font(.title2)
+                .foregroundStyle(color(tone))
+        }
+    }
+
     private func symbol(_ tone: PopoverSummary.Tone) -> String {
         switch tone {
         case .clear: "checkmark.circle.fill"
         case .warning: "exclamationmark.triangle.fill"
         case .critical: "exclamationmark.octagon.fill"
-        case .problem: "exclamationmark.circle.fill"
-        case .empty: "gauge.with.dots.needle.33percent"
+        case .problem, .empty: "exclamationmark.circle.fill"
         }
     }
 
