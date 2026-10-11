@@ -195,13 +195,19 @@ private struct DashboardDetail: View {
     private func windowTiles(_ account: AccountConfig) -> some View {
         let windows = model.status(for: account).snapshot?.windows ?? []
         if !windows.isEmpty {
-            let columns = min(windows.count, 4)
+            // At least three columns, so one or two windows do not stretch into bars as wide as the page.
+            let columns = max(3, min(windows.count, 4))
             // Grid rather than LazyVGrid, so a tile whose verdict wraps does not leave its neighbours shorter.
             Grid(horizontalSpacing: 10, verticalSpacing: 10) {
                 ForEach(Array(stride(from: 0, to: windows.count, by: columns)), id: \.self) { start in
+                    let row = windows[start..<min(start + columns, windows.count)]
                     GridRow {
-                        ForEach(windows[start..<min(start + columns, windows.count)]) { window in
+                        ForEach(row) { window in
                             WindowTile(window: window)
+                                .frame(maxWidth: windows.count == 1 ? 340 : .infinity, alignment: .leading)
+                        }
+                        ForEach(row.count..<columns, id: \.self) { _ in
+                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                         }
                     }
                 }
