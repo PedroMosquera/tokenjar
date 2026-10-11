@@ -95,7 +95,9 @@ struct SettingsView: View {
             if let problem = model.configError {
                 SettingsBanner(text: problem)
             }
+            // The empty Accounts page only fits its content, which would center the banner with it.
             content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
