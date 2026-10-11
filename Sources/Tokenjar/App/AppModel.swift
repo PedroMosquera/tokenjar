@@ -332,7 +332,7 @@ final class AppModel {
         guard !isInert else { return nil }
         let targets = withoutLatchedProbes(targets)
         guard !targets.isEmpty else { return nil }
-        scheduler.begin(targets.map(\.id))
+        scheduler.begin(targets.map(\.id), at: clock())
         for account in targets {
             statuses[account.id, default: AccountStatus()].isRefreshing = true
         }
