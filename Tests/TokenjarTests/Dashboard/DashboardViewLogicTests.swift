@@ -45,6 +45,33 @@ struct SidebarBadgeTests {
     }
 }
 
+struct WindowTileTextTests {
+    private let config = MenuBarConfig()
+
+    @Test func voiceOverHearsUseCountdownAndVerdict() {
+        // 88 % with 50 minutes left of a 5-hour window runs out about 15 minutes early.
+        let session = UsageWindow(id: "session", label: "5-hour", usedPercent: 88, windowMinutes: 300, resetsAt: now.addingTimeInterval(50 * 60))
+        #expect(WindowTileText.accessibilityValue(session, config: config, now: now) == "88% used, resets in 50 minutes, runs out ~15m before reset")
+    }
+
+    @Test func aWindowPastItsResetSaysItIsUpdating() {
+        let reset = UsageWindow(id: "session", label: "5-hour", usedPercent: 96, windowMinutes: 300, resetsAt: now.addingTimeInterval(-60))
+        #expect(WindowTileText.accessibilityValue(reset, config: config, now: now) == "reset, updating")
+        #expect(WindowTileText.help(reset, now: now) == "5-hour has reset; the next check shows the new cycle.")
+    }
+
+    @Test func helpGivesTheEvenPaceAndTheResetTime() {
+        let week = UsageWindow(id: "weekly", label: "Week", usedPercent: 40, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(3.5 * 86_400))
+        let help = WindowTileText.help(week, now: now)
+        #expect(help.hasPrefix("40% used, even pace 50%, resets "))
+    }
+
+    @Test func aWindowThatHasNotStartedSaysSo() {
+        let idle = UsageWindow(id: "session", label: "5-hour", usedPercent: 0, windowMinutes: 300, resetsAt: now.addingTimeInterval(300 * 60), notStarted: true)
+        #expect(WindowTileText.accessibilityValue(idle, config: config, now: now) == "not started")
+    }
+}
+
 struct TopProjectsCostColumnTests {
     private let us = Locale(identifier: "en_US")
 

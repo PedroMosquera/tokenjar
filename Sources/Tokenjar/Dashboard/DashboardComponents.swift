@@ -64,7 +64,13 @@ struct KPITile: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .dashboardSurface()
+        .accessibilityElement(children: .combine)
     }
+}
+
+extension PaceVerdict {
+    /// `text` as the second clause of a sentence: "runs out ~15m before reset".
+    var clause: String { text.prefix(1).lowercased() + text.dropFirst() }
 }
 
 struct EstimateBadge: View {

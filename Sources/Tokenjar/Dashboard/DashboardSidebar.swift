@@ -81,7 +81,7 @@ struct SidebarBadge: Equatable {
         guard let snapshot = status.snapshot, let tightest = snapshot.tightestWindow(now: now) else { return nil }
         let detail: String
         if let verdict = PaceVerdict.make(windows: snapshot.windows, config: config, now: now) {
-            detail = "\(verdict.window.label) \(Format.percent(verdict.window.usedPercent)), \(verdict.text.prefix(1).lowercased() + verdict.text.dropFirst())"
+            detail = "\(verdict.window.label) \(Format.percent(verdict.window.usedPercent)), \(verdict.clause)"
         } else {
             detail = "\(tightest.label) \(Format.percent(tightest.usedPercent)) used"
         }

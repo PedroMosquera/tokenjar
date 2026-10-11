@@ -405,27 +405,38 @@ private struct WindowTile: View {
 
     var body: some View {
         let severity = Severity.of(window, config: config, now: now)
+        // Past its reset the snapshot still holds the old cycle's use, which the next check replaces.
+        let hasReset = !window.notStarted && window.hasReset(now: now)
         VStack(alignment: .leading, spacing: 5) {
             Text(window.label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            Text(Format.percent(window.usedPercent))
-                .font(.title3.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(severity == .ok ? Color.primary : severity.color)
+            if hasReset {
+                Text("reset, updating")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else {
+                Text(Format.percent(window.usedPercent))
+                    .font(.title3.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(severity == .ok ? Color.primary : severity.color)
+            }
             UsageBar(
-                fraction: window.notStarted ? 0 : window.usedPercent / 100,
-                paceFraction: Pace.compute(window, now: now).map { $0.expectedPercent / 100 },
+                fraction: window.notStarted || hasReset ? 0 : window.usedPercent / 100,
+                paceFraction: hasReset ? nil : Pace.compute(window, now: now).map { $0.expectedPercent / 100 },
                 tint: severity.color
             )
-            Text(resetText)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .lineLimit(1)
+            if !hasReset {
+                Text(resetText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
             // Its own line, not appended to the countdown: at three or four tiles a row the gap would truncate.
-            if let verdict {
+            if let verdict = WindowTileText.verdict(window, config: config, now: now) {
                 VerdictLine(verdict: verdict, severity: verdict.severity(config: config, now: now), showsWindow: false)
                     .font(.caption)
             }
@@ -434,13 +445,10 @@ private struct WindowTile: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .dashboardSurface()
-    }
-
-    /// None for a full window: "Limit reached, resets in" would only repeat the countdown above it.
-    private var verdict: PaceVerdict? {
-        guard let verdict = PaceVerdict.make(windows: [window], config: config, now: now) else { return nil }
-        if case .exhausted = verdict.kind { return nil }
-        return verdict
+        .help(WindowTileText.help(window, now: now))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(window.label)
+        .accessibilityValue(WindowTileText.accessibilityValue(window, config: config, now: now))
     }
 
     private var resetText: String {
@@ -468,5 +476,35 @@ private extension DashboardRange {
         case .week: "in the last 7 days"
         case .month: "in the last 30 days"
         }
+    }
+}
+
+/// What a window tile says beyond what it draws: its VoiceOver value and its tooltip.
+enum WindowTileText {
+    /// "88% used, resets in 50 minutes, runs out ~15m before reset".
+    static func accessibilityValue(_ window: UsageWindow, config: MenuBarConfig, now: Date) -> String {
+        if window.notStarted { return "not started" }
+        if window.hasReset(now: now) { return "reset, updating" }
+        var parts = ["\(Format.percent(window.usedPercent)) used"]
+        if let resetsAt = window.resetsAt { parts.append("resets in \(Format.spokenDuration(resetsAt.timeIntervalSince(now)))") }
+        if let verdict = verdict(window, config: config, now: now) { parts.append(verdict.clause) }
+        return parts.joined(separator: ", ")
+    }
+
+    /// The absolute reset time and the even-pace mark, which the tile only draws as a tick.
+    static func help(_ window: UsageWindow, now: Date) -> String {
+        if window.notStarted { return "\(window.label) has not started; it begins with the next request." }
+        if window.hasReset(now: now) { return "\(window.label) has reset; the next check shows the new cycle." }
+        var parts = ["\(Format.percent(window.usedPercent)) used"]
+        if let pace = Pace.compute(window, now: now) { parts.append("even pace \(Format.percent(pace.expectedPercent))") }
+        if let resetsAt = window.resetsAt { parts.append("resets \(resetsAt.formatted(date: .abbreviated, time: .shortened))") }
+        return parts.joined(separator: ", ")
+    }
+
+    /// None for a full window: "Limit reached, resets in" would only repeat the countdown.
+    static func verdict(_ window: UsageWindow, config: MenuBarConfig, now: Date) -> PaceVerdict? {
+        guard let verdict = PaceVerdict.make(windows: [window], config: config, now: now) else { return nil }
+        if case .exhausted = verdict.kind { return nil }
+        return verdict
     }
 }
