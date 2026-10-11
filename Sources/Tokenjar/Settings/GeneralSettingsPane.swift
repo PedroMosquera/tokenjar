@@ -21,6 +21,7 @@ struct GeneralSettingsPane: View {
                     Text("Refresh every")
                     Text("Each account can override this.")
                 }
+                .disabled(!model.canEditConfig)
             }
 
             Section("Menu bar") {
@@ -57,6 +58,7 @@ struct GeneralSettingsPane: View {
                     Text(MenuBarPreview.caption(model.config.menuBar))
                 }
             }
+            .disabled(!model.canEditConfig)
 
             Section("Usage colors") {
                 PercentField(
@@ -65,6 +67,7 @@ struct GeneralSettingsPane: View {
                 )
                 PercentField(title: "Red at", value: usageLevel(.critical), range: UsageLevels.criticalRange)
             }
+            .disabled(!model.canEditConfig)
 
             configFileSection
         }
@@ -111,11 +114,9 @@ struct GeneralSettingsPane: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            if let error = model.configError {
-                SettingsNotice(kind: .error, text: error)
-            }
             LabeledContent {
                 Button("Import from CodexBar\u{2026}", action: prepareImport)
+                    .disabled(!model.canEditConfig)
             } label: {
                 Text("CodexBar")
                 Text("Reads CodexBar's settings only when you click, and lists the changes before applying them. Never its keys or cookies.")

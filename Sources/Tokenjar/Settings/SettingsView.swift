@@ -79,7 +79,7 @@ struct SettingsView: View {
     @ViewBuilder private var detail: some View {
         switch pane {
         case .general:
-            GeneralSettingsPane()
+            withConfigBanner { GeneralSettingsPane() }
         case .accounts:
             withConfigBanner { AccountsSettingsPane(selection: accountID) { selectAccount($0) } }
         case .alerts:
@@ -89,7 +89,7 @@ struct SettingsView: View {
         }
     }
 
-    /// General shows the problem in its Configuration rows; the panes that edit config without such a row get a banner.
+    /// Across the top of every pane that edits config, so the reason its controls are disabled is in view.
     private func withConfigBanner<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing: 0) {
             if let problem = model.configError {

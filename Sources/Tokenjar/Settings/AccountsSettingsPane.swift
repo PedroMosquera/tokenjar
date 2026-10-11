@@ -19,6 +19,7 @@ struct AccountsSettingsPane: View {
                     addMenu { Text("Add Account") }
                         .menuStyle(.button)
                         .fixedSize()
+                        .disabled(!model.canEditConfig)
                 }
             } else {
                 HStack(spacing: 0) {
