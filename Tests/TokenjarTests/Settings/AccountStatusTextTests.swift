@@ -82,10 +82,10 @@ struct AccountStatusTextTests {
         #expect(line.caption == AccountStatusText.Caption(text: "Signed out", isActionable: true))
     }
 
-    @Test func aDeniedKeychainReadSaysSoAndHowToAllowIt() {
+    @Test func aDeniedKeychainReadSaysSoAndThatNothingAsksAgain() {
         let pasted = AccountConfig(id: "go", provider: .opencodeGo, label: "Go", credential: .keychain(account: "go"))
         let line = text(pasted, AccountStatus(error: .keychainDenied))
-        #expect(line.text == "Keychain access was denied. Click Try Again to allow it.")
+        #expect(line.text == "Keychain access was denied. Tokenjar won't ask again on its own.")
         #expect(line.tone == .warning)
         #expect(line.caption == AccountStatusText.Caption(text: "Keychain denied", isActionable: true))
     }

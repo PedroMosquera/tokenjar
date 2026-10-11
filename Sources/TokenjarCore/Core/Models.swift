@@ -292,7 +292,7 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
         case .timeout: "No answer in time. Tokenjar tries again at the next refresh."
         case .parse: "Couldn't read the usage answer. An update may have changed it."
         case .unsupported(let detail): detail
-        case .keychainDenied: "Keychain access was denied. Click Try Again to allow it."
+        case .keychainDenied: "Keychain access was denied. Tokenjar won't ask again on its own."
         }
     }
 }

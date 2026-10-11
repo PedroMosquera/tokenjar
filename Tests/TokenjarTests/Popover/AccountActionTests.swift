@@ -79,7 +79,7 @@ struct AccountActionTests {
         #expect(check.help == "Fetch this account's usage now")
     }
 
-    /// The status line asks for Try Again, so the button beside it says the same.
+    /// Check Now would not say that this check is the one that brings the macOS prompt back.
     @Test func settingsOffersTryAgainAfterAKeychainDeny() {
         let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go", credential: .keychain(account: "go"))
         let check = AccountAction.check(go, status: AccountStatus(error: .keychainDenied), model: AppModel.preview())

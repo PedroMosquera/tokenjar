@@ -323,6 +323,18 @@ struct AlertEngineTests {
         #expect(run(&fresh, .failure(.unsupported("Update agy to 1.1.11 or later"))) == AlertOutcome(), "other failures still wait for a baseline")
     }
 
+    /// A denial notifies only after a success this launch, such as when config.json is pointed at a key not read yet.
+    /// Neither the notification nor the dashboard its click opens has a Try Again button, so the text cannot ask for one.
+    @Test func aKeychainDenialAfterABaselineNotifiesWithoutNamingAButton() throws {
+        var state = AlertState()
+        _ = run(&state, ok(session(10, resetsAt: now.addingTimeInterval(3600))))
+        let failed = run(&state, .failure(.keychainDenied))
+        let event = try #require(failed.events.first)
+        #expect(failed.events.count == 1)
+        #expect(event.kind == .sourceProblem)
+        #expect(!event.body.contains("Try Again"))
+    }
+
     @Test func sourceProblemsCanBeTurnedOff() {
         var config = thresholdsOnly
         config.alerts.sourceProblems = false
