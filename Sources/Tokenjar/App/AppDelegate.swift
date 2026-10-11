@@ -14,9 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let args = CommandLine.arguments
         switch LaunchMode.parse(args) {
         case .renderSnapshots(let directory):
+            StrayWindowSweeper.start()
             SnapshotRenderer.run(outputDirectory: directory)
             exit(0)
         case .renderWindows(let options):
+            StrayWindowSweeper.start()
             WindowRenderer.run(options)
             exit(0)
         case .devCommand:
