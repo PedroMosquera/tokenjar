@@ -53,8 +53,8 @@ struct SettingsView: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        // Narrower, the account page beside the sidebar and the account list truncates its pickers.
-        .frame(minWidth: 760, minHeight: 460)
+        // Narrower, the account page beside the sidebar and the account list puts its fields under their labels.
+        .frame(minWidth: 800, minHeight: 460)
         .navigationTitle(pane.title)
         .onChange(of: model.settingsSelection) { _, id in
             guard let id else { return }
