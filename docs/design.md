@@ -48,8 +48,8 @@ Each fetcher conforms to `UsageFetcher` and returns a `UsageSnapshot`: a list of
 
 SwiftPM package, Swift tools 6.2, macOS 14 or later, built with Command Line Tools only (no Xcode).
 
-- `HeadroomCore` (library, no UI, links `sqlite3`): models, fetchers, history scanners, SQLite store, pace math, alert engine, config, pricing, process runner, HTTP client, account discovery, CodexBar import, Settings rules and the sign-in command. Everything testable lives here.
-- `Headroom` (executable, default isolation `MainActor`): AppKit `NSStatusItem` + `NSPopover` hosting SwiftUI, plus AppKit-owned windows for Dashboard and Settings (`WindowPresenter`). AppKit owns the windows because SwiftUI's settings opener is unreliable for accessory apps on macOS 26. While one of them is open the app switches to the regular activation policy so the window comes to the front, and back to accessory when the last one closes.
+- `TokenjarCore` (library, no UI, links `sqlite3`): models, fetchers, history scanners, SQLite store, pace math, alert engine, config, pricing, process runner, HTTP client, account discovery, CodexBar import, Settings rules and the sign-in command. Everything testable lives here.
+- `Tokenjar` (executable, default isolation `MainActor`): AppKit `NSStatusItem` + `NSPopover` hosting SwiftUI, plus AppKit-owned windows for Dashboard and Settings (`WindowPresenter`). AppKit owns the windows because SwiftUI's settings opener is unreliable for accessory apps on macOS 26. While one of them is open the app switches to the regular activation policy so the window comes to the front, and back to accessory when the last one closes.
 - `AppModel` is the single source of truth. Views read it and call its actions; they never fetch on their own. `FetcherRegistry` maps each provider to its fetcher and history scanner.
 
 ## Scheduling
@@ -155,8 +155,8 @@ Next to the database: `alert-state.json` (fired dedupe keys, failing accounts, a
 
 Swift Testing, two targets. `make test` runs both and passes the plugin and framework paths Command Line Tools needs.
 
-- `HeadroomCoreTests`: fetchers against recorded fixtures (redacted, see `Tests/HeadroomCoreTests/Fixtures/README.md`) and scripted processes, scanners, the SQLite store and its migrations, alerts, pace, pricing, config, discovery and the CodexBar import. Privacy pins include `HTTPClientTests.allowlistIsExactlyOpenCode`, `CLILocatorTests.baseEnvironmentPassesOnlyTheListedVariables`, `CodexBarImportTests.defaultsAllowlistIsPinned`, `KeychainSecretStoreTests.everyQueryIsScopedToTheAppsOwnService` and `StoredIdentifierTests.scannedPathsAndResponseIDsAreStoredOnlyAsDigests`.
-- `HeadroomTests`: app-module logic. `AppModel` config and refresh behavior with fake fetchers in a temporary home (first run, dangling links, the probe latch, rate-limit backoff, owner-only state files), `RefreshScheduler`, `ProbeLatch`, `HistoryScanJob`, popover verdicts and summaries, account actions, dashboard math and content, menu bar state and formatting.
+- `TokenjarCoreTests`: fetchers against recorded fixtures (redacted, see `Tests/TokenjarCoreTests/Fixtures/README.md`) and scripted processes, scanners, the SQLite store and its migrations, alerts, pace, pricing, config, discovery and the CodexBar import. Privacy pins include `HTTPClientTests.allowlistIsExactlyOpenCode`, `CLILocatorTests.baseEnvironmentPassesOnlyTheListedVariables`, `CodexBarImportTests.defaultsAllowlistIsPinned`, `KeychainSecretStoreTests.everyQueryIsScopedToTheAppsOwnService` and `StoredIdentifierTests.scannedPathsAndResponseIDsAreStoredOnlyAsDigests`.
+- `TokenjarTests`: app-module logic. `AppModel` config and refresh behavior with fake fetchers in a temporary home (first run, dangling links, the probe latch, rate-limit backoff, owner-only state files), `RefreshScheduler`, `ProbeLatch`, `HistoryScanJob`, popover verdicts and summaries, account actions, dashboard math and content, menu bar state and formatting.
 
 Tests never touch the real Keychain, notifications or login items. Run `make test` with `XDG_CONFIG_HOME` unset: `AppPaths` honors it, so `ConfigStoreTests` would write into the real config folder (the `AppModel` tests refuse to run in that case).
 

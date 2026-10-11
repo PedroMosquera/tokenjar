@@ -11,7 +11,7 @@ BUILD=$(git rev-list --count HEAD 2>/dev/null || echo 1)
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN_DIR/Headroom" "$APP/Contents/MacOS/Headroom"
+cp "$BIN_DIR/Tokenjar" "$APP/Contents/MacOS/Headroom"
 cp -R Resources/Logos "$APP/Contents/Resources/Logos"
 [ -f Resources/pricing.json ] && cp Resources/pricing.json "$APP/Contents/Resources/pricing.json"
 if [ -f Resources/AppIcon.icns ]; then

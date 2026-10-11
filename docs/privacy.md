@@ -158,7 +158,7 @@ Never stored, logged or displayed: prompts, outputs, message or file contents, e
 
 ## Checking it yourself
 
-- The allowlist is `HTTPClient.allowedEndpoints` in `Sources/HeadroomCore/Core/HTTPClient.swift`; `make test` fails if it changes.
+- The allowlist is `HTTPClient.allowedEndpoints` in `Sources/TokenjarCore/Core/HTTPClient.swift`; `make test` fails if it changes.
 - While Headroom runs, `nettop -p Headroom` or `lsof -i -a -c Headroom` lists its own connections. Expect `opencode.ai` only, and only if you have an OpenCode Go account.
 - `sqlite3 ~/Library/Application\ Support/Headroom/headroom.sqlite "SELECT path FROM scan_state LIMIT 3"` prints 64-character hex digests, not paths.
 - `ls -la ~/Library/Application\ Support/Headroom` shows the modes listed above.
