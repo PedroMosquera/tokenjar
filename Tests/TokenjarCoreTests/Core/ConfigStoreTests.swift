@@ -236,4 +236,63 @@ struct ConfigStoreTests {
         let config = try? JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
         #expect(config?.menuBar.icon == .app)
     }
+
+    enum NewLeaf: String, CaseIterable, Sendable {
+        case shortThresholds, paceDays, hotkey
+
+        func edit(_ config: inout AppConfig) {
+            switch self {
+            case .shortThresholds: config.alerts.shortThresholds = [90]
+            case .paceDays: config.paceDays = .workingDays
+            case .hotkey: config.hotkey = "control+option+command+U"
+            }
+        }
+
+        /// A value for the same leaf in config.local.json, different from the edit.
+        var localOverride: [String: Any] {
+            switch self {
+            case .shortThresholds: ["alerts": ["shortThresholds": [50]]]
+            case .paceDays: ["paceDays": "workingDays"]
+            case .hotkey: ["hotkey": "control+U"]
+            }
+        }
+    }
+
+    /// config.local.json overrides every other new leaf, so one save checks that the edited leaf is written and that
+    /// none of the others leaks.
+    @Test(arguments: NewLeaf.allCases)
+    func everyNewLeafSavesWithoutLeakingLocalOverrides(_ leaf: NewLeaf) throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"{"accounts": [{"id": "claude", "provider": "claude", "label": "Personal"}]}"#, to: paths.configFile)
+        let local = NewLeaf.allCases.filter { $0 != leaf }.reduce(["refreshMinutes": 2] as [String: Any]) { ConfigStore.merge($0, $1.localOverride) }
+        try FileManager.default.createDirectory(at: paths.configDirectory, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: local).write(to: paths.localConfigFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        leaf.edit(&edited)
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        var expected = loaded.base
+        leaf.edit(&expected)
+        #expect(try JSONDecoder().decode(AppConfig.self, from: Data(contentsOf: paths.configFile)) == expected)
+    }
+
+    @Test func aConfigWithoutTheNewKeysLoadsTheDefaults() throws {
+        let config = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"alerts": {"thresholds": [70]}, "accounts": []}"#.utf8))
+        #expect(config.alerts.thresholds == [70])
+        #expect(config.alerts.shortThresholds == [95])
+        #expect(config.paceDays == .everyDay)
+        #expect(config.hotkey == nil)
+    }
+
+    /// Like the menu bar icon: a choice from a newer build must not fail the whole load on an older one.
+    @Test(arguments: [#"{"paceDays": "someFutureChoice"}"#, #"{"paceDays": null}"#])
+    func aPaceDaysValueThisBuildDoesNotKnowReadsAsEveryDay(_ json: String) {
+        let config = try? JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
+        #expect(config?.paceDays == .everyDay)
+    }
 }
