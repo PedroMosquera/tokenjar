@@ -58,7 +58,8 @@ struct LimitsChart: View, Equatable {
             }
         }
         .chartForegroundStyleScale(domain: content.series.map(\.label), range: content.series.map { DashboardPalette.series($0.colorIndex) })
-        .chartYScale(domain: 0...100)
+        // The padding lifts a series at 0% off the axis line, where it would otherwise disappear.
+        .chartYScale(domain: 0...100, range: .plotDimension(startPadding: 4, endPadding: 2))
         // Hour labels are centred on their tick; without room past "now" the plot clips the last one.
         .chartXScale(domain: domain, range: .plotDimension(endPadding: range == .day ? 12 : 0))
         .chartYAxis {
