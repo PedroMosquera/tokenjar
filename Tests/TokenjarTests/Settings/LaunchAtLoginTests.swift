@@ -14,6 +14,13 @@ struct LaunchAtLoginTests {
         #expect(LaunchAtLogin.state(isBundledApp: true, status: .requiresApproval) == .requiresApproval)
     }
 
+    @Test func onlyAnUnavailableStateLocksTheToggle() {
+        #expect(!LaunchAtLogin.State.unavailable.canChange)
+        for state: LaunchAtLogin.State in [.enabled, .disabled, .requiresApproval] {
+            #expect(state.canChange)
+        }
+    }
+
     @Test func aBuildFolderBinaryIsUnavailableWhateverTheStatus() {
         for status: SMAppService.Status in [.notRegistered, .enabled, .requiresApproval, .notFound] {
             #expect(LaunchAtLogin.state(isBundledApp: false, status: status) == .unavailable)

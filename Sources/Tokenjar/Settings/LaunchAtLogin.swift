@@ -10,6 +10,9 @@ enum LaunchAtLogin {
         case requiresApproval
         /// Not running as an installed .app (a SwiftPM build folder binary cannot be a login item).
         case unavailable
+
+        /// Whether the General toggle can change it. `set` does nothing while unavailable, so the switch would snap back.
+        var canChange: Bool { self != .unavailable }
     }
 
     private static var isBundledApp: Bool { Bundle.main.bundleURL.pathExtension == "app" }

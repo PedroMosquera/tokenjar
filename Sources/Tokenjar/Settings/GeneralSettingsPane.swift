@@ -154,6 +154,7 @@ struct GeneralSettingsPane: View {
             }
         } else {
             Toggle(isOn: isOn) { launchAtLoginLabel }
+                .disabled(!(loginState?.canChange ?? true))
         }
     }
 
