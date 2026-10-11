@@ -27,14 +27,14 @@ struct AboutSettingsPane: View {
         Item(what: "~/.codex/auth.json", why: "Only whether it exists, at first run and when you click Import from CodexBar. Never opened."),
         Item(what: "~/.local/share/opencode/auth.json", why: "The opencode-go or opencode API key, or the entry the account names, for the OpenCode Go request below. At first run and on Import from CodexBar, only which entries exist. Or $XDG_DATA_HOME/opencode, or the account's profile folder."),
         Item(what: "~/.local/share/opencode/opencode.db", why: "Read-only: cost and token counts per model. Same folder as auth.json."),
-        Item(what: "~/.config/headroom/", why: "config.json, config.local.json and pricing.json."),
+        Item(what: "~/.config/tokenjar/", why: "config.json, config.local.json and pricing.json."),
         Item(what: "CodexBar's settings", why: "Only when you click Import from CodexBar, which lists the changes before applying them: enabled providers, warning thresholds, refresh interval and notification setting. Never its keys or cookies."),
     ]
 
     private let writes = [
-        Item(what: "~/.config/headroom/config.json", why: "Settings, through the symlink if it is one."),
-        Item(what: "~/Library/Application Support/Headroom/", why: "headroom.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens, so it is not run again until claude updates or you try once more. probe: an empty folder the CLIs run in."),
-        Item(what: "$TMPDIR/headroom-sign-in-<account>.command", why: "Only when you click Sign In in Terminal: the login command for Terminal to run. It deletes itself when it runs."),
+        Item(what: "~/.config/tokenjar/config.json", why: "Settings, through the symlink if it is one."),
+        Item(what: "~/Library/Application Support/Tokenjar/", why: "tokenjar.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens, so it is not run again until claude updates or you try once more. probe: an empty folder the CLIs run in."),
+        Item(what: "$TMPDIR/tokenjar-sign-in-<account>.command", why: "Only when you click Sign In in Terminal: the login command for Terminal to run. It deletes itself when it runs."),
         Item(what: "Keychain: \(AppPaths.keychainService)", why: "Only API keys you paste here."),
     ]
 
@@ -45,7 +45,7 @@ struct AboutSettingsPane: View {
                     appIcon
                         .frame(width: 48, height: 48)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Headroom").font(.title3.weight(.semibold))
+                        Text("Tokenjar").font(.title3.weight(.semibold))
                         Text("Version \(version)").foregroundStyle(.secondary)
                     }
                 }
@@ -56,7 +56,7 @@ struct AboutSettingsPane: View {
             itemSection("Reads", reads)
 
             Section("Contacts") {
-                itemRow(Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits. The only network request Headroom makes. Dashboards open in your browser."))
+                itemRow(Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits. The only network request Tokenjar makes. Dashboards open in your browser."))
             }
 
             itemSection("Writes", writes)

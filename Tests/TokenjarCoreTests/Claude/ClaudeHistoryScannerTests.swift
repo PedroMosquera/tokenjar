@@ -13,7 +13,7 @@ private struct TranscriptHome {
     var subagent: URL { projects.appending(path: "-Users-PLACEHOLDER-work-demo/SESSION_A/subagents/agent-1.jsonl") }
 
     init() throws {
-        let temp = FileManager.default.temporaryDirectory.appending(path: "headroom-claude-scan-\(UUID().uuidString)")
+        let temp = FileManager.default.temporaryDirectory.appending(path: "tokenjar-claude-scan-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: temp.appending(path: ".claude"), withIntermediateDirectories: true)
         // The enumerator reports /var/folders as /private/var/folders, and resolvingSymlinksInPath strips /private again.
         let real = try #require(realpath(temp.path, nil))

@@ -23,7 +23,7 @@ struct PopoverFooter: View {
                 Label("Quit", systemImage: "power")
             }
             .keyboardShortcut("q", modifiers: .command)
-            .help("Quit Headroom (⌘Q)")
+            .help("Quit Tokenjar (⌘Q)")
         }
         .buttonStyle(QuietButtonStyle(padding: EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)))
         .font(.callout)

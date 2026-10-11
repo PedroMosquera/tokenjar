@@ -138,7 +138,7 @@ struct AccountDetailView: View {
         } header: {
             Text("Profile")
         } footer: {
-            HelpText.footer("Sets \(variable.name) when Headroom runs \(account.provider == .claude ? "claude" : "codex"). Leave empty for \(variable.defaultPath).")
+            HelpText.footer("Sets \(variable.name) when Tokenjar runs \(account.provider == .claude ? "claude" : "codex"). Leave empty for \(variable.defaultPath).")
         }
     }
 
@@ -167,7 +167,7 @@ struct AccountDetailView: View {
                     Link("Install agy", destination: SignInCommand.antigravityInstallURL)
                 } label: {
                     Text("Antigravity CLI")
-                    Text("Headroom reads limits from agy. Install it and sign in there.")
+                    Text("Tokenjar reads limits from agy. Install it and sign in there.")
                 }
             }
         } header: {
@@ -176,7 +176,7 @@ struct AccountDetailView: View {
             if account.provider == .claude {
                 HelpText.footer("Runs the provider's own login in Terminal. With an older claude that has no auth command, run claude and type /\u{2060}login.")
             } else if signInCommand != nil {
-                HelpText.footer("Runs the provider's own login in Terminal. Headroom never sees the credentials.")
+                HelpText.footer("Runs the provider's own login in Terminal. Tokenjar never sees the credentials.")
             }
         }
     }

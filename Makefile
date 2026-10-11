@@ -1,6 +1,6 @@
 # Builds with Command Line Tools only (no Xcode). See docs/design.md#distribution.
 CLT ?= $(shell xcode-select -p)
-APP_NAME := Headroom
+APP_NAME := Tokenjar
 INSTALL_DIR ?= $(HOME)/Applications
 SCRATCH ?= .build
 

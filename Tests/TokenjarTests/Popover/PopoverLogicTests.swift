@@ -294,12 +294,12 @@ struct StatusIconRendererTests {
 
     /// A provider's logo here would read as that provider's own menu bar app (Claude's spark sits right beside it).
     @Test(arguments: [MenuBarMode.worst, .icon])
-    func menuBarShowsHeadroomsOwnMarkNeverAProviderLogo(_ mode: MenuBarMode) {
+    func menuBarShowsTokenjarsOwnMarkNeverAProviderLogo(_ mode: MenuBarMode) {
         for severity in [Severity.ok, .warning, .critical] {
             let rendered = StatusIconRenderer.render(state([entry("a", used: 90, severity: severity)], mode: mode))
-            #expect(rendered.image?.accessibilityDescription == "Headroom")
+            #expect(rendered.image?.accessibilityDescription == "Tokenjar")
         }
-        #expect(StatusIconRenderer.render(state([])).image?.accessibilityDescription == "Headroom")
+        #expect(StatusIconRenderer.render(state([])).image?.accessibilityDescription == "Tokenjar")
     }
 
     @Test func showsTheTightestPercentInTheMenuBarColor() {
@@ -363,7 +363,7 @@ struct StatusIconRendererTests {
         #expect(rendered.title.isEmpty)
         #expect(rendered.attributedTitle.length == 0)
         #expect(rendered.image?.isTemplate == true)
-        #expect(rendered.image?.accessibilityDescription == "Headroom")
+        #expect(rendered.image?.accessibilityDescription == "Tokenjar")
     }
 
     @Test func barsModeDrawsOneBarPerEntry() {
@@ -384,6 +384,7 @@ struct StatusIconRendererTests {
     @Test func toolTipListsEveryAccount() {
         let tip = StatusIconRenderer.render(state([entry("Personal", used: 42), entry("Work", used: nil, error: true)])).toolTip ?? ""
         #expect(tip == "Claude · Personal: 5-hour 42%, resets in 50m\nClaude · Work: no data (last check failed)")
+        #expect(StatusIconRenderer.render(state([])).toolTip == "Tokenjar: no accounts in the menu bar")
     }
 }
 

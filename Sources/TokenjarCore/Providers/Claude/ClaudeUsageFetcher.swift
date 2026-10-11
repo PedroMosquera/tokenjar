@@ -1,7 +1,7 @@
 import Foundation
 
 /// Reads limits by running the user's own `claude -p /usage`, which Claude Code answers locally with the
-/// account's rate limits. The CLI keeps its credentials to itself; Headroom never sees or refreshes a token.
+/// account's rate limits. The CLI keeps its credentials to itself; Tokenjar never sees or refreshes a token.
 /// When the CLI is missing or fails, falls back to the limits Claude Code cached in `.claude.json`, except when
 /// the run spent tokens: that throws `.unsupported` so it cannot go unnoticed.
 public struct ClaudeUsageFetcher: UsageFetcher {

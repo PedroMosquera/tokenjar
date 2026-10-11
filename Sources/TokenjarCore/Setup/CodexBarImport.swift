@@ -1,7 +1,7 @@
 import Foundation
 
 public struct CodexBarImportPreview: Equatable, Sendable {
-    /// nil when no CodexBar config.json was found; empty when one was found with none of Headroom's providers enabled.
+    /// nil when no CodexBar config.json was found; empty when one was found with none of Tokenjar's providers enabled.
     public var enabledProviders: [ProviderID]?
     /// From CodexBar's global warning list only. Its per-window session and weekly lists are not read.
     public var thresholdsUsed: [Int]?
@@ -133,7 +133,7 @@ public enum CodexBarImport {
         }
     }
 
-    /// Manual and the adaptive modes have no fixed interval, so Headroom keeps its own.
+    /// Manual and the adaptive modes have no fixed interval, so Tokenjar keeps its own.
     static func refreshMinutes(_ frequency: String) -> Int? {
         switch frequency {
         case "oneMinute": 1
@@ -145,7 +145,7 @@ public enum CodexBarImport {
         }
     }
 
-    /// CodexBar stores % remaining and treats 0 as off; Headroom stores % used, ascending.
+    /// CodexBar stores % remaining and treats 0 as off; Tokenjar stores % used, ascending.
     static func usedThresholds(_ remaining: [Int]) -> [Int] {
         Set(remaining.filter { (1...99).contains($0) }.map { 100 - $0 }).sorted()
     }

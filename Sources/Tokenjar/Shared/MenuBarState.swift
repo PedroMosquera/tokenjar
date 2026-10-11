@@ -18,7 +18,7 @@ struct MenuBarState: Equatable {
     var showResetCountdownWhenFull: Bool
     var now: Date
 
-    /// The entry with the least headroom: highest severity, then highest used %.
+    /// The entry with the least room left: highest severity, then highest used %.
     var worst: Entry? {
         entries.max { a, b in
             if a.severity != b.severity { return a.severity < b.severity }

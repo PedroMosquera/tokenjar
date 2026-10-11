@@ -1,8 +1,8 @@
 import Foundation
 
-/// The provider's own login command for an account. Headroom never signs in itself: the CLI owns its credentials.
+/// The provider's own login command for an account. Tokenjar never signs in itself: the CLI owns its credentials.
 public enum SignInCommand {
-    /// Where to send people for Antigravity, whose CLI has no login command Headroom can hand off to.
+    /// Where to send people for Antigravity, whose CLI has no login command Tokenjar can hand off to.
     public static let antigravityInstallURL = URL(string: "https://antigravity.google")!
 
     public static func profileVariable(for provider: ProviderID) -> (name: String, defaultPath: String)? {
@@ -42,7 +42,7 @@ public enum SignInCommand {
         """
         #!/bin/sh
         rm -f "$0"
-        echo \(shellQuote("Headroom: \(title)"))
+        echo \(shellQuote("Tokenjar: \(title)"))
         echo
         \(command)
 
@@ -52,6 +52,6 @@ public enum SignInCommand {
     /// File name built only from the id's slug characters, so a hand-edited id cannot point outside the temp folder.
     public static func scriptFileName(accountID: String) -> String {
         let slug = String(accountID.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_" }.map(Character.init))
-        return "headroom-sign-in-\(slug.isEmpty ? "account" : slug).command"
+        return "tokenjar-sign-in-\(slug.isEmpty ? "account" : slug).command"
     }
 }

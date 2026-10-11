@@ -46,7 +46,7 @@ private struct Sandbox {
     let home: URL
 
     init() throws {
-        home = FileManager.default.temporaryDirectory.appending(path: "headroom-claude-\(UUID().uuidString)")
+        home = FileManager.default.temporaryDirectory.appending(path: "tokenjar-claude-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     }
 
@@ -298,7 +298,7 @@ struct ClaudeUsageFetcherTests {
 
         let calls = runner.calls
         try #require(calls.count == 2)
-        let probe = box.home.appending(path: "Library/Application Support/Headroom/probe")
+        let probe = box.home.appending(path: "Library/Application Support/Tokenjar/probe")
         #expect(calls[0].executable.path == "/bin/sh")
         #expect(calls[0].arguments == [
             "-p", "/usage", "--output-format", "stream-json", "--verbose", "--no-session-persistence",

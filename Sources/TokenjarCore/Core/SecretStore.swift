@@ -27,6 +27,13 @@ public struct KeychainSecretStore: SecretStore {
         ]
     }
 
+    func addQuery(_ account: String, data: Data) -> [String: Any] {
+        var q = query(account)
+        q[kSecValueData as String] = data
+        q[kSecAttrLabel as String] = "Tokenjar API key"
+        return q
+    }
+
     public func read(account: String) throws -> String? {
         var q = query(account)
         q[kSecReturnData as String] = true
@@ -42,10 +49,7 @@ public struct KeychainSecretStore: SecretStore {
         let data = Data(secret.utf8)
         let status = SecItemUpdate(query(account) as CFDictionary, [kSecValueData as String: data] as CFDictionary)
         if status == errSecItemNotFound {
-            var q = query(account)
-            q[kSecValueData as String] = data
-            q[kSecAttrLabel as String] = "Headroom API key"
-            let add = SecItemAdd(q as CFDictionary, nil)
+            let add = SecItemAdd(addQuery(account, data: data) as CFDictionary, nil)
             guard add == errSecSuccess else { throw SecretStoreError.keychain(add) }
         } else if status != errSecSuccess {
             throw SecretStoreError.keychain(status)

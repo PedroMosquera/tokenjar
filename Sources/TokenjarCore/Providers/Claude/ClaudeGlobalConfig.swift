@@ -1,6 +1,6 @@
 import Foundation
 
-/// The few fields Headroom needs from Claude Code's global config (`.claude.json`). Identity fields are decoded
+/// The few fields Tokenjar needs from Claude Code's global config (`.claude.json`). Identity fields are decoded
 /// only to check that the usage cache belongs to the signed-in account; they are private and never leave this type.
 struct ClaudeGlobalConfig: Decodable, Sendable {
     private var oauthAccount: OAuthAccount?

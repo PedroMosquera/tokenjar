@@ -181,7 +181,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
             // sum() over no non-NULL values is NULL, which is exactly a nil reportedCostUSD.
             let statement = try prepare(
                 """
-                SELECT headroom_local_day(ts) AS day, account_id, harness, model, project, count(*),
+                SELECT tokenjar_local_day(ts) AS day, account_id, harness, model, project, count(*),
                     sum(input), sum(output), sum(cache_read), sum(cache_write_5m), sum(cache_write_1h), sum(reasoning),
                     sum(reported_cost),
                     sum(CASE WHEN reported_cost IS NULL THEN input ELSE 0 END),
@@ -271,7 +271,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         // Builds before this one stored raw dedupe keys and raw log paths. Scanners now key checkpoints by digest, so the
         // old rows could never match again; dropping them costs one full rescan, which merges into the rehashed events.
         """
-        UPDATE usage_events SET dedupe_key = headroom_sha256(dedupe_key);
+        UPDATE usage_events SET dedupe_key = tokenjar_sha256(dedupe_key);
         DELETE FROM scan_state;
         """,
     ]
@@ -308,11 +308,11 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         return statement.int(0)
     }
 
-    /// `headroom_local_day(ts)`: local midnight per `calendar`, as unix seconds. Used instead of
+    /// `tokenjar_local_day(ts)`: local midnight per `calendar`, as unix seconds. Used instead of
     /// `date(ts, 'unixepoch', 'localtime')` so the zone is injectable and days match `Calendar.startOfDay` exactly.
     private func registerDayFunction(_ calendar: Calendar) throws {
         let rc = sqlite3_create_function_v2(
-            db, "headroom_local_day", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+            db, "tokenjar_local_day", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC,
             Unmanaged.passRetained(CalendarBox(calendar)).toOpaque(),
             { context, _, arguments in
                 guard let context, let user = sqlite3_user_data(context), let argument = arguments?[0] else { return }
@@ -327,10 +327,10 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         try check(rc)
     }
 
-    /// `headroom_sha256(text)`: `sha256Hex`, for migrations that rewrite stored identifiers.
+    /// `tokenjar_sha256(text)`: `sha256Hex`, for migrations that rewrite stored identifiers.
     private func registerDigestFunction() throws {
         let rc = sqlite3_create_function_v2(
-            db, "headroom_sha256", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nil,
+            db, "tokenjar_sha256", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nil,
             { context, _, arguments in
                 guard let context, let argument = arguments?[0], let text = sqlite3_value_text(argument) else { return }
                 sqlite3_result_text(context, sha256Hex(String(cString: text)), -1, Statement.transient)

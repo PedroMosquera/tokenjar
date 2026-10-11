@@ -33,8 +33,8 @@ struct AppModelConfigTests {
         let home = try ModelHome()
         defer { home.remove() }
         try home.makeDirectory(".claude")
-        let repoFile = try home.write("dotfiles/headroom/config.json", #"{"refreshMinutes": 5, "accounts": [{"id": "work", "provider": "claude", "label": "Work"}]}"#)
-        try home.makeDirectory(".config/headroom")
+        let repoFile = try home.write("dotfiles/tokenjar/config.json", #"{"refreshMinutes": 5, "accounts": [{"id": "work", "provider": "claude", "label": "Work"}]}"#)
+        try home.makeDirectory(".config/tokenjar")
         try FileManager.default.createSymbolicLink(at: home.configFile, withDestinationURL: repoFile)
         let model = model(home)
         model.loadState()
@@ -51,7 +51,7 @@ struct AppModelConfigTests {
         #expect(home.isSymlink(home.configFile))
         #expect(!FileManager.default.fileExists(atPath: repoFile.path))
 
-        try home.write("dotfiles/headroom/config.json", #"{"refreshMinutes": 7, "accounts": [{"id": "work", "provider": "claude", "label": "Work"}]}"#)
+        try home.write("dotfiles/tokenjar/config.json", #"{"refreshMinutes": 7, "accounts": [{"id": "work", "provider": "claude", "label": "Work"}]}"#)
         model.loadConfig()
         #expect(model.config.refreshMinutes == 7)
         #expect(model.configError == nil)
@@ -70,7 +70,7 @@ struct AppModelConfigTests {
           "accounts": [{"id": "work", "provider": "claude", "label": "Work"}]
         }
         """
-        try home.write(".config/headroom/config.json", conflicted)
+        try home.write(".config/tokenjar/config.json", conflicted)
         let model = model(home)
         model.loadState()
         let error = try #require(model.configError)
@@ -86,8 +86,8 @@ struct AppModelConfigTests {
         let home = try ModelHome()
         defer { home.remove() }
         let shared = #"{"refreshMinutes": 5, "accounts": [{"id": "work", "provider": "claude", "label": "Work"}]}"#
-        try home.write(".config/headroom/config.json", shared)
-        try home.write(".config/headroom/config.local.json", #"{"refreshMinutes": "soon"}"#)
+        try home.write(".config/tokenjar/config.json", shared)
+        try home.write(".config/tokenjar/config.local.json", #"{"refreshMinutes": "soon"}"#)
         let model = model(home)
         model.loadState()
         #expect(model.configError?.contains("config.local.json") == true)
@@ -124,7 +124,7 @@ struct AppModelConfigTests {
         defer { home.remove() }
         try home.writeConfig(AppConfig())
         // A file where the support directory should be: the database cannot open.
-        try home.write("Library/Application Support/Headroom", "")
+        try home.write("Library/Application Support/Tokenjar", "")
         let model = model(home)
         model.loadState()
         #expect(model.configError?.contains("History") == true)
@@ -139,8 +139,8 @@ struct AppModelConfigTests {
         let home = try ModelHome()
         defer { home.remove() }
         try home.makeDirectory(".claude")
-        try home.makeDirectory(".config/headroom")
-        let repoFile = home.url.appending(path: "dotfiles/headroom/config.json")
+        try home.makeDirectory(".config/tokenjar")
+        let repoFile = home.url.appending(path: "dotfiles/tokenjar/config.json")
         try FileManager.default.createSymbolicLink(at: home.configFile, withDestinationURL: repoFile)
         let model = model(home)
 

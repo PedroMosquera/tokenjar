@@ -4,7 +4,7 @@ import Testing
 
 struct ConfigStoreTests {
     private func tempHome() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appending(path: "headroom-config-\(UUID().uuidString)")
+        let url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-config-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
@@ -132,7 +132,7 @@ struct ConfigStoreTests {
         let home = try tempHome()
         defer { try? FileManager.default.removeItem(at: home) }
         let paths = AppPaths(home: home)
-        let repoFile = home.appending(path: "dotfiles/headroom/.config/headroom/config.json")
+        let repoFile = home.appending(path: "dotfiles/tokenjar/.config/tokenjar/config.json")
         try write(#"{"accounts": []}"#, to: repoFile)
         try FileManager.default.createDirectory(at: paths.configDirectory, withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(at: paths.configFile, withDestinationURL: repoFile)
@@ -152,10 +152,10 @@ struct ConfigStoreTests {
         let home = try tempHome()
         defer { try? FileManager.default.removeItem(at: home) }
         let paths = AppPaths(home: home)
-        let repoFile = home.appending(path: "dotfiles/headroom/.config/headroom/config.json")
+        let repoFile = home.appending(path: "dotfiles/tokenjar/.config/tokenjar/config.json")
         try write(#"{"accounts": []}"#, to: repoFile)
         try FileManager.default.createDirectory(at: paths.configDirectory, withIntermediateDirectories: true)
-        try FileManager.default.createSymbolicLink(atPath: paths.configFile.path, withDestinationPath: "../../dotfiles/headroom/.config/headroom/config.json")
+        try FileManager.default.createSymbolicLink(atPath: paths.configFile.path, withDestinationPath: "../../dotfiles/tokenjar/.config/tokenjar/config.json")
 
         var config = AppConfig()
         config.refreshMinutes = 15
@@ -172,7 +172,7 @@ struct ConfigStoreTests {
         defer { try? FileManager.default.removeItem(at: home) }
         let paths = AppPaths(home: home)
         try FileManager.default.createDirectory(at: paths.configDirectory, withIntermediateDirectories: true)
-        try FileManager.default.createSymbolicLink(atPath: paths.configFile.path, withDestinationPath: "../../dotfiles/headroom/.config/headroom/config.json")
+        try FileManager.default.createSymbolicLink(atPath: paths.configFile.path, withDestinationPath: "../../dotfiles/tokenjar/.config/tokenjar/config.json")
 
         #expect {
             try ConfigStore(paths: paths).write(AppConfig())

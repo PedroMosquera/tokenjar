@@ -47,7 +47,7 @@ enum StatusIconRenderer {
     }
 
     static func toolTip(for state: MenuBarState) -> String {
-        guard !state.entries.isEmpty else { return "Headroom: no accounts in the menu bar" }
+        guard !state.entries.isEmpty else { return "Tokenjar: no accounts in the menu bar" }
         let lines = state.entries.map { entry -> String in
             let name = AccountTitle(provider: entry.provider, label: entry.label).name
             var line: String

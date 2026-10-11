@@ -22,7 +22,7 @@ final class WindowPresenter: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.center()
-        window.setFrameAutosaveName("Headroom.\(id)")
+        window.setFrameAutosaveName("Tokenjar.\(id)")
         windows[id] = window
         bringToFront(window)
     }

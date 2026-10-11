@@ -43,7 +43,7 @@ struct ProcessRunnerTests {
     @Test func aLaunchFailureThrows() async {
         await #expect(throws: (any Error).self) {
             try await runner.run(
-                URL(fileURLWithPath: "/nonexistent/headroom-cli"), arguments: [], environment: [:],
+                URL(fileURLWithPath: "/nonexistent/tokenjar-cli"), arguments: [], environment: [:],
                 currentDirectory: nil, stdin: nil, timeout: 5, outputLimit: 1024
             )
         }

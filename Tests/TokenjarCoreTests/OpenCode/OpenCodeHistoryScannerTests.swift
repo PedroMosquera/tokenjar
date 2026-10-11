@@ -163,8 +163,8 @@ struct OpenCodeHistoryScannerTests {
 
     @Test func projectIsTheLastPathComponentAndNeverTheUserName() {
         let home = URL(fileURLWithPath: "/Users/placeholder")
-        #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/work/headroom", home: home) == "headroom")
-        #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/work/headroom/", home: home) == "headroom")
+        #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/work/tokenjar", home: home) == "tokenjar")
+        #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/work/tokenjar/", home: home) == "tokenjar")
         #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder", home: home) == "~")
         #expect(UsageEvent.project(fromWorkingDirectory: "/Users/placeholder/", home: home) == "~")
         #expect(UsageEvent.project(fromWorkingDirectory: "/", home: home) == nil)

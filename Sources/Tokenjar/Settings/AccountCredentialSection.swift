@@ -38,13 +38,13 @@ struct AccountCredentialSection: View {
         Section {
             Picker("API key", selection: source) {
                 Text("From opencode's auth.json").tag(Source.authFile)
-                Text("Pasted key, saved in Headroom's Keychain item").tag(Source.keychain)
+                Text("Pasted key, saved in Tokenjar's Keychain item").tag(Source.keychain)
             }
             .pickerStyle(.radioGroup)
             .confirmationDialog("Stop using the pasted key?", isPresented: $confirmRemoveKey) {
                 Button("Delete Key", role: .destructive, action: removePastedKey)
             } message: {
-                Text("Headroom will read opencode's auth.json and delete the pasted key from this Mac's Keychain.")
+                Text("Tokenjar will read opencode's auth.json and delete the pasted key from this Mac's Keychain.")
             }
 
             if source.wrappedValue == .authFile {
@@ -64,7 +64,7 @@ struct AccountCredentialSection: View {
         } header: {
             Text("Credential")
         } footer: {
-            HelpText.footer("Keys never go into config.json. A pasted key lives only in this Mac's Keychain, under Headroom's own item, so paste it again on each Mac that shares this config.")
+            HelpText.footer("Keys never go into config.json. A pasted key lives only in this Mac's Keychain, under Tokenjar's own item, so paste it again on each Mac that shares this config.")
         }
     }
 

@@ -10,7 +10,7 @@ final class AntigravityUsageFetcherTests {
     let now = Date(timeIntervalSince1970: 1_791_660_000)
 
     init() throws {
-        home = FileManager.default.temporaryDirectory.appending(path: "headroom-agy-tests-\(UUID().uuidString)")
+        home = FileManager.default.temporaryDirectory.appending(path: "tokenjar-agy-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home.appending(path: "bin"), withIntermediateDirectories: true)
     }
 

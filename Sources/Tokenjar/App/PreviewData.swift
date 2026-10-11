@@ -117,7 +117,7 @@ extension AppModel {
         }
 
         // Daily usage events for 30 days across harnesses, models and projects.
-        let projects = ["headroom", "dotfiles", "mobile-app", "data-pipeline"]
+        let projects = ["tokenjar", "dotfiles", "mobile-app", "data-pipeline"]
         let mixes: [(String, Harness, String, Double, Bool)] = [
             ("claude-personal", .claudeCode, "claude-opus-5-5", 1.0, false),
             ("claude-personal", .claudeCode, "claude-fable-5-1", 0.4, false),

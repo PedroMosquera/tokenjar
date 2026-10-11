@@ -10,4 +10,9 @@ struct NotificationPermissionTests {
         #expect(NotificationPermission(.denied) == .denied)
         #expect(NotificationPermission(.notDetermined) == .notDetermined)
     }
+
+    @Test func alertIdentifiersCarryTheAppsName() {
+        #expect(NotificationManager.categoryID == "tokenjar.alert")
+        #expect(NotificationManager.openDashboardActionID == "tokenjar.open-dashboard")
+    }
 }

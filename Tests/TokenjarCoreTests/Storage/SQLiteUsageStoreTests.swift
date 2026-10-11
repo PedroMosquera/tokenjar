@@ -9,7 +9,7 @@ struct SQLiteUsageStoreTests {
     let allVersions = SQLiteUsageStore.migrations.indices.map { String($0 + 1) }
 
     @Test func createsAPrivateWALDatabaseInAMissingDirectory() throws {
-        let url = temp.url.appending(path: "nested/headroom.sqlite")
+        let url = temp.url.appending(path: "nested/tokenjar.sqlite")
         _ = try SQLiteUsageStore(url: url)
 
         let mode = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
@@ -20,16 +20,16 @@ struct SQLiteUsageStoreTests {
 
     /// A dev probe may have created the support folder first, with the default 0755.
     @Test func tightensAFolderAnotherWriterCreatedFirst() throws {
-        let folder = temp.url.appending(path: "Headroom")
+        let folder = temp.url.appending(path: "Tokenjar")
         try makeWorldReadableDirectory(folder)
 
-        _ = try SQLiteUsageStore(url: folder.appending(path: "headroom.sqlite"))
+        _ = try SQLiteUsageStore(url: folder.appending(path: "tokenjar.sqlite"))
 
         #expect(try posixMode(folder) == 0o700)
     }
 
     @Test func migratesAnEmptyFile() throws {
-        let url = temp.url.appending(path: "headroom.sqlite")
+        let url = temp.url.appending(path: "tokenjar.sqlite")
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         #expect(FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o644]))
 
@@ -44,7 +44,7 @@ struct SQLiteUsageStoreTests {
     }
 
     @Test func reopeningKeepsDataAndDoesNotMigrateAgain() throws {
-        let url = temp.url.appending(path: "headroom.sqlite")
+        let url = temp.url.appending(path: "tokenjar.sqlite")
         do {
             let store = try SQLiteUsageStore(url: url)
             try store.upsert([usageEvent("k", at: now, input: 5)])
@@ -61,7 +61,7 @@ struct SQLiteUsageStoreTests {
     }
 
     @Test func refusesASchemaNewerThanThisBuild() throws {
-        let url = temp.url.appending(path: "headroom.sqlite")
+        let url = temp.url.appending(path: "tokenjar.sqlite")
         _ = try SQLiteUsageStore(url: url)
         _ = try query(url, "INSERT INTO schema_version (version) VALUES (99)")
 
@@ -121,7 +121,7 @@ struct SQLiteUsageStoreTests {
     }
 
     @Test func survivesConcurrentWriters() async throws {
-        let store = try SQLiteUsageStore(url: temp.url.appending(path: "headroom.sqlite"))
+        let store = try SQLiteUsageStore(url: temp.url.appending(path: "tokenjar.sqlite"))
         let start = now
         await withTaskGroup(of: Void.self) { group in
             for worker in 0..<8 {
@@ -142,7 +142,7 @@ struct SQLiteUsageStoreTests {
     @Test func concurrentFirstOpensShareOneDatabase() async throws {
         let start = now
         for round in 0..<20 {
-            let url = temp.url.appending(path: "\(round)/headroom.sqlite")
+            let url = temp.url.appending(path: "\(round)/tokenjar.sqlite")
             try await withThrowingTaskGroup(of: Void.self) { group in
                 for opener in 0..<2 {
                     group.addTask { try SQLiteUsageStore(url: url).upsert([usageEvent("\(opener)", at: start, input: 1)]) }
@@ -156,7 +156,7 @@ struct SQLiteUsageStoreTests {
 
     /// SQLite skips the busy timeout when switching a new file to WAL collides with another writer.
     @Test func firstOpenWaitsForAnotherWriterOnTheNewFile() async throws {
-        let url = temp.url.appending(path: "headroom.sqlite")
+        let url = temp.url.appending(path: "tokenjar.sqlite")
         let other = try OtherConnection(url)
         try other.exec("BEGIN IMMEDIATE")
         let opening = Task.detached { try SQLiteUsageStore(url: url) }
@@ -168,7 +168,7 @@ struct SQLiteUsageStoreTests {
     }
 
     @Test func skipsMigrationsAnotherOpenerAppliedWhileThisOneWaited() async throws {
-        let url = temp.url.appending(path: "headroom.sqlite")
+        let url = temp.url.appending(path: "tokenjar.sqlite")
         let other = try OtherConnection(url)
         try other.exec("PRAGMA journal_mode = WAL; CREATE TABLE schema_version (version INTEGER NOT NULL); BEGIN IMMEDIATE")
         let opening = Task.detached { try SQLiteUsageStore(url: url) }

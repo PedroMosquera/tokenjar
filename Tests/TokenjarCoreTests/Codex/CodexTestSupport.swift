@@ -29,7 +29,7 @@ final class CodexTempDirectory {
     let url: URL
 
     init() throws {
-        url = FileManager.default.temporaryDirectory.appending(path: "headroom-codex-tests-\(UUID().uuidString)")
+        url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-codex-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
 

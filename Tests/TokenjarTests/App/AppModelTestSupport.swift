@@ -3,14 +3,14 @@ import Testing
 @testable import Tokenjar
 import TokenjarCore
 
-/// A throwaway home, so AppModel tests never read or write the real ~/.config/headroom or Application Support.
+/// A throwaway home, so AppModel tests never read or write the real ~/.config/tokenjar or Application Support.
 struct ModelHome {
     let url: URL
     var paths: AppPaths { AppPaths(home: url) }
     var configFile: URL { paths.configFile }
 
     init() throws {
-        url = FileManager.default.temporaryDirectory.appending(path: "headroom-app-\(UUID().uuidString)")
+        url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-app-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         // XDG_CONFIG_HOME in the test environment would point the config at a real directory.
         try #require(AppPaths(home: url).configFile.path.hasPrefix(url.path))

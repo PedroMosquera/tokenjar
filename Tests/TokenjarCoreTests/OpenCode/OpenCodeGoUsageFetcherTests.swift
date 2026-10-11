@@ -118,6 +118,7 @@ struct OpenCodeGoUsageFetcherTests {
         #expect(request.httpMethod == "GET")
         #expect(request.httpBody == nil)
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-test-placeholder")
+        #expect(request.value(forHTTPHeaderField: "User-Agent") == "Tokenjar")
     }
 
     @Test func missingKeyIsNotSignedInAndSendsNothing() async throws {

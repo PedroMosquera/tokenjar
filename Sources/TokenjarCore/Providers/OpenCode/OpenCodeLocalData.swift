@@ -52,7 +52,7 @@ enum OpenCodeLocalData {
     /// Decodes only the entries named in `userInfo[namesKey]`, so other entries, including OAuth tokens,
     /// are never materialized.
     private struct AuthEntries: Decodable {
-        static let namesKey = CodingUserInfoKey(rawValue: "headroom.authEntryNames")!
+        static let namesKey = CodingUserInfoKey(rawValue: "tokenjar.authEntryNames")!
 
         struct Entry: Decodable {
             var type: String?

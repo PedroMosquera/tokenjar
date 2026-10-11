@@ -34,7 +34,7 @@ public struct HTTPClient: Sendable {
     let transport: any HTTPTransport
     public var userAgent: String
 
-    public init(transport: any HTTPTransport = URLSessionTransport.shared, userAgent: String = "Headroom") {
+    public init(transport: any HTTPTransport = URLSessionTransport.shared, userAgent: String = "Tokenjar") {
         self.transport = transport
         self.userAgent = userAgent
     }

@@ -14,7 +14,7 @@ struct CodexAppServerSessionTests {
         let sent = connection.sentObjects
         #expect(sent.map { $0["id"] as? Int } == [1, nil, 2])
         let clientInfo = (sent[0]["params"] as? [String: Any])?["clientInfo"] as? [String: String]
-        #expect(clientInfo == ["name": "headroom", "version": "1.2.3"])
+        #expect(clientInfo == ["name": "tokenjar", "version": "1.2.3"])
         #expect((sent[2]["params"] as? [String: Any])?["excludeResetCreditDetails"] as? Bool == true)
         for raw in connection.sent.map({ String(decoding: $0, as: UTF8.self) }) {
             #expect(!raw.contains("jsonrpc"))

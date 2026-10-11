@@ -144,8 +144,8 @@ struct UsageStoreContractTests {
         #expect(keys == [
             "acct|claude-code|claude-opus-5-5|-|3",
             "acct|claude-code|claude-opus-5-5|dotfiles|4",
-            "acct|codex|gpt-5.5|headroom|16",
-            "work|claude-code|claude-opus-5-5|headroom|8",
+            "acct|codex|gpt-5.5|tokenjar|16",
+            "work|claude-code|claude-opus-5-5|tokenjar|8",
         ])
     }
 

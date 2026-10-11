@@ -5,7 +5,7 @@ struct TempHome {
     let url: URL
 
     init() throws {
-        url = FileManager.default.temporaryDirectory.appending(path: "headroom-setup-\(UUID().uuidString)")
+        url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-setup-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
 

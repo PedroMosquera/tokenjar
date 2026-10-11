@@ -1,7 +1,7 @@
 import Foundation
 
 public enum MenuBarMode: String, Codable, CaseIterable, Sendable {
-    /// Logo of the account with the least headroom plus its tightest used %.
+    /// The app's mark plus the tightest used % of the account with the least room left.
     case worst
     /// One thin bar per account flagged showInMenuBar.
     case bars

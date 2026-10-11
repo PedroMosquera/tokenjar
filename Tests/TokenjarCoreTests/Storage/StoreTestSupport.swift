@@ -8,7 +8,7 @@ enum StoreKind: String, CaseIterable, Sendable {
     func make(in directory: URL, calendar: Calendar = .current) throws -> any UsageStore {
         switch self {
         case .memory: InMemoryUsageStore(calendar: calendar)
-        case .sqlite: try SQLiteUsageStore(url: directory.appending(path: "headroom.sqlite"), calendar: calendar)
+        case .sqlite: try SQLiteUsageStore(url: directory.appending(path: "tokenjar.sqlite"), calendar: calendar)
         }
     }
 }
@@ -16,7 +16,7 @@ enum StoreKind: String, CaseIterable, Sendable {
 /// A fresh directory that does not exist yet, so tests also cover creating the store's parent directory.
 /// Deleted on deinit: keep it in a suite's stored property, which outlives every store a test opens in it.
 final class TemporaryDirectory: Sendable {
-    let url = FileManager.default.temporaryDirectory.appending(path: "headroom-store-tests/\(UUID().uuidString)")
+    let url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-store-tests/\(UUID().uuidString)")
 
     deinit { try? FileManager.default.removeItem(at: url) }
 }
@@ -29,7 +29,7 @@ func fixedCalendar(_ zone: String) -> Calendar {
 
 func usageEvent(
     _ key: String, at timestamp: Date, account: String = "acct", harness: Harness = .claudeCode, model: String = "claude-opus-5-5",
-    project: String? = "headroom", input: Int = 0, output: Int = 0, cacheRead: Int = 0, cacheWrite5m: Int = 0, cacheWrite1h: Int = 0,
+    project: String? = "tokenjar", input: Int = 0, output: Int = 0, cacheRead: Int = 0, cacheWrite5m: Int = 0, cacheWrite1h: Int = 0,
     reasoning: Int = 0, cost: Double? = nil
 ) -> UsageEvent {
     UsageEvent(

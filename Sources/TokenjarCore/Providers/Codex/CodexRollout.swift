@@ -1,6 +1,6 @@
 import Foundation
 
-/// The fields Headroom reads from one line of a codex rollout log (`$CODEX_HOME/sessions/**/rollout-*.jsonl`).
+/// The fields Tokenjar reads from one line of a codex rollout log (`$CODEX_HOME/sessions/**/rollout-*.jsonl`).
 /// Only counts, model ids, timestamps, the working directory and rate limits are declared, so message
 /// text, instructions and account ids are never decoded into memory that outlives the line.
 struct CodexRolloutLine: Decodable {

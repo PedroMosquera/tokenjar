@@ -61,9 +61,9 @@ struct SignInCommandTests {
     }
 
     @Test func scriptFileNameCannotLeaveTheTemporaryFolder() {
-        #expect(SignInCommand.scriptFileName(accountID: "../../Library/evil") == "headroom-sign-in-Libraryevil.command")
-        #expect(SignInCommand.scriptFileName(accountID: "claude-work") == "headroom-sign-in-claude-work.command")
-        #expect(SignInCommand.scriptFileName(accountID: "/") == "headroom-sign-in-account.command")
+        #expect(SignInCommand.scriptFileName(accountID: "../../Library/evil") == "tokenjar-sign-in-Libraryevil.command")
+        #expect(SignInCommand.scriptFileName(accountID: "claude-work") == "tokenjar-sign-in-claude-work.command")
+        #expect(SignInCommand.scriptFileName(accountID: "/") == "tokenjar-sign-in-account.command")
     }
 
     @Test func scriptRemovesItselfBeforeRunningTheCommand() throws {
@@ -73,6 +73,6 @@ struct SignInCommandTests {
         let remove = try #require(lines.firstIndex(of: #"rm -f "$0""#))
         let run = try #require(lines.firstIndex(of: "codex login"))
         #expect(remove < run)
-        #expect(lines.contains(#"echo 'Headroom: it'\''s codex'"#))
+        #expect(lines.contains(#"echo 'Tokenjar: it'\''s codex'"#))
     }
 }

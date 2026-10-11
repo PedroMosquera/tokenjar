@@ -87,7 +87,7 @@ struct AlertDelivery: Equatable {
             summary = "Alerts show as banners and stay in Notification Center."
             action = nil
         case .denied:
-            summary = "Notifications for Headroom are off in System Settings, so alerts are not shown."
+            summary = "Notifications for Tokenjar are off in System Settings, so alerts are not shown."
             action = .openNotificationSettings
         case .unavailable:
             summary = "Alerts work only from the installed app in ~/Applications."

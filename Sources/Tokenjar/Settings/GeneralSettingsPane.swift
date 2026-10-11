@@ -67,7 +67,7 @@ struct GeneralSettingsPane: View {
         .alert("CodexBar settings not found", isPresented: $importNotFound) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Headroom looked for CodexBar's config on this Mac and found nothing to import.")
+            Text("Tokenjar looked for CodexBar's config on this Mac and found nothing to import.")
         }
     }
 
@@ -128,7 +128,7 @@ struct GeneralSettingsPane: View {
     private var loginHint: String? {
         if let loginError { return loginError }
         switch loginState {
-        case .requiresApproval: return "macOS is waiting for approval. Turn Headroom on in System Settings > General > Login Items."
+        case .requiresApproval: return "macOS is waiting for approval. Turn Tokenjar on in System Settings > General > Login Items."
         case .unavailable: return "Works only from the installed app in ~/Applications."
         case .enabled, .disabled, nil: return nil
         }
@@ -175,9 +175,9 @@ extension MenuBarMode {
 
     var summary: String {
         switch self {
-        case .worst: "Headroom's mark and the used % of the account with the least headroom."
+        case .worst: "Tokenjar's mark and the used % of the account with the least room left."
         case .bars: "One thin bar per account shown in the menu bar."
-        case .icon: "Headroom's mark only, tinted amber or red when an account runs low."
+        case .icon: "Tokenjar's mark only, tinted amber or red when an account runs low."
         }
     }
 }

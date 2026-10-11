@@ -30,7 +30,7 @@ final class OpenCodeTempDirectory {
     let url: URL
 
     init() throws {
-        url = FileManager.default.temporaryDirectory.appending(path: "headroom-opencode-\(UUID().uuidString)")
+        url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-opencode-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
 

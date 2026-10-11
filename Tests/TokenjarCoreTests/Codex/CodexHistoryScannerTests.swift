@@ -24,7 +24,7 @@ struct CodexHistoryScannerTests {
         #expect(events.map(\.cacheReadTokens) == [8_000, 12_000])
         #expect(events.map(\.outputTokens) == [900, 500])
         #expect(events.map(\.reasoningTokens) == [300, 100])
-        #expect(events.allSatisfy { $0.model == "gpt-6.1-sol" && $0.project == "headroom" && $0.harness == .codex && $0.accountID == "codex-test" })
+        #expect(events.allSatisfy { $0.model == "gpt-6.1-sol" && $0.project == "tokenjar" && $0.harness == .codex && $0.accountID == "codex-test" })
         #expect(events.first?.timestamp == .codexFixture("2026-10-09T11:28:30.000Z"))
         #expect(events.allSatisfy { $0.cacheWrite5mTokens == 0 && $0.cacheWrite1hTokens == 0 && $0.reportedCostUSD == nil })
     }
@@ -159,7 +159,7 @@ struct CodexHistoryScannerTests {
         let second = try scan(temp, first.checkpoints)
         #expect(second.events.map(\.dedupeKey) == ["codex:resp_placeholder_2"])
         #expect(second.events.first?.model == "gpt-6.1-sol")
-        #expect(second.events.first?.project == "headroom")
+        #expect(second.events.first?.project == "tokenjar")
     }
 
     @Test func replacedFileIsRescannedFromTheStartWithStableKeys() throws {

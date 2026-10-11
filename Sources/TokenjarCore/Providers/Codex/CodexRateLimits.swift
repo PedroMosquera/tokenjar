@@ -184,7 +184,7 @@ extension KeyedDecodingContainer {
     }
 }
 
-/// Turns codex rate limits into Headroom windows. Windows are keyed by their duration, never by
+/// Turns codex rate limits into Tokenjar windows. Windows are keyed by their duration, never by
 /// primary/secondary position, because some plans (Pro) report no 5-hour window at all.
 enum CodexRateLimitMapping {
     static let mainLimitID = "codex"

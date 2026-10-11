@@ -19,7 +19,7 @@ struct CodexBarImportSheet: View {
             Text("Import from CodexBar")
                 .font(.headline)
             if changes.isEmpty {
-                Text("Nothing to change. Headroom already matches CodexBar's settings.")
+                Text("Nothing to change. Tokenjar already matches CodexBar's settings.")
                     .foregroundStyle(.secondary)
             } else {
                 Text("These changes will be saved to config.json:")

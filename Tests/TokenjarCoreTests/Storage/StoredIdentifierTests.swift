@@ -28,7 +28,7 @@ struct StoredIdentifierTests {
         db.close()
 
         let paths = AppPaths(home: home)
-        let url = temp.url.appending(path: "headroom.sqlite")
+        let url = temp.url.appending(path: "tokenjar.sqlite")
         let store = try SQLiteUsageStore(url: url)
         let scans: [(any HistoryScanner, AccountConfig)] = [
             (ClaudeHistoryScanner(), AccountConfig(id: "claude", provider: .claude, label: "Personal")),
@@ -65,7 +65,7 @@ struct StoredIdentifierTests {
     }
 
     @Test func migrationRewritesIdentifiersAnEarlierBuildStoredRaw() throws {
-        let url = temp.url.appending(path: "headroom.sqlite")
+        let url = temp.url.appending(path: "tokenjar.sqlite")
         try FileManager.default.createDirectory(at: temp.url, withIntermediateDirectories: true)
         try rawExec(url, """
             CREATE TABLE schema_version (version INTEGER NOT NULL);
@@ -73,7 +73,7 @@ struct StoredIdentifierTests {
             INSERT INTO schema_version (version) VALUES (1);
             INSERT INTO usage_events (dedupe_key, ts, account_id, harness, model, project, input, output, cache_read,
                 cache_write_5m, cache_write_1h, reasoning, reported_cost)
-            VALUES ('claude:msg_A:req_A', 1791660000, 'acct', 'claude-code', 'claude-opus-5-5', 'headroom', 5, 1, 0, 0, 0, 0, NULL);
+            VALUES ('claude:msg_A:req_A', 1791660000, 'acct', 'claude-code', 'claude-opus-5-5', 'tokenjar', 5, 1, 0, 0, 0, 0, NULL);
             INSERT INTO scan_state (scanner, account_id, path, value)
             VALUES ('claude-transcripts', 'acct', '/Users/someone/.claude/projects/-Users-someone-client/SESSION.jsonl', '1:10');
             """)

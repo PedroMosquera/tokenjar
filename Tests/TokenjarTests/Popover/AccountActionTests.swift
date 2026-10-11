@@ -111,8 +111,8 @@ struct AlertDeliveryTests {
     }
 
     @Test func notificationSettingsOpenOnThisApp() {
-        #expect(AlertDelivery.notificationSettingsURL(bundleID: "dev.example.headroom").absoluteString
-            == "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=dev.example.headroom")
+        #expect(AlertDelivery.notificationSettingsURL(bundleID: "dev.example.tokenjar").absoluteString
+            == "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=dev.example.tokenjar")
         #expect(AlertDelivery.notificationSettingsURL(bundleID: nil).absoluteString
             == "x-apple.systempreferences:com.apple.Notifications-Settings.extension")
     }

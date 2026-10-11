@@ -23,7 +23,7 @@ enum CodexAppServerError: Error, Equatable {
     case malformed
 }
 
-/// The whole conversation Headroom has with codex: a handshake and one read-only rate limit request.
+/// The whole conversation Tokenjar has with codex: a handshake and one read-only rate limit request.
 /// Never add `account/read` with `refreshToken: true`, or any consume, nudge or task method.
 enum CodexAppServerSession {
     static let rateLimitsMethod = "account/rateLimits/read"
@@ -31,7 +31,7 @@ enum CodexAppServerSession {
     /// Returns the raw `account/rateLimits/read` response line. Notifications and server-initiated requests are ignored.
     static func readRateLimits(over connection: any CodexAppServerConnection, clientVersion: String) async throws -> Data {
         var lines = connection.lines.makeAsyncIterator()
-        try send(["id": 1, "method": "initialize", "params": ["clientInfo": ["name": "headroom", "version": clientVersion]]], over: connection)
+        try send(["id": 1, "method": "initialize", "params": ["clientInfo": ["name": "tokenjar", "version": clientVersion]]], over: connection)
         _ = try await response(to: 1, method: "initialize", from: &lines)
         try send(["method": "initialized"], over: connection)
         try send(["id": 2, "method": rateLimitsMethod, "params": ["excludeResetCreditDetails": true]], over: connection)

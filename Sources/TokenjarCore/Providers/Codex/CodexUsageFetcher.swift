@@ -1,7 +1,7 @@
 import Foundation
 
 /// Reads Codex limits by asking the user's own `codex app-server`, which owns the ChatGPT credentials and
-/// their refresh. Headroom never sees a token. When the CLI is missing or the server fails, the last limits
+/// their refresh. Tokenjar never sees a token. When the CLI is missing or the server fails, the last limits
 /// codex wrote to a session log are shown instead, dated when they were logged so the UI marks them stale.
 public struct CodexUsageFetcher: UsageFetcher {
     static let arguments = ["-s", "read-only", "-a", "never", "app-server"]

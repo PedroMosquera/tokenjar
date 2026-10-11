@@ -16,10 +16,10 @@ enum StatusGlyph {
         var dimmed: Bool
     }
 
-    /// Headroom's own mark, the app icon's ceiling over three rising bars. The menu bar uses it instead of a
+    /// Tokenjar's own mark, the app icon's ceiling over three rising bars. The menu bar uses it instead of a
     /// provider logo, which would be mistaken for that provider's own app sitting next to it.
     static func brand(tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
-        compose(mark, description: "Headroom", tint: tint, alpha: alpha, dot: dot)
+        compose(mark, description: "Tokenjar", tint: tint, alpha: alpha, dot: dot)
     }
 
     /// Shown when nothing is configured or no account has reported yet.
@@ -32,7 +32,7 @@ enum StatusGlyph {
         let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
             NSColor.black.setFill()
             NSBezierPath(roundedRect: NSRect(x: 1, y: 13.2, width: 14, height: 1.8), xRadius: 0.9, yRadius: 0.9).fill()
-            // Heights rise left to right and stop short of the ceiling: the gap is the headroom.
+            // Heights rise left to right and stop short of the ceiling: the gap is the room left.
             for (x, height) in [(1.6, 5.2), (6.3, 7.6), (11.0, 9.8)] as [(CGFloat, CGFloat)] {
                 NSBezierPath(roundedRect: NSRect(x: x, y: 1, width: 3.4, height: height), xRadius: 1.1, yRadius: 1.1).fill()
             }
