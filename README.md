@@ -26,7 +26,7 @@ cd tokenjar
 make install
 ```
 
-This builds a release binary, bundles `Tokenjar.app`, signs it ad-hoc, copies it to `~/Applications` and launches it. No admin rights, no quarantine flag, no Gatekeeper prompt. Run `make install` again to update. `make install INSTALL_DIR=<folder>` installs somewhere else.
+This builds a release binary, bundles `Tokenjar.app`, signs it ad-hoc, copies it to `~/Applications` and launches it. An older `Headroom.app` there, with bundle id `com.pedromosquera.headroom`, is quit and deleted first, and Tokenjar moves its settings and history to its own folders on first launch ([docs/privacy.md](docs/privacy.md#renamed-from-headroom) has the details). No admin rights, no quarantine flag, no Gatekeeper prompt. Run `make install` again to update. `make install INSTALL_DIR=<folder>` installs somewhere else.
 
 On the first launch, when nothing is at the config path (not even a stow link), Tokenjar writes a `config.json` with default settings and the accounts it finds on this Mac: `~/.claude`, `~/.codex/auth.json`, the `opencode-go` and `opencode` entries of opencode's `auth.json`, and `agy`. To bring over CodexBar's providers and thresholds, use Settings > General > Import from CodexBar, which lists the changes before applying them.
 
