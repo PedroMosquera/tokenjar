@@ -12,6 +12,12 @@ struct SettingsLogicTests {
         #expect(account.label == "Default")
     }
 
+    /// A link-only account has no window to show there.
+    @Test func newDevinAccountStaysOutOfTheMenuBar() {
+        #expect(SettingsLogic.newAccount(provider: .devin, existing: []).showInMenuBar == false)
+        #expect(SettingsLogic.newAccount(provider: .copilot, existing: []).showInMenuBar == true)
+    }
+
     @Test func newAccountIdSkipsTakenSlugs() {
         let existing = [
             AccountConfig(id: "claude", provider: .claude, label: "Personal"),

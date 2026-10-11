@@ -104,8 +104,17 @@ struct CodexBarImportTests {
         #expect(CodexBarImport.providerID("cursor") == nil)
     }
 
-    @Test func copilotKeepsItsID() {
+    @Test func copilotKeepsItsIDAndWindsurfIsNowDevin() {
         #expect(CodexBarImport.providerID("copilot") == .copilot)
+        #expect(CodexBarImport.providerID("devin") == .devin)
+        #expect(CodexBarImport.providerID("windsurf") == .devin)
+    }
+
+    @Test func devinIsOneLoginPerMac() {
+        let config = AppConfig(accounts: [AccountConfig(id: "windsurf", provider: .devin, label: "Windsurf", showInMenuBar: false)])
+        let applied = apply(CodexBarImportPreview(enabledProviders: []), to: config, discovered: [AccountConfig(id: "devin", provider: .devin, label: "Devin")])
+        #expect(applied.accounts.map(\.id) == ["windsurf"])
+        #expect(applied.accounts.map(\.enabled) == [false])
     }
 
     // MARK: apply

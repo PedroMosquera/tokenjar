@@ -18,6 +18,7 @@ struct ModelsTests {
             .opencodeZen: "https://opencode.ai/auth",
             .antigravity: "https://antigravity.google/docs/plans",
             .copilot: "https://github.com/settings/copilot",
+            .devin: "https://app.devin.ai/settings/plans",
         ]
         for provider in ProviderID.allCases {
             #expect(provider.defaultDashboardURL.absoluteString == expected[provider], "\(provider)")
@@ -41,6 +42,14 @@ struct ModelsTests {
         #expect(ProviderID.copilot.displayName == "GitHub Copilot")
         #expect(ProviderID.copilot.logoName == "copilot")
         #expect(ProviderID.copilot.harness == nil)
+        #expect(ProviderID(rawValue: "devin") == .devin)
+        #expect(ProviderID.devin.displayName == "Devin")
+        #expect(ProviderID.devin.logoName == "windsurf")
+        #expect(ProviderID.devin.harness == nil)
+    }
+
+    @Test func onlyDevinIsALinkOnlyProvider() {
+        #expect(ProviderID.allCases.filter(\.isLinkOnly) == [.devin])
     }
 
     @Test func httpsOverrideIsUsed() {

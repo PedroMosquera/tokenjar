@@ -17,6 +17,7 @@ extension AppModel {
                 AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen", showInMenuBar: false),
                 AccountConfig(id: "antigravity", provider: .antigravity, label: "Google", showInMenuBar: false),
                 AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"),
+                AccountConfig(id: "devin", provider: .devin, label: "Devin", showInMenuBar: false),
             ]
         )
         model.previewMode = true
@@ -83,7 +84,7 @@ extension AppModel {
             windows: [window("monthly", "AI credits", 2.0 / 5_000 * 100, 44_640, resetIn: 1_793_491_200 - now.timeIntervalSince1970)],
             fetchedAt: now.addingTimeInterval(-100), source: "gh CLI"
         )
-        for snapshot in snapshots + [antigravity, copilot] {
+        for snapshot in snapshots + [antigravity, copilot, devinLink(now: now)] {
             model.statuses[snapshot.accountID] = AccountStatus(snapshot: snapshot, error: nil, lastAttempt: snapshot.fetchedAt)
         }
 
@@ -181,6 +182,7 @@ extension AppModel {
             AccountConfig(id: "no-sub", provider: .opencodeGo, label: "Go"),
             AccountConfig(id: "offline", provider: .claude, label: "Team"),
             AccountConfig(id: "no-limits", provider: .claude, label: "API"),
+            AccountConfig(id: "devin", provider: .devin, label: "Devin"),
         ])
         func window(_ id: String, _ label: String, _ used: Double, _ minutes: Int, resetIn: TimeInterval) -> UsageWindow {
             UsageWindow(id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: now.addingTimeInterval(resetIn))
@@ -201,9 +203,21 @@ extension AppModel {
                 window("session", "5-hour", 12, 300, resetIn: 4 * 3600),
             ], fetchedAt: now.addingTimeInterval(-50 * 60), source: "Claude Code cache"), error: .network("offline"), lastAttempt: now.addingTimeInterval(-20)),
             "no-limits": AccountStatus(snapshot: UsageSnapshot(accountID: "no-limits", provider: .claude, fetchedAt: now.addingTimeInterval(-60), source: "claude CLI", notes: ["No plan limits for this login"])),
+            // In the menu bar on purpose: a link card must never be its worst account or count as needing attention.
+            "devin": AccountStatus(snapshot: devinLink(now: now)),
         ]
         model.store = InMemoryUsageStore()
         return model
+    }
+}
+
+extension AppModel {
+    /// What DevinUsageFetcher returns for an account without a usage page override.
+    fileprivate static func devinLink(now: Date) -> UsageSnapshot {
+        UsageSnapshot(
+            accountID: "devin", provider: .devin, fetchedAt: now.addingTimeInterval(-60), source: DevinUsageFetcher.source,
+            notes: [DevinUsageFetcher.noQuotaNote, DevinUsageFetcher.windsurfNote]
+        )
     }
 }
 

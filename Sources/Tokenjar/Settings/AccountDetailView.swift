@@ -36,7 +36,11 @@ struct AccountDetailView: View {
                 if account.provider == .opencodeGo || account.provider == .opencodeZen {
                     AccountCredentialSection(account: account)
                 }
-                signInSection
+                if account.provider.isLinkOnly {
+                    linkOnlySection
+                } else {
+                    signInSection
+                }
                 overridesSection
                 Section {
                     HStack {
@@ -84,7 +88,7 @@ struct AccountDetailView: View {
             if status.isRefreshing { return ("Checking\u{2026}", "arrow.triangle.2.circlepath", .secondary) }
             if let error = status.error { return (error.userMessage, "exclamationmark.triangle.fill", .orange) }
             if let snapshot = status.snapshot {
-                let windows = snapshot.windows.count == 1 ? "1 window" : "\(snapshot.windows.count) windows"
+                let windows = account.provider.isLinkOnly ? "link only" : snapshot.windows.count == 1 ? "1 window" : "\(snapshot.windows.count) windows"
                 return ("\(snapshot.source) \u{00B7} \(windows) \u{00B7} updated \(Format.age(of: snapshot.fetchedAt, now: model.now))", "checkmark.circle.fill", .green)
             }
             if !account.enabled { return ("Off", "pause.circle", .secondary) }
@@ -183,6 +187,21 @@ struct AccountDetailView: View {
             } else if signInCommand != nil {
                 HelpText.footer("Runs the provider's own login in Terminal. Tokenjar never sees the credentials.")
             }
+        }
+    }
+
+    private var linkOnlySection: some View {
+        Section {
+            Label {
+                Text("\(account.provider.displayName) doesn't share your quota with local apps yet, so this account opens its plan page. Tokenjar runs nothing for it and reads nothing.")
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "link")
+            }
+        } header: {
+            Text("Usage")
+        } footer: {
+            HelpText.footer("On a grandfathered Windsurf plan, set Usage page URL below to https://windsurf.com/subscription/manage-plan.")
         }
     }
 

@@ -7,6 +7,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     case opencodeZen = "opencode-zen"
     case antigravity
     case copilot
+    case devin
 
     public var displayName: String {
         switch self {
@@ -16,10 +17,11 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeZen: "OpenCode Zen"
         case .antigravity: "Antigravity"
         case .copilot: "GitHub Copilot"
+        case .devin: "Devin"
         }
     }
 
-    /// Basename of the SVG in Resources/Logos (no extension).
+    /// Basename of the SVG in Resources/Logos (no extension). Devin has no mark of its own yet, so Windsurf's stands in.
     public var logoName: String {
         switch self {
         case .claude: "claude"
@@ -27,6 +29,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: "opencode"
         case .antigravity: "antigravity"
         case .copilot: "copilot"
+        case .devin: "windsurf"
         }
     }
 
@@ -37,6 +40,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: URL(string: "https://opencode.ai/auth")!
         case .antigravity: URL(string: "https://antigravity.google/docs/plans")!
         case .copilot: URL(string: "https://github.com/settings/copilot")!
+        case .devin: URL(string: "https://app.devin.ai/settings/plans")!
         }
     }
 
@@ -45,7 +49,15 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: URL(string: "https://status.claude.com")
         case .codex: URL(string: "https://status.openai.com")
         case .copilot: URL(string: "https://www.githubstatus.com")
-        case .opencodeGo, .opencodeZen, .antigravity: nil
+        case .opencodeGo, .opencodeZen, .antigravity, .devin: nil
+        }
+    }
+
+    /// True when the provider shares no usage Tokenjar can read, so its account is a link to the provider's own page.
+    public var isLinkOnly: Bool {
+        switch self {
+        case .devin: true
+        case .claude, .codex, .opencodeGo, .opencodeZen, .antigravity, .copilot: false
         }
     }
 
@@ -55,7 +67,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: .claudeCode
         case .codex: .codex
         case .opencodeGo, .opencodeZen: .opencode
-        case .antigravity, .copilot: nil
+        case .antigravity, .copilot, .devin: nil
         }
     }
 }

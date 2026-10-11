@@ -3,9 +3,11 @@ import Foundation
 /// Finds accounts already present on this Mac for first-run setup. Reads only file existence and
 /// non-secret structure (which keys exist in opencode's auth.json); never reads token values.
 public enum AccountDiscovery {
-    /// `environment` supplies XDG_DATA_HOME for opencode's data directory; tests pass an empty one.
+    /// `environment` supplies XDG_DATA_HOME for opencode's data directory and `systemApplications` is /Applications;
+    /// tests pass their own.
     public static func discover(
-        paths: AppPaths, cli: CLILocator, environment: [String: String] = ProcessInfo.processInfo.environment
+        paths: AppPaths, cli: CLILocator, environment: [String: String] = ProcessInfo.processInfo.environment,
+        systemApplications: URL = URL(fileURLWithPath: "/Applications")
     ) -> [AccountConfig] {
         let fm = FileManager.default
         var accounts: [AccountConfig] = []
@@ -32,6 +34,15 @@ public enum AccountDiscovery {
         if cli.locate("gh") != nil {
             accounts.append(AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"))
         }
+        // Devin Desktop is the renamed Windsurf. Its app bundles and data folders are only checked for existence.
+        let devinMarkers = [
+            systemApplications.appending(path: "Devin.app"), paths.home.appending(path: "Applications/Devin.app"),
+            systemApplications.appending(path: "Windsurf.app"), paths.home.appending(path: "Applications/Windsurf.app"),
+            paths.home.appending(path: "Library/Application Support/Devin"), paths.home.appending(path: "Library/Application Support/Windsurf"),
+        ]
+        if devinMarkers.contains(where: { fm.fileExists(atPath: $0.path) }) {
+            accounts.append(AccountConfig(id: "devin", provider: .devin, label: "Devin", showInMenuBar: false))
+        }
         return accounts
     }
 
@@ -43,12 +54,12 @@ public enum AccountDiscovery {
         guard let location = location(of: account, paths: paths, environment: environment) else { return true }
         switch account.provider {
         case .claude, .codex, .copilot: return isDirectory(location)
-        case .opencodeGo, .opencodeZen, .antigravity: return FileManager.default.fileExists(atPath: location.path)
+        case .opencodeGo, .opencodeZen, .antigravity, .devin: return FileManager.default.fileExists(atPath: location.path)
         }
     }
 
     /// The profile dir or credential file the account reads on this Mac (gh's config folder for Copilot, whose files
-    /// are never opened). nil for Antigravity and for a key in the app's own Keychain, which have no file of their own.
+    /// are never opened). nil for Antigravity, Devin and a key in the app's own Keychain, which have no file of their own.
     static func location(of account: AccountConfig, paths: AppPaths, environment: [String: String]) -> URL? {
         switch account.provider {
         case .claude:
@@ -63,7 +74,7 @@ public enum AccountDiscovery {
             case .keychain: nil
             case nil: openCodeAuthFile(paths: paths, environment: environment)
             }
-        case .antigravity:
+        case .antigravity, .devin:
             nil
         }
     }

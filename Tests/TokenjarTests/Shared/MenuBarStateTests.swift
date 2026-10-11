@@ -60,6 +60,21 @@ struct MenuBarStateTests {
         #expect(state.entries.map(\.isStale) == [true, false])
     }
 
+    /// A Devin link card has no window, so even in the menu bar it never outranks an account that has one.
+    @Test func aLinkOnlyAccountIsNeverTheWorst() {
+        let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
+        let link = AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"]))
+        let calm = window("weekly", used: 3, minutes: 10_080, resetIn: 6 * 86_400)
+        let state = MenuBarState.make(accounts: [devin, personal], statuses: ["devin": link, "personal": status([calm])], config: AppConfig(), now: now)
+        #expect(state.worst?.accountID == "personal")
+        #expect(state.entries.first?.severity == .ok)
+        #expect(state.entries.first?.hasError == false)
+        #expect(StatusIconRenderer.render(state).title == "3%")
+
+        let alone = MenuBarState.make(accounts: [devin], statuses: ["devin": link], config: AppConfig(), now: now)
+        #expect(StatusIconRenderer.render(alone).title == "")
+    }
+
     @Test func aFailedCheckIsFlagged() {
         let state = MenuBarState.make(
             accounts: [personal, work], statuses: ["personal": status([weeklyOnPace], error: .timeout), "work": status([weeklyOnPace])],

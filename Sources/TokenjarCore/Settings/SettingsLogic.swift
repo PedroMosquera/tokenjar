@@ -15,7 +15,9 @@ public enum SettingsLogic {
             suffix += 1
         }
         let siblings = existing.filter { $0.provider == provider }.count
-        return AccountConfig(id: id, provider: provider, label: siblings == 0 ? "Default" : "Account \(siblings + 1)")
+        return AccountConfig(
+            id: id, provider: provider, label: siblings == 0 ? "Default" : "Account \(siblings + 1)", showInMenuBar: !provider.isLinkOnly
+        )
     }
 
     /// Unique, in 1...100, ascending.

@@ -207,6 +207,18 @@ struct PopoverSummaryTests {
         #expect(summary.others == ["Claude · Personal"])
     }
 
+    @Test func aLinkOnlyAccountNeverNeedsAttention() {
+        let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
+        let statuses = [
+            "devin": AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"])),
+            "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 10, resetIn: 130 * 60)])),
+        ]
+        let summary = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: MenuBarConfig(), now: now)
+        #expect(summary == PopoverSummary(tone: .clear, text: "All clear · next reset in 2h 10m"))
+        let alone = PopoverSummary.make(accounts: [devin], statuses: statuses, config: MenuBarConfig(), now: now)
+        #expect(alone == PopoverSummary(tone: .clear, text: "All clear"))
+    }
+
     @Test func emptyStates() {
         #expect(PopoverSummary.make(accounts: [], statuses: [:], config: MenuBarConfig(), now: now) == PopoverSummary(tone: .empty, text: "No accounts yet"))
         #expect(PopoverSummary.make(accounts: accounts, statuses: [:], config: MenuBarConfig(), now: now) == PopoverSummary(tone: .empty, text: "Waiting for usage data"))

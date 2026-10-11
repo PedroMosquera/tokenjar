@@ -49,6 +49,11 @@ struct SignInCommandTests {
         #expect(command(AccountConfig(id: "agy", provider: .antigravity, label: "Google")) == nil)
     }
 
+    @Test func devinHasNoLoginCommandOrProfile() {
+        #expect(command(AccountConfig(id: "devin", provider: .devin, label: "Devin", profileDir: "~/elsewhere")) == nil)
+        #expect(SignInCommand.profileVariable(for: .devin) == nil)
+    }
+
     @Test func locatedExecutableWithSpacesIsQuoted() {
         let account = AccountConfig(id: "claude", provider: .claude, label: "Personal")
         #expect(command(account) { "/Applications/My Tools/\($0)" } == "'/Applications/My Tools/claude' auth login")
