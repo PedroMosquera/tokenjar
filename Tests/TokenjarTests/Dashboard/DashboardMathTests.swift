@@ -127,6 +127,23 @@ struct DashboardMathTests {
         #expect(byAccount.groups == ["Claude · Work", "home"])
     }
 
+    @Test func modelIdsReadWithoutTheirDateOrPriceTierSuffix() {
+        #expect(DashboardMath.displayName("claude-haiku-4-5-20251001") == "claude-haiku-4-5")
+        #expect(DashboardMath.displayName("claude-haiku-5-5>100k") == "claude-haiku-5-5 (long prompts)")
+        #expect(DashboardMath.displayName("gpt-5.5-codex") == "gpt-5.5-codex")
+        // Only an 8-digit date is a release suffix; a version number stays.
+        #expect(DashboardMath.displayName("model-2025") == "model-2025")
+    }
+
+    @Test func spendGroupsShowDisplayNamesWithoutChangingTheirKeys() {
+        let names: Set<String> = ["Claude · Work"]
+        #expect(DashboardMath.displayGroup("claude-haiku-4-5-20251001", by: .model, accountNames: names) == "claude-haiku-4-5")
+        #expect(DashboardMath.displayGroup("Claude · Work", by: .account, accountNames: names) == "Claude · Work")
+        #expect(DashboardMath.displayGroup("old-account-id", by: .account, accountNames: names) == "Removed account")
+        #expect(DashboardMath.displayGroup(DashboardMath.otherGroup, by: .account, accountNames: names) == DashboardMath.otherGroup)
+        #expect(DashboardMath.displayGroup("tokenjar-20251001", by: .project, accountNames: names) == "tokenjar-20251001")
+    }
+
     @Test func spendWithOnlyUnpricedRowsHasUsageButNoSegments() {
         let spend = DashboardMath.dailySpend([row(day: day(0), model: "glm", cost: nil)], by: .model, since: day(0), limit: 6)
         #expect(spend.hasUsage)
@@ -220,5 +237,42 @@ struct DashboardMathTests {
         let unknown = DashboardMath.sampling(for: .month, windowMinutes: nil)
         #expect(!unknown.peaksOnly)
         #expect(unknown.bucket == DashboardRange.month.sampleBucket)
+    }
+
+    // MARK: Chart domains
+
+    @Test func dayGrainedChartsShareOneDomainAndTicks() {
+        let periods = DashboardPeriods(now: now, calendar: Self.calendar)
+        #expect(periods.chartDomain(of: .week) == day(-6)...day(1))
+        #expect(periods.chartDomain(of: .month) == day(-29)...day(1))
+        #expect(periods.axisDays(of: .week) == (-6...0).map(day))
+        #expect(periods.axisDays(of: .month) == [-28, -21, -14, -7, 0].map(day))
+    }
+
+    @Test func newHistoryClipsTheLimitsChartToADayAtLeast() {
+        let periods = DashboardPeriods(now: now, calendar: Self.calendar)
+        let threeHoursAgo = now.addingTimeInterval(-3 * 3600)
+        let clipped = DashboardMath.limitsDomain(range: .week, periods: periods, earliest: threeHoursAgo, reachesBack: false)
+        #expect(clipped.domain.lowerBound >= now.addingTimeInterval(-86_400))
+        #expect(clipped.domain.upperBound == now)
+        #expect(clipped.since == threeHoursAgo)
+
+        // Two days of history at 7d: the chart starts just before the first sample.
+        let twoDaysAgo = now.addingTimeInterval(-2 * 86_400)
+        let short = DashboardMath.limitsDomain(range: .week, periods: periods, earliest: twoDaysAgo, reachesBack: false)
+        #expect(short.domain.lowerBound < twoDaysAgo && short.domain.lowerBound > twoDaysAgo.addingTimeInterval(-3600))
+    }
+
+    @Test func historyThatReachesBackKeepsTheSharedDomain() {
+        let periods = DashboardPeriods(now: now, calendar: Self.calendar)
+        // A Mac asleep at midnight has its first in-range sample in the morning, but older samples exist.
+        let morning = day(-6).addingTimeInterval(8 * 3600)
+        let full = DashboardMath.limitsDomain(range: .week, periods: periods, earliest: morning, reachesBack: true)
+        #expect(full.domain == periods.chartDomain(of: .week))
+        #expect(full.since == nil)
+        // Nothing to draw keeps the shared domain too.
+        #expect(DashboardMath.limitsDomain(range: .month, periods: periods, earliest: nil, reachesBack: false).domain == periods.chartDomain(of: .month))
+        // 24h is the last 24 hours, never the two calendar days the spend chart shows.
+        #expect(DashboardMath.limitsDomain(range: .day, periods: periods, earliest: nil, reachesBack: false).domain == now.addingTimeInterval(-86_400)...now)
     }
 }

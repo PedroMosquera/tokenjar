@@ -77,7 +77,12 @@ enum SnapshotRenderer {
         print("Rendered snapshots to \(outputDirectory.path)")
     }
 
+    /// One pool per capture, so a closed window's views go away instead of reloading on every later model change.
     private static func render<V: View>(_ view: V, size: NSSize?, width: CGFloat? = nil, appearance: NSAppearance, to url: URL) {
+        autoreleasepool { renderOnce(view, size: size, width: width, appearance: appearance, to: url) }
+    }
+
+    private static func renderOnce<V: View>(_ view: V, size: NSSize?, width: CGFloat?, appearance: NSAppearance, to url: URL) {
         let root = view
             .background(Color(nsColor: .windowBackgroundColor))
             .environment(\.colorScheme, appearance.name == .darkAqua ? .dark : .light)
@@ -93,6 +98,8 @@ enum SnapshotRenderer {
             contentRect: NSRect(x: -30_000, y: -30_000, width: target.width, height: target.height),
             styleMask: [.borderless], backing: .buffered, defer: false
         )
+        // The pool releases it; close() releasing it too would free it twice.
+        window.isReleasedWhenClosed = false
         window.appearance = appearance
         window.contentView = hosting
         hosting.frame = NSRect(origin: .zero, size: target)

@@ -89,10 +89,10 @@ struct DashboardContentLoadTests {
     }
 
     private func load(_ model: AppModel, account: AccountConfig? = nil, range: DashboardRange) -> DashboardContent {
-        DashboardContent.load(
+        DashboardContent.load(DashboardContent.Input(
             model: model, accounts: model.accounts, account: account, range: range, now: now,
             key: DashboardLoadKey(accountIDs: model.accounts.map(\.id), range: range, historyRevision: 0)
-        )
+        ))
     }
 
     @Test func allAccountsDrawsReadableWindowsInStableColorsUnderShortNames() {
@@ -105,6 +105,25 @@ struct DashboardContentLoadTests {
         #expect(content.accountSlotByName == ["Claude · Work": 0, "OpenCode Go": 1, "Antigravity · Google": 2, "OpenCode Zen": 3])
     }
 
+    @Test func contentKnowsWhetherTheLoadPeriodHasAnyUsage() throws {
+        let model = model()
+        let zen = try #require(model.accounts.first { $0.id == "opencode-zen" })
+        #expect(!load(model, account: zen, range: .week).hasUsage)
+        try model.store?.upsert([UsageEvent(
+            dedupeKey: "zen:1", timestamp: now.addingTimeInterval(-20 * 86_400), accountID: "opencode-zen", harness: .opencode,
+            model: "kimi-k3", project: "tokenjar", inputTokens: 100, reportedCostUSD: 0.01
+        )])
+        // Twenty days back is outside the week on screen but inside the period the page loads.
+        #expect(load(model, account: zen, range: .week).hasUsage)
+    }
+
+    @Test func limitsStartNearTheFirstSampleWhenHistoryIsNew() {
+        // The test store's samples start an hour ago, so a week-long axis would leave the lines in a sliver.
+        let content = load(model(), range: .week)
+        #expect(content.limitsDomain.lowerBound >= now.addingTimeInterval(-86_400))
+        #expect(content.limitsSince == now.addingTimeInterval(-3600))
+    }
+
     @Test func oneAccountMarksWindowsThatOnlyShowPeaks() {
         let model = model()
         let content = load(model, account: model.accounts.first, range: .month)
@@ -113,34 +132,79 @@ struct DashboardContentLoadTests {
     }
 }
 
+struct DashboardDimTests {
+    private let shown = DashboardLoadKey(accountIDs: ["claude"], range: .week, historyRevision: 4)
+
+    @Test func newHistoryForTheSamePageKeepsItAtFullOpacity() {
+        #expect(!DashboardLoadKey.dims(shown: shown, wanted: DashboardLoadKey(accountIDs: ["claude"], range: .week, historyRevision: 5)))
+        #expect(!DashboardLoadKey.dims(shown: shown, wanted: shown))
+    }
+
+    @Test func anotherAccountOrRangeDimsUntilItsContentLands() {
+        #expect(DashboardLoadKey.dims(shown: shown, wanted: DashboardLoadKey(accountIDs: ["codex"], range: .week, historyRevision: 4)))
+        #expect(DashboardLoadKey.dims(shown: shown, wanted: DashboardLoadKey(accountIDs: ["claude"], range: .month, historyRevision: 4)))
+        #expect(DashboardLoadKey.dims(shown: nil, wanted: shown))
+    }
+}
+
 struct DashboardSectionsTests {
     private let antigravity = AccountConfig(id: "agy", provider: .antigravity, label: "Google")
     private let zen = AccountConfig(id: "zen", provider: .opencodeZen, label: "Zen")
+    private let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go")
     private let claude = AccountConfig(id: "claude", provider: .claude, label: "Work")
 
     @Test func anAccountWithoutLocalLogsSkipsTheHistoryCards() {
-        let sections = DashboardSections.make(account: antigravity, accounts: [antigravity, claude], snapshot: snapshot("agy", [window("w", used: 1, minutes: 10_080, resetIn: 86_400)]))
-        #expect(sections == DashboardSections(history: false, limits: true))
+        let status = AccountStatus(snapshot: snapshot("agy", [window("w", used: 1, minutes: 10_080, resetIn: 86_400)]))
+        #expect(DashboardSections.make(account: antigravity, accounts: [antigravity, claude], status: status) == DashboardSections(history: false, limits: true))
     }
 
     @Test func aSpendOnlyAccountSkipsTheLimitsCard() {
-        let spendOnly = UsageSnapshot(accountID: "zen", provider: .opencodeZen, fetchedAt: now, source: "test")
-        #expect(DashboardSections.make(account: zen, accounts: [zen], snapshot: spendOnly) == DashboardSections(history: true, limits: false))
+        let spendOnly = AccountStatus(snapshot: UsageSnapshot(accountID: "zen", provider: .opencodeZen, fetchedAt: now, source: "test"))
+        #expect(DashboardSections.make(account: zen, accounts: [zen], status: spendOnly) == DashboardSections(history: true, limits: false))
         // Before the first check nothing says it has no limits yet, so the card stays to explain the wait.
-        #expect(DashboardSections.make(account: zen, accounts: [zen], snapshot: nil) == DashboardSections(history: true, limits: true))
+        #expect(DashboardSections.make(account: zen, accounts: [zen], status: AccountStatus()) == DashboardSections(history: true, limits: true))
+    }
+
+    /// No subscription is an answer, not a wait: there is no limit to chart, and nothing to explain in an empty card.
+    @Test func anAccountWithoutASubscriptionSkipsTheLimitsCard() {
+        let noSubscription = AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"))
+        #expect(DashboardSections.make(account: go, accounts: [go], status: noSubscription) == DashboardSections(history: true, limits: false))
+        // A failure that needs the user keeps the card, which says what went wrong.
+        #expect(DashboardSections.make(account: go, accounts: [go], status: AccountStatus(error: .unauthorized)) == DashboardSections(history: true, limits: true))
+    }
+
+    /// Whatever the error copy says, the message quotes it once and ends in one period.
+    @Test func aFailedCheckQuotesTheErrorCopy() {
+        for error in [FetchError.notSignedIn, .timeout, .unauthorized, .network("offline")] {
+            let message = DashboardSections.limitsEmptyMessage(status: AccountStatus(error: error), anyAccountHasWindows: false)
+            let copy = error.userMessage.hasSuffix(".") ? error.userMessage : error.userMessage + "."
+            #expect(message == "No limits yet. Last check: \(copy)")
+        }
     }
 
     /// Devin is a link: no limits card, not even the one that explains the wait before the first check.
     @Test func aLinkOnlyAccountSkipsBothCards() {
         let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
-        let link = UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page")
-        #expect(DashboardSections.make(account: devin, accounts: [devin, claude], snapshot: link) == DashboardSections(history: false, limits: false))
-        #expect(DashboardSections.make(account: devin, accounts: [devin, claude], snapshot: nil) == DashboardSections(history: false, limits: false))
+        let link = AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page"))
+        #expect(DashboardSections.make(account: devin, accounts: [devin, claude], status: link) == DashboardSections(history: false, limits: false))
+        #expect(DashboardSections.make(account: devin, accounts: [devin, claude], status: AccountStatus()) == DashboardSections(history: false, limits: false))
+    }
+
+    @Test func noUsageInTheWholeLoadPeriodIsOneEmptyState() {
+        var content = DashboardContent()
+        // Still loading: nothing to say yet.
+        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content) == nil)
+        content.key = DashboardLoadKey(accountIDs: ["zen"], range: .week, historyRevision: 0)
+        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content) == "No OpenCode Zen usage in the last 30 days.")
+        #expect(DashboardSections.historyEmptyMessage(account: claude, content: content) == "No Claude · Work usage in the last 30 days.")
+        #expect(DashboardSections.historyEmptyMessage(account: nil, content: content) == "No usage in the last 30 days.")
+        content.hasUsage = true
+        #expect(DashboardSections.historyEmptyMessage(account: zen, content: content) == nil)
     }
 
     @Test func allAccountsKeepsHistoryWhenAnyAccountHasLogs() {
-        #expect(DashboardSections.make(account: nil, accounts: [antigravity, claude], snapshot: nil) == DashboardSections(history: true, limits: true))
-        #expect(DashboardSections.make(account: nil, accounts: [antigravity], snapshot: nil) == DashboardSections(history: false, limits: true))
+        #expect(DashboardSections.make(account: nil, accounts: [antigravity, claude], status: nil) == DashboardSections(history: true, limits: true))
+        #expect(DashboardSections.make(account: nil, accounts: [antigravity], status: nil) == DashboardSections(history: false, limits: true))
     }
 
     @Test func aFailedCheckReadsAsOneSentence() {

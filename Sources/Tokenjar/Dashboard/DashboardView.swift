@@ -13,59 +13,85 @@ struct DashboardView: View {
         groupingState = State(initialValue: grouping)
     }
 
-    private var range: DashboardRange { rangeState.wrappedValue }
-    private var content: DashboardContent { contentState.wrappedValue }
-
-    /// nil for All, and for a selection that is no longer shown on this Mac.
-    private var account: AccountConfig? {
-        model.dashboardSelection.flatMap { id in model.accounts.first { $0.id == id } }
-    }
-
-    private var loadKey: DashboardLoadKey {
-        DashboardLoadKey(accountIDs: account.map { [$0.id] } ?? model.accounts.map(\.id), range: range, historyRevision: model.historyRevision)
-    }
-
+    /// Reads no clock: the pieces that count down are subviews that read `model.now`, so a tick does not rebuild the page.
     var body: some View {
+        // Resolved once: `model.accounts` checks the filesystem for every account.
+        let accounts = model.accounts
+        // nil for All, and for a selection that is no longer shown on this Mac.
+        let account = model.dashboardSelection.flatMap { id in accounts.first { $0.id == id } }
+        let range = rangeState.wrappedValue
+        let key = DashboardLoadKey(accountIDs: account.map { [$0.id] } ?? accounts.map(\.id), range: range, historyRevision: model.historyRevision)
         HStack(spacing: 0) {
             DashboardSidebar()
                 .frame(width: 230)
-                .background(Color.primary.opacity(0.035).ignoresSafeArea())
             Divider().ignoresSafeArea()
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    let sections = DashboardSections.make(
-                        account: account, accounts: model.accounts, snapshot: account.flatMap { model.status(for: $0).snapshot }
-                    )
-                    header
-                    if sections.history { kpis }
-                    if let account { windowTiles(account) }
-                    if sections.limits { limitsCard }
-                    if sections.history {
-                        spendCard
-                        projectsCard
-                    } else if let account, account.provider.isLinkOnly {
-                        linkOnlyPanel(account)
-                    } else {
-                        Label(noHistoryMessage, systemImage: "info.circle")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                DashboardDetail(
+                    account: account, accounts: accounts, content: contentState.wrappedValue,
+                    range: rangeState.projectedValue, groupingSelection: groupingState.projectedValue
+                )
                 .padding(20)
-                .opacity(content.key == loadKey ? 1 : 0.6)
+                .opacity(DashboardLoadKey.dims(shown: contentState.wrappedValue.key, wanted: key) ? 0.6 : 1)
             }
         }
         .frame(minWidth: 760, minHeight: 520)
-        .task(id: loadKey) {
-            contentState.wrappedValue = DashboardContent.load(
-                model: model, accounts: model.accounts, account: account, range: range, now: model.now, key: loadKey
-            )
+        .task(id: key) {
+            let input = DashboardContent.Input(model: model, accounts: accounts, account: account, range: range, now: model.now, key: key)
+            let loaded = await Task.detached(priority: .userInitiated) { DashboardContent.load(input) }.value
+            // A newer key has started its own load; this result would overwrite it with older content.
+            guard !Task.isCancelled else { return }
+            contentState.wrappedValue = loaded
+        }
+    }
+}
+
+/// The detail pane for one selection. `account` and `accounts` are resolved by the caller.
+private struct DashboardDetail: View {
+    @Environment(AppModel.self) private var model
+    var account: AccountConfig?
+    var accounts: [AccountConfig]
+    var content: DashboardContent
+    var rangeBinding: Binding<DashboardRange>
+    var groupingSelection: Binding<UsageGrouping>
+
+    init(account: AccountConfig?, accounts: [AccountConfig], content: DashboardContent, range: Binding<DashboardRange>, groupingSelection: Binding<UsageGrouping>) {
+        self.account = account
+        self.accounts = accounts
+        self.content = content
+        self.rangeBinding = range
+        self.groupingSelection = groupingSelection
+    }
+
+    private var range: DashboardRange { rangeBinding.wrappedValue }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            let sections = DashboardSections.make(account: account, accounts: accounts, status: account.map { model.status(for: $0) })
+            let noUsage = sections.history ? DashboardSections.historyEmptyMessage(account: account, content: content) : nil
+            header(sections)
+            if sections.history, noUsage == nil { kpis }
+            if let account { windowTiles(account) }
+            if sections.limits { limitsCard }
+            if let noUsage {
+                DashboardEmptyState(systemImage: "chart.bar.xaxis", message: noUsage)
+                    .frame(height: 180)
+                    .dashboardSurface()
+            } else if sections.history {
+                spendCard
+                projectsCard
+            } else if let account, account.provider.isLinkOnly {
+                linkOnlyPanel(account)
+            } else {
+                Label(noHistoryMessage, systemImage: "info.circle")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
     // MARK: Header
 
-    private var header: some View {
+    private func header(_ sections: DashboardSections) -> some View {
         HStack(alignment: .center, spacing: 12) {
             if let account {
                 ProviderLogoView(provider: account.provider, size: 30)
@@ -85,13 +111,11 @@ struct DashboardView: View {
                         PlanPill(plan)
                     }
                 }
-                Text(headerSubtitle)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                HeaderSubtitle(account: account, accountCount: accounts.count)
             }
             Spacer(minLength: 16)
-            if let account {
+            // A link-only page has its own titled button in the panel below.
+            if let account, !account.provider.isLinkOnly {
                 // Icon only: a titled button truncates the account name at the window's 760 pt minimum width.
                 Button {
                     model.openProviderDashboard(account)
@@ -101,39 +125,22 @@ struct DashboardView: View {
                 .labelStyle(.iconOnly)
                 .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
             }
-            Picker("Range", selection: rangeState.projectedValue) {
-                ForEach(DashboardRange.allCases) { Text($0.rawValue).tag($0) }
+            if sections.history || sections.limits {
+                Picker("Range", selection: rangeBinding) {
+                    ForEach(DashboardRange.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .help("Range for the charts, tokens, requests and projects")
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            .help("Range for the charts, tokens, requests and projects")
         }
-    }
-
-    private var headerSubtitle: String {
-        guard let account else {
-            let count = model.accounts.count
-            return "\(count) account\(count == 1 ? "" : "s") · updated \(Format.age(of: model.lastRefreshAt, now: model.now))"
-        }
-        let status = model.status(for: account)
-        var parts: [String] = []
-        if let snapshot = status.snapshot {
-            parts.append(snapshot.source)
-            parts.append("updated \(Format.age(of: snapshot.fetchedAt, now: model.now))")
-        }
-        if let error = status.error { parts.append(error.userMessage) }
-        if parts.isEmpty { parts.append("Not checked yet") }
-        return parts.joined(separator: " · ")
     }
 
     // MARK: KPIs
 
-    /// Wraps to more rows instead of squeezing values when the window is narrow.
-    private let tileColumns = [GridItem(.adaptive(minimum: 130), spacing: 10)]
-
     private var kpis: some View {
-        LazyVGrid(columns: tileColumns, spacing: 10) {
+        TileRowsLayout {
             costTile("Today", content.costToday, caption: "since midnight")
             costTile("7 days", content.costLastSevenDays, caption: "including today")
             costTile("This month", content.costThisMonth, caption: content.periods.thisMonth.formatted(.dateTime.month(.wide)))
@@ -163,13 +170,19 @@ struct DashboardView: View {
     private func windowTiles(_ account: AccountConfig) -> some View {
         let windows = model.status(for: account).snapshot?.windows ?? []
         if !windows.isEmpty {
-            let columns = min(windows.count, 4)
+            // At least three columns, so one or two windows do not stretch into bars as wide as the page.
+            let columns = max(3, min(windows.count, 4))
             // Grid rather than LazyVGrid, so a tile whose verdict wraps does not leave its neighbours shorter.
             Grid(horizontalSpacing: 10, verticalSpacing: 10) {
                 ForEach(Array(stride(from: 0, to: windows.count, by: columns)), id: \.self) { start in
+                    let row = windows[start..<min(start + columns, windows.count)]
                     GridRow {
-                        ForEach(windows[start..<min(start + columns, windows.count)]) { window in
-                            WindowTile(window: window, config: model.config.menuBar, now: model.now)
+                        ForEach(row) { window in
+                            WindowTile(window: window)
+                                .frame(maxWidth: windows.count == 1 ? 340 : .infinity, alignment: .leading)
+                        }
+                        ForEach(row.count..<columns, id: \.self) { _ in
+                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                         }
                     }
                 }
@@ -185,10 +198,14 @@ struct DashboardView: View {
             subtitle: limitsSubtitle
         ) {
             Group {
-                if let message = limitsEmptyMessage {
+                // Until the first load lands there is no domain to draw, only axis labels piled in one place.
+                if content.key == nil {
+                    Color.clear
+                } else if let message = limitsEmptyMessage {
                     DashboardEmptyState(systemImage: "chart.line.uptrend.xyaxis", message: message)
                 } else {
                     LimitsChart(content: content, range: range, warnAt: model.config.menuBar.warnAt, criticalAt: model.config.menuBar.criticalAt)
+                        .equatable()
                 }
             }
             .frame(height: 210)
@@ -196,15 +213,25 @@ struct DashboardView: View {
     }
 
     private var limitsSubtitle: String {
-        if account != nil { return "Used % per window, faint rules mark resets" }
-        return range == .day ? "Tightest window of each account" : "Tightest window of each account, skipping windows too short for this range"
+        var subtitle = if account != nil {
+            "Used % per window, faint rules mark resets"
+        } else if range == .day {
+            "Tightest window of each account"
+        } else {
+            "Tightest window of each account, skipping windows too short for this range"
+        }
+        // The axis starts where the history does, so say so rather than let it read as the whole range.
+        if let since = content.limitsSince {
+            subtitle += " · since \(since.formatted(.dateTime.weekday(.abbreviated).hour().minute()))"
+        }
+        return subtitle
     }
 
     private var limitsEmptyMessage: String? {
         guard content.key != nil, content.points.isEmpty else { return nil }
         return DashboardSections.limitsEmptyMessage(
             status: account.map { model.status(for: $0) },
-            anyAccountHasWindows: model.accounts.contains { !(model.status(for: $0).snapshot?.windows.isEmpty ?? true) }
+            anyAccountHasWindows: accounts.contains { !(model.status(for: $0).snapshot?.windows.isEmpty ?? true) }
         )
     }
 
@@ -213,7 +240,7 @@ struct DashboardView: View {
     }
 
     private var grouping: UsageGrouping {
-        groupingOptions.contains(groupingState.wrappedValue) ? groupingState.wrappedValue : .model
+        groupingOptions.contains(groupingSelection.wrappedValue) ? groupingSelection.wrappedValue : .model
     }
 
     private var breakdown: SpendBreakdown {
@@ -222,24 +249,33 @@ struct DashboardView: View {
 
     private var spendCard: some View {
         DashboardCard(title: "Daily spend", subtitle: spendSubtitle) {
-            Picker("Group by", selection: Binding(get: { grouping }, set: { groupingState.wrappedValue = $0 })) {
-                ForEach(groupingOptions, id: \.self) { Text($0.title).tag($0) }
+            // Regrouping an empty chart changes nothing, so the control would only invite a click that does nothing.
+            if spendEmptyMessage == nil {
+                Picker("Group by", selection: Binding(get: { grouping }, set: { groupingSelection.wrappedValue = $0 })) {
+                    ForEach(groupingOptions, id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
         } content: {
             VStack(alignment: .leading, spacing: 6) {
                 Group {
-                    if let message = spendEmptyMessage {
+                    if content.key == nil {
+                        Color.clear
+                    } else if let message = spendEmptyMessage {
                         DashboardEmptyState(systemImage: "chart.bar.xaxis", message: message)
                     } else {
-                        SpendChart(breakdown: breakdown, days: content.periods.days(of: range), colors: spendColors)
+                        SpendChart(
+                            contentKey: content.key, grouping: grouping, range: content.key?.range ?? range, breakdown: breakdown,
+                            periods: content.periods, colors: spendColors, labels: spendLabels
+                        )
+                        .equatable()
                     }
                 }
                 .frame(height: 210)
                 if spendEmptyMessage == nil, !breakdown.unpricedModels.isEmpty {
-                    Text("Not priced: \(breakdown.unpricedModels.joined(separator: ", "))")
+                    Text("Not priced: \(unpricedModelNames)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -284,9 +320,18 @@ struct DashboardView: View {
         guard content.key != nil else { return nil }
         if !breakdown.hasUsage { return "No local usage \(range.inRangePhrase)." }
         if breakdown.segments.isEmpty {
-            return "No prices for these models: \(breakdown.unpricedModels.joined(separator: ", "))."
+            return "No prices for these models: \(unpricedModelNames)."
         }
         return nil
+    }
+
+    private var spendLabels: [String] {
+        breakdown.groups.map { DashboardMath.displayGroup($0, by: grouping, accountNames: content.accountNames) }
+    }
+
+    private var unpricedModelNames: String {
+        var seen: Set<String> = []
+        return breakdown.unpricedModels.map(DashboardMath.displayName).filter { seen.insert($0).inserted }.joined(separator: ", ")
     }
 
     /// Accounts keep the color they have in the limits chart; other groupings color by rank in the legend.
@@ -310,34 +355,78 @@ struct DashboardView: View {
     }
 }
 
+/// Reads `model.now` itself, so a tick redraws this line and not the page around it.
+private struct HeaderSubtitle: View {
+    @Environment(AppModel.self) private var model
+    var account: AccountConfig?
+    var accountCount: Int
+
+    var body: some View {
+        Text(text)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+    }
+
+    private var text: String {
+        guard let account else {
+            return "\(accountCount) account\(accountCount == 1 ? "" : "s") · updated \(Format.age(of: model.lastRefreshAt, now: model.now))"
+        }
+        let status = model.status(for: account)
+        var parts: [String] = []
+        if let snapshot = status.snapshot {
+            parts.append(snapshot.source)
+            // A link-only snapshot is built locally and says nothing new when it was made.
+            if !account.provider.isLinkOnly { parts.append("updated \(Format.age(of: snapshot.fetchedAt, now: model.now))") }
+        }
+        if let error = status.error { parts.append(error.userMessage) }
+        if parts.isEmpty { parts.append("Not checked yet") }
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// Reads `model.now` itself, so a tick redraws the tiles and not the page around them.
 private struct WindowTile: View {
+    @Environment(AppModel.self) private var model
     var window: UsageWindow
-    var config: MenuBarConfig
-    var now: Date
+
+    private var config: MenuBarConfig { model.config.menuBar }
+    private var now: Date { model.now }
 
     var body: some View {
         let severity = Severity.of(window, config: config, now: now)
+        // Past its reset the snapshot still holds the old cycle's use, which the next check replaces.
+        let hasReset = !window.notStarted && window.hasReset(now: now)
         VStack(alignment: .leading, spacing: 5) {
             Text(window.label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            Text(Format.percent(window.usedPercent))
-                .font(.title3.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(severity == .ok ? Color.primary : severity.color)
+            if hasReset {
+                Text("reset, updating")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else {
+                Text(Format.percent(window.usedPercent))
+                    .font(.title3.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(severity == .ok ? Color.primary : severity.color)
+            }
             UsageBar(
-                fraction: window.notStarted ? 0 : window.usedPercent / 100,
-                paceFraction: Pace.compute(window, now: now).map { $0.expectedPercent / 100 },
+                fraction: window.notStarted || hasReset ? 0 : window.usedPercent / 100,
+                paceFraction: hasReset ? nil : Pace.compute(window, now: now).map { $0.expectedPercent / 100 },
                 tint: severity.color
             )
-            Text(resetText)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .lineLimit(1)
+            if !hasReset {
+                Text(resetText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
             // Its own line, not appended to the countdown: at three or four tiles a row the gap would truncate.
-            if let verdict {
+            if let verdict = WindowTileText.verdict(window, config: config, now: now) {
                 VerdictLine(verdict: verdict, severity: verdict.severity(config: config, now: now), showsWindow: false)
                     .font(.caption)
             }
@@ -346,13 +435,10 @@ private struct WindowTile: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .dashboardSurface()
-    }
-
-    /// None for a full window: "Limit reached, resets in" would only repeat the countdown above it.
-    private var verdict: PaceVerdict? {
-        guard let verdict = PaceVerdict.make(windows: [window], config: config, now: now) else { return nil }
-        if case .exhausted = verdict.kind { return nil }
-        return verdict
+        .help(WindowTileText.help(window, now: now))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(window.label)
+        .accessibilityValue(WindowTileText.accessibilityValue(window, config: config, now: now))
     }
 
     private var resetText: String {
@@ -380,5 +466,35 @@ private extension DashboardRange {
         case .week: "in the last 7 days"
         case .month: "in the last 30 days"
         }
+    }
+}
+
+/// What a window tile says beyond what it draws: its VoiceOver value and its tooltip.
+enum WindowTileText {
+    /// "88% used, resets in 50 minutes, runs out ~15m before reset".
+    static func accessibilityValue(_ window: UsageWindow, config: MenuBarConfig, now: Date) -> String {
+        if window.notStarted { return "not started" }
+        if window.hasReset(now: now) { return "reset, updating" }
+        var parts = ["\(Format.percent(window.usedPercent)) used"]
+        if let resetsAt = window.resetsAt { parts.append("resets in \(Format.spokenDuration(resetsAt.timeIntervalSince(now)))") }
+        if let verdict = verdict(window, config: config, now: now) { parts.append(verdict.clause) }
+        return parts.joined(separator: ", ")
+    }
+
+    /// The absolute reset time and the even-pace mark, which the tile only draws as a tick.
+    static func help(_ window: UsageWindow, now: Date) -> String {
+        if window.notStarted { return "\(window.label) has not started; it begins with the next request." }
+        if window.hasReset(now: now) { return "\(window.label) has reset; the next check shows the new cycle." }
+        var parts = ["\(Format.percent(window.usedPercent)) used"]
+        if let pace = Pace.compute(window, now: now) { parts.append("even pace \(Format.percent(pace.expectedPercent))") }
+        if let resetsAt = window.resetsAt { parts.append("resets \(resetsAt.formatted(date: .abbreviated, time: .shortened))") }
+        return parts.joined(separator: ", ")
+    }
+
+    /// None for a full window: "Limit reached, resets in" would only repeat the countdown.
+    static func verdict(_ window: UsageWindow, config: MenuBarConfig, now: Date) -> PaceVerdict? {
+        guard let verdict = PaceVerdict.make(windows: [window], config: config, now: now) else { return nil }
+        if case .exhausted = verdict.kind { return nil }
+        return verdict
     }
 }

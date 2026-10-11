@@ -1,0 +1,175 @@
+import AppKit
+import Foundation
+import SwiftUI
+import Testing
+import TokenjarCore
+@testable import Tokenjar
+
+private let now = Date(timeIntervalSince1970: 1_791_660_000)
+
+/// A window `elapsed` of the way through, so pace can judge it.
+private func window(_ id: String, used: Double, minutes: Int, elapsed: Double) -> UsageWindow {
+    let length = Double(minutes) * 60
+    return UsageWindow(id: id, label: id, usedPercent: used, windowMinutes: minutes, resetsAt: now.addingTimeInterval(length * (1 - elapsed)))
+}
+
+private func status(_ windows: [UsageWindow]) -> AccountStatus {
+    AccountStatus(snapshot: UsageSnapshot(accountID: "a", provider: .claude, windows: windows, fetchedAt: now, source: "test"))
+}
+
+struct SidebarBadgeTests {
+    private let config = MenuBarConfig()
+
+    @Test func theNumberIsTheTightestWindowAndTheTintTheWorst() {
+        // Week is the tightest and on pace; the 5-hour window is lower but projected to run out.
+        let badge = SidebarBadge.make(
+            status: status([window("Week", used: 70, minutes: 10_080, elapsed: 0.7), window("5-hour", used: 55, minutes: 300, elapsed: 0.4)]),
+            config: config, now: now
+        )
+        #expect(badge?.percent == "70%")
+        #expect(badge?.severity == .warning)
+        #expect(badge?.detail == "5-hour 55%, runs out ~1h 21m before reset")
+    }
+
+    @Test func aWindowWithoutPaceSaysHowMuchIsUsed() {
+        let unpaced = UsageWindow(id: "credits", label: "AI credits", usedPercent: 40)
+        #expect(SidebarBadge.make(status: status([unpaced]), config: config, now: now)?.detail == "AI credits 40% used")
+    }
+
+    @Test func aWindowPastItsResetDoesNotSetTheNumber() {
+        let reset = UsageWindow(id: "session", label: "5-hour", usedPercent: 96, windowMinutes: 300, resetsAt: now.addingTimeInterval(-60))
+        let badge = SidebarBadge.make(status: status([reset, window("Week", used: 30, minutes: 10_080, elapsed: 0.5)]), config: config, now: now)
+        #expect(badge?.percent == "30%")
+    }
+
+    @Test func noLiveWindowGivesNoBadge() {
+        #expect(SidebarBadge.make(status: AccountStatus(error: .timeout), config: config, now: now) == nil)
+    }
+}
+
+struct WindowTileTextTests {
+    private let config = MenuBarConfig()
+
+    @Test func voiceOverHearsUseCountdownAndVerdict() {
+        // 88 % with 50 minutes left of a 5-hour window runs out about 15 minutes early.
+        let session = UsageWindow(id: "session", label: "5-hour", usedPercent: 88, windowMinutes: 300, resetsAt: now.addingTimeInterval(50 * 60))
+        #expect(WindowTileText.accessibilityValue(session, config: config, now: now) == "88% used, resets in 50 minutes, runs out ~15m before reset")
+    }
+
+    @Test func aWindowPastItsResetSaysItIsUpdating() {
+        let reset = UsageWindow(id: "session", label: "5-hour", usedPercent: 96, windowMinutes: 300, resetsAt: now.addingTimeInterval(-60))
+        #expect(WindowTileText.accessibilityValue(reset, config: config, now: now) == "reset, updating")
+        #expect(WindowTileText.help(reset, now: now) == "5-hour has reset; the next check shows the new cycle.")
+    }
+
+    @Test func helpGivesTheEvenPaceAndTheResetTime() {
+        let week = UsageWindow(id: "weekly", label: "Week", usedPercent: 40, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(3.5 * 86_400))
+        let help = WindowTileText.help(week, now: now)
+        #expect(help.hasPrefix("40% used, even pace 50%, resets "))
+    }
+
+    @Test func aWindowThatHasNotStartedSaysSo() {
+        let idle = UsageWindow(id: "session", label: "5-hour", usedPercent: 0, windowMinutes: 300, resetsAt: now.addingTimeInterval(300 * 60), notStarted: true)
+        #expect(WindowTileText.accessibilityValue(idle, config: config, now: now) == "not started")
+    }
+}
+
+struct TopProjectsCostColumnTests {
+    private let us = Locale(identifier: "en_US")
+
+    @Test func oneRowWithCentsGivesTheWholeColumnCents() {
+        #expect(TopProjectsTable.costColumn([351, 0.26], locale: us) == ["$351.00", "$0.26"])
+    }
+
+    @Test func aColumnOfWholeOrLargeAmountsDropsTheCents() {
+        #expect(TopProjectsTable.costColumn([351, 120, 4], locale: us) == ["$351", "$120", "$4"])
+    }
+
+    @Test func unpricedRowsStayEmptyAndDoNotSetThePrecision() {
+        #expect(TopProjectsTable.costColumn([210, nil], locale: us) == ["$210", nil])
+    }
+}
+
+struct LimitsTimeAxisTests {
+    private let calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "America/New_York")!
+        return c
+    }()
+    private let gb = Locale(identifier: "en_GB")
+
+    /// Saturday 10 October 2026, 15:30 in New York.
+    private var saturday: Date { calendar.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 15, minute: 30))! }
+
+    private func axis(hours: Double) -> LimitsTimeAxis {
+        LimitsTimeAxis(saturday.addingTimeInterval(-hours * 3600)...saturday, calendar: calendar, locale: gb)
+    }
+
+    /// History from Thursday afternoon at 7d: Thursday shows less than half a day, so it goes unnamed.
+    @Test func newHistoryOverDaysNamesEachDayOnce() {
+        let texts = axis(hours: 50).labels.map(\.text)
+        #expect(texts == ["Fri 9", "Sat 10"])
+        #expect(Set(texts).count == texts.count)
+        #expect(axis(hours: 84).labels.map(\.text) == ["Wed 7", "Thu 8", "Fri 9", "Sat 10"])
+    }
+
+    @Test func eachDayLabelSitsInsideTheDayItNames() {
+        let shown = axis(hours: 50)
+        let domain = saturday.addingTimeInterval(-50 * 3600)...saturday
+        for label in shown.labels {
+            #expect(domain.contains(label.date))
+            #expect(label.date.formatted(Date.FormatStyle(locale: gb, calendar: calendar, timeZone: calendar.timeZone).weekday(.abbreviated).day()) == label.text)
+        }
+        #expect(shown.grid == [9, 10].map { calendar.date(from: DateComponents(year: 2026, month: 10, day: $0))! })
+        #expect(!shown.spansHours)
+    }
+
+    /// A bare "19 01 07" under a 7d picker reads like dates of the month.
+    @Test func aDayAndAHalfOrLessNamesTheDayAtMidnightAndTheTimeOtherwise() {
+        #expect(axis(hours: 30).labels.map(\.text) == ["12:00", "18:00", "Sat 10", "06:00", "12:00"])
+        #expect(axis(hours: 24).labels.map(\.text) == ["18:00", "Sat 10", "06:00", "12:00"])
+        #expect(axis(hours: 24).spansHours)
+    }
+
+    /// Centred on its tick, a label this close to either end would run past the plot.
+    @Test func ticksNearEitherEndKeepTheirGridLineButNoLabel() {
+        let start = calendar.date(from: DateComponents(year: 2026, month: 10, day: 9, hour: 11, minute: 30))!
+        let end = calendar.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 13))!
+        let shown = LimitsTimeAxis(start...end, calendar: calendar, locale: gb)
+        #expect(shown.grid.map { $0.formatted(Date.FormatStyle(locale: gb, calendar: calendar, timeZone: calendar.timeZone).hour().minute()) } == ["12:00", "18:00", "00:00", "06:00", "12:00"])
+        #expect(shown.labels.map(\.text) == ["18:00", "Sat 10", "06:00"])
+    }
+}
+
+@MainActor
+struct DashboardSidebarFocusTests {
+    /// Never ordered in, and parked off every display in case anything orders it in. Reports itself key, as the window
+    /// renderer's capture window does, so SwiftUI treats it as the active window.
+    private final class OffscreenWindow: NSWindow {
+        override var isKeyWindow: Bool { true }
+        override var canBecomeKey: Bool { true }
+        override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+    }
+
+    /// WindowPresenter takes focus off a window the first time it becomes key. Without focus the sidebar draws its
+    /// selection in gray and ignores the arrow keys.
+    @Test func theSidebarTakesFocusWhenTheWindowIsLeftWithNone() async throws {
+        let model = AppModel.preview()
+        model.secrets = InMemorySecretStore()
+        let window = OffscreenWindow(contentViewController: NSHostingController(rootView: DashboardSidebar().environment(model)))
+        window.isReleasedWhenClosed = false
+        window.setFrameOrigin(NSPoint(x: -30_000, y: -30_000))
+        defer { window.close() }
+        window.contentView?.layoutSubtreeIfNeeded()
+        func views(in view: NSView) -> [NSView] { [view] + view.subviews.flatMap(views) }
+        let content = try #require(window.contentView)
+        let list = try #require(views(in: content).first { $0 is NSTableView })
+        // Where AppKit puts the focus when the window becomes key, before anything takes it away.
+        #expect(window.makeFirstResponder(list))
+
+        window.makeFirstResponder(nil)
+        // Suspends rather than spinning the run loop: this test runs on the main queue, which runs nothing else meanwhile.
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(window.firstResponder === list)
+    }
+}
