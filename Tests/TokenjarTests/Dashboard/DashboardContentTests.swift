@@ -173,6 +173,15 @@ struct DashboardSectionsTests {
         #expect(DashboardSections.make(account: go, accounts: [go], status: AccountStatus(error: .unauthorized)) == DashboardSections(history: true, limits: true))
     }
 
+    /// Whatever the error copy says, the message quotes it once and ends in one period.
+    @Test func aFailedCheckQuotesTheErrorCopy() {
+        for error in [FetchError.notSignedIn, .timeout, .unauthorized, .network("offline")] {
+            let message = DashboardSections.limitsEmptyMessage(status: AccountStatus(error: error), anyAccountHasWindows: false)
+            let copy = error.userMessage.hasSuffix(".") ? error.userMessage : error.userMessage + "."
+            #expect(message == "No limits yet. Last check: \(copy)")
+        }
+    }
+
     /// Devin is a link: no limits card, not even the one that explains the wait before the first check.
     @Test func aLinkOnlyAccountSkipsBothCards() {
         let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
@@ -199,11 +208,9 @@ struct DashboardSectionsTests {
     }
 
     @Test func aFailedCheckReadsAsOneSentence() {
-        func sentence(_ message: String) -> String { message.hasSuffix(".") ? message : message + "." }
         let signedOut = DashboardSections.limitsEmptyMessage(status: AccountStatus(error: .notSignedIn), anyAccountHasWindows: false)
-        #expect(signedOut == "No limits yet. Last check: \(sentence(FetchError.notSignedIn.userMessage))")
+        #expect(signedOut == "No limits yet. Last check: Signed out. Sign in with the provider CLI.")
         let timedOut = DashboardSections.limitsEmptyMessage(status: AccountStatus(error: .timeout), anyAccountHasWindows: false)
-        #expect(timedOut == "No limits yet. Last check: \(sentence(FetchError.timeout.userMessage))")
-        #expect(timedOut.hasSuffix(".") && !timedOut.hasSuffix(".."))
+        #expect(timedOut == "No limits yet. Last check: Timed out.")
     }
 }
