@@ -16,6 +16,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .renderSnapshots(let directory):
             SnapshotRenderer.run(outputDirectory: directory)
             exit(0)
+        case .renderWindows(let options):
+            WindowRenderer.run(options)
+            exit(0)
         case .devCommand:
             Task {
                 _ = await DevCommands.handle(args)
@@ -43,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         popover.behavior = .transient
         popover.animates = true
-        popover.contentViewController = NSHostingController(rootView: PopoverView().environment(model))
+        popover.contentViewController = Self.popoverContent(model)
 
         let notifications = NotificationManager()
         notifications.onOpenDashboard = { [weak self] accountID in self?.showDashboard(accountID: accountID) }
@@ -68,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showDashboard(accountID: String?) {
         popover.performClose(nil)
         model.dashboardSelection = accountID
-        windows.show(id: "dashboard", title: "Tokenjar", size: NSSize(width: 980, height: 660), minSize: NSSize(width: 760, height: 520)) {
+        windows.show(.dashboard) {
             DashboardView().environment(model)
         }
     }
@@ -76,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showSettings(accountID: String?) {
         popover.performClose(nil)
         model.settingsSelection = accountID
-        windows.show(id: "settings", title: "Tokenjar Settings", size: NSSize(width: 760, height: 560), minSize: NSSize(width: 640, height: 460)) {
+        windows.show(.settings) {
             SettingsView().environment(model)
         }
     }
@@ -88,9 +91,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } onChange: { [weak self] in
             Task { @MainActor in self?.observeIcon() }
         }
-        statusItem?.button?.image = rendered.image
-        statusItem?.button?.title = rendered.title
-        statusItem?.button?.attributedTitle = rendered.attributedTitle
-        statusItem?.button?.toolTip = rendered.toolTip
+        if let button = statusItem?.button { Self.show(rendered, in: button) }
+    }
+
+    /// The popover's content. `--render-windows` captures this same controller.
+    static func popoverContent(_ model: AppModel) -> NSViewController {
+        NSHostingController(rootView: PopoverView().environment(model))
+    }
+
+    /// How the status item shows an icon. `--render-windows` draws its menu bar strips through this too.
+    static func show(_ rendered: RenderedStatusIcon, in button: NSButton) {
+        button.image = rendered.image
+        button.title = rendered.title
+        button.attributedTitle = rendered.attributedTitle
+        button.toolTip = rendered.toolTip
     }
 }

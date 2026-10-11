@@ -30,6 +30,11 @@ struct SettingsView: View {
     @SettingsState private var chosenPane: SettingsPane?
     @SettingsState private var chosenAccountID: String?
 
+    /// `pane` opens on that pane as if it had been clicked; nil follows `settingsSelection`.
+    init(pane: SettingsPane? = nil) {
+        _chosenPane = SettingsState(initialValue: pane)
+    }
+
     // Until the user picks something, follow `settingsSelection` so "Settings for this account" lands on that account.
     private var pane: SettingsPane {
         chosenPane ?? (model.settingsSelection == nil ? .general : .accounts)
