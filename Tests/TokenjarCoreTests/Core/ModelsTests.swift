@@ -17,10 +17,30 @@ struct ModelsTests {
             .opencodeGo: "https://opencode.ai/auth",
             .opencodeZen: "https://opencode.ai/auth",
             .antigravity: "https://antigravity.google/docs/plans",
+            .copilot: "https://github.com/settings/copilot",
         ]
         for provider in ProviderID.allCases {
             #expect(provider.defaultDashboardURL.absoluteString == expected[provider], "\(provider)")
         }
+    }
+
+    @Test func statusPagesArePinned() {
+        let expected: [ProviderID: String] = [
+            .claude: "https://status.claude.com",
+            .codex: "https://status.openai.com",
+            .copilot: "https://www.githubstatus.com",
+        ]
+        for provider in ProviderID.allCases {
+            #expect(provider.statusPageURL?.absoluteString == expected[provider], "\(provider)")
+        }
+    }
+
+    /// Raw values key config.json, storage and alert state, so they can never change once released.
+    @Test func newProvidersHaveTheirPermanentIDsAndNames() {
+        #expect(ProviderID(rawValue: "copilot") == .copilot)
+        #expect(ProviderID.copilot.displayName == "GitHub Copilot")
+        #expect(ProviderID.copilot.logoName == "copilot")
+        #expect(ProviderID.copilot.harness == nil)
     }
 
     @Test func httpsOverrideIsUsed() {

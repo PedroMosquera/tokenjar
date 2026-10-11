@@ -9,6 +9,7 @@ public enum SignInCommand {
         switch provider {
         case .claude: ("CLAUDE_CONFIG_DIR", "~/.claude")
         case .codex: ("CODEX_HOME", "~/.codex")
+        case .copilot: ("GH_CONFIG_DIR", "~/.config/gh")
         case .opencodeGo, .opencodeZen, .antigravity: nil
         }
     }
@@ -20,6 +21,7 @@ public enum SignInCommand {
         case .claude: words = [executable("claude"), "auth", "login"]
         case .codex: words = [executable("codex"), "login"]
         case .opencodeGo, .opencodeZen: words = [executable("opencode"), "auth", "login"]
+        case .copilot: words = [executable("gh"), "auth", "login"]
         case .antigravity: return nil
         }
         var parts = words.map(shellQuote)

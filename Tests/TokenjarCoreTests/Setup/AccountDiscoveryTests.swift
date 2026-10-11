@@ -3,15 +3,15 @@ import Testing
 @testable import TokenjarCore
 
 struct AccountDiscoveryTests {
-    /// A locator that only looks at the override, so the real /opt/homebrew/bin never leaks into a test.
-    func locator(_ home: TempHome, agy: Bool) throws -> CLILocator {
-        let path = home.url.appending(path: "bin/agy")
+    /// A locator that only looks at the overrides, so the real /opt/homebrew/bin never leaks into a test.
+    func locator(_ home: TempHome, agy: Bool, gh: Bool) throws -> CLILocator {
         if agy { try home.write("bin/agy", "#!/bin/sh\n", permissions: 0o755) }
-        return CLILocator(home: home.url, overrides: ["agy": path.path])
+        if gh { try home.write("bin/gh", "#!/bin/sh\n", permissions: 0o755) }
+        return CLILocator(home: home.url, overrides: ["agy": home.url.appending(path: "bin/agy").path, "gh": home.url.appending(path: "bin/gh").path])
     }
 
-    func discover(_ home: TempHome, agy: Bool = false, environment: [String: String] = [:]) throws -> [AccountConfig] {
-        AccountDiscovery.discover(paths: AppPaths(home: home.url), cli: try locator(home, agy: agy), environment: environment)
+    func discover(_ home: TempHome, agy: Bool = false, gh: Bool = false, environment: [String: String] = [:]) throws -> [AccountConfig] {
+        AccountDiscovery.discover(paths: AppPaths(home: home.url), cli: try locator(home, agy: agy, gh: gh), environment: environment)
     }
 
     @Test func emptyHomeFindsNothing() throws {
@@ -30,13 +30,22 @@ struct AccountDiscoveryTests {
         try home.copyFixture("opencode-auth.json", to: ".local/share/opencode/auth.json")
 
         let auth = "~/.local/share/opencode/auth.json"
-        #expect(try discover(home, agy: true) == [
+        #expect(try discover(home, agy: true, gh: true) == [
             AccountConfig(id: "claude", provider: .claude, label: "Work"),
             AccountConfig(id: "codex", provider: .codex, label: "ChatGPT"),
             AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go", credential: .file(path: auth, key: "opencode-go")),
             AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen", credential: .file(path: auth, key: "opencode"), showInMenuBar: false),
             AccountConfig(id: "antigravity", provider: .antigravity, label: "Google"),
+            AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"),
         ])
+    }
+
+    /// gh is only located, never run, and its config folder is never opened: it can hold a token.
+    @Test func ghOnThePathProposesCopilot() throws {
+        let home = try TempHome()
+        defer { home.remove() }
+        try home.write(".config/gh/hosts.yml", "unreadable on purpose", permissions: 0o000)
+        #expect(try discover(home, gh: true) == [AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")])
     }
 
     @Test(arguments: [
@@ -137,6 +146,21 @@ struct AccountDiscoveryTests {
         try home.write(".local/share/opencode/auth.json", "{}")
         #expect(AccountDiscovery.isAvailable(file, paths: paths, environment: [:]))
         #expect(AccountDiscovery.isAvailable(implicit, paths: paths, environment: [:]))
+    }
+
+    @Test func copilotNeedsGhsConfigFolder() throws {
+        let home = try TempHome()
+        defer { home.remove() }
+        let paths = AppPaths(home: home.url)
+        let copilot = AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")
+        let work = AccountConfig(id: "copilot-work", provider: .copilot, label: "Work", profileDir: "~/.config/gh-work")
+        #expect(!AccountDiscovery.isAvailable(copilot, paths: paths, environment: [:]))
+        #expect(!AccountDiscovery.isAvailable(work, paths: paths, environment: [:]))
+        try home.makeDirectory(".config/gh")
+        #expect(AccountDiscovery.isAvailable(copilot, paths: paths, environment: [:]))
+        #expect(!AccountDiscovery.isAvailable(work, paths: paths, environment: [:]))
+        try home.makeDirectory(".config/gh-work")
+        #expect(AccountDiscovery.isAvailable(work, paths: paths, environment: [:]))
     }
 
     @Test func antigravityIsAlwaysAvailable() throws {

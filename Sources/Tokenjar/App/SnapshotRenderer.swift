@@ -26,6 +26,8 @@ enum SnapshotRenderer {
             render(DashboardView().environment(model), size: NSSize(width: 760, height: 520), appearance: appearance, to: outputDirectory.appending(path: "dashboard-account-small-\(suffix).png"))
             model.dashboardSelection = "antigravity"
             render(DashboardView().environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-antigravity-\(suffix).png"))
+            model.dashboardSelection = "copilot"
+            render(DashboardView().environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-copilot-\(suffix).png"))
             model.dashboardSelection = "opencode-zen"
             render(DashboardView().environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-zen-\(suffix).png"))
             model.dashboardSelection = nil
@@ -36,6 +38,8 @@ enum SnapshotRenderer {
             render(SettingsView().environment(model), size: NSSize(width: 760, height: 560), appearance: appearance, to: outputDirectory.appending(path: "settings-general-\(suffix).png"))
             model.settingsSelection = "claude-work"
             render(SettingsView().environment(model), size: NSSize(width: 760, height: 560), appearance: appearance, to: outputDirectory.appending(path: "settings-account-\(suffix).png"))
+            model.settingsSelection = "copilot"
+            render(SettingsView().environment(model), size: NSSize(width: 760, height: 900), appearance: appearance, to: outputDirectory.appending(path: "settings-copilot-\(suffix).png"))
 
             for mode in MenuBarMode.allCases {
                 model.config.menuBar.mode = mode

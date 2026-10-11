@@ -120,10 +120,11 @@ struct AccountDetailView: View {
     }
 
     private func profileSection(variable: (name: String, defaultPath: String)) -> some View {
-        Section {
-            LabeledContent("Profile folder") {
+        let title = account.provider == .copilot ? "gh config folder" : "Profile folder"
+        return Section {
+            LabeledContent(title) {
                 HStack(spacing: 6) {
-                    CommittingTextField(title: "Profile folder", prompt: "\(variable.defaultPath) (CLI default)", value: account.profileDir ?? "", monospaced: true) { text in
+                    CommittingTextField(title: title, prompt: "\(variable.defaultPath) (CLI default)", value: account.profileDir ?? "", monospaced: true) { text in
                         model.updateAccount(account.id) { $0.profileDir = SettingsLogic.profileDir(from: text) }
                     }
                     .labelsHidden()
@@ -138,7 +139,11 @@ struct AccountDetailView: View {
         } header: {
             Text("Profile")
         } footer: {
-            HelpText.footer("Sets \(variable.name) when Tokenjar runs \(account.provider == .claude ? "claude" : "codex"). Leave empty for \(variable.defaultPath).")
+            if account.provider == .copilot {
+                HelpText.footer("Sets \(variable.name) when Tokenjar runs gh. Leave empty for \(variable.defaultPath), your usual gh login. A second GitHub account needs a folder of its own: enter it here, then sign in to it with the command below.")
+            } else {
+                HelpText.footer("Sets \(variable.name) when Tokenjar runs \(account.provider == .claude ? "claude" : "codex"). Leave empty for \(variable.defaultPath).")
+            }
         }
     }
 

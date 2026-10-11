@@ -129,6 +129,7 @@ public enum CodexBarImport {
         case "opencodego": .opencodeGo
         case "opencode": .opencodeZen
         case "antigravity", "gemini": .antigravity
+        case "copilot": .copilot
         default: nil
         }
     }

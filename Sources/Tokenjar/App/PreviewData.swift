@@ -16,6 +16,7 @@ extension AppModel {
                 AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go", credential: .file(path: "~/.local/share/opencode/auth.json", key: "opencode-go")),
                 AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen", showInMenuBar: false),
                 AccountConfig(id: "antigravity", provider: .antigravity, label: "Google", showInMenuBar: false),
+                AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"),
             ]
         )
         model.previewMode = true
@@ -76,7 +77,13 @@ extension AppModel {
             ],
             fetchedAt: now.addingTimeInterval(-300), source: "agy CLI"
         )
-        for snapshot in snapshots + [antigravity] {
+        // An Enterprise seat at 2 of 5,000 AI credits; the cycle ends 2026-11-01 00:00 UTC.
+        let copilot = UsageSnapshot(
+            accountID: "copilot", provider: .copilot, plan: "Enterprise",
+            windows: [window("monthly", "AI credits", 2.0 / 5_000 * 100, 44_640, resetIn: 1_793_491_200 - now.timeIntervalSince1970)],
+            fetchedAt: now.addingTimeInterval(-100), source: "gh CLI"
+        )
+        for snapshot in snapshots + [antigravity, copilot] {
             model.statuses[snapshot.accountID] = AccountStatus(snapshot: snapshot, error: nil, lastAttempt: snapshot.fetchedAt)
         }
 
@@ -84,7 +91,7 @@ extension AppModel {
         var rng = PreviewRandom(seed: 7)
         // Window history for 30 days at 15-minute samples. Usage only grows inside a cycle and drops at each reset;
         // the current cycle ends exactly at the snapshot's value.
-        for snapshot in snapshots + [antigravity] {
+        for snapshot in snapshots + [antigravity, copilot] {
             for w in snapshot.windows {
                 guard let minutes = w.windowMinutes, let resetsAt = w.resetsAt else { continue }
                 let length = Double(minutes) * 60

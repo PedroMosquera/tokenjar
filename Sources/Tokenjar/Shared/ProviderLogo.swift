@@ -68,7 +68,7 @@ extension ProviderID {
         switch self {
         case .claude: Color(red: 0xD9 / 255, green: 0x77 / 255, blue: 0x57 / 255)
         case .antigravity: Color(red: 0x8E / 255, green: 0x75 / 255, blue: 0xB2 / 255)
-        case .codex, .opencodeGo, .opencodeZen: .primary
+        case .codex, .opencodeGo, .opencodeZen, .copilot: .primary
         }
     }
 }

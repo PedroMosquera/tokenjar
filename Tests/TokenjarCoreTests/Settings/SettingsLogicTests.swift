@@ -62,6 +62,14 @@ struct SettingsLogicTests {
         #expect(SettingsLogic.profileTwin(of: a, in: [a, b], paths: paths)?.id == "b")
     }
 
+    @Test func profileTwinCoversGhsConfigFolder() {
+        let a = AccountConfig(id: "a", provider: .copilot, label: "A")
+        let b = AccountConfig(id: "b", provider: .copilot, label: "B", profileDir: "~/.config/gh")
+        let other = AccountConfig(id: "c", provider: .copilot, label: "C", profileDir: "~/.config/gh-work")
+        #expect(SettingsLogic.profileTwin(of: a, in: [a, other, b], paths: paths)?.id == "b")
+        #expect(SettingsLogic.profileTwin(of: other, in: [a, other, b], paths: paths) == nil)
+    }
+
     @Test func profileTwinIgnoresOtherProvidersDisabledAccountsAndOtherDirs() {
         let a = AccountConfig(id: "a", provider: .claude, label: "A")
         let codex = AccountConfig(id: "c", provider: .codex, label: "C", profileDir: "~/.claude")

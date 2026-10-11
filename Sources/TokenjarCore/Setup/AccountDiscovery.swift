@@ -29,6 +29,9 @@ public enum AccountDiscovery {
         if cli.locate("agy") != nil {
             accounts.append(AccountConfig(id: "antigravity", provider: .antigravity, label: "Google"))
         }
+        if cli.locate("gh") != nil {
+            accounts.append(AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"))
+        }
         return accounts
     }
 
@@ -39,19 +42,21 @@ public enum AccountDiscovery {
     ) -> Bool {
         guard let location = location(of: account, paths: paths, environment: environment) else { return true }
         switch account.provider {
-        case .claude, .codex: return isDirectory(location)
+        case .claude, .codex, .copilot: return isDirectory(location)
         case .opencodeGo, .opencodeZen, .antigravity: return FileManager.default.fileExists(atPath: location.path)
         }
     }
 
-    /// The profile dir or credential file the account reads on this Mac. nil for Antigravity and for a key in the app's
-    /// own Keychain, which have no file of their own.
+    /// The profile dir or credential file the account reads on this Mac (gh's config folder for Copilot, whose files
+    /// are never opened). nil for Antigravity and for a key in the app's own Keychain, which have no file of their own.
     static func location(of account: AccountConfig, paths: AppPaths, environment: [String: String]) -> URL? {
         switch account.provider {
         case .claude:
             account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".claude")
         case .codex:
             account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".codex")
+        case .copilot:
+            account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".config/gh")
         case .opencodeGo, .opencodeZen:
             switch account.credential {
             case .file(let path, _): paths.expand(path)

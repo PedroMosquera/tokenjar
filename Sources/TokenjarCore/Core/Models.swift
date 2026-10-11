@@ -6,6 +6,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     case opencodeGo = "opencode-go"
     case opencodeZen = "opencode-zen"
     case antigravity
+    case copilot
 
     public var displayName: String {
         switch self {
@@ -14,6 +15,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo: "OpenCode Go"
         case .opencodeZen: "OpenCode Zen"
         case .antigravity: "Antigravity"
+        case .copilot: "GitHub Copilot"
         }
     }
 
@@ -24,6 +26,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .codex: "openai"
         case .opencodeGo, .opencodeZen: "opencode"
         case .antigravity: "antigravity"
+        case .copilot: "copilot"
         }
     }
 
@@ -33,6 +36,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .codex: URL(string: "https://chatgpt.com/settings/usage")!
         case .opencodeGo, .opencodeZen: URL(string: "https://opencode.ai/auth")!
         case .antigravity: URL(string: "https://antigravity.google/docs/plans")!
+        case .copilot: URL(string: "https://github.com/settings/copilot")!
         }
     }
 
@@ -40,6 +44,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         switch self {
         case .claude: URL(string: "https://status.claude.com")
         case .codex: URL(string: "https://status.openai.com")
+        case .copilot: URL(string: "https://www.githubstatus.com")
         case .opencodeGo, .opencodeZen, .antigravity: nil
         }
     }
@@ -50,7 +55,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: .claudeCode
         case .codex: .codex
         case .opencodeGo, .opencodeZen: .opencode
-        case .antigravity: nil
+        case .antigravity, .copilot: nil
         }
     }
 }
@@ -75,9 +80,9 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
     public var provider: ProviderID
     public var label: String
     public var enabled: Bool
-    /// CLAUDE_CONFIG_DIR for Claude, CODEX_HOME for Codex, opencode's data directory (holding auth.json and
-    /// opencode.db) for OpenCode. `nil` means the default: ~/.claude, ~/.codex, $XDG_DATA_HOME/opencode or
-    /// ~/.local/share/opencode.
+    /// CLAUDE_CONFIG_DIR for Claude, CODEX_HOME for Codex, GH_CONFIG_DIR for Copilot, opencode's data directory
+    /// (holding auth.json and opencode.db) for OpenCode. `nil` means the default: ~/.claude, ~/.codex, ~/.config/gh,
+    /// $XDG_DATA_HOME/opencode or ~/.local/share/opencode.
     public var profileDir: String?
     public var credential: CredentialRef?
     public var showInMenuBar: Bool
