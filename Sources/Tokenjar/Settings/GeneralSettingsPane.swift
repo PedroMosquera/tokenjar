@@ -54,7 +54,7 @@ struct GeneralSettingsPane: View {
                     MenuBarPreview(config: model.config.menuBar)
                 } label: {
                     Text("Preview")
-                    Text("Healthy, amber and full")
+                    Text(MenuBarPreview.caption(model.config.menuBar))
                 }
             }
 

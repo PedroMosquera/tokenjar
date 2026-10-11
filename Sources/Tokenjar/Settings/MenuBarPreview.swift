@@ -14,7 +14,8 @@ struct MenuBarIconLabel: View {
     }
 }
 
-/// The chosen icon and mode as the menu bar draws them for a healthy, an amber and a full account.
+/// The chosen icon and mode as the menu bar draws them for a healthy, an amber and a full account, at the configured
+/// amber level and colored by the same rule as the menu bar.
 struct MenuBarPreview: View {
     var config: MenuBarConfig
     @Environment(\.colorScheme) private var colorScheme
@@ -29,16 +30,40 @@ struct MenuBarPreview: View {
                     .background(colorScheme == .dark ? Color(white: 0.16) : Color(white: 0.93), in: RoundedRectangle(cornerRadius: 5))
             }
         }
+        // The samples are NSButtons that do nothing; one description reads better than three dead buttons.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.accessibilityText(config))
+    }
+
+    static let sampleTime = Date(timeIntervalSince1970: 0)
+
+    static func caption(_ config: MenuBarConfig) -> String {
+        config.showResetCountdownWhenFull ? "Healthy, amber and full (time to reset)" : "Healthy, amber and full"
+    }
+
+    static func accessibilityText(_ config: MenuBarConfig) -> String {
+        let used = levels(config)
+        return "Healthy at \(Format.percent(used[0])), amber at \(Format.percent(used[1])), full at \(Format.percent(used[2]))"
     }
 
     static func samples(_ config: MenuBarConfig) -> [RenderedStatusIcon] {
-        let now = Date(timeIntervalSince1970: 0)
-        return [(42.0, Severity.ok), (85, .warning), (100, .critical)].map { used, severity in
-            let window = UsageWindow(id: "session", label: "5-hour", usedPercent: used, windowMinutes: 300, resetsAt: now.addingTimeInterval(47 * 60))
-            let entry = MenuBarState.Entry(accountID: "sample", provider: .claude, label: "Sample", tightest: window, severity: severity, isStale: false, hasError: false)
-            return StatusIconRenderer.render(MenuBarState(
-                mode: config.mode, icon: config.icon, entries: [entry], showResetCountdownWhenFull: config.showResetCountdownWhenFull, now: now
+        sampleEntries(config).map { entry in
+            StatusIconRenderer.render(MenuBarState(
+                mode: config.mode, icon: config.icon, entries: [entry], showResetCountdownWhenFull: config.showResetCountdownWhenFull, now: sampleTime
             ))
         }
+    }
+
+    static func sampleEntries(_ config: MenuBarConfig) -> [MenuBarState.Entry] {
+        levels(config).map { used in
+            let window = UsageWindow(id: "session", label: "5-hour", usedPercent: used, windowMinutes: 300, resetsAt: sampleTime.addingTimeInterval(47 * 60))
+            let severity = Severity.of(window, config: config, now: sampleTime)
+            return MenuBarState.Entry(accountID: "sample", provider: .claude, label: "Sample", tightest: window, severity: severity, isStale: false, hasError: false)
+        }
+    }
+
+    /// Half the amber level stays under 50 %, where no pace can turn a window amber, so the healthy sample is healthy.
+    private static func levels(_ config: MenuBarConfig) -> [Double] {
+        [Double(config.warnAt / 2), Double(config.warnAt), 100]
     }
 }
