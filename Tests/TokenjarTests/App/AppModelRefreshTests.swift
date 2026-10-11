@@ -197,6 +197,28 @@ struct AppModelRefreshTests {
         #expect(try home.mode(support.appending(path: "probe-latch.json")) == 0o600)
     }
 
+    /// A refresh that changes nothing the alert engine tracks writes nothing to disk.
+    @Test func alertStateIsWrittenOnlyWhenItChanges() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".codex")
+        let account = AccountConfig(id: "codex", provider: .codex, label: "Plus")
+        try home.writeConfig(AppConfig(accounts: [account]))
+        let log = FetchLog(), clock = TestClock()
+        let fetchedAt = clock.now
+        let model = model(home, clock) { _ in FakeFetcher(log: log) { .success(usageSnapshot($0, fetchedAt: fetchedAt)) } }
+        await model.refresh(force: true)?.value
+        let file = home.paths.supportDirectory.appending(path: "alert-state.json")
+        let baseline = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes([.modificationDate: baseline], ofItemAtPath: file.path)
+
+        await model.refresh(force: true)?.value
+        await model.refresh(force: true)?.value
+
+        #expect(log.count("codex") == 3)
+        #expect(try FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate] as? Date == baseline)
+    }
+
     @Test func ticksWaitForTheWakeRefreshAfterSleep() async throws {
         let home = try ModelHome()
         defer { home.remove() }

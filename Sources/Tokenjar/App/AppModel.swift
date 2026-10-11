@@ -428,9 +428,10 @@ final class AppModel {
             saveProbeLatch()
         }
 
+        let previousAlertState = alertState
         let outcome = AlertEngine.evaluate(account: live ?? account, result: result, config: config, state: &alertState, now: current)
         notifications?.handle(outcome)
-        saveAlertState()
+        if alertState != previousAlertState { saveAlertState() }
         return .applied(sampled: sampled)
     }
 
