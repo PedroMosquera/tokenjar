@@ -158,9 +158,10 @@ private final class RenderSession {
         }
     }
 
-    /// The popover's controller in a borderless window of the size NSPopover gives it: the content's fitting size.
-    /// The window background stands in for the popover material, which cacheDisplay cannot blend. AppDelegate's
-    /// `popoverWillOpen` is left out: it moves `now` to the wall clock, which would shift every preview countdown.
+    /// The popover's controller in a borderless window of the size `AppDelegate.open` gives the popover: the content's
+    /// settled size. The window background stands in for the popover material, which cacheDisplay cannot blend.
+    /// AppDelegate's `popoverWillOpen` is left out: it moves `now` to the wall clock, which would shift every preview
+    /// countdown.
     private func renderPopover(_ model: AppModel, screen: String, appearance: NSAppearance, suffix: String) {
         let steps = [Step(screen: screen) {}]
         walk(steps, appearance: appearance, suffix: suffix) {
@@ -168,7 +169,7 @@ private final class RenderSession {
             let window = CaptureWindow(contentViewController: controller)
             window.styleMask = [.borderless]
             window.isReleasedWhenClosed = false
-            window.setContentSize(controller.view.fittingSize)
+            if let size = AppDelegate.settledSize(of: controller) { window.setContentSize(size) }
             return window
         }
     }
