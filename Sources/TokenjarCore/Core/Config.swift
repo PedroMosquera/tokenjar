@@ -1,22 +1,50 @@
 import Foundation
 
 public enum MenuBarMode: String, Codable, CaseIterable, Sendable {
-    /// The app's mark plus the tightest used % of the account with the least room left.
+    /// The menu bar icon plus the tightest used % of the account with the least room left.
     case worst
     /// One thin bar per account flagged showInMenuBar.
     case bars
-    /// Logo only, tinted by the worst state.
+    /// The menu bar icon only, tinted by the worst state.
     case icon
+}
+
+/// The menu bar glyph, stored as `app`, `mark:<name>`, `logo:<name>` or `symbol:<SF Symbol name>`. Only `app` shows
+/// the fill level; the others are static glyphs.
+public enum MenuBarIcon: String, Codable, CaseIterable, Sendable {
+    case app
+    case markMana = "mark:mana"
+    case markTaper = "mark:taper"
+    case markTally = "mark:tally"
+    case markBurnrate = "mark:burnrate"
+    case markGenio = "mark:genio"
+    case logoClaude = "logo:claude"
+    case logoOpenAI = "logo:openai"
+    case logoAntigravity = "logo:antigravity"
+    case logoCopilot = "logo:copilot"
+    case logoOpenCode = "logo:opencode"
+    case logoWindsurf = "logo:windsurf"
+    case symbolSparkles = "symbol:sparkles"
+    case symbolBrain = "symbol:brain"
+    case symbolCPU = "symbol:cpu"
+    case symbolGauge = "symbol:gauge.with.needle"
+
+    /// config.json syncs between Macs, so a choice from a newer build falls back here instead of failing the load.
+    public init(from decoder: Decoder) throws {
+        self = MenuBarIcon(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .app
+    }
 }
 
 public struct MenuBarConfig: Codable, Equatable, Sendable {
     public var mode: MenuBarMode
+    public var icon: MenuBarIcon
     public var warnAt: Int
     public var criticalAt: Int
     public var showResetCountdownWhenFull: Bool
 
-    public init(mode: MenuBarMode = .worst, warnAt: Int = 80, criticalAt: Int = 95, showResetCountdownWhenFull: Bool = true) {
+    public init(mode: MenuBarMode = .worst, icon: MenuBarIcon = .app, warnAt: Int = 80, criticalAt: Int = 95, showResetCountdownWhenFull: Bool = true) {
         self.mode = mode
+        self.icon = icon
         self.warnAt = warnAt
         self.criticalAt = criticalAt
         self.showResetCountdownWhenFull = showResetCountdownWhenFull
@@ -26,6 +54,7 @@ public struct MenuBarConfig: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = MenuBarConfig()
         mode = try c.decodeIfPresent(MenuBarMode.self, forKey: .mode) ?? d.mode
+        icon = try c.decodeIfPresent(MenuBarIcon.self, forKey: .icon) ?? d.icon
         warnAt = try c.decodeIfPresent(Int.self, forKey: .warnAt) ?? d.warnAt
         criticalAt = try c.decodeIfPresent(Int.self, forKey: .criticalAt) ?? d.criticalAt
         showResetCountdownWhenFull = try c.decodeIfPresent(Bool.self, forKey: .showResetCountdownWhenFull) ?? d.showResetCountdownWhenFull
@@ -179,6 +208,7 @@ public struct ConfigStore: Sendable {
         copyIfEdited(\.refreshMinutes)
         copyIfEdited(\.launchAtLogin)
         copyIfEdited(\.menuBar.mode)
+        copyIfEdited(\.menuBar.icon)
         copyIfEdited(\.menuBar.warnAt)
         copyIfEdited(\.menuBar.criticalAt)
         copyIfEdited(\.menuBar.showResetCountdownWhenFull)

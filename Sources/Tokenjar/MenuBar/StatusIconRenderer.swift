@@ -11,15 +11,18 @@ struct RenderedStatusIcon {
 enum StatusIconRenderer {
     static func render(_ state: MenuBarState) -> RenderedStatusIcon {
         let toolTip = toolTip(for: state)
-        guard let worst = state.worst, worst.tightest != nil else {
-            return RenderedStatusIcon(image: StatusGlyph.neutral(dot: state.entries.contains(where: \.hasError)), toolTip: toolTip)
+        guard let worst = state.worst, let tightest = worst.tightest else {
+            let failing = state.entries.contains(where: \.hasError)
+            let description = failing ? "Tokenjar, last check failed" : "Tokenjar"
+            return RenderedStatusIcon(image: StatusGlyph.neutral(state.icon, dot: failing, description: description), toolTip: toolTip)
         }
         let alpha: CGFloat = worst.isStale ? 0.5 : 1
+        let description = accessibilityDescription(worst, window: tightest)
         switch state.mode {
         case .worst:
             let text = title(for: worst, showResetCountdownWhenFull: state.showResetCountdownWhenFull, now: state.now)
             return RenderedStatusIcon(
-                image: StatusGlyph.brand(tint: tint(worst.severity), alpha: alpha, dot: worst.hasError),
+                image: StatusGlyph.image(state.icon, fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: worst.hasError, description: description),
                 title: text,
                 attributedTitle: attributedTitle(text, severity: worst.severity, isStale: worst.isStale),
                 toolTip: toolTip
@@ -31,7 +34,7 @@ enum StatusIconRenderer {
             return RenderedStatusIcon(image: StatusGlyph.bars(bars), toolTip: toolTip)
         case .icon:
             return RenderedStatusIcon(
-                image: StatusGlyph.brand(tint: tint(worst.severity), alpha: alpha, dot: worst.hasError),
+                image: StatusGlyph.image(state.icon, fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: worst.hasError, description: description),
                 toolTip: toolTip
             )
         }
@@ -44,6 +47,14 @@ enum StatusIconRenderer {
             return countdown
         }
         return Format.percent(window.usedPercent)
+    }
+
+    /// What VoiceOver reads for the icon. Icon mode has no title and the tooltip is only delayed help, so the level the
+    /// slot shows and the state the fade and dot show have to be spelled out here.
+    private static func accessibilityDescription(_ entry: MenuBarState.Entry, window: UsageWindow) -> String {
+        var text = "Tokenjar, \(window.label) \(Format.percent(window.usedPercent)) used"
+        if entry.hasError { text += ", last check failed" } else if entry.isStale { text += ", out of date" }
+        return text
     }
 
     static func toolTip(for state: MenuBarState) -> String {
