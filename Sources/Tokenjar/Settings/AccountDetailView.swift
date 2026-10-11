@@ -17,10 +17,12 @@ struct AccountDetailView: View {
                 statusLine
                 HStack {
                     Spacer()
-                    let check = AccountAction.check(account, status: model.status(for: account), model: model)
-                    Button(check.title, action: check.run)
-                        .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
-                        .help(testBlocker ?? check.help ?? "")
+                    if statusText.offersCheck {
+                        let check = AccountAction.check(account, status: model.status(for: account), model: model)
+                        Button(check.title, action: check.run)
+                            .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
+                            .help(testBlocker ?? check.help ?? "")
+                    }
                     Button("Open Usage Page") { model.openProviderDashboard(account) }
                         .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
                 }
@@ -34,9 +36,7 @@ struct AccountDetailView: View {
             if account.provider == .opencodeGo || account.provider == .opencodeZen {
                 AccountCredentialSection(account: account)
             }
-            if account.provider.isLinkOnly {
-                linkOnlySection
-            } else {
+            if !account.provider.isLinkOnly {
                 signInSection
             }
             overridesSection
@@ -86,25 +86,25 @@ struct AccountDetailView: View {
     }
 
     private var statusLine: some View {
-        let status = model.status(for: account)
-        let (text, symbol, color): (String, String, Color) = {
-            if status.isRefreshing { return ("Checking\u{2026}", "arrow.triangle.2.circlepath", .secondary) }
-            if let error = status.error { return (error.userMessage, "exclamationmark.triangle.fill", .orange) }
-            if let snapshot = status.snapshot {
-                let windows = account.provider.isLinkOnly ? "link only" : snapshot.windows.count == 1 ? "1 window" : "\(snapshot.windows.count) windows"
-                return ("\(snapshot.source) \u{00B7} \(windows) \u{00B7} updated \(Format.age(of: snapshot.fetchedAt, now: model.now))", "checkmark.circle.fill", .green)
-            }
-            if !account.enabled { return ("Off", "pause.circle", .secondary) }
-            return ("Not checked yet", "circle.dashed", .secondary)
-        }()
-        return Label {
-            Text(text)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } icon: {
-            Image(systemName: symbol).foregroundStyle(color)
+        let line = statusText
+        let symbol = Text(Image(systemName: line.symbol)).foregroundStyle(line.tone.color)
+        return TextRow {
+            Text("\(symbol)  \(line.text)")
+                .foregroundStyle(line.tone == .warning ? .primary : .secondary)
+            if let detail = line.detail { Text(detail) }
         }
-        .font(.callout)
+    }
+
+    private var statusText: AccountStatusText {
+        AccountStatusText.make(account: account, status: model.status(for: account), missingPath: missingPath, now: model.now)
+    }
+
+    /// Preview data describes accounts on no real Mac, so nothing is missing there.
+    private var missingPath: String? {
+        guard !model.previewMode, !AccountDiscovery.isAvailable(account, paths: model.paths),
+              let location = AccountDiscovery.location(of: account, paths: model.paths)
+        else { return nil }
+        return SettingsLogic.tildePath(location.path, home: model.paths.home.path)
     }
 
     // MARK: Sections
@@ -193,19 +193,6 @@ struct AccountDetailView: View {
         account.provider == .claude
             ? "Runs the provider's own login in Terminal. With an older claude that has no auth command, run claude and type /\u{2060}login."
             : "Runs the provider's own login in Terminal. Tokenjar never sees the credentials."
-    }
-
-    private var linkOnlySection: some View {
-        Section {
-            Label {
-                Text("\(account.provider.displayName) doesn't share your quota with local apps yet, so this account opens its plan page. Tokenjar runs nothing for it and reads nothing.")
-                    .fixedSize(horizontal: false, vertical: true)
-            } icon: {
-                Image(systemName: "link")
-            }
-        } header: {
-            Text("Usage")
-        }
     }
 
     private var overridesSection: some View {
@@ -322,4 +309,123 @@ struct AccountDetailView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         model.updateAccount(account.id) { $0.profileDir = SettingsLogic.tildePath(url.path, home: model.paths.home.path) }
     }
+}
+
+/// What Settings says about one account: the status line at the top of its page and the caption on its list row.
+struct AccountStatusText: Equatable {
+    enum Tone: Equatable {
+        case good, neutral, warning
+
+        var color: Color {
+            switch self {
+            case .good: .green
+            case .neutral: .secondary
+            case .warning: .orange
+            }
+        }
+    }
+
+    struct Caption: Equatable {
+        var text: String
+        var isActionable: Bool
+    }
+
+    var symbol: String
+    var tone: Tone
+    var text: String
+    var detail: String?
+    var caption: Caption?
+    var offersCheck = true
+
+    /// `missingPath` is the tilde path of the profile folder or credential file the account reads, when it does not
+    /// exist on this Mac. Being off or missing outranks any old snapshot, which no longer describes this Mac.
+    static func make(account: AccountConfig, status: AccountStatus, missingPath: String?, now: Date) -> AccountStatusText {
+        let provider = account.provider
+        if !account.enabled {
+            return AccountStatusText(symbol: "pause.circle", tone: .neutral, text: "Off", caption: Caption(text: "Off", isActionable: false))
+        }
+        if let missingPath {
+            return AccountStatusText(
+                symbol: "questionmark.folder", tone: .neutral, text: "Not on this Mac: \(missingPath) does not exist",
+                caption: Caption(text: "Not on this Mac", isActionable: false)
+            )
+        }
+        if provider.isLinkOnly {
+            return AccountStatusText(
+                symbol: "link", tone: .neutral, text: "Opens \(account.resolvedDashboardURL.host() ?? provider.displayName)",
+                detail: "\(provider.displayName) doesn't share your quota with local apps yet, so this account opens its plan page. Tokenjar runs nothing for it and reads nothing.",
+                offersCheck: false
+            )
+        }
+        let caption = status.error.flatMap { caption(for: $0, account: account) }
+        let zenNote = provider.reportsWindows ? nil : "Reads this Mac's spend from opencode's local database. No key needed."
+        if status.isRefreshing {
+            return AccountStatusText(symbol: "arrow.triangle.2.circlepath", tone: .neutral, text: "Checking\u{2026}", detail: zenNote, caption: caption)
+        }
+        if let error = status.error {
+            if ProbeLatch.spentTokens(error) {
+                return AccountStatusText(symbol: "exclamationmark.triangle.fill", tone: .warning, text: error.userMessage, caption: caption)
+            }
+            switch error.attention {
+            case .calm:
+                return AccountStatusText(symbol: "minus.circle", tone: .neutral, text: "Not subscribed to \(provider.displayName)", caption: caption)
+            case .transient:
+                let text = status.snapshot.map { "\(error.userMessage) \u{00B7} showing data from \(Format.age(of: $0.fetchedAt, now: now))" } ?? error.userMessage
+                return AccountStatusText(symbol: "exclamationmark.arrow.triangle.2.circlepath", tone: .neutral, text: text, detail: zenNote)
+            case .actionable:
+                return AccountStatusText(symbol: "exclamationmark.triangle.fill", tone: .warning, text: actionableText(error, account: account), caption: caption)
+            }
+        }
+        if let snapshot = status.snapshot {
+            let age = Format.age(of: snapshot.fetchedAt, now: now)
+            if !provider.reportsWindows {
+                return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Local spend only \u{00B7} updated \(age)", detail: zenNote)
+            }
+            let limits = snapshot.windows.isEmpty ? snapshot.notes.first : snapshot.windows.map(\.label).joined(separator: ", ")
+            return AccountStatusText(
+                symbol: "checkmark.circle.fill", tone: .good, text: (["Updated \(age)"] + [limits].compactMap { $0 }).joined(separator: " \u{00B7} ")
+            )
+        }
+        return AccountStatusText(symbol: "circle.dashed", tone: .neutral, text: "Not checked yet", detail: zenNote)
+    }
+
+    /// The list row's caption: what to fix for an actionable failure, nothing for a passing one.
+    private static func caption(for error: FetchError, account: AccountConfig) -> Caption? {
+        if ProbeLatch.spentTokens(error) { return Caption(text: "Paused", isActionable: true) }
+        switch error.attention {
+        case .calm: return Caption(text: "Not subscribed", isActionable: false)
+        case .transient: return nil
+        case .actionable: break
+        }
+        let text = switch error {
+        case .notSignedIn: "Signed out"
+        case .unauthorized: account.provider.usesAPIKey ? "Key rejected" : "Login rejected"
+        case .cliNotFound: "Not installed"
+        case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported: "Check failed"
+        }
+        return Caption(text: text, isActionable: true)
+    }
+
+    private static func actionableText(_ error: FetchError, account: AccountConfig) -> String {
+        guard case .notSignedIn = error else { return error.userMessage }
+        if case .keychain = account.credential { return "No pasted key on this Mac." }
+        guard let cli = account.provider.cliName else { return error.userMessage }
+        return "Signed out of \(cli)."
+    }
+}
+
+extension ProviderID {
+    /// The command Tokenjar runs or hands to Terminal for this provider, as users type it.
+    var cliName: String? {
+        switch self {
+        case .claude: "claude"
+        case .codex: "codex"
+        case .copilot: "gh"
+        case .opencodeGo, .opencodeZen: "opencode"
+        case .antigravity: "agy"
+        case .devin: nil
+        }
+    }
+
+    var usesAPIKey: Bool { self == .opencodeGo || self == .opencodeZen }
 }
