@@ -9,6 +9,20 @@ struct ModelsTests {
         #expect(account.resolvedDashboardURL == ProviderID.claude.defaultDashboardURL)
     }
 
+    /// Each default must land on the provider's own usage page; the ChatGPT one used to point at a Codex-only page.
+    @Test func defaultUsagePagesArePinned() {
+        let expected: [ProviderID: String] = [
+            .claude: "https://claude.ai/settings/usage",
+            .codex: "https://chatgpt.com/settings/usage",
+            .opencodeGo: "https://opencode.ai/auth",
+            .opencodeZen: "https://opencode.ai/auth",
+            .antigravity: "https://antigravity.google/docs/plans",
+        ]
+        for provider in ProviderID.allCases {
+            #expect(provider.defaultDashboardURL.absoluteString == expected[provider], "\(provider)")
+        }
+    }
+
     @Test func httpsOverrideIsUsed() {
         let account = AccountConfig(id: "a", provider: .codex, label: "x", dashboardURL: "https://example.com/usage")
         #expect(account.resolvedDashboardURL.absoluteString == "https://example.com/usage")

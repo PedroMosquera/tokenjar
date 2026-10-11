@@ -30,7 +30,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     public var defaultDashboardURL: URL {
         switch self {
         case .claude: URL(string: "https://claude.ai/settings/usage")!
-        case .codex: URL(string: "https://chatgpt.com/codex/settings/usage")!
+        case .codex: URL(string: "https://chatgpt.com/settings/usage")!
         case .opencodeGo, .opencodeZen: URL(string: "https://opencode.ai/auth")!
         case .antigravity: URL(string: "https://antigravity.google/docs/plans")!
         }
