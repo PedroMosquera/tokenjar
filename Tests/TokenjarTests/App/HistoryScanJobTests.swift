@@ -17,12 +17,44 @@ private nonisolated struct StubScanner: HistoryScanner {
     }
 }
 
+/// Finds nothing new, so it hands back the checkpoints it was given.
+private nonisolated struct IdleScanner: HistoryScanner {
+    var name = "s"
+
+    func scan(_ account: AccountConfig, checkpoints: ScanCheckpoints, paths: AppPaths) throws -> ScanResult {
+        ScanResult(events: [], checkpoints: checkpoints)
+    }
+}
+
+/// Records the order of the writes a scan makes.
+private nonisolated final class CountingStore: UsageStore, @unchecked Sendable {
+    let inner = InMemoryUsageStore()
+    private let lock = NSLock()
+    private var log: [String] = []
+
+    var writes: [String] { lock.withLock { log } }
+
+    func record(_ snapshot: UsageSnapshot) throws -> Bool { try inner.record(snapshot) }
+    func upsert(_ events: [UsageEvent]) throws {
+        lock.withLock { log.append("upsert") }
+        try inner.upsert(events)
+    }
+    func checkpoints(scanner: String, accountID: String) throws -> ScanCheckpoints { try inner.checkpoints(scanner: scanner, accountID: accountID) }
+    func saveCheckpoints(_ checkpoints: ScanCheckpoints, scanner: String, accountID: String) throws {
+        lock.withLock { log.append("saveCheckpoints") }
+        try inner.saveCheckpoints(checkpoints, scanner: scanner, accountID: accountID)
+    }
+    func samples(accountID: String, windowID: String?, since: Date) throws -> [WindowSample] { try inner.samples(accountID: accountID, windowID: windowID, since: since) }
+    func dailyUsage(accountIDs: [String]?, since: Date) throws -> [DailyUsageRow] { try inner.dailyUsage(accountIDs: accountIDs, since: since) }
+    func latestSnapshots() throws -> [UsageSnapshot] { try inner.latestSnapshots() }
+}
+
 /// Stores everything except events, to stand in for a database that rejects a write.
 private nonisolated final class RejectingStore: UsageStore, @unchecked Sendable {
     let inner = InMemoryUsageStore()
     var rejectsEvents = false
 
-    func record(_ snapshot: UsageSnapshot) throws { try inner.record(snapshot) }
+    func record(_ snapshot: UsageSnapshot) throws -> Bool { try inner.record(snapshot) }
     func upsert(_ events: [UsageEvent]) throws {
         if rejectsEvents { throw CocoaError(.fileWriteUnknown) }
         try inner.upsert(events)
@@ -49,6 +81,28 @@ struct HistoryScanJobTests {
 
         #expect(!changed)
         #expect(try store.checkpoints(scanner: "s", accountID: "a").isEmpty)
+    }
+
+    /// Every 5 minutes each scanner hands back its checkpoints; for Claude that is one per transcript, hundreds of rows.
+    @Test func unchangedCheckpointsAreNotRewritten() throws {
+        let store = CountingStore()
+        try store.inner.saveCheckpoints(["log": "100"], scanner: "s", accountID: "a")
+
+        let changed = HistoryScanJob.run([(a, IdleScanner())], store: store, paths: paths)
+
+        #expect(!changed)
+        #expect(store.writes.isEmpty)
+    }
+
+    @Test func newEventsAreStoredBeforeTheCheckpointsMove() throws {
+        let store = CountingStore()
+        try store.inner.saveCheckpoints(["log": "40"], scanner: "s", accountID: "a")
+
+        let changed = HistoryScanJob.run([(a, StubScanner(name: "s"))], store: store, paths: paths)
+
+        #expect(changed)
+        #expect(store.writes == ["upsert", "saveCheckpoints"])
+        #expect(try store.checkpoints(scanner: "s", accountID: "a") == ["log": "100"])
     }
 
     @Test func oneFailingSourceDoesNotStopTheOthers() throws {

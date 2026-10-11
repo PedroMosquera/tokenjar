@@ -12,9 +12,10 @@ struct SettingsLogicTests {
         #expect(account.label == "Default")
     }
 
-    /// A link-only account has no window to show there.
-    @Test func newDevinAccountStaysOutOfTheMenuBar() {
+    /// A provider without limit windows has nothing to show there.
+    @Test func newAccountsWithoutWindowsStayOutOfTheMenuBar() {
         #expect(SettingsLogic.newAccount(provider: .devin, existing: []).showInMenuBar == false)
+        #expect(SettingsLogic.newAccount(provider: .opencodeZen, existing: []).showInMenuBar == false)
         #expect(SettingsLogic.newAccount(provider: .copilot, existing: []).showInMenuBar == true)
     }
 
@@ -93,7 +94,7 @@ struct SettingsLogicTests {
         #expect(SettingsLogic.describeChanges(from: old, to: new) == [
             "Add account Codex \u{00B7} Default",
             "Alert thresholds: 75%, 90% used (now 80%, 95%)",
-            "Refresh every 5 min (now 10 min)",
+            "Refresh every 5 minutes (now 10 minutes)",
         ])
     }
 

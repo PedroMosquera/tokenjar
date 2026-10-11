@@ -8,7 +8,12 @@ struct RefreshScheduler {
     /// Set from a 429 (Retry-After, or twice the interval). Popover open, wake and the header button force a
     /// refresh, and none of them may re-hit a provider that asked to be left alone.
     private var backoffUntil: [String: Date] = [:]
+    private var startedAt: [String: Date] = [:]
 
+    static let tickInterval: TimeInterval = 30
+    /// An account is due on the tick nearest its time. Each tick lands a little after its mark, by a different amount
+    /// each time, so a strict comparison would often leave it for the next tick: a 10-minute account checked every 10m 30s.
+    static let dueSlack = tickInterval / 2
     static let popoverRefreshAge: TimeInterval = 120
     static let scanInterval: TimeInterval = 5 * 60
 
@@ -16,18 +21,23 @@ struct RefreshScheduler {
     func due(_ ids: [String], now: Date, force: Bool) -> [String] {
         ids.filter { id in
             guard !inFlight.contains(id), (backoffUntil[id] ?? .distantPast) <= now else { return false }
-            return force || (nextDue[id] ?? .distantPast) <= now
+            return force || (nextDue[id] ?? .distantPast) <= now.addingTimeInterval(Self.dueSlack)
         }
     }
 
-    mutating func begin(_ ids: [String]) {
+    mutating func begin(_ ids: [String], at now: Date) {
         inFlight.formUnion(ids)
+        for id in ids { startedAt[id] = now }
     }
 
-    /// `delay` nil leaves the account due at once, for a result that was dropped.
+    /// `delay` nil leaves the account due at once, for a result that was dropped. The interval counts from when the
+    /// check started, so a check that takes a few seconds does not push every later one back by a tick; a rate-limit
+    /// backoff counts from the answer that asked for it.
     mutating func finish(_ id: String, at now: Date, delay: TimeInterval?, rateLimited: Bool) {
         inFlight.remove(id)
-        let due = delay.map { now.addingTimeInterval($0) }
+        let base = rateLimited ? now : startedAt[id] ?? now
+        startedAt[id] = nil
+        let due = delay.map { base.addingTimeInterval($0) }
         nextDue[id] = due
         backoffUntil[id] = rateLimited ? due : nil
     }

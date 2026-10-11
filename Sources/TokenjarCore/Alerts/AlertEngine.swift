@@ -122,7 +122,7 @@ public enum AlertEngine {
     }
 
     private static func sourceFailed(account: AccountConfig, error: FetchError, config: AppConfig, state: inout AlertState) -> AlertOutcome {
-        guard opensEpisode(error), state.failingAccounts.insert(account.id).inserted else { return AlertOutcome() }
+        guard error.attention != .transient, state.failingAccounts.insert(account.id).inserted else { return AlertOutcome() }
         // A run that spent tokens is news, not a condition carried over from before launch, and the app stops probing a
         // Claude account after one, so waiting for a baseline would mean never saying so.
         guard state.baselinedAccounts.contains(account.id) || spentTokens(error), config.alerts.enabled, config.alerts.sourceProblems
@@ -132,13 +132,6 @@ public enum AlertEngine {
             kind: .sourceProblem, accountID: account.id
         )
         return AlertOutcome(events: [event])
-    }
-
-    private static func opensEpisode(_ error: FetchError) -> Bool {
-        switch error {
-        case .network, .timeout, .rateLimited: false
-        case .cliNotFound, .notSignedIn, .noSubscription, .unauthorized, .parse, .unsupported: true
-        }
     }
 
     private static func spentTokens(_ error: FetchError) -> Bool {

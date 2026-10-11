@@ -24,14 +24,14 @@ enum NotificationPermission: Equatable {
     }
 }
 
-/// Posts alert outcomes to Notification Center and routes the "Open dashboard" action back to the app.
+/// Posts alert outcomes to Notification Center and routes the "Open Dashboard" action back to the app.
 /// Notification Center only serves an app bundle, so every call is a no-op when running from a build folder.
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     nonisolated static let categoryID = "tokenjar.alert"
     nonisolated static let openDashboardActionID = "tokenjar.open-dashboard"
     nonisolated private static let accountIDKey = "accountID"
 
-    /// Called with the alert's account id when the user taps a notification or its "Open dashboard" action.
+    /// Called with the alert's account id when the user taps a notification or its "Open Dashboard" action.
     var onOpenDashboard: (String?) -> Void = { _ in }
 
     /// `UNUserNotificationCenter.current()` raises outside an app bundle, so nothing touches it unless this is true.
@@ -47,7 +47,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     func activate() {
         guard let center else { return }
         center.delegate = self
-        let open = UNNotificationAction(identifier: Self.openDashboardActionID, title: "Open dashboard", options: [.foreground])
+        let open = UNNotificationAction(identifier: Self.openDashboardActionID, title: "Open Dashboard", options: [.foreground])
         center.setNotificationCategories([UNNotificationCategory(identifier: Self.categoryID, actions: [open], intentIdentifiers: [])])
     }
 

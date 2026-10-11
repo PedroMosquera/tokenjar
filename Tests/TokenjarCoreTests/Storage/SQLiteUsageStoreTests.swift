@@ -68,27 +68,88 @@ struct SQLiteUsageStoreTests {
         #expect(throws: SQLiteError.self) { try SQLiteUsageStore(url: url) }
     }
 
-    @Test func skipsARepeatedSampleWithinFiveMinutes() throws {
+    /// An idle window repeats the same numbers on every refresh. One sample an hour keeps its line unbroken (the
+    /// dashboard splits lines at a 2-hour gap) without a row every 10 minutes.
+    @Test func skipsARepeatedSampleWithinAnHour() throws {
         let store = try StoreKind.sqlite.make(in: temp.url)
-        let reset = now.addingTimeInterval(3600)
-        func record(_ offset: TimeInterval, _ used: Double, _ resetsAt: Date?) throws {
+        let reset = now.addingTimeInterval(86_400)
+        func record(_ minutes: TimeInterval, _ used: Double, _ resetsAt: Date?) throws {
             try store.record(UsageSnapshot(
-                accountID: "acct", provider: .claude, windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: used, resetsAt: resetsAt)],
-                fetchedAt: now.addingTimeInterval(offset), source: "test"
+                accountID: "acct", provider: .claude, windows: [UsageWindow(id: "weekly", label: "Week", usedPercent: used, resetsAt: resetsAt)],
+                fetchedAt: now.addingTimeInterval(minutes * 60), source: "test"
             ))
         }
         try record(0, 40, reset)
-        try record(60, 40, reset)       // repeat within 5 minutes: skipped
-        try record(299, 40, reset)      // still within 5 minutes of the kept sample at 0: skipped
-        try record(300, 40, reset)      // 5 minutes after the kept sample: kept
-        try record(360, 41, reset)      // value changed: kept
-        try record(420, 41, reset.addingTimeInterval(60)) // reset moved: kept
-        try record(480, 41, nil)        // reset dropped: kept
-        try record(540, 41, nil)        // repeat of a nil reset within 5 minutes: skipped
+        try record(10, 40, reset)       // repeat 10 minutes later: skipped
+        try record(59, 40, reset)       // still within the hour of the kept sample at 0: skipped
+        try record(61, 40, reset)       // 61 minutes after the kept sample: kept
+        try record(62, 41, reset)       // value changed: kept
+        try record(63, 41, reset.addingTimeInterval(60)) // reset moved: kept
+        try record(64, 41, nil)         // reset dropped: kept
+        try record(70, 41, nil)         // repeat of a nil reset within the hour: skipped
 
-        let offsets = try store.samples(accountID: "acct", windowID: "session", since: .distantPast).map { $0.timestamp.timeIntervalSince(now) }
-        #expect(offsets == [0, 300, 360, 420, 480])
-        #expect(try store.latestSnapshots().first?.fetchedAt == now.addingTimeInterval(540))
+        let minutes = try store.samples(accountID: "acct", windowID: "weekly", since: .distantPast).map { $0.timestamp.timeIntervalSince(now) / 60 }
+        #expect(minutes == [0, 61, 62, 63, 64])
+        #expect(try store.latestSnapshots().first?.fetchedAt == now.addingTimeInterval(70 * 60))
+    }
+
+    /// A flat run that ends in a change keeps its last skipped repeat, so a chart draws flat-then-jump instead of a ramp
+    /// from the run's first sample to the change.
+    @Test func aFlatRunKeepsItsLastRepeatBeforeAChange() throws {
+        let store = try StoreKind.sqlite.make(in: temp.url)
+        let reset = now.addingTimeInterval(86_400)
+        func record(_ minutes: TimeInterval, _ used: Double) throws -> Bool {
+            try store.record(UsageSnapshot(
+                accountID: "acct", provider: .claude, windows: [UsageWindow(id: "weekly", label: "Week", usedPercent: used, resetsAt: reset)],
+                fetchedAt: now.addingTimeInterval(minutes * 60), source: "test"
+            ))
+        }
+        #expect(try record(0, 40))
+        #expect(try !record(10, 40))
+        #expect(try !record(40, 40))
+        #expect(try record(50, 55))
+        #expect(try !record(60, 55))
+
+        let samples = try store.samples(accountID: "acct", windowID: "weekly", since: .distantPast)
+        #expect(samples.map { $0.timestamp.timeIntervalSince(now) / 60 } == [0, 40, 50])
+        #expect(samples.map(\.usedPercent) == [40, 40, 55])
+    }
+
+    /// Claude's cache reports the time it was written, which can be older than the last live check. The repeat held
+    /// from that check is not written after the older change, where it would draw the old value again.
+    @Test func aChangeOlderThanTheHeldRepeatDropsIt() throws {
+        let store = try StoreKind.sqlite.make(in: temp.url)
+        let reset = now.addingTimeInterval(86_400)
+        func record(_ minutes: TimeInterval, _ used: Double) throws {
+            try store.record(UsageSnapshot(
+                accountID: "acct", provider: .claude, windows: [UsageWindow(id: "weekly", label: "Week", usedPercent: used, resetsAt: reset)],
+                fetchedAt: now.addingTimeInterval(minutes * 60), source: "test"
+            ))
+        }
+        try record(0, 40)
+        try record(30, 40)
+        try record(20, 55)
+
+        let samples = try store.samples(accountID: "acct", windowID: "weekly", since: .distantPast)
+        #expect(samples.map { $0.timestamp.timeIntervalSince(now) / 60 } == [0, 20])
+    }
+
+    /// OpenCode Go reports an idle window as not started, with a reset time of now plus the window. That time moves on
+    /// every refresh and says nothing, so only the used % counts.
+    @Test func skipsARepeatedNotStartedWindowWhoseResetTimeMoved() throws {
+        let store = try StoreKind.sqlite.make(in: temp.url)
+        func record(_ minutes: TimeInterval) throws {
+            let at = now.addingTimeInterval(minutes * 60)
+            try store.record(UsageSnapshot(
+                accountID: "go", provider: .opencodeGo,
+                windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: 0, windowMinutes: 300, resetsAt: at.addingTimeInterval(5 * 3600), notStarted: true)],
+                fetchedAt: at, source: "test"
+            ))
+        }
+        for minutes in [0.0, 10, 20, 61] { try record(minutes) }
+
+        let minutes = try store.samples(accountID: "go", windowID: "session", since: .distantPast).map { $0.timestamp.timeIntervalSince(now) / 60 }
+        #expect(minutes == [0, 61])
     }
 
     /// The repeat check compares with the same window's last sample, never another window's with equal values.
@@ -105,6 +166,55 @@ struct SQLiteUsageStoreTests {
         ))
 
         #expect(try store.samples(accountID: "acct", windowID: nil, since: .distantPast).map(\.windowID) == ["weekly:Fable", "weekly:Opus"])
+    }
+
+    /// The local-day function remembers the last day it computed. Events every 37 minutes through both US clock changes
+    /// of 2026 must land on the same days `Calendar.startOfDay` gives each one.
+    @Test func localDaysMatchStartOfDayAcrossClockChanges() throws {
+        let newYork = fixedCalendar("America/New_York")
+        let store = try StoreKind.sqlite.make(in: temp.url, calendar: newYork)
+        var events: [UsageEvent] = []
+        for (month, day) in [(3, 6), (10, 30)] {
+            let start = newYork.date(from: DateComponents(year: 2026, month: month, day: day))!
+            for step in 0..<(5 * 24 * 60 / 37) {
+                events.append(usageEvent("\(month)-\(step)", at: start.addingTimeInterval(Double(step) * 37 * 60), input: step + 1))
+            }
+        }
+        try store.upsert(events)
+
+        let expected = Dictionary(grouping: events) { newYork.startOfDay(for: $0.timestamp) }
+            .map { (day: $0.key, requests: $0.value.count, input: $0.value.map(\.inputTokens).reduce(0, +)) }
+            .sorted { $0.day < $1.day }
+        let rows = try store.dailyUsage(accountIDs: nil, since: .distantPast)
+        #expect(rows.map(\.day) == expected.map(\.day))
+        #expect(rows.map(\.requests) == expected.map(\.requests))
+        #expect(rows.map(\.inputTokens) == expected.map(\.input))
+    }
+
+    /// A first scan stores tens of thousands of events. Each chunk commits and lets go of the store, so a samples read
+    /// from the main thread waits for one chunk, not the whole scan.
+    @Test func largeUpsertsCommitInChunks() throws {
+        let store = try SQLiteUsageStore(url: temp.url.appending(path: "tokenjar.sqlite"))
+        let events = (0..<5_000).map { usageEvent("k\($0)", at: now.addingTimeInterval(Double($0)), input: 1) }
+        let before = store.commits
+
+        try store.upsert(events)
+
+        #expect(store.commits - before == 3)
+        try store.upsert(events.map { usageEvent($0.dedupeKey, at: $0.timestamp, input: 2) })
+        let rows = try store.dailyUsage(accountIDs: nil, since: .distantPast)
+        #expect(rows.map(\.requests).reduce(0, +) == 5_000)
+        #expect(rows.map(\.inputTokens).reduce(0, +) == 10_000)
+    }
+
+    /// The popover reads one window's samples on every render, so that read must walk the index in order.
+    @Test func oneWindowsSamplesAreReadInIndexOrder() throws {
+        let url = temp.url.appending(path: "tokenjar.sqlite")
+        _ = try SQLiteUsageStore(url: url)
+
+        let plan = try query(url, "EXPLAIN QUERY PLAN " + SQLiteUsageStore.windowSamplesSQL, column: 3)
+        #expect(plan.contains { $0.contains("(account_id=? AND window_id=? AND ts>?)") }, "\(plan)")
+        #expect(!plan.contains { $0.contains("TEMP B-TREE") }, "\(plan)")
     }
 
     @Test func prunesSamplesOlderThanTheRetention() throws {
@@ -128,7 +238,7 @@ struct SQLiteUsageStoreTests {
                 group.addTask {
                     for i in 0..<50 {
                         try? store.upsert([usageEvent("w\(worker)-\(i)", at: start, input: 1)])
-                        try? store.record(UsageSnapshot(accountID: "w\(worker)", provider: .claude, fetchedAt: start, source: "test"))
+                        _ = try? store.record(UsageSnapshot(accountID: "w\(worker)", provider: .claude, fetchedAt: start, source: "test"))
                     }
                 }
             }
@@ -180,7 +290,7 @@ struct SQLiteUsageStoreTests {
     }
 
     /// Reads the database through its own connection, so assertions do not depend on the store's code paths.
-    private func query(_ url: URL, _ sql: String) throws -> [String] {
+    private func query(_ url: URL, _ sql: String, column: Int32 = 0) throws -> [String] {
         var db: OpaquePointer?
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else { throw SQLiteError(code: SQLITE_CANTOPEN, message: "open") }
         defer { sqlite3_close_v2(db) }
@@ -189,7 +299,7 @@ struct SQLiteUsageStoreTests {
         defer { sqlite3_finalize(statement) }
         var out: [String] = []
         while sqlite3_step(statement) == SQLITE_ROW {
-            out.append(sqlite3_column_text(statement, 0).map { String(cString: $0) } ?? "")
+            out.append(sqlite3_column_text(statement, column).map { String(cString: $0) } ?? "")
         }
         return out
     }

@@ -52,6 +52,15 @@ struct ModelsTests {
         #expect(ProviderID.allCases.filter(\.isLinkOnly) == [.devin])
     }
 
+    @Test func onlyZenAndDevinReportNoWindows() {
+        let expected: [ProviderID: Bool] = [
+            .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
+        ]
+        for provider in ProviderID.allCases {
+            #expect(provider.reportsWindows == expected[provider], "\(provider)")
+        }
+    }
+
     @Test func httpsOverrideIsUsed() {
         let account = AccountConfig(id: "a", provider: .codex, label: "x", dashboardURL: "https://example.com/usage")
         #expect(account.resolvedDashboardURL.absoluteString == "https://example.com/usage")
@@ -65,6 +74,63 @@ struct ModelsTests {
             UsageWindow(id: "weekly:Fable", label: "Week · Fable", usedPercent: 10),
         ], fetchedAt: now, source: "test")
         #expect(snapshot.tightestWindow?.id == "session")
+    }
+
+    @Test func aWindowHasResetOnceItsResetTimeHasPassed() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        #expect(UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now.addingTimeInterval(-60)).hasReset(now: now))
+        #expect(UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now).hasReset(now: now))
+        #expect(!UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now.addingTimeInterval(60)).hasReset(now: now))
+        #expect(!UsageWindow(id: "session", label: "5-hour", usedPercent: 100).hasReset(now: now))
+    }
+
+    /// A full 5-hour window that reset a minute ago no longer limits anything; the live 40 % one does.
+    @Test func tightestWindowAtATimeSkipsWindowsThatHaveReset() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = UsageSnapshot(accountID: "a", provider: .claude, windows: [
+            UsageWindow(id: "session", label: "5-hour", usedPercent: 100, windowMinutes: 300, resetsAt: now.addingTimeInterval(-60)),
+            UsageWindow(id: "weekly", label: "Week", usedPercent: 40, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(86_400)),
+        ], fetchedAt: now.addingTimeInterval(-600), source: "test")
+        #expect(snapshot.tightestWindow(now: now)?.id == "weekly")
+        #expect(snapshot.tightestWindow(now: now.addingTimeInterval(-120))?.id == "session")
+    }
+
+    /// Every surface reads this to decide whether an account needs a look, so each case is pinned.
+    @Test func attentionClassifiesEveryFetchError() {
+        let expected: [(FetchError, FetchError.Attention)] = [
+            (.noSubscription("No active OpenCode Go subscription for this key"), .calm),
+            (.network("offline"), .transient),
+            (.timeout, .transient),
+            (.rateLimited(retryAfter: 60), .transient),
+            (.cliNotFound("claude"), .actionable),
+            (.notSignedIn, .actionable),
+            (.unauthorized, .actionable),
+            (.parse("shape"), .actionable),
+            (.unsupported("model turn"), .actionable),
+        ]
+        for (error, attention) in expected {
+            #expect(error.attention == attention, "\(error)")
+        }
+    }
+
+    /// Each message names the cause and what happens next, as one or two whole sentences.
+    @Test func errorMessagesSayWhatHappenedAndWhatHappensNext() {
+        let expected: [(FetchError, String)] = [
+            (.cliNotFound("claude"), "Can't find the claude command on this Mac."),
+            (.notSignedIn, "Signed out. Sign in again to see limits."),
+            (.unauthorized, "The sign-in or API key was rejected."),
+            (.network("URLError"), "Can't reach the server. Tokenjar tries again at the next refresh."),
+            (.timeout, "No answer in time. Tokenjar tries again at the next refresh."),
+            (.parse("unrecognized output"), "Couldn't read the usage answer. An update may have changed it."),
+            (.rateLimited(retryAfter: 60), "Checking too often. Tokenjar waits before the next check."),
+        ]
+        for (error, message) in expected {
+            #expect(error.userMessage == message)
+        }
+        for message in [ClaudeUsageFetcher.modelTurnMessage, AntigravityUsageFetcher.modelTurnMessage] {
+            #expect(message.hasSuffix("click Try Once More."))
+            #expect(!message.contains("CLI"))
+        }
     }
 
     @Test func monthLengthFollowsTheMonthEndingAtReset() {

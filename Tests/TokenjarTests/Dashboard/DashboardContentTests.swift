@@ -145,8 +145,8 @@ struct DashboardSectionsTests {
 
     @Test func aFailedCheckReadsAsOneSentence() {
         let signedOut = DashboardSections.limitsEmptyMessage(status: AccountStatus(error: .notSignedIn), anyAccountHasWindows: false)
-        #expect(signedOut == "No limits yet. Last check: Signed out. Sign in with the provider CLI.")
+        #expect(signedOut == "No limits yet. Last check: \(FetchError.notSignedIn.userMessage)")
         let timedOut = DashboardSections.limitsEmptyMessage(status: AccountStatus(error: .timeout), anyAccountHasWindows: false)
-        #expect(timedOut == "No limits yet. Last check: Timed out.")
+        #expect(timedOut == "No limits yet. Last check: \(FetchError.timeout.userMessage)")
     }
 }

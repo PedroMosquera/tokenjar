@@ -25,7 +25,9 @@ final class AppModel {
         var closePopover: () -> Void = {}
     }
 
-    var config = AppConfig()
+    var config = AppConfig() {
+        didSet { refreshAccounts() }
+    }
     private(set) var baseConfig = AppConfig()
     var hasLocalOverrides = false
     /// The one banner the popover and Settings show: a config problem first, else a history database problem.
@@ -33,14 +35,26 @@ final class AppModel {
     private var configProblem: String?
     private var historyProblem: String?
 
+    /// False while the last load of config.json or config.local.json failed: an edit is then neither applied nor
+    /// saved, so Settings should not offer one.
+    var canEditConfig: Bool { !configLoadFailed }
+
     /// Keyed by AccountConfig.id.
     var statuses: [String: AccountStatus] = [:]
     var isRefreshing = false
     var lastRefreshAt: Date?
     /// Ticks every 30 s so countdowns and "updated 2m ago" stay current.
-    var now = Date()
-    /// Bumped whenever stored samples or usage rows change, so history views reload.
+    var now: Date
+    /// `now` for the popover's views. It moves only while the popover is shown, so the popover's long-lived content
+    /// does not redraw every 30 seconds while closed; opening it brings the clock up to date first.
+    var popoverNow: Date
+    /// Set by the popover's delegate.
+    @ObservationIgnored var isPopoverShown = false
+    /// Bumped whenever stored samples or usage rows change, and when the local day turns over, so history views reload.
     var historyRevision = 0
+    /// The local day of the last tick. History views total "today" from their last reload, and an idle account stores
+    /// no sample to trigger one after midnight.
+    @ObservationIgnored private var historyDay: Date
     /// nil until the app has asked macOS; see `refreshNotificationPermission`.
     var notificationPermission: NotificationPermission?
 
@@ -55,7 +69,11 @@ final class AppModel {
     @ObservationIgnored var priceTable = PriceTable()
     @ObservationIgnored var notifications: NotificationManager?
     /// Set by `AppModel.preview()`: shows every configured account regardless of what exists on this Mac.
-    @ObservationIgnored var previewMode = false
+    @ObservationIgnored var previewMode = false {
+        didSet { refreshAccounts() }
+    }
+    /// Whether what an account reads exists on this Mac. Tests replace it.
+    @ObservationIgnored var isAvailable: (AccountConfig) -> Bool
     /// Set by `loadReadOnly`: this Mac's settings and history, shown without saving, fetching, scanning or asking macOS.
     @ObservationIgnored private(set) var readOnly = false
     /// What General shows for launch at login. Window renders replace it so they never ask macOS.
@@ -79,7 +97,7 @@ final class AppModel {
     @ObservationIgnored private var configStamp: [Date?] = []
     /// config.json or config.local.json did not load. Saving would overwrite whatever is in the file, which may be a
     /// merge conflict or a hand edit in progress, so nothing is saved until a load succeeds.
-    @ObservationIgnored private var configLoadFailed = false
+    private var configLoadFailed = false
     @ObservationIgnored private var hasLoadedConfig = false
     /// Headroom's data is still under its old names. Nothing loads for the rest of this launch: a config, database or
     /// alert state written under Tokenjar's names would take them, and the move never runs onto a taken name.
@@ -90,11 +108,21 @@ final class AppModel {
         self.paths = paths
         self.fetcher = fetcher
         self.clock = clock
+        let start = clock()
+        now = start
+        popoverNow = start
+        historyDay = Calendar.current.startOfDay(for: start)
+        isAvailable = { AccountDiscovery.isAvailable($0, paths: paths) }
     }
 
-    /// Accounts to show on this Mac: enabled, and with their profile dir or credential present.
-    var accounts: [AccountConfig] {
-        config.accounts.filter { $0.enabled && (previewMode || AccountDiscovery.isAvailable($0, paths: paths)) }
+    /// Accounts to show on this Mac: enabled, and with their profile dir or credential present. Views read this many
+    /// times per render, so it is kept rather than computed with a stat per account; it is redone when the config
+    /// changes and on every tick, which picks up a profile folder that appears or goes away.
+    private(set) var accounts: [AccountConfig] = []
+
+    private func refreshAccounts() {
+        let visible = config.accounts.filter { $0.enabled && (previewMode || isAvailable($0)) }
+        if visible != accounts { accounts = visible }
     }
 
     func status(for account: AccountConfig) -> AccountStatus {
@@ -114,7 +142,7 @@ final class AppModel {
         signal(SIGPIPE, SIG_IGN)
         loadState()
 
-        ticker = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        ticker = Timer.scheduledTimer(withTimeInterval: RefreshScheduler.tickInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
         let center = NSWorkspace.shared.notificationCenter
@@ -166,6 +194,7 @@ final class AppModel {
 
     func popoverWillOpen() {
         now = clock()
+        popoverNow = now
         guard RefreshScheduler.shouldRefreshOnPopoverOpen(lastRefreshAt: lastRefreshAt, now: now) else { return }
         refresh(force: true)
     }
@@ -173,7 +202,14 @@ final class AppModel {
     @discardableResult
     func tick() -> Task<Void, Never>? {
         now = clock()
+        if isPopoverShown { popoverNow = now }
+        let day = Calendar.current.startOfDay(for: now)
+        if day != historyDay {
+            historyDay = day
+            historyRevision += 1
+        }
         guard !sleeping else { return nil }
+        refreshAccounts()
         reloadConfigIfChanged()
         let fetches = refresh(force: false)
         if RefreshScheduler.shouldScan(lastScanAt: lastScanAt, now: now) { scanHistory() }
@@ -243,6 +279,13 @@ final class AppModel {
         }
     }
 
+    /// What the app shows after a reload of `file` fails, for window renders: nothing is read, and edits stop.
+    func showFailedReload(of file: String) {
+        hasLoadedConfig = true
+        configLoadFailed = true
+        configProblem = loadFailureMessage(ConfigError.invalidJSON(file: file, detail: "render"))
+    }
+
     private func configLoaded() {
         configLoadFailed = false
         hasLoadedConfig = true
@@ -276,7 +319,8 @@ final class AppModel {
     }
 
     /// Applies an edit from Settings and saves it to config.json (through the stow symlink if there is one).
-    /// While the last load failed, the edit is neither applied nor saved; the banner says why.
+    /// While the last load failed, the edit is neither applied nor saved, and an edit whose save fails is undone; the
+    /// banner says why.
     func updateConfig(_ edit: (inout AppConfig) -> Void) {
         // An outside change since the last tick is the base of this edit, or saving would revert it.
         reloadConfigIfChanged()
@@ -291,12 +335,13 @@ final class AppModel {
             baseConfig = try ConfigStore(paths: paths).save(old: old, new: new, base: baseConfig)
             configProblem = nil
         } catch {
+            config = old
             configProblem = "Could not save config.json."
         }
         configStamp = currentConfigStamp()
         refreshEditedAccounts(from: old.accounts)
         // Quiet grant only: the Alerts pane's "Allow banners" is the one place the system prompt appears.
-        if new.alerts.enabled, !old.alerts.enabled { requestNotificationPermission(prominent: false) }
+        if config.alerts.enabled, !old.alerts.enabled { requestNotificationPermission(prominent: false) }
     }
 
     private func refreshEditedAccounts(from old: [AccountConfig]) {
@@ -310,14 +355,16 @@ final class AppModel {
     /// `force` skips the refresh interval (popover open, wake, the header button) but not a rate-limit backoff.
     @discardableResult
     func refresh(force: Bool) -> Task<Void, Never>? {
-        let due = Set(scheduler.due(accounts.map(\.id), now: clock(), force: force))
-        return fetch(accounts.filter { due.contains($0.id) })
+        // Read once: a later reading for the start would push every next check back by the time this one took to begin.
+        let current = clock()
+        let due = Set(scheduler.due(accounts.map(\.id), now: current, force: force))
+        return fetch(accounts.filter { due.contains($0.id) }, startedAt: current)
     }
 
     /// An explicit per-account check, such as Settings > Test: it overrides the interval and a rate-limit backoff.
     @discardableResult
     func refresh(accountID: String) -> Task<Void, Never>? {
-        fetch(accounts.filter { $0.id == accountID && !scheduler.inFlight.contains($0.id) })
+        fetch(accounts.filter { $0.id == accountID && !scheduler.inFlight.contains($0.id) }, startedAt: clock())
     }
 
     /// The one way to probe an account again after its probe spent tokens or quota: one run, latched again if it
@@ -328,11 +375,11 @@ final class AppModel {
         return refresh(accountID: accountID)
     }
 
-    private func fetch(_ targets: [AccountConfig]) -> Task<Void, Never>? {
+    private func fetch(_ targets: [AccountConfig], startedAt: Date) -> Task<Void, Never>? {
         guard !isInert else { return nil }
         let targets = withoutLatchedProbes(targets)
         guard !targets.isEmpty else { return nil }
-        scheduler.begin(targets.map(\.id))
+        scheduler.begin(targets.map(\.id), at: startedAt)
         for account in targets {
             statuses[account.id, default: AccountStatus()].isRefreshing = true
         }
@@ -340,7 +387,7 @@ final class AppModel {
         let context = FetchContext(secrets: secrets, cli: cliLocator(for: config), paths: paths)
         let jobs = targets.map { ($0, fetcher($0.provider)) }
         return Task {
-            var dropped = false
+            var dropped = false, stored = false
             await withTaskGroup(of: (AccountConfig, Result<UsageSnapshot, FetchError>).self) { group in
                 for (account, fetcher) in jobs {
                     group.addTask {
@@ -355,20 +402,30 @@ final class AppModel {
                     }
                 }
                 for await (account, result) in group {
-                    if !apply(result, to: account) { dropped = true }
+                    switch apply(result, to: account) {
+                    case .dropped: dropped = true
+                    case .applied(let sampled): stored = stored || sampled
+                    }
                     isRefreshing = !scheduler.inFlight.isEmpty
                 }
             }
             lastRefreshAt = clock()
             now = clock()
-            historyRevision += 1
+            if isPopoverShown { popoverNow = now }
+            if stored { historyRevision += 1 }
             if dropped { refresh(force: false) }
         }
     }
 
-    /// Returns false when the account was edited, disabled or removed while its fetch ran. Such a result describes
-    /// the old settings, so it is not shown, stored or alerted on, and the account is due again at once.
-    private func apply(_ result: Result<UsageSnapshot, FetchError>, to account: AccountConfig) -> Bool {
+    private enum Applied {
+        /// The account was edited, disabled or removed while its fetch ran. The result describes the old settings, so
+        /// it is not shown, stored or alerted on, and the account is due again at once.
+        case dropped
+        /// `sampled` is true when the store kept a new window sample.
+        case applied(sampled: Bool)
+    }
+
+    private func apply(_ result: Result<UsageSnapshot, FetchError>, to account: AccountConfig) -> Applied {
         let current = clock()
         var modelTurn: ProbeLatch.CLI?, rateLimited = false
         if case .failure(let error) = result {
@@ -380,17 +437,18 @@ final class AppModel {
         guard live == account || modelTurn != nil else {
             scheduler.finish(account.id, at: current, delay: nil, rateLimited: false)
             statuses[account.id]?.isRefreshing = false
-            return false
+            return .dropped
         }
 
         var status = statuses[account.id] ?? AccountStatus()
         status.isRefreshing = false
         status.lastAttempt = current
+        var sampled = false
         switch result {
         case .success(let snapshot):
             status.snapshot = snapshot
             status.error = nil
-            try? store?.record(snapshot)
+            sampled = (try? store?.record(snapshot)) ?? false
         case .failure(let error):
             status.error = error
         }
@@ -405,10 +463,11 @@ final class AppModel {
             saveProbeLatch()
         }
 
+        let previousAlertState = alertState
         let outcome = AlertEngine.evaluate(account: live ?? account, result: result, config: config, state: &alertState, now: current)
         notifications?.handle(outcome)
-        saveAlertState()
-        return true
+        if alertState != previousAlertState { saveAlertState() }
+        return .applied(sampled: sampled)
     }
 
     /// Accounts whose last probe spent tokens or quota stay out, unless the binary of the CLI that ran it has changed.

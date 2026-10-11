@@ -60,7 +60,7 @@ public enum AccountDiscovery {
 
     /// The profile dir or credential file the account reads on this Mac (gh's config folder for Copilot, whose files
     /// are never opened). nil for Antigravity, Devin and a key in the app's own Keychain, which have no file of their own.
-    static func location(of account: AccountConfig, paths: AppPaths, environment: [String: String]) -> URL? {
+    public static func location(of account: AccountConfig, paths: AppPaths, environment: [String: String]) -> URL? {
         switch account.provider {
         case .claude:
             account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".claude")
@@ -79,7 +79,7 @@ public enum AccountDiscovery {
         }
     }
 
-    static func openCodeAuthFile(paths: AppPaths, environment: [String: String]) -> URL {
+    public static func openCodeAuthFile(paths: AppPaths, environment: [String: String]) -> URL {
         if let xdg = environment["XDG_DATA_HOME"], !xdg.isEmpty {
             return URL(fileURLWithPath: xdg).appending(path: "opencode/auth.json")
         }

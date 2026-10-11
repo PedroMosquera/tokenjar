@@ -277,13 +277,13 @@ struct AlertEngineTests {
         #expect(failed.events.count == 1)
         #expect(event.kind == .sourceProblem)
         #expect(event.title == "Claude · Work")
-        #expect(event.body == "Signed out. Sign in with the provider CLI.")
+        #expect(event.body == "Signed out. Sign in again to see limits.")
         #expect(event.id == "claude-work|source")
         #expect(run(&state, .failure(.cliNotFound("claude"))) == AlertOutcome())
 
         let recovered = run(&state, ok(session(11, resetsAt: resetsAt)))
         #expect(recovered == AlertOutcome(withdrawals: [event.id]))
-        #expect(run(&state, .failure(.parse("unexpected token near <REDACTED>"))).events.map(\.body) == ["Unexpected response format"])
+        #expect(run(&state, .failure(.parse("unexpected token near <REDACTED>"))).events.map(\.body) == ["Couldn't read the usage answer. An update may have changed it."])
     }
 
     @Test func transientFailuresNeverAlert() {

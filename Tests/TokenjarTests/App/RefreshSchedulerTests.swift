@@ -9,18 +9,39 @@ struct RefreshSchedulerTests {
 
     @Test func aRunningFetchIsNeverStartedTwice() {
         var scheduler = RefreshScheduler()
-        scheduler.begin(["a"])
+        scheduler.begin(["a"], at: t0)
         #expect(scheduler.due(["a", "b"], now: t0, force: true) == ["b"])
         #expect(scheduler.due(["a", "b"], now: t0, force: false) == ["b"])
     }
 
-    @Test func anAccountIsDueOnceItsDelayHasPassed() {
+    /// Due on the tick nearest its time: a tick that lands a moment early still counts, the tick before it does not.
+    @Test func anAccountIsDueOnTheTickNearestItsDelay() {
         var scheduler = RefreshScheduler()
-        scheduler.begin(["a"])
+        scheduler.begin(["a"], at: t0)
         scheduler.finish("a", at: t0, delay: 600, rateLimited: false)
-        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(599), force: false).isEmpty)
-        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(599), force: true) == ["a"])
+        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(570), force: false).isEmpty)
+        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(570), force: true) == ["a"])
+        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(599.9), force: false) == ["a"])
         #expect(scheduler.due(["a"], now: t0.addingTimeInterval(600), force: false) == ["a"])
+    }
+
+    /// A 10-minute account checked on 30-second ticks, whose check takes 2 seconds, is due again on the tick 10 minutes
+    /// after the last check started. Counting from the result put it a tick later every time: every 10m 30s.
+    @Test func theIntervalCountsFromWhenTheCheckStarted() {
+        var scheduler = RefreshScheduler()
+        scheduler.begin(["a"], at: t0)
+        scheduler.finish("a", at: t0.addingTimeInterval(2), delay: 600, rateLimited: false)
+        let firstDueTick = stride(from: 30.0, through: 900, by: 30).first { !scheduler.due(["a"], now: t0.addingTimeInterval($0), force: false).isEmpty }
+        #expect(firstDueTick == 600)
+    }
+
+    /// A provider's Retry-After counts from its answer.
+    @Test func aRateLimitCountsFromTheAnswer() {
+        var scheduler = RefreshScheduler()
+        scheduler.begin(["a"], at: t0)
+        scheduler.finish("a", at: t0.addingTimeInterval(2), delay: 3600, rateLimited: true)
+        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(3601), force: true).isEmpty)
+        #expect(scheduler.due(["a"], now: t0.addingTimeInterval(3602), force: true) == ["a"])
     }
 
     @Test func anEditMakesOnlyThatAccountDue() {
@@ -33,7 +54,7 @@ struct RefreshSchedulerTests {
 
     @Test func aDroppedResultLeavesTheAccountDue() {
         var scheduler = RefreshScheduler()
-        scheduler.begin(["a"])
+        scheduler.begin(["a"], at: t0)
         scheduler.finish("a", at: t0, delay: nil, rateLimited: false)
         #expect(scheduler.due(["a"], now: t0, force: false) == ["a"])
     }

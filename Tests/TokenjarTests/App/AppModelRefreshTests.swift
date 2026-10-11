@@ -197,6 +197,28 @@ struct AppModelRefreshTests {
         #expect(try home.mode(support.appending(path: "probe-latch.json")) == 0o600)
     }
 
+    /// A refresh that changes nothing the alert engine tracks writes nothing to disk.
+    @Test func alertStateIsWrittenOnlyWhenItChanges() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".codex")
+        let account = AccountConfig(id: "codex", provider: .codex, label: "Plus")
+        try home.writeConfig(AppConfig(accounts: [account]))
+        let log = FetchLog(), clock = TestClock()
+        let fetchedAt = clock.now
+        let model = model(home, clock) { _ in FakeFetcher(log: log) { .success(usageSnapshot($0, fetchedAt: fetchedAt)) } }
+        await model.refresh(force: true)?.value
+        let file = home.paths.supportDirectory.appending(path: "alert-state.json")
+        let baseline = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes([.modificationDate: baseline], ofItemAtPath: file.path)
+
+        await model.refresh(force: true)?.value
+        await model.refresh(force: true)?.value
+
+        #expect(log.count("codex") == 3)
+        #expect(try FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate] as? Date == baseline)
+    }
+
     @Test func ticksWaitForTheWakeRefreshAfterSleep() async throws {
         let home = try ModelHome()
         defer { home.remove() }
@@ -218,5 +240,146 @@ struct AppModelRefreshTests {
         clock.advance(11 * 60)
         await model.tick()?.value
         #expect(log.count("codex") == 3)
+    }
+
+    /// The popover's views read `popoverNow`, so a closed popover does not redraw on every 30-second tick.
+    @Test func thePopoverClockMovesOnlyWhileThePopoverIsShown() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.writeConfig(AppConfig())
+        let log = FetchLog(), clock = TestClock()
+        let model = model(home, clock) { _ in FakeFetcher(log: log) { .success(usageSnapshot($0)) } }
+        let start = clock.now
+        #expect(model.popoverNow == start)
+
+        clock.advance(30)
+        await model.tick()?.value
+        #expect(model.now == clock.now)
+        #expect(model.popoverNow == start)
+
+        clock.advance(30)
+        model.popoverWillOpen()
+        #expect(model.popoverNow == clock.now)
+        model.isPopoverShown = true
+        clock.advance(30)
+        await model.tick()?.value
+        #expect(model.now == clock.now)
+        #expect(model.popoverNow == clock.now)
+    }
+
+    /// History views reload on every bump, so a refresh that stored nothing new must not bump.
+    @Test func historyRevisionMovesOnlyWhenASampleIsStored() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".codex")
+        let account = AccountConfig(id: "codex", provider: .codex, label: "Plus")
+        try home.writeConfig(AppConfig(accounts: [account]))
+        let log = FetchLog(), clock = TestClock(), used = UsedPercent()
+        let fetchedAt = clock.now
+        let model = model(home, clock) { _ in
+            FakeFetcher(log: log) {
+                .success(UsageSnapshot(
+                    accountID: $0.id, provider: $0.provider,
+                    windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: used.value, windowMinutes: 300, resetsAt: fetchedAt.addingTimeInterval(3600))],
+                    fetchedAt: fetchedAt, source: "test"
+                ))
+            }
+        }
+        await model.refresh(force: true)?.value
+        let first = model.historyRevision
+
+        await model.refresh(force: true)?.value
+        #expect(log.count("codex") == 2)
+        #expect(model.historyRevision == first)
+
+        used.value = 20
+        await model.refresh(force: true)?.value
+        #expect(model.historyRevision == first + 1)
+    }
+
+    /// The dashboard totals "today" as of its last reload. With every refresh a repeat the store skips, only the day
+    /// turning over can tell it to reload.
+    @Test func historyRevisionMovesWhenTheLocalDayTurnsOver() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".codex")
+        let account = AccountConfig(id: "codex", provider: .codex, label: "Plus")
+        try home.writeConfig(AppConfig(accounts: [account]))
+        let log = FetchLog(), clock = TestClock()
+        let calendar = Calendar.current
+        let midnight = try #require(calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: clock.now)))
+        clock.now = midnight.addingTimeInterval(-45)
+        let fetchedAt = clock.now
+        let model = model(home, clock) { _ in FakeFetcher(log: log) { .success(usageSnapshot($0, fetchedAt: fetchedAt)) } }
+        await model.refresh(force: true)?.value
+        let first = model.historyRevision
+
+        clock.advance(30)
+        await model.tick()?.value
+        #expect(model.historyRevision == first)
+
+        clock.advance(30)
+        await model.tick()?.value
+        #expect(model.historyRevision == first + 1)
+
+        clock.advance(30)
+        await model.refresh(force: true)?.value
+        await model.tick()?.value
+        #expect(log.count("codex") == 2)
+        #expect(model.historyRevision == first + 1)
+    }
+
+    /// Ticks land a little after their 30-second mark, by a different amount each time, and the clock moves between
+    /// reads within a tick. A 10-minute account is still checked on the tick 10 minutes after its last check.
+    @Test func aTenMinuteAccountIsCheckedOnTheTickTenMinutesLater() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".codex")
+        let account = AccountConfig(id: "codex", provider: .codex, label: "Plus", refreshMinutes: 10)
+        try home.writeConfig(AppConfig(accounts: [account]))
+        let log = FetchLog(), clock = MovingClock()
+        let model = AppModel(paths: home.paths, fetcher: { _ in FakeFetcher(log: log) { .success(usageSnapshot($0)) } }, clock: { clock.read() })
+        model.loadState()
+
+        var checkedAt: [TimeInterval] = []
+        for mark in stride(from: 0.0, through: 1230, by: 30) {
+            clock.fire(at: mark, late: mark == 0 ? 0.5 : 0.001)
+            let before = log.count("codex")
+            await model.tick()?.value
+            if log.count("codex") > before { checkedAt.append(mark) }
+        }
+
+        #expect(checkedAt == [0, 600, 1200])
+    }
+}
+
+/// A clock for timer ticks: each tick fires a little after its mark, and every read moves the clock on a little more.
+@MainActor
+private final class MovingClock {
+    private let start = Date(timeIntervalSince1970: 1_791_660_000)
+    private var firedAt: Date
+    private var reads = 0
+
+    init() { firedAt = start }
+
+    func fire(at mark: TimeInterval, late: TimeInterval) {
+        firedAt = start.addingTimeInterval(mark + late)
+        reads = 0
+    }
+
+    func read() -> Date {
+        reads += 1
+        return firedAt.addingTimeInterval(Double(reads) * 0.0001)
+    }
+}
+
+/// The used % a fake fetch reports, changed by the test between refreshes.
+private nonisolated final class UsedPercent: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored = 10.0
+
+    var value: Double {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
     }
 }

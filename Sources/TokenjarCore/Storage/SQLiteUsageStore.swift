@@ -9,19 +9,32 @@ public struct SQLiteError: Error, CustomStringConvertible {
 }
 
 /// SQLite-backed `UsageStore`, normally at `AppPaths.databaseFile`. Same contract as `InMemoryUsageStore`, plus:
-/// `record` skips a window sample identical to the previous one when it is less than `sampleDedupeInterval` newer,
-/// and deletes samples older than `sampleRetention` at most once a day. Dedupe keys are stored as `sha256Hex` digests,
-/// since they carry provider message, request and session ids; nothing reads them back.
+/// `record` skips a window sample identical to the previous one when it is less than `sampleDedupeInterval` newer
+/// (for a not-started window only the used % counts, since its reset time is synthetic) and writes the last one it
+/// skipped just before the window's next change. It deletes samples older than `sampleRetention` at most once a day.
+/// Dedupe keys are stored as `sha256Hex` digests, since they carry provider message, request and session ids; nothing
+/// reads them back.
 ///
-/// `@unchecked Sendable`: the store owns one connection, and every use of it and of `lastPrune` holds `lock`.
+/// `@unchecked Sendable`: the store owns one connection, and every use of it and of its mutable state holds `lock`.
 public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
     public static let sampleRetention: TimeInterval = 180 * 86_400
-    public static let sampleDedupeInterval: TimeInterval = 5 * 60
+    /// Under the dashboard's 2-hour gap, so an idle window's line stays whole.
+    public static let sampleDedupeInterval: TimeInterval = 60 * 60
+    static let upsertChunkSize = 2_000
     private static let busyTimeout: TimeInterval = 5
 
     private let connection: Connection
-    private let lock = NSLock()
+    private let lock = FairLock()
     private var lastPrune: Date?
+    private var commitCount = 0
+    /// The newest repeat `record` skipped for each window. Written before the window's next change, it makes a chart
+    /// draw a flat run then a jump rather than a ramp across the run. Memory only: a relaunch loses at most one per window.
+    private var skippedRepeats: [WindowKey: WindowSample] = [:]
+
+    private struct WindowKey: Hashable {
+        var accountID: String
+        var windowID: String
+    }
 
     private var db: OpaquePointer { connection.handle }
 
@@ -56,10 +69,13 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
 
     // MARK: UsageStore
 
-    public func record(_ snapshot: UsageSnapshot) throws {
+    @discardableResult
+    public func record(_ snapshot: UsageSnapshot) throws -> Bool {
         let json = try String(decoding: JSONEncoder().encode(snapshot), as: UTF8.self)
         let ts = snapshot.fetchedAt.timeIntervalSince1970
+        var stored = false
         try locked {
+            var skipped = skippedRepeats
             try transaction {
                 try run(
                     """
@@ -72,28 +88,62 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                     "SELECT ts, used_percent, resets_at FROM window_samples WHERE account_id = ?1 AND window_id = ?2 ORDER BY ts DESC, rowid DESC LIMIT 1"
                 )
                 let insert = try prepare("INSERT INTO window_samples (account_id, window_id, ts, used_percent, resets_at) VALUES (?1, ?2, ?3, ?4, ?5)")
+                func insertSample(_ sample: WindowSample) throws {
+                    try insert.bind([
+                        .text(sample.accountID), .text(sample.windowID), .real(sample.timestamp.timeIntervalSince1970), .real(sample.usedPercent),
+                        sample.resetsAt.map { .real($0.timeIntervalSince1970) } ?? .null,
+                    ])
+                    try insert.run()
+                }
                 for window in snapshot.windows {
-                    let resetsAt = window.resetsAt?.timeIntervalSince1970
+                    let sample = WindowSample(
+                        accountID: snapshot.accountID, windowID: window.id, timestamp: snapshot.fetchedAt,
+                        usedPercent: window.usedPercent, resetsAt: window.resetsAt
+                    )
+                    let key = WindowKey(accountID: snapshot.accountID, windowID: window.id)
+                    var changed = true
                     try previous.bind([.text(snapshot.accountID), .text(window.id)])
                     if try previous.step() {
-                        let isRepeat = previous.double(1) == window.usedPercent && previous.optionalDouble(2) == resetsAt
-                            && ts - previous.double(0) < Self.sampleDedupeInterval
+                        changed = previous.double(1) != window.usedPercent
+                            || (!window.notStarted && previous.optionalDouble(2) != window.resetsAt?.timeIntervalSince1970)
+                        let isRecent = ts - previous.double(0) < Self.sampleDedupeInterval
                         previous.reset()
-                        if isRepeat { continue }
+                        if !changed, isRecent {
+                            skipped[key] = sample
+                            continue
+                        }
                     }
-                    try insert.bind([.text(snapshot.accountID), .text(window.id), .real(ts), .real(window.usedPercent), resetsAt.map(SQLValue.real) ?? .null])
-                    try insert.run()
+                    // A repeat stored for its age already marks the run. A snapshot read from Claude's cache or a Codex
+                    // session log carries the time it was written, which can be older than the held repeat.
+                    if let held = skipped.removeValue(forKey: key), changed, held.timestamp < sample.timestamp {
+                        try insertSample(held)
+                    }
+                    try insertSample(sample)
+                    stored = true
                 }
                 if lastPrune.map({ snapshot.fetchedAt.timeIntervalSince($0) > 86_400 }) ?? true {
                     try run("DELETE FROM window_samples WHERE ts < ?1", [.real(ts - Self.sampleRetention)])
                     lastPrune = snapshot.fetchedAt
                 }
             }
+            skippedRepeats = skipped
+        }
+        return stored
+    }
+
+    /// Transactions committed since the store opened, for tests.
+    var commits: Int { locked { commitCount } }
+
+    /// Commits every `upsertChunkSize` events and lets go of the lock in between, so a first scan's tens of thousands of
+    /// events never hold off a read from the main thread for long. A failed chunk leaves the earlier ones stored; the
+    /// caller keeps its checkpoints, and the rescan merges into them.
+    public func upsert(_ events: [UsageEvent]) throws {
+        for start in stride(from: 0, to: events.count, by: Self.upsertChunkSize) {
+            try upsertChunk(events[start..<min(start + Self.upsertChunkSize, events.count)])
         }
     }
 
-    public func upsert(_ events: [UsageEvent]) throws {
-        guard !events.isEmpty else { return }
+    private func upsertChunk(_ events: ArraySlice<UsageEvent>) throws {
         try locked {
             try transaction {
                 // A NULL incoming cost keeps the stored one; otherwise keep the larger, a stored NULL counting as 0.
@@ -154,16 +204,29 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         }
     }
 
+    /// Two statements rather than `(?2 IS NULL OR window_id = ?2)`: SQLite plans that form once for both cases, so one
+    /// window's read scanned every sample of the account and then sorted the matches.
+    static let windowSamplesSQL = """
+        SELECT window_id, ts, used_percent, resets_at FROM window_samples
+        WHERE account_id = ?1 AND window_id = ?2 AND ts >= ?3
+        ORDER BY ts, rowid
+        """
+    static let accountSamplesSQL = """
+        SELECT window_id, ts, used_percent, resets_at FROM window_samples
+        WHERE account_id = ?1 AND ts >= ?2
+        ORDER BY ts, rowid
+        """
+
     public func samples(accountID: String, windowID: String?, since: Date) throws -> [WindowSample] {
         try locked {
-            let statement = try prepare(
-                """
-                SELECT window_id, ts, used_percent, resets_at FROM window_samples
-                WHERE account_id = ?1 AND (?2 IS NULL OR window_id = ?2) AND ts >= ?3
-                ORDER BY ts, rowid
-                """
-            )
-            try statement.bind([.text(accountID), windowID.map(SQLValue.text) ?? .null, .real(since.timeIntervalSince1970)])
+            let statement: Statement
+            if let windowID {
+                statement = try prepare(Self.windowSamplesSQL)
+                try statement.bind([.text(accountID), .text(windowID), .real(since.timeIntervalSince1970)])
+            } else {
+                statement = try prepare(Self.accountSamplesSQL)
+                try statement.bind([.text(accountID), .real(since.timeIntervalSince1970)])
+            }
             var out: [WindowSample] = []
             while try statement.step() {
                 out.append(WindowSample(
@@ -316,9 +379,8 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
             Unmanaged.passRetained(CalendarBox(calendar)).toOpaque(),
             { context, _, arguments in
                 guard let context, let user = sqlite3_user_data(context), let argument = arguments?[0] else { return }
-                let calendar = Unmanaged<CalendarBox>.fromOpaque(user).takeUnretainedValue().calendar
-                let day = calendar.startOfDay(for: Date(timeIntervalSince1970: sqlite3_value_double(argument)))
-                sqlite3_result_double(context, day.timeIntervalSince1970)
+                let box = Unmanaged<CalendarBox>.fromOpaque(user).takeUnretainedValue()
+                sqlite3_result_double(context, box.startOfDay(sqlite3_value_double(argument)))
             },
             nil, nil,
             // SQLite calls this when the connection closes, and also when registration fails.
@@ -353,6 +415,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         do {
             try body()
             try exec("COMMIT")
+            commitCount += 1
         } catch {
             sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
             throw error
@@ -382,6 +445,28 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
     }
 }
 
+/// A mutex that hands itself to the longest waiter. NSLock lets the thread that just unlocked take it straight back,
+/// so a scan committing chunk after chunk kept a main-thread read waiting through several of them.
+private final class FairLock: @unchecked Sendable {
+    private let mutex = UnsafeMutablePointer<pthread_mutex_t>.allocate(capacity: 1)
+
+    init() {
+        var attributes = pthread_mutexattr_t()
+        pthread_mutexattr_init(&attributes)
+        pthread_mutexattr_setpolicy_np(&attributes, PTHREAD_MUTEX_POLICY_FAIRSHARE_NP)
+        pthread_mutex_init(mutex, &attributes)
+        pthread_mutexattr_destroy(&attributes)
+    }
+
+    deinit {
+        pthread_mutex_destroy(mutex)
+        mutex.deallocate()
+    }
+
+    func lock() { pthread_mutex_lock(mutex) }
+    func unlock() { pthread_mutex_unlock(mutex) }
+}
+
 /// Closes the handle exactly once, including when `SQLiteUsageStore.init` throws after opening it.
 private final class Connection {
     let handle: OpaquePointer
@@ -389,9 +474,21 @@ private final class Connection {
     deinit { sqlite3_close_v2(handle) }
 }
 
+/// SQLite calls `tokenjar_local_day` once per row a daily query reads, mostly in time order, so the last day's bounds
+/// answer nearly every call without asking the calendar. Only used under the store's lock.
 private final class CalendarBox {
     let calendar: Calendar
+    private var day: DateInterval?
+
     init(_ calendar: Calendar) { self.calendar = calendar }
+
+    func startOfDay(_ ts: Double) -> Double {
+        let date = Date(timeIntervalSince1970: ts)
+        if let day, day.start <= date, date < day.end { return day.start.timeIntervalSince1970 }
+        guard let interval = calendar.dateInterval(of: .day, for: date) else { return calendar.startOfDay(for: date).timeIntervalSince1970 }
+        day = interval
+        return interval.start.timeIntervalSince1970
+    }
 }
 
 private enum SQLValue {

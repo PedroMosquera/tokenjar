@@ -61,6 +61,15 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         }
     }
 
+    /// False when the provider never reports a limit window (Zen shows local spend, Devin is a link), so the menu bar,
+    /// thresholds and limit charts have nothing to show for it.
+    public var reportsWindows: Bool {
+        switch self {
+        case .opencodeZen, .devin: false
+        case .claude, .codex, .opencodeGo, .antigravity, .copilot: true
+        }
+    }
+
     /// The harness whose local logs feed this provider's history, if any.
     public var harness: Harness? {
         switch self {
@@ -176,6 +185,11 @@ public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
         guard let start = calendar.date(byAdding: .month, value: -1, to: resetsAt) else { return nil }
         return Int((resetsAt.timeIntervalSince(start) / 60).rounded())
     }
+
+    /// True once the reported reset time has passed: until the next check, the used % describes a cycle that is over.
+    public func hasReset(now: Date) -> Bool {
+        resetsAt.map { $0 <= now } ?? false
+    }
 }
 
 public struct MoneyLine: Codable, Hashable, Sendable {
@@ -219,6 +233,15 @@ public struct UsageSnapshot: Codable, Hashable, Sendable {
 
     /// The window with the highest used %, ties broken by the sooner reset.
     public var tightestWindow: UsageWindow? {
+        Self.tightest(windows)
+    }
+
+    /// `tightestWindow` among the windows that have not reset by `now`.
+    public func tightestWindow(now: Date) -> UsageWindow? {
+        Self.tightest(windows.filter { !$0.hasReset(now: now) })
+    }
+
+    private static func tightest(_ windows: [UsageWindow]) -> UsageWindow? {
         windows.max { a, b in
             if a.usedPercent != b.usedPercent { return a.usedPercent < b.usedPercent }
             return (a.resetsAt ?? .distantFuture) > (b.resetsAt ?? .distantFuture)
@@ -237,17 +260,35 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
     case parse(String)
     case unsupported(String)
 
+    /// How much a failed check asks of the user. The popover, menu bar, dashboard and Settings all read this one
+    /// classification, so they agree on what counts as a problem.
+    public enum Attention: Sendable {
+        /// Nothing to fix: the account has no plan to show, such as a key without a subscription.
+        case calm
+        /// Likely to clear on its own by the next check.
+        case transient
+        case actionable
+    }
+
+    public var attention: Attention {
+        switch self {
+        case .noSubscription: .calm
+        case .network, .timeout, .rateLimited: .transient
+        case .cliNotFound, .notSignedIn, .unauthorized, .parse, .unsupported: .actionable
+        }
+    }
+
     /// Safe for display and notifications: no ids, emails, tokens or raw bodies.
     public var userMessage: String {
         switch self {
-        case .cliNotFound(let name): "\(name) CLI not found"
-        case .notSignedIn: "Signed out. Sign in with the provider CLI."
+        case .cliNotFound(let name): "Can't find the \(name) command on this Mac."
+        case .notSignedIn: "Signed out. Sign in again to see limits."
         case .noSubscription(let detail): detail
-        case .unauthorized: "Credential rejected"
-        case .rateLimited: "Provider is rate limiting usage checks"
-        case .network: "Network error"
-        case .timeout: "Timed out"
-        case .parse: "Unexpected response format"
+        case .unauthorized: "The sign-in or API key was rejected."
+        case .rateLimited: "Checking too often. Tokenjar waits before the next check."
+        case .network: "Can't reach the server. Tokenjar tries again at the next refresh."
+        case .timeout: "No answer in time. Tokenjar tries again at the next refresh."
+        case .parse: "Couldn't read the usage answer. An update may have changed it."
         case .unsupported(let detail): detail
         }
     }

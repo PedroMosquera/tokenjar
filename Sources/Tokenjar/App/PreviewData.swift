@@ -6,6 +6,7 @@ extension AppModel {
     static func preview(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
         let model = AppModel()
         model.now = now
+        model.popoverNow = now
         model.lastRefreshAt = now.addingTimeInterval(-90)
         model.config = AppConfig(
             refreshMinutes: 10,
@@ -168,11 +169,13 @@ extension AppModel {
 }
 
 extension AppModel {
-    /// Edge states for visual review: stale, refreshing, full window, signed out, no subscription, network error.
+    /// Edge states for visual review: stale, refreshing, full window, signed out, no subscription, network error,
+    /// and a window whose reset has passed since the last check.
     static func previewStates(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
         let model = AppModel()
         model.previewMode = true
         model.now = now
+        model.popoverNow = now
         model.lastRefreshAt = now.addingTimeInterval(-40)
         model.config = AppConfig(accounts: [
             AccountConfig(id: "full", provider: .claude, label: "Personal"),
@@ -183,6 +186,7 @@ extension AppModel {
             AccountConfig(id: "offline", provider: .claude, label: "Team"),
             AccountConfig(id: "no-limits", provider: .claude, label: "API"),
             AccountConfig(id: "devin", provider: .devin, label: "Devin"),
+            AccountConfig(id: "past-reset", provider: .claude, label: "Max"),
         ])
         func window(_ id: String, _ label: String, _ used: Double, _ minutes: Int, resetIn: TimeInterval) -> UsageWindow {
             UsageWindow(id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: now.addingTimeInterval(resetIn))
@@ -205,7 +209,23 @@ extension AppModel {
             "no-limits": AccountStatus(snapshot: UsageSnapshot(accountID: "no-limits", provider: .claude, fetchedAt: now.addingTimeInterval(-60), source: "claude CLI", notes: ["No plan limits for this login"])),
             // In the menu bar on purpose: a link card must never be its worst account or count as needing attention.
             "devin": AccountStatus(snapshot: devinLink(now: now)),
+            // Checked before its 5-hour window reset 5 minutes ago; the 100 % belongs to the cycle that ended.
+            "past-reset": AccountStatus(snapshot: UsageSnapshot(accountID: "past-reset", provider: .claude, plan: "Max 5x", windows: [
+                window("session", "5-hour", 100, 300, resetIn: -5 * 60), window("weekly", "Week", 64, 10_080, resetIn: 3 * 86_400),
+            ], fetchedAt: now.addingTimeInterval(-8 * 60), source: "claude CLI")),
         ]
+        model.store = InMemoryUsageStore()
+        return model
+    }
+}
+
+extension AppModel {
+    /// A Mac where no account is set up or found.
+    static func previewEmpty(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = AppModel()
+        model.previewMode = true
+        model.now = now
+        model.popoverNow = now
         model.store = InMemoryUsageStore()
         return model
     }
