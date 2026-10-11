@@ -46,14 +46,14 @@ struct PaceTests {
 }
 
 /// Dates in October 2026, UTC: the 10th and 17th are Saturdays, the 12th and 19th Mondays.
-struct WorkWeekPaceTests {
+extension PaceTests {
     static let utc: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         return calendar
     }()
 
-    let saturdaySunday = WorkWeek(weekend: [7, 1], calendar: utc)
+    var saturdaySunday: WorkWeek { WorkWeek(weekend: [7, 1], calendar: Self.utc) }
 
     private func date(_ day: Int, _ hour: Int = 0) -> Date {
         Self.utc.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour))!
