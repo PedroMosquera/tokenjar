@@ -15,7 +15,7 @@ struct GeneralSettingsPane: View {
                 launchAtLoginRow
                 Picker(selection: model.configBinding(\.refreshMinutes)) {
                     ForEach(SettingsLogic.refreshOptions(including: model.config.refreshMinutes), id: \.self) { minutes in
-                        Text("\(minutes) minutes").tag(minutes)
+                        Text(RefreshInterval.label(minutes)).tag(minutes)
                     }
                 } label: {
                     Text("Refresh every")
@@ -232,5 +232,16 @@ extension MenuBarMode {
         case (.icon, .app): return "The cooldown slot alone, filled and tinted for the tightest account."
         case (.icon, _): return "\(icon.phrase) alone, tinted amber or red when an account runs low."
         }
+    }
+}
+
+/// How a refresh interval reads in the General picker and in an account's override.
+enum RefreshInterval {
+    static func label(_ minutes: Int) -> String {
+        minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
+
+    static func inheritedLabel(globalMinutes: Int) -> String {
+        "Same as General (\(label(globalMinutes)))"
     }
 }

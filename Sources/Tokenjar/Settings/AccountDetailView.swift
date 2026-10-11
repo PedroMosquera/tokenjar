@@ -212,10 +212,10 @@ struct AccountDetailView: View {
         Section("Overrides") {
             // A link-only account has no window to refresh or alert on; its usage page is the one thing to set.
             if !account.provider.isLinkOnly {
-                Picker("Refresh", selection: model.accountBinding(account.id, \.refreshMinutes, fallback: account.refreshMinutes)) {
-                    Text("Global (\(model.config.refreshMinutes) minutes)").tag(Int?.none)
+                Picker("Refresh every", selection: model.accountBinding(account.id, \.refreshMinutes, fallback: account.refreshMinutes)) {
+                    Text(RefreshInterval.inheritedLabel(globalMinutes: model.config.refreshMinutes)).tag(Int?.none)
                     ForEach(SettingsLogic.refreshOptions(including: account.refreshMinutes), id: \.self) { minutes in
-                        Text("Every \(minutes) minutes").tag(Int?.some(minutes))
+                        Text(RefreshInterval.label(minutes)).tag(Int?.some(minutes))
                     }
                 }
                 Toggle(isOn: customThresholds) {
