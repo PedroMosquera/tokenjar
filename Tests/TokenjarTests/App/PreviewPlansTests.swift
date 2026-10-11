@@ -77,3 +77,15 @@ struct PreviewPlansTests {
         #expect(counts(try usage()) == counts(first))
     }
 }
+
+@MainActor
+struct PlanSlotStateTests {
+    @Test func theSlotSheetHasAStaleCriticalState() throws {
+        let slot = try #require(SnapshotRenderer.slotStates(now: PreviewPlans.now).first { $0.name == "stale-critical" })
+        let entry = try #require(slot.state.entries.first)
+        #expect(entry.tightest?.usedPercent == 97)
+        #expect(entry.severity == .critical)
+        #expect(entry.isStale)
+        #expect(entry.attention == nil)
+    }
+}
