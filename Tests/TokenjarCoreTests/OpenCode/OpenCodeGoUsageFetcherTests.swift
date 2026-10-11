@@ -56,12 +56,6 @@ struct OpenCodeGoUsageFetcherTests {
         #expect(s.windows.first?.notStarted == false)
     }
 
-    @Test func monthLengthFollowsTheMonthEndingAtReset() {
-        #expect(OpenCodeGoUsageFetcher.monthMinutes(endingAt: DateParsing.iso8601("2026-03-01T00:00:00Z")) == 28 * 1_440)
-        #expect(OpenCodeGoUsageFetcher.monthMinutes(endingAt: DateParsing.iso8601("2026-05-15T08:00:00Z")) == 30 * 1_440)
-        #expect(OpenCodeGoUsageFetcher.monthMinutes(endingAt: nil) == nil)
-    }
-
     @Test func missingWindowsIsAParseError() {
         guard case .parse = error(status: 200, body: #"{"usage":{}}"#) else {
             Issue.record("expected parse error")

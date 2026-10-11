@@ -149,6 +149,16 @@ public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
         self.resetsAt = resetsAt
         self.notStarted = notStarted
     }
+
+    /// A monthly allowance follows its billing month, so its window is the UTC calendar month ending at the reported
+    /// reset: 28 to 31 days. Pace needs that length; nil only when the reset is unknown.
+    public static func monthMinutes(endingAt resetsAt: Date?) -> Int? {
+        guard let resetsAt else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        guard let start = calendar.date(byAdding: .month, value: -1, to: resetsAt) else { return nil }
+        return Int((resetsAt.timeIntervalSince(start) / 60).rounded())
+    }
 }
 
 public struct MoneyLine: Codable, Hashable, Sendable {

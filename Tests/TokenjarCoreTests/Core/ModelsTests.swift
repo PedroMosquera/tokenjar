@@ -38,6 +38,12 @@ struct ModelsTests {
         #expect(snapshot.tightestWindow?.id == "session")
     }
 
+    @Test func monthLengthFollowsTheMonthEndingAtReset() {
+        #expect(UsageWindow.monthMinutes(endingAt: DateParsing.iso8601("2026-03-01T00:00:00Z")) == 28 * 1_440)
+        #expect(UsageWindow.monthMinutes(endingAt: DateParsing.iso8601("2026-05-15T08:00:00Z")) == 30 * 1_440)
+        #expect(UsageWindow.monthMinutes(endingAt: nil) == nil)
+    }
+
     @Test func dateParsingAcceptsMixedFractionsAndOffsets() throws {
         let a = try #require(DateParsing.iso8601("2026-10-10T22:19:59.526764+00:00"))
         let b = try #require(DateParsing.iso8601("2026-10-12T09:00:00+00:00"))
