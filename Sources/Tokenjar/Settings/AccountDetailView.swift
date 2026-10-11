@@ -9,51 +9,58 @@ struct AccountDetailView: View {
 
     @SettingsState private var confirmRemove = false
     @SettingsState private var dashboardError = false
-    @SettingsState private var signInError: String?
+    @SettingsState private var signInFailed = false
+
+    private static let credentialAnchor = "credential"
 
     var body: some View {
-        Form {
-            Section {
-                statusLine
-                HStack {
-                    Spacer()
-                    if statusText.offersCheck {
-                        let check = AccountAction.check(account, status: model.status(for: account), model: model)
-                        Button(check.title, action: check.run)
-                            .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
-                            .help(testBlocker ?? check.help ?? "")
+        ScrollViewReader { scroller in
+            Form {
+                Section {
+                    statusRow(scroller)
+                    HStack {
+                        Spacer()
+                        if statusText.offersCheck, fix != .tryOnceMore {
+                            checkButton
+                        }
+                        Button("Open Usage Page") { model.openProviderDashboard(account) }
+                            .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
                     }
-                    Button("Open Usage Page") { model.openProviderDashboard(account) }
-                        .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
+                } header: {
+                    header
                 }
-            } header: {
-                header
-            }
-            generalSection
-            if let variable = SignInCommand.profileVariable(for: account.provider) {
-                profileSection(variable: variable)
-            }
-            if account.provider == .opencodeGo || account.provider == .opencodeZen {
-                AccountCredentialSection(account: account)
-            }
-            if !account.provider.isLinkOnly {
-                signInSection
-            }
-            overridesSection
-            Section {
-                HStack {
-                    Spacer()
-                    Button("Remove Account\u{2026}", role: .destructive) { confirmRemove = true }
+                generalSection
+                if let variable = SignInCommand.profileVariable(for: account.provider) {
+                    profileSection(variable: variable)
+                }
+                if account.provider.usesAPIKey {
+                    AccountCredentialSection(account: account)
+                        .id(Self.credentialAnchor)
+                }
+                if !account.provider.isLinkOnly {
+                    signInSection
+                }
+                overridesSection
+                Section {
+                    HStack {
+                        Spacer()
+                        Button("Remove Account\u{2026}", role: .destructive) { confirmRemove = true }
+                    }
                 }
             }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .confirmationDialog("Remove \(account.displayName)?", isPresented: $confirmRemove) {
             Button("Remove", role: .destructive, action: remove)
         } message: {
             Text(removeMessage)
+        }
+        .alert("Couldn't open Terminal", isPresented: $signInFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Use Copy Command and paste it into Terminal.")
         }
     }
 
@@ -85,14 +92,49 @@ struct AccountDetailView: View {
         .accessibilityAddTraits(.isHeader)
     }
 
-    private var statusLine: some View {
+    /// The status line, with the state's one fix beside it.
+    private func statusRow(_ scroller: ScrollViewProxy) -> some View {
         let line = statusText
         let symbol = Text(Image(systemName: line.symbol)).foregroundStyle(line.tone.color)
-        return TextRow {
+        return LabeledContent {
+            switch fix {
+            case .signIn:
+                if let command = signInCommand {
+                    Button("Sign In in Terminal\u{2026}") { openSignIn(command) }
+                }
+            case .changeKey:
+                Button("Change Key\u{2026}") {
+                    withAnimation { scroller.scrollTo(Self.credentialAnchor, anchor: .top) }
+                }
+            case .tryOnceMore:
+                checkButton
+            case .searchedFolders, nil:
+                EmptyView()
+            }
+        } label: {
             Text("\(symbol)  \(line.text)")
                 .foregroundStyle(line.tone == .warning ? .primary : .secondary)
             if let detail = line.detail { Text(detail) }
+            if fix == .searchedFolders, case .cliNotFound(let cli) = model.status(for: account).error {
+                let locator = CLILocator(home: model.paths.home, overrides: model.config.cliPaths)
+                Text(AccountFix.searchedText(for: cli, locator: locator, home: model.paths.home.path))
+                    .help(locator.searchDirectories.map { SettingsLogic.tildePath($0.path, home: model.paths.home.path) }.joined(separator: "\n"))
+            }
         }
+    }
+
+    private var checkButton: some View {
+        let check = AccountAction.check(account, status: model.status(for: account), model: model)
+        return Button(check.title, action: check.run)
+            .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
+            .help(testBlocker ?? check.help ?? "")
+    }
+
+    /// Offered only while the status line shows the failure it fixes.
+    private var fix: AccountFix? {
+        let status = model.status(for: account)
+        guard let error = status.error, account.enabled, missingPath == nil, !status.isRefreshing, !account.provider.isLinkOnly else { return nil }
+        return AccountFix.primary(for: error, provider: account.provider, credential: account.credential)
     }
 
     private var statusText: AccountStatusText {
@@ -169,24 +211,32 @@ struct AccountDetailView: View {
                     Text(signInNote)
                 }
                 HStack {
-                    if let signInError {
-                        Text(signInError).font(.callout).foregroundStyle(.red)
-                    }
                     Spacer()
                     Button("Copy Command") { SignInLauncher.copy(command) }
                     Button("Sign In in Terminal\u{2026}") { openSignIn(command) }
                 }
-            } else {
+            } else if needsAgy {
                 LabeledContent {
                     Link("Install agy", destination: SignInCommand.antigravityInstallURL)
                 } label: {
                     Text("Antigravity CLI")
                     Text("Tokenjar reads limits from agy. Install it and sign in there.")
                 }
+            } else {
+                TextRow {
+                    Text("Antigravity CLI")
+                    Text("Signed in through agy. To switch Google accounts, sign in again in agy.")
+                }
             }
         } header: {
             Text("Sign in")
         }
+    }
+
+    /// An account that has worked has agy already; offering the install then reads as if something were missing.
+    private var needsAgy: Bool {
+        let status = model.status(for: account)
+        return status.error == .cliNotFound("agy") || status.snapshot == nil
     }
 
     private var signInNote: String {
@@ -290,9 +340,8 @@ struct AccountDetailView: View {
     private func openSignIn(_ command: String) {
         do {
             try SignInLauncher.run(command: command, account: account)
-            signInError = nil
         } catch {
-            signInError = "Could not create the sign-in script."
+            signInFailed = true
         }
     }
 
@@ -428,4 +477,46 @@ extension ProviderID {
     }
 
     var usesAPIKey: Bool { self == .opencodeGo || self == .opencodeZen }
+
+    /// Whether SignInCommand has a login to hand to Terminal. agy has none, and Devin runs nothing.
+    var hasSignInCommand: Bool { self != .antigravity && self != .devin }
+}
+
+/// The one fix the status box offers next to a failed check's message.
+enum AccountFix: Equatable {
+    /// Sign In in Terminal, running the provider CLI's own login.
+    case signIn
+    /// Change Key, which scrolls to the Credential section.
+    case changeKey
+    /// Try Once More, the only way to probe again after a check spent tokens or quota.
+    case tryOnceMore
+    /// No button: a line saying where Tokenjar looked for the CLI.
+    case searchedFolders
+
+    static func primary(for error: FetchError, provider: ProviderID, credential: CredentialRef?) -> AccountFix? {
+        if ProbeLatch.spentTokens(error) { return .tryOnceMore }
+        let pastedKey = if case .keychain = credential { true } else { false }
+        switch error {
+        case .notSignedIn:
+            if provider.usesAPIKey, pastedKey { return .changeKey }
+            return provider.hasSignInCommand ? .signIn : nil
+        case .unauthorized:
+            if provider.usesAPIKey { return .changeKey }
+            return provider.hasSignInCommand ? .signIn : nil
+        case .cliNotFound:
+            return .searchedFolders
+        case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported:
+            return nil
+        }
+    }
+
+    /// "Looked in ~/.local/bin, /opt/homebrew/bin, /usr/local/bin and 5 more", or the one path cliPaths sets.
+    static func searchedText(for cli: String, locator: CLILocator, home: String) -> String {
+        if let override = locator.overrides[cli] {
+            return "Looked only at \(SettingsLogic.tildePath((override as NSString).expandingTildeInPath, home: home)), set in cliPaths"
+        }
+        let folders = locator.searchDirectories.map { SettingsLogic.tildePath($0.path, home: home) }
+        let shown = folders.prefix(3).joined(separator: ", ")
+        return folders.count > 3 ? "Looked in \(shown) and \(folders.count - 3) more" : "Looked in \(shown)"
+    }
 }
