@@ -58,27 +58,37 @@ struct AccountsSettingsPane: View {
     }
 
     private var list: some View {
-        List(selection: Binding(get: { selection }, set: { if let id = $0 { onSelect(id) } })) {
-            ForEach(ProviderID.allCases, id: \.self) { provider in
-                let accounts = model.config.accounts.filter { $0.provider == provider }
-                if !accounts.isEmpty {
-                    Section {
-                        ForEach(accounts) { account in
-                            AccountListRow(content: AccountListRowContent.make(account: account, status: model.statusText(for: account)), isSelected: account.id == selection)
-                                .tag(account.id)
-                                .listRowSeparator(.hidden)
-                        }
-                    } header: {
-                        HStack(spacing: 6) {
-                            ProviderLogoView(provider: provider, size: 14)
-                            Text(provider.displayName)
+        ScrollViewReader { scroller in
+            List(selection: Binding(get: { selection }, set: { if let id = $0 { onSelect(id) } })) {
+                ForEach(ProviderID.allCases, id: \.self) { provider in
+                    let accounts = model.config.accounts.filter { $0.provider == provider }
+                    if !accounts.isEmpty {
+                        Section {
+                            ForEach(accounts) { account in
+                                AccountListRow(content: AccountListRowContent.make(account: account, status: model.statusText(for: account)), isSelected: account.id == selection)
+                                    .tag(account.id)
+                                    .listRowSeparator(.hidden)
+                            }
+                        } header: {
+                            HStack(spacing: 6) {
+                                ProviderLogoView(provider: provider, size: 14)
+                                Text(provider.displayName)
+                            }
                         }
                     }
                 }
             }
+            .listStyle(.inset)
+            .onDeleteCommand { if model.canEditConfig { removing = selectedAccount } }
+            // A List does not follow a selection made in code, such as "Settings for This Account" picking a row
+            // below the fold.
+            .onAppear { reveal(selection, in: scroller) }
+            .onChange(of: selection) { _, id in reveal(id, in: scroller) }
         }
-        .listStyle(.inset)
-        .onDeleteCommand { if model.canEditConfig { removing = selectedAccount } }
+    }
+
+    private func reveal(_ id: String?, in scroller: ScrollViewProxy) {
+        if let id { scroller.scrollTo(id) }
     }
 
     private var listBar: some View {
