@@ -461,10 +461,16 @@ struct AccountStatusText: Equatable {
                 return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Local spend only \u{00B7} updated \(age)", detail: zenNote)
             }
             // Its own line: some window labels contain a middle dot themselves, so a dot after the age would misread.
-            let limits = snapshot.windows.isEmpty ? snapshot.notes.first : "Limits: " + snapshot.windows.map(\.label).joined(separator: ", ")
+            let limits = snapshot.windows.isEmpty ? snapshot.notes.first : "Limits: " + snapshot.windows.map { unbreakable($0.label) }.joined(separator: ", ")
             return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Updated \(age)", detail: limits)
         }
         return AccountStatusText(symbol: "circle.dashed", tone: .neutral, text: "Not checked yet", detail: zenNote)
+    }
+
+    /// A label wrapped inside itself ("Gemini" then "· Week") reads as two windows, so the list may only wrap between
+    /// labels: no-break spaces, and a word joiner after each hyphen of a raw window name such as "two-day".
+    private static func unbreakable(_ label: String) -> String {
+        label.replacingOccurrences(of: " ", with: "\u{00A0}").replacingOccurrences(of: "-", with: "-\u{2060}")
     }
 
     /// The list row's caption: what to fix for an actionable failure, nothing for a passing one.
