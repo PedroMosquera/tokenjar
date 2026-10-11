@@ -76,7 +76,7 @@ private struct EmptyAccounts: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("No accounts on this Mac yet. Add one in Settings.")
+            Text("Add an account to see its usage limits here.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

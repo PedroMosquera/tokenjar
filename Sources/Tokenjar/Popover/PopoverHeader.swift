@@ -17,10 +17,12 @@ struct PopoverHeader: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(summary.text)
-                caption(others: summary.others)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                if let updated = Self.updateLine(hasAccounts: !model.accounts.isEmpty, isRefreshing: model.isRefreshing, lastRefreshAt: model.lastRefreshAt, now: model.popoverNow) {
+                    caption(others: summary.others, updated: updated)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
             }
             Spacer(minLength: 8)
             RefreshButton()
@@ -30,29 +32,31 @@ struct PopoverHeader: View {
     /// The other accounts share the update line when both fit, else get a line of their own above it, so the
     /// names are not cut short just to keep the header one line shorter.
     @ViewBuilder
-    private func caption(others: [String]) -> some View {
+    private func caption(others: [String], updated: String) -> some View {
         if others.isEmpty {
-            Text(updatedText)
+            Text(updated)
         } else {
             let list = "Also: \(others.joined(separator: ", "))"
             ViewThatFits(in: .horizontal) {
-                Text("\(list) · \(updatedText)")
+                Text("\(list) · \(updated)")
                     .lineLimit(1)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(list)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    Text(updatedText)
+                    Text(updated)
                 }
             }
             .help(list)
         }
     }
 
-    private var updatedText: String {
-        if model.isRefreshing { return "Updating" }
-        guard let last = model.lastRefreshAt else { return "Not updated yet" }
-        return "Updated \(Format.age(of: last, now: model.popoverNow))"
+    /// nil without accounts, where "Not updated yet" would only repeat the empty state.
+    static func updateLine(hasAccounts: Bool, isRefreshing: Bool, lastRefreshAt: Date?, now: Date) -> String? {
+        guard hasAccounts else { return nil }
+        if isRefreshing { return "Updating" }
+        guard let last = lastRefreshAt else { return "Not updated yet" }
+        return "Updated \(Format.age(of: last, now: now))"
     }
 
     @ViewBuilder

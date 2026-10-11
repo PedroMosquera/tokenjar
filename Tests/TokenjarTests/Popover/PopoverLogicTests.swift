@@ -277,6 +277,16 @@ struct PopoverSummaryTests {
         #expect(PopoverSummary.make(accounts: accounts, statuses: [:], config: AppConfig(), now: now) == PopoverSummary(tone: .empty, text: "Waiting for usage data"))
     }
 
+    /// With no accounts there is nothing to update, so "No accounts yet" stands alone instead of over "Not updated yet".
+    @MainActor
+    @Test func theUpdateLineIsLeftOutWithoutAccounts() {
+        #expect(PopoverHeader.updateLine(hasAccounts: false, isRefreshing: false, lastRefreshAt: nil, now: now) == nil)
+        #expect(PopoverHeader.updateLine(hasAccounts: false, isRefreshing: false, lastRefreshAt: now.addingTimeInterval(-60), now: now) == nil)
+        #expect(PopoverHeader.updateLine(hasAccounts: true, isRefreshing: false, lastRefreshAt: nil, now: now) == "Not updated yet")
+        #expect(PopoverHeader.updateLine(hasAccounts: true, isRefreshing: true, lastRefreshAt: nil, now: now) == "Updating")
+        #expect(PopoverHeader.updateLine(hasAccounts: true, isRefreshing: false, lastRefreshAt: now.addingTimeInterval(-60), now: now) == "Updated 1m ago")
+    }
+
     private let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go")
     private let noSubscription = AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"))
 
