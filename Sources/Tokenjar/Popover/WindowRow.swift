@@ -6,6 +6,7 @@ struct WindowRow: View {
     var severity: Severity
     var pace: Pace?
     var now: Date
+    var isDimmed = false
 
     var body: some View {
         // Past its reset the snapshot still holds the old cycle's use, which the next check replaces.
@@ -39,6 +40,7 @@ struct WindowRow: View {
                 paceFraction: pace.map { $0.expectedPercent / 100 },
                 tint: severity.color
             )
+            .opacity(isDimmed ? 0.5 : 1)
         }
         .help(helpText)
         .accessibilityElement(children: .ignore)

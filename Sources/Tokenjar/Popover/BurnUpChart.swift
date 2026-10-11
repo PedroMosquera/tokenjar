@@ -17,6 +17,7 @@ struct BurnUpChart: View {
     var tint: Color
     /// The window's name, only where nothing nearby names it.
     var caption: String?
+    var isDimmed = false
 
     /// The window the verdict line judges when it lasts a day or more, so the chart never contradicts the line
     /// above it. Otherwise the weekly window, else the longest one; nil when no window has a known cycle.
@@ -68,6 +69,7 @@ struct BurnUpChart: View {
                     .foregroundStyle(.secondary)
             }
             plot
+                .opacity(isDimmed ? 0.5 : 1)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(window.label) usage this cycle")

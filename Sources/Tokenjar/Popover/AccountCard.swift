@@ -15,8 +15,7 @@ struct AccountCard: View {
                 ErrorRow(account: account, error: error, needsAttention: status.failureNeedsAttention(now: model.popoverNow, refreshMinutes: refreshMinutes))
             }
             if let snapshot = status.snapshot {
-                SnapshotBody(account: account, snapshot: snapshot)
-                    .opacity(isStale ? 0.5 : 1)
+                SnapshotBody(account: account, snapshot: snapshot, isStale: isStale)
             } else if status.error == nil {
                 Text(status.isRefreshing ? "Checking usage" : "No data yet")
                     .font(.callout)
@@ -182,6 +181,8 @@ private struct SnapshotBody: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
     var snapshot: UsageSnapshot
+    /// Dims the bars and the chart only. Text keeps full contrast, and the header's clock badge says it is old.
+    var isStale: Bool
 
     var body: some View {
         let now = model.popoverNow
@@ -193,7 +194,8 @@ private struct SnapshotBody: View {
                             window: window,
                             severity: Severity.of(window, config: model.config.menuBar, now: now),
                             pace: Pace.compute(window, now: now),
-                            now: now
+                            now: now,
+                            isDimmed: isStale
                         )
                     }
                 }
@@ -246,7 +248,7 @@ private struct SnapshotBody: View {
             if BurnUpChart.isWorthDrawing(points, start: start, end: window.resetsAt ?? now) {
                 BurnUpChart(
                     window: window, start: start, points: points, tint: Severity.of(window, config: model.config.menuBar, now: now).color,
-                    caption: namesWindow && window.id != verdictWindowID ? window.label : nil
+                    caption: namesWindow && window.id != verdictWindowID ? window.label : nil, isDimmed: isStale
                 )
             }
         }
@@ -268,9 +270,11 @@ struct VerdictLine: View {
         }
     }
 
-    /// One Text, so a long window label wraps to a second line instead of truncating the verdict's number.
+    /// One Text, so a long window label wraps to a second line instead of truncating the verdict's number. The
+    /// verdict itself is primary whatever the severity: secondary text is 3.9:1 on a light card, under the 4.5:1
+    /// body text needs, and the icon already carries the severity.
     private var message: Text {
-        let text = Text(verdict.text).foregroundStyle(severity == .ok ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+        let text = Text(verdict.text)
         guard showsWindow else { return text }
         return Text("\(Text(Self.windowLead(verdict.window.label)).foregroundStyle(.secondary)) \(text)")
     }
