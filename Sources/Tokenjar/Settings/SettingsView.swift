@@ -62,17 +62,17 @@ struct SettingsView: View {
         }
     }
 
+    // A native list, so its selection turns grey while the account list has focus, as in System Settings, instead of
+    // showing two accent highlights at once.
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        List(selection: Binding(get: { pane }, set: { if let item = $0 { select(item) } })) {
             ForEach(SettingsPane.allCases) { item in
-                SettingsSidebarRow(title: item.title, symbol: item.symbol, isSelected: item == pane) { select(item) }
+                Label(item.title, systemImage: item.symbol)
+                    .tag(item)
             }
-            Spacer()
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 12)
+        .listStyle(.sidebar)
         .frame(width: 160)
-        .background(Color.primary.opacity(0.035).ignoresSafeArea())
     }
 
     @ViewBuilder private var detail: some View {
@@ -108,37 +108,5 @@ struct SettingsView: View {
         chosenPane = .accounts
         chosenAccountID = id
         model.settingsSelection = id
-    }
-}
-
-struct SettingsSidebarRow: View {
-    var title: String
-    var symbol: String
-    var isSelected: Bool
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .frame(width: 18)
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
-                Text(title)
-                Spacer(minLength: 0)
-            }
-            .selectableRow(isSelected)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-extension View {
-    func selectableRow(_ isSelected: Bool) -> some View {
-        padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
-            .background(RoundedRectangle(cornerRadius: 6).fill(isSelected ? Color.accentColor : .clear))
-            .contentShape(Rectangle())
     }
 }
