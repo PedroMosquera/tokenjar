@@ -54,6 +54,7 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 640, minHeight: 460)
+        .navigationTitle(pane.title)
         .onChange(of: model.settingsSelection) { _, id in
             guard let id else { return }
             chosenPane = .accounts

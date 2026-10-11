@@ -41,7 +41,7 @@ struct AboutSettingsPane: View {
     ]
 
     var body: some View {
-        SettingsPage(title: "About") {
+        SettingsPage {
             Section {
                 HStack(spacing: 14) {
                     appIcon

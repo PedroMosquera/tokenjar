@@ -7,7 +7,7 @@ struct AlertsSettingsPane: View {
 
     var body: some View {
         let delivery = AlertDelivery(model.notificationPermission)
-        SettingsPage(title: "Alerts") {
+        SettingsPage {
             Section {
                 Toggle(isOn: model.configBinding(\.alerts.enabled)) {
                     Text("Send alerts")

@@ -10,7 +10,7 @@ struct GeneralSettingsPane: View {
     @SettingsState private var importNotFound = false
 
     var body: some View {
-        SettingsPage(title: "General") {
+        SettingsPage {
             Section {
                 launchAtLoginRow
                 Picker("Refresh every", selection: model.configBinding(\.refreshMinutes)) {

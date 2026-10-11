@@ -26,21 +26,15 @@ extension AppModel {
     }
 }
 
+/// A pane's grouped form. The pane's name is the window title (`SettingsView` sets it), not a heading in the content.
 struct SettingsPage<Content: View>: View {
-    var title: String
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.title2.weight(.semibold))
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-            Form { content }
-                .formStyle(.grouped)
-                .scrollContentBackground(.hidden)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        Form { content }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

@@ -12,46 +12,43 @@ struct AccountDetailView: View {
     @SettingsState private var signInError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-            Form {
-                Section {
-                    statusLine
-                    HStack {
-                        Spacer()
-                        let check = AccountAction.check(account, status: model.status(for: account), model: model)
-                        Button(check.title, action: check.run)
-                            .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
-                            .help(testBlocker ?? check.help ?? "")
-                        Button("Open Usage Page") { model.openProviderDashboard(account) }
-                            .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
-                    }
+        Form {
+            Section {
+                statusLine
+                HStack {
+                    Spacer()
+                    let check = AccountAction.check(account, status: model.status(for: account), model: model)
+                    Button(check.title, action: check.run)
+                        .disabled(testBlocker != nil || model.status(for: account).isRefreshing)
+                        .help(testBlocker ?? check.help ?? "")
+                    Button("Open Usage Page") { model.openProviderDashboard(account) }
+                        .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
                 }
-                generalSection
-                if let variable = SignInCommand.profileVariable(for: account.provider) {
-                    profileSection(variable: variable)
-                }
-                if account.provider == .opencodeGo || account.provider == .opencodeZen {
-                    AccountCredentialSection(account: account)
-                }
-                if account.provider.isLinkOnly {
-                    linkOnlySection
-                } else {
-                    signInSection
-                }
-                overridesSection
-                Section {
-                    HStack {
-                        Spacer()
-                        Button("Remove Account\u{2026}", role: .destructive) { confirmRemove = true }
-                    }
+            } header: {
+                header
+            }
+            generalSection
+            if let variable = SignInCommand.profileVariable(for: account.provider) {
+                profileSection(variable: variable)
+            }
+            if account.provider == .opencodeGo || account.provider == .opencodeZen {
+                AccountCredentialSection(account: account)
+            }
+            if account.provider.isLinkOnly {
+                linkOnlySection
+            } else {
+                signInSection
+            }
+            overridesSection
+            Section {
+                HStack {
+                    Spacer()
+                    Button("Remove Account\u{2026}", role: .destructive) { confirmRemove = true }
                 }
             }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
         }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .confirmationDialog("Remove \(account.displayName)?", isPresented: $confirmRemove) {
             Button("Remove", role: .destructive, action: remove)
@@ -62,24 +59,30 @@ struct AccountDetailView: View {
 
     // MARK: Header
 
+    /// The first section's header, so it scrolls with the rows instead of covering them.
     private var header: some View {
-        HStack(spacing: 12) {
+        let title = AccountTitle(provider: account.provider, label: account.label, plan: model.status(for: account).snapshot?.plan)
+        let subtitle = [title.label, title.plan].compactMap { $0 }.joined(separator: " \u{00B7} ")
+        return HStack(spacing: 12) {
             ProviderLogoView(provider: account.provider, size: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text(account.label)
+                Text(title.provider)
                     .font(.title2.weight(.semibold))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
-                Text(subtitle)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.body)
+                        .fontWeight(.regular)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
         }
-    }
-
-    private var subtitle: String {
-        let title = AccountTitle(provider: account.provider, label: account.label, plan: model.status(for: account).snapshot?.plan)
-        return [account.provider.displayName, title.plan].compactMap { $0 }.joined(separator: " \u{00B7} ")
+        .padding(.bottom, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     private var statusLine: some View {
