@@ -5,6 +5,7 @@ struct PopoverView: View {
     @Environment(AppModel.self) private var model
     /// Cards grow with their content up to this height, then scroll; header and footer stay put.
     var maxCardsHeight: CGFloat = 540
+    @StateObject private var burnUps = BurnUpSamples()
 
     /// Cards sit this far in and pad their content by `cardPadding`, so the header icon, the card content and the
     /// footer's first icon share one leading edge.
@@ -32,7 +33,7 @@ struct PopoverView: View {
                 ScrollView {
                     VStack(spacing: 8) {
                         ForEach(model.accounts) { account in
-                            AccountCard(account: account)
+                            AccountCard(account: account, burnUps: burnUps)
                         }
                     }
                     .padding(Self.cardMargin)

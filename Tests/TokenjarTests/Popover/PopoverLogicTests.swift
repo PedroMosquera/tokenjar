@@ -347,11 +347,50 @@ struct BurnUpChartTests {
         let samples = [
             WindowSample(accountID: "a", windowID: "weekly", timestamp: start, usedPercent: 97, resetsAt: start),
             WindowSample(accountID: "a", windowID: "weekly", timestamp: start.addingTimeInterval(3600), usedPercent: 1, resetsAt: weekly.resetsAt),
-            WindowSample(accountID: "a", windowID: "weekly", timestamp: now.addingTimeInterval(-3600), usedPercent: 39, resetsAt: weekly.resetsAt),
+            WindowSample(accountID: "a", windowID: "weekly", timestamp: now.addingTimeInterval(-86_400), usedPercent: 39, resetsAt: weekly.resetsAt),
         ]
         let points = BurnUpChart.points(samples: samples, window: weekly, start: start, now: now)
         #expect(points.map(\.used) == [1, 39, 40])
         #expect(points.last?.date == now)
+    }
+
+    /// A week at the observed 10-minute cadence is about 1,000 samples, each one a mark Charts lays out on every draw.
+    @Test func aLongCycleIsThinnedButKeepsItsPeakAndTheLiveValue() {
+        let weekly = window("weekly", "Week", used: 60, minutes: 10_080, resetIn: 86_400)
+        let start = weekly.resetsAt!.addingTimeInterval(-7 * 86_400)
+        let elapsed = now.timeIntervalSince(start) - 120
+        let samples = (0..<1_500).map { i in
+            let used = i <= 700 ? 75 * Double(i) / 700 : 50 + 9 * Double(i - 700) / 799
+            return WindowSample(accountID: "a", windowID: "weekly", timestamp: start.addingTimeInterval(elapsed * Double(i) / 1_499), usedPercent: used, resetsAt: weekly.resetsAt)
+        }
+        let points = BurnUpChart.points(samples: samples, window: weekly, start: start, now: now)
+        #expect(points.count <= 121)
+        #expect(points.map(\.used).max() == 75)
+        #expect(points.last?.used == 60)
+        #expect(points.last?.date == now)
+    }
+
+    /// A card's body re-runs on every model change it reads; only new history or a new cycle may reach SQLite.
+    @Test func storedSamplesAreLoadedOncePerHistoryRevisionAndCycle() {
+        let cache = BurnUpSamples()
+        let start = now.addingTimeInterval(-3 * 86_400)
+        let end = start.addingTimeInterval(7 * 86_400)
+        var loads = 0
+        func read(_ windowID: String = "weekly", start: Date = start, revision: Int = 1) -> [WindowSample] {
+            cache.samples(accountID: "a", windowID: windowID, start: start, end: end, revision: revision) {
+                loads += 1
+                return [WindowSample(accountID: "a", windowID: windowID, timestamp: start, usedPercent: 1, resetsAt: end)]
+            }
+        }
+        _ = read()
+        _ = read()
+        #expect(loads == 1)
+        _ = read(revision: 2)
+        #expect(loads == 2)
+        _ = read(start: end, revision: 2)
+        #expect(loads == 3)
+        _ = read("session", revision: 2)
+        #expect(loads == 4)
     }
 
     @Test func aFreshSampleTakesTheLiveValueInsteadOfAddingAPoint() {

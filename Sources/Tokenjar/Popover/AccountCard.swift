@@ -4,6 +4,7 @@ import TokenjarCore
 struct AccountCard: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
+    var burnUps: BurnUpSamples
 
     var body: some View {
         let status = model.status(for: account)
@@ -15,7 +16,7 @@ struct AccountCard: View {
                 ErrorRow(account: account, error: error, needsAttention: status.failureNeedsAttention(now: model.popoverNow, refreshMinutes: refreshMinutes))
             }
             if let snapshot = status.snapshot {
-                SnapshotBody(account: account, snapshot: snapshot, isStale: isStale)
+                SnapshotBody(account: account, snapshot: snapshot, isStale: isStale, burnUps: burnUps)
             } else if status.error == nil {
                 Text(status.isRefreshing ? "Checking usage" : "No data yet")
                     .font(.callout)
@@ -187,6 +188,7 @@ private struct SnapshotBody: View {
     var snapshot: UsageSnapshot
     /// Dims the bars and the chart only. Text keeps full contrast, and the header's clock badge says it is old.
     var isStale: Bool
+    var burnUps: BurnUpSamples
 
     var body: some View {
         let now = model.popoverNow
@@ -247,7 +249,9 @@ private struct SnapshotBody: View {
         // A window past its reset would chart the cycle that just ended.
         let live = snapshot.windows.filter { !$0.hasReset(now: now) }
         if let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
-            let samples = model.samples(accountID: account.id, windowID: window.id, since: start)
+            let samples = burnUps.samples(accountID: account.id, windowID: window.id, start: start, end: window.resetsAt ?? now, revision: model.historyRevision) {
+                model.samples(accountID: account.id, windowID: window.id, since: start)
+            }
             let points = BurnUpChart.points(samples: samples, window: window, start: start, now: now)
             if BurnUpChart.isWorthDrawing(points, start: start, end: window.resetsAt ?? now) {
                 BurnUpChart(
