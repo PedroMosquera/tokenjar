@@ -38,6 +38,8 @@ enum SnapshotRenderer {
             model.config.menuBar.icon = .logoClaude
             model.config.menuBar.mode = .icon
             render(SettingsView().environment(model), size: NSSize(width: 760, height: 900), appearance: appearance, to: outputDirectory.appending(path: "settings-general-logo-\(suffix).png"))
+            model.config.menuBar.mode = .bars
+            render(SettingsView().environment(model), size: NSSize(width: 760, height: 900), appearance: appearance, to: outputDirectory.appending(path: "settings-general-bars-\(suffix).png"))
             model.config.menuBar = MenuBarConfig()
             model.settingsSelection = "claude-work"
             render(SettingsView().environment(model), size: NSSize(width: 760, height: 560), appearance: appearance, to: outputDirectory.appending(path: "settings-account-\(suffix).png"))

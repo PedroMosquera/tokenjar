@@ -67,6 +67,10 @@ struct MenuBarIconTests {
         #expect(abs(gauge - slot) < 0.15, "gauge \(gauge) pt, slot \(slot) pt")
     }
 
+    @Test func onlyModesThatShowTheIconUseTheIconSetting() {
+        #expect(MenuBarMode.allCases.filter(\.usesIcon) == [.worst, .icon])
+    }
+
     @Test func pickerGroupsListEveryChoiceOnce() {
         #expect(MenuBarIcon.Group.allCases.map(\.title) == ["App mark", "More marks", "Provider logos", "Symbols"])
         #expect(MenuBarIcon.Group.allCases.flatMap(\.icons) == MenuBarIcon.allCases)

@@ -38,6 +38,7 @@ struct GeneralSettingsPane: View {
                         }
                     }
                 }
+                .disabled(!model.config.menuBar.mode.usesIcon)
                 Picker("Show", selection: model.configBinding(\.menuBar.mode)) {
                     ForEach(MenuBarMode.allCases, id: \.self) { mode in
                         VStack(alignment: .leading, spacing: 1) {
@@ -180,6 +181,8 @@ struct GeneralSettingsPane: View {
 }
 
 extension MenuBarMode {
+    var usesIcon: Bool { self != .bars }
+
     var title: String {
         switch self {
         case .worst: "Tightest account"
