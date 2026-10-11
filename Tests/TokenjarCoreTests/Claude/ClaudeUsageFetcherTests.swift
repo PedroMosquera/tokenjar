@@ -360,7 +360,7 @@ struct ClaudeUsageFetcherTests {
         #expect(snapshot.windows.map(\.id) == ["session", "weekly", "weekly:Fable"])
         #expect(snapshot.windows.map(\.usedPercent) == [17, 14, 3])
         #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 25, limit: 50, currency: "USD")])
-        #expect(snapshot.notes == ["claude CLI not found. Showing the last values Claude Code saved."])
+        #expect(snapshot.notes == ["Can't find the claude command on this Mac. Showing the last values Claude Code saved."])
     }
 
     @Test func cacheOfAnotherAccountIsIgnored() async throws {

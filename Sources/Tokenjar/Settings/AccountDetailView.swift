@@ -196,7 +196,7 @@ struct AccountDetailView: View {
     private var linkOnlySection: some View {
         Section {
             Label {
-                Text("\(account.provider.displayName) doesn't share your quota with local apps yet, so this account opens its plan page. Tokenjar runs nothing for it and reads nothing.")
+                Text("\(account.provider.displayName) doesn't share your quota with local apps yet, so this account opens its usage page. Tokenjar runs nothing for it and reads nothing.")
                     .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "link")

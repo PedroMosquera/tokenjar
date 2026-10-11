@@ -281,14 +281,14 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
     /// Safe for display and notifications: no ids, emails, tokens or raw bodies.
     public var userMessage: String {
         switch self {
-        case .cliNotFound(let name): "\(name) CLI not found"
-        case .notSignedIn: "Signed out. Sign in with the provider CLI."
+        case .cliNotFound(let name): "Can't find the \(name) command on this Mac."
+        case .notSignedIn: "Signed out. Sign in again to see limits."
         case .noSubscription(let detail): detail
-        case .unauthorized: "Credential rejected"
-        case .rateLimited: "Provider is rate limiting usage checks"
-        case .network: "Network error"
-        case .timeout: "Timed out"
-        case .parse: "Unexpected response format"
+        case .unauthorized: "The sign-in or API key was rejected."
+        case .rateLimited: "Checking too often. Tokenjar waits before the next check."
+        case .network: "Can't reach the server. Tokenjar tries again at the next refresh."
+        case .timeout: "No answer in time. Tokenjar tries again at the next refresh."
+        case .parse: "Couldn't read the usage answer. An update may have changed it."
         case .unsupported(let detail): detail
         }
     }

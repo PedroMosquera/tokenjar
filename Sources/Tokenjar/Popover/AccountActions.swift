@@ -11,7 +11,7 @@ struct AccountAction {
     static func forError(_ error: FetchError, account: AccountConfig, model: AppModel) -> [AccountAction] {
         if ProbeLatch.spentTokens(error) {
             return [
-                AccountAction(title: "Try once more") { model.retryProbe(accountID: account.id) },
+                AccountAction(title: "Try Once More") { model.retryProbe(accountID: account.id) },
                 AccountAction(title: "Disable") { model.updateAccount(account.id) { $0.enabled = false } },
             ]
         }

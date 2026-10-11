@@ -16,7 +16,7 @@ struct DevinUsageFetcherTests {
     }
 
     /// A link card: no windows or money to judge, so nothing on it can read as a problem, and the notes say where to look.
-    @Test func reportsAPlanPageLinkWithoutRunningAnything() async throws {
+    @Test func reportsAUsagePageLinkWithoutRunningAnything() async throws {
         let runner = RefusingRunner()
         let snapshot = try await fetch(AccountConfig(id: "devin", provider: .devin, label: "Devin"), runner: runner)
 
@@ -24,11 +24,11 @@ struct DevinUsageFetcherTests {
         #expect(snapshot.windows.isEmpty)
         #expect(snapshot.money.isEmpty)
         #expect(snapshot.plan == nil)
-        #expect(snapshot.source == "plan page")
+        #expect(snapshot.source == "usage page")
         #expect(snapshot.fetchedAt == now)
         #expect(snapshot.provider == .devin)
         #expect(snapshot.notes == [
-            "Devin doesn't share your quota with local apps yet. Open the plan page to see it.",
+            "Devin doesn't share your quota with local apps yet. Open the usage page to see it.",
             "On a grandfathered Windsurf plan? Set this account's usage page to windsurf.com/subscription/manage-plan.",
         ])
     }
@@ -36,7 +36,7 @@ struct DevinUsageFetcherTests {
     @Test func dropsTheWindsurfHintOnceTheUsagePageIsSet() async throws {
         let account = AccountConfig(id: "devin", provider: .devin, label: "Windsurf", dashboardURL: "https://windsurf.com/subscription/manage-plan")
         let snapshot = try await fetch(account, runner: RefusingRunner())
-        #expect(snapshot.notes == ["Devin doesn't share your quota with local apps yet. Open the plan page to see it."])
+        #expect(snapshot.notes == ["Devin doesn't share your quota with local apps yet. Open the usage page to see it."])
     }
 }
 

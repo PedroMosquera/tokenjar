@@ -1,7 +1,7 @@
 import Foundation
 
-/// Finds provider CLIs without a login shell. A menu bar app launched by launchd does not inherit the
-/// user's shell PATH, and sourcing their shell rc files would run arbitrary user code on every refresh.
+/// Finds the CLIs Tokenjar runs (claude, codex, agy, gh) without a login shell. A menu bar app launched by launchd
+/// does not inherit the user's shell PATH, and sourcing their shell rc files would run arbitrary user code on every refresh.
 public struct CLILocator: Sendable {
     public var home: URL
     /// Per-CLI overrides from config (`cliPaths`), checked first.

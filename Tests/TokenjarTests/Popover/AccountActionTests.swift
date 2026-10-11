@@ -49,8 +49,8 @@ struct AccountActionTests {
         #expect(log.count("claude") == 1)
 
         let actions = AccountAction.forError(modelTurn, account: claude, model: model)
-        #expect(actions.map(\.title) == ["Try once more", "Disable"])
-        try action("Try once more", in: actions).run()
+        #expect(actions.map(\.title) == ["Try Once More", "Disable"])
+        try action("Try Once More", in: actions).run()
         try await waitUntil { log.count("claude") == 2 && !model.isRefreshing }
 
         try action("Disable", in: actions).run()

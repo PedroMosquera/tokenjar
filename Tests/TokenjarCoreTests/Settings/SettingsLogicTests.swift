@@ -94,7 +94,7 @@ struct SettingsLogicTests {
         #expect(SettingsLogic.describeChanges(from: old, to: new) == [
             "Add account Codex \u{00B7} Default",
             "Alert thresholds: 75%, 90% used (now 80%, 95%)",
-            "Refresh every 5 min (now 10 min)",
+            "Refresh every 5 minutes (now 10 minutes)",
         ])
     }
 

@@ -113,6 +113,26 @@ struct ModelsTests {
         }
     }
 
+    /// Each message names the cause and what happens next, as one or two whole sentences.
+    @Test func errorMessagesSayWhatHappenedAndWhatHappensNext() {
+        let expected: [(FetchError, String)] = [
+            (.cliNotFound("claude"), "Can't find the claude command on this Mac."),
+            (.notSignedIn, "Signed out. Sign in again to see limits."),
+            (.unauthorized, "The sign-in or API key was rejected."),
+            (.network("URLError"), "Can't reach the server. Tokenjar tries again at the next refresh."),
+            (.timeout, "No answer in time. Tokenjar tries again at the next refresh."),
+            (.parse("unrecognized output"), "Couldn't read the usage answer. An update may have changed it."),
+            (.rateLimited(retryAfter: 60), "Checking too often. Tokenjar waits before the next check."),
+        ]
+        for (error, message) in expected {
+            #expect(error.userMessage == message)
+        }
+        for message in [ClaudeUsageFetcher.modelTurnMessage, AntigravityUsageFetcher.modelTurnMessage] {
+            #expect(message.hasSuffix("click Try Once More."))
+            #expect(!message.contains("CLI"))
+        }
+    }
+
     @Test func monthLengthFollowsTheMonthEndingAtReset() {
         #expect(UsageWindow.monthMinutes(endingAt: DateParsing.iso8601("2026-03-01T00:00:00Z")) == 28 * 1_440)
         #expect(UsageWindow.monthMinutes(endingAt: DateParsing.iso8601("2026-05-15T08:00:00Z")) == 30 * 1_440)

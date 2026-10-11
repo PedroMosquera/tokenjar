@@ -8,7 +8,7 @@ public struct ClaudeUsageFetcher: UsageFetcher {
     public static let source = "claude CLI"
     public static let cacheSource = "Claude Code cache"
     public static let noLimitsNote = "No plan limits for this login"
-    public static let modelTurnMessage = "claude CLI ran /usage as a prompt, which spends tokens. Checks for this account are paused until claude updates or you click Try once more."
+    public static let modelTurnMessage = "Claude Code ran /usage as a prompt, which spends tokens. Checks for this account are paused until claude updates or you click Try Once More."
 
     static let arguments = [
         "-p", "/usage", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
@@ -28,7 +28,7 @@ public struct ClaudeUsageFetcher: UsageFetcher {
             return UsageSnapshot(
                 accountID: account.id, provider: .claude, plan: config?.plan, windows: cached.windows, money: cached.money,
                 fetchedAt: cached.fetchedAt, source: Self.cacheSource,
-                notes: ["\(error.userMessage). Showing the last values Claude Code saved."]
+                notes: ["\(error.userMessage) Showing the last values Claude Code saved."]
             )
         }
 

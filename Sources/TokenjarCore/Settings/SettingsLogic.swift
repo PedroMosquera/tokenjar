@@ -96,7 +96,7 @@ public enum SettingsLogic {
             lines.append(new.alerts.enabled ? "Turn alerts on" : "Turn alerts off")
         }
         if old.refreshMinutes != new.refreshMinutes {
-            lines.append("Refresh every \(new.refreshMinutes) min (now \(old.refreshMinutes) min)")
+            lines.append("Refresh every \(minutes(new.refreshMinutes)) (now \(minutes(old.refreshMinutes)))")
         }
         if old.menuBar != new.menuBar { lines.append("Menu bar settings") }
         if old.cliPaths != new.cliPaths { lines.append("CLI locations") }
@@ -109,6 +109,10 @@ public enum SettingsLogic {
     /// Paths under the home folder written with ~, so a shared config works on a Mac with a different user name.
     public static func tildePath(_ path: String, home: String) -> String {
         path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+    }
+
+    private static func minutes(_ count: Int) -> String {
+        count == 1 ? "1 minute" : "\(count) minutes"
     }
 
     public static func percentList(_ values: [Int]) -> String {
