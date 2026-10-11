@@ -35,7 +35,7 @@ struct PopoverSummary: Equatable {
     /// Cards keep config order, so this is how an at-risk account below the fold still reaches the header.
     var others: [String] = []
 
-    static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: MenuBarConfig, now: Date) -> PopoverSummary {
+    static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date) -> PopoverSummary {
         guard !accounts.isEmpty else { return PopoverSummary(tone: .empty, text: "No accounts yet") }
         var worst: (account: AccountConfig, window: UsageWindow, severity: Severity)?
         var nextReset: Date?
@@ -44,15 +44,17 @@ struct PopoverSummary: Equatable {
         var needsALook: [AccountConfig] = []
         for account in accounts {
             let status = statuses[account.id] ?? AccountStatus()
-            if status.error != nil { failing += 1 }
-            if status.error != nil || Severity.worst(of: status.snapshot?.windows ?? [], config: config, now: now) > .ok {
+            let failed = status.failureNeedsAttention(now: now, refreshMinutes: account.refreshMinutes ?? config.refreshMinutes)
+            if failed { failing += 1 }
+            if failed || Severity.worst(of: status.snapshot?.windows ?? [], config: config.menuBar, now: now) > .ok {
                 needsALook.append(account)
             }
-            // A link card is ready at once and has no limits, so it must not stand in for accounts still being checked.
-            guard let snapshot = status.snapshot, !account.provider.isLinkOnly else { continue }
+            // A link card or a spend-only account is ready at once and has no limits, so it must not stand in for
+            // accounts still being checked.
+            guard let snapshot = status.snapshot, account.provider.reportsWindows else { continue }
             withData += 1
             for window in snapshot.windows where !window.hasReset(now: now) {
-                let severity = Severity.of(window, config: config, now: now)
+                let severity = Severity.of(window, config: config.menuBar, now: now)
                 if worst.map({ (severity, window.usedPercent) > ($0.severity, $0.window.usedPercent) }) ?? true {
                     worst = (account, window, severity)
                 }
@@ -81,11 +83,24 @@ struct PopoverSummary: Equatable {
             return PopoverSummary(tone: .problem, text: failing == 1 ? "1 account needs attention" : "\(failing) accounts need attention")
         }
         if withData == 0 {
-            if accounts.allSatisfy(\.provider.isLinkOnly) { return PopoverSummary(tone: .empty, text: "No limits to track") }
-            return PopoverSummary(tone: .empty, text: "Waiting for usage data")
+            let nothingToTrack = accounts.allSatisfy { !$0.provider.reportsWindows || statuses[$0.id]?.error?.attention == .calm }
+            return PopoverSummary(tone: .empty, text: nothingToTrack ? "No limits to track" : "Waiting for usage data")
         }
         guard let nextReset else { return PopoverSummary(tone: .clear, text: "All clear") }
         return PopoverSummary(tone: .clear, text: "All clear · next reset in \(Format.duration(nextReset.timeIntervalSince(now)))")
+    }
+}
+
+extension AccountStatus {
+    /// Whether the last failed check should reach the header. A missing subscription never does, and a network
+    /// error or timeout only once there is no fresh data to show instead.
+    func failureNeedsAttention(now: Date, refreshMinutes: Int) -> Bool {
+        guard let error else { return false }
+        switch error.attention {
+        case .calm: return false
+        case .transient: return snapshot == nil || isStale(now: now, refreshMinutes: refreshMinutes)
+        case .actionable: return true
+        }
     }
 }
 

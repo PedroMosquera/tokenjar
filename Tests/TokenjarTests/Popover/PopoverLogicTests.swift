@@ -10,8 +10,8 @@ private func window(_ id: String, _ label: String, used: Double, minutes: Int = 
     UsageWindow(id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: resetIn.map { now.addingTimeInterval($0) }, notStarted: notStarted)
 }
 
-private func snapshot(_ accountID: String, _ windows: [UsageWindow], plan: String? = nil) -> UsageSnapshot {
-    UsageSnapshot(accountID: accountID, provider: .claude, plan: plan, windows: windows, fetchedAt: now, source: "test")
+private func snapshot(_ accountID: String, _ windows: [UsageWindow], plan: String? = nil, fetchedAgo: TimeInterval = 0) -> UsageSnapshot {
+    UsageSnapshot(accountID: accountID, provider: .claude, plan: plan, windows: windows, fetchedAt: now.addingTimeInterval(-fetchedAgo), source: "test")
 }
 
 @MainActor
@@ -137,13 +137,13 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 42, resetIn: 130 * 60)])),
             "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .warning, text: "Claude · Work: 5-hour at 88%"))
     }
 
     @Test func criticalTone() {
         let statuses = ["personal": AccountStatus(snapshot: snapshot("personal", [window("weekly", "Week", used: 96, minutes: 10_080, resetIn: 3 * 86_400)]))]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .critical, text: "Claude · Personal: Week at 96%"))
     }
 
@@ -153,19 +153,19 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(snapshot: snapshot("personal", [window("weekly", "Week", used: 75, minutes: 10_080, resetIn: 86_400)])),
             "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 60, resetIn: 150 * 60)])),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .warning, text: "Claude · Work: 5-hour at 60%"))
     }
 
     @Test func fullWindowShowsTheResetCountdown() {
         let statuses = ["work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 100, resetIn: 50 * 60)]))]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary.text == "Claude · Work: 5-hour full, resets in 50m")
     }
 
     @Test func aWindowPastItsResetIsNotFull() {
         let statuses = ["work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 100, resetIn: -60)]))]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary.tone != .critical)
         #expect(!summary.text.contains("full"))
     }
@@ -178,7 +178,7 @@ struct PopoverSummaryTests {
             ])),
             "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 10, resetIn: 130 * 60)])),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .clear, text: "All clear · next reset in 2h 10m"))
     }
 
@@ -187,7 +187,7 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 10, resetIn: 130 * 60)])),
             "work": AccountStatus(error: .notSignedIn),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .problem, text: "1 account needs attention"))
     }
 
@@ -204,7 +204,7 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 42, resetIn: 130 * 60)])),
             "agy": AccountStatus(snapshot: snapshot("agy", [window("pool:weekly", "Pool · Week", used: 71, minutes: 10_080, resetIn: 4 * 86_400)])),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary.text == "Claude · Work: 5-hour at 88%")
         // Only accounts that share a provider need their label to tell them apart.
         #expect(summary.others == ["OpenCode Go", "Antigravity"])
@@ -215,7 +215,7 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(error: .notSignedIn),
             "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
         ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary.tone == .warning)
         #expect(summary.others == ["Claude · Personal"])
     }
@@ -226,7 +226,7 @@ struct PopoverSummaryTests {
             "devin": AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"])),
             "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 10, resetIn: 130 * 60)])),
         ]
-        let summary = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: MenuBarConfig(), now: now)
+        let summary = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: AppConfig(), now: now)
         #expect(summary == PopoverSummary(tone: .clear, text: "All clear · next reset in 2h 10m"))
     }
 
@@ -235,15 +235,61 @@ struct PopoverSummaryTests {
     @Test func aLinkOnlyAccountIsNotUsageData() {
         let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
         let statuses = ["devin": AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"]))]
-        let waiting = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: MenuBarConfig(), now: now)
+        let waiting = PopoverSummary.make(accounts: [devin, accounts[1]], statuses: statuses, config: AppConfig(), now: now)
         #expect(waiting == PopoverSummary(tone: .empty, text: "Waiting for usage data"))
-        let alone = PopoverSummary.make(accounts: [devin], statuses: statuses, config: MenuBarConfig(), now: now)
+        let alone = PopoverSummary.make(accounts: [devin], statuses: statuses, config: AppConfig(), now: now)
         #expect(alone == PopoverSummary(tone: .empty, text: "No limits to track"))
     }
 
     @Test func emptyStates() {
-        #expect(PopoverSummary.make(accounts: [], statuses: [:], config: MenuBarConfig(), now: now) == PopoverSummary(tone: .empty, text: "No accounts yet"))
-        #expect(PopoverSummary.make(accounts: accounts, statuses: [:], config: MenuBarConfig(), now: now) == PopoverSummary(tone: .empty, text: "Waiting for usage data"))
+        #expect(PopoverSummary.make(accounts: [], statuses: [:], config: AppConfig(), now: now) == PopoverSummary(tone: .empty, text: "No accounts yet"))
+        #expect(PopoverSummary.make(accounts: accounts, statuses: [:], config: AppConfig(), now: now) == PopoverSummary(tone: .empty, text: "Waiting for usage data"))
+    }
+
+    private let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go")
+    private let noSubscription = AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"))
+
+    /// Not being subscribed is a state, not a fault: there is nothing to fix and nothing to wait for.
+    @Test func aMissingSubscriptionIsCalm() {
+        let statuses = [
+            "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 10, resetIn: 130 * 60)])),
+            "go": noSubscription,
+        ]
+        let summary = PopoverSummary.make(accounts: [accounts[0], go], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.tone == .clear)
+        #expect(summary.text.hasPrefix("All clear"))
+    }
+
+    @Test func aMissingSubscriptionIsNotListedBesideAWarning() {
+        let statuses = [
+            "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
+            "go": noSubscription,
+        ]
+        let summary = PopoverSummary.make(accounts: [accounts[1], go], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.tone == .warning)
+        #expect(summary.others.isEmpty)
+    }
+
+    @Test func onlyAccountsWithoutASubscriptionHaveNoLimitsToTrack() {
+        let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
+        let link = AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"]))
+        let summary = PopoverSummary.make(accounts: [go, devin], statuses: ["go": noSubscription, "devin": link], config: AppConfig(), now: now)
+        #expect(summary == PopoverSummary(tone: .empty, text: "No limits to track"))
+    }
+
+    /// One failed check over data that is still fresh will most likely pass on the next one.
+    @Test func aNetworkErrorOverFreshDataIsNoAlarm() {
+        let fresh = snapshot("personal", [window("session", "5-hour", used: 10, resetIn: 130 * 60)], fetchedAgo: 5 * 60)
+        let summary = PopoverSummary.make(accounts: [accounts[0]], statuses: ["personal": AccountStatus(snapshot: fresh, error: .network("offline"))], config: AppConfig(), now: now)
+        #expect(summary.tone == .clear)
+    }
+
+    @Test func aNetworkErrorWithoutFreshDataNeedsAttention() {
+        let stale = snapshot("personal", [window("session", "5-hour", used: 10, resetIn: 130 * 60)], fetchedAgo: 50 * 60)
+        let old = PopoverSummary.make(accounts: [accounts[0]], statuses: ["personal": AccountStatus(snapshot: stale, error: .network("offline"))], config: AppConfig(), now: now)
+        #expect(old == PopoverSummary(tone: .problem, text: "1 account needs attention"))
+        let none = PopoverSummary.make(accounts: [accounts[0]], statuses: ["personal": AccountStatus(error: .timeout)], config: AppConfig(), now: now)
+        #expect(none == PopoverSummary(tone: .problem, text: "1 account needs attention"))
     }
 }
 

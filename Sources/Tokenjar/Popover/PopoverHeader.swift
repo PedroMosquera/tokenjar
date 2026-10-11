@@ -5,7 +5,7 @@ struct PopoverHeader: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let summary = PopoverSummary.make(accounts: model.accounts, statuses: model.statuses, config: model.config.menuBar, now: model.now)
+        let summary = PopoverSummary.make(accounts: model.accounts, statuses: model.statuses, config: model.config, now: model.now)
         HStack(spacing: 10) {
             Image(systemName: symbol(summary.tone))
                 .font(.title2)

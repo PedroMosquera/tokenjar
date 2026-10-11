@@ -7,11 +7,12 @@ struct AccountCard: View {
 
     var body: some View {
         let status = model.status(for: account)
-        let isStale = status.isStale(now: model.now, refreshMinutes: account.refreshMinutes ?? model.config.refreshMinutes)
+        let refreshMinutes = account.refreshMinutes ?? model.config.refreshMinutes
+        let isStale = status.isStale(now: model.now, refreshMinutes: refreshMinutes)
         VStack(alignment: .leading, spacing: 10) {
             AccountCardHeader(account: account, status: status, isStale: isStale)
             if let error = status.error {
-                ErrorRow(account: account, error: error)
+                ErrorRow(account: account, error: error, needsAttention: status.failureNeedsAttention(now: model.now, refreshMinutes: refreshMinutes))
             }
             if let snapshot = status.snapshot {
                 SnapshotBody(account: account, snapshot: snapshot)
@@ -128,13 +129,14 @@ private struct ErrorRow: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig
     var error: FetchError
+    /// See `AccountStatus.failureNeedsAttention`; only then does the row take the warning color.
+    var needsAttention: Bool
 
     var body: some View {
         let actions = AccountAction.forError(error, account: account, model: model)
         VStack(alignment: .trailing, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Severity.warning.color)
+                icon
                 Text(error.userMessage)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -149,6 +151,20 @@ private struct ErrorRow: View {
             }
         }
         .font(.callout)
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        if error.attention == .calm {
+            Image(systemName: "minus.circle")
+                .foregroundStyle(.secondary)
+        } else if !needsAttention {
+            Image(systemName: "wifi.exclamationmark")
+                .foregroundStyle(.secondary)
+        } else {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Severity.warning.color)
+        }
     }
 
     private func buttons(_ actions: [AccountAction]) -> some View {
