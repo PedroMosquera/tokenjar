@@ -12,7 +12,7 @@ struct SettingsMinimumSizeTests {
     @Test(arguments: SettingsPane.allCases)
     func theWindowMinimumIsTheSmallestSizeEachPaneFits(pane: SettingsPane) {
         let model = AppModel.preview()
-        model.secrets = InMemorySecretStore()
+        model.secrets = SessionSecretStore(InMemorySecretStore())
         // Copilot's account page has the widest row: the GitHub CLI folder field and its Choose button.
         model.settingsSelection = model.config.accounts.first { $0.provider == .copilot }?.id
         let spec = WindowPresenter.Spec.settings
