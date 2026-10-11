@@ -33,4 +33,33 @@ struct FormattingTests {
         #expect(Format.moneyUsed(150.3, of: 200, locale: us) == "$150 used of $200")
         #expect(Format.moneyUsed(20, of: 100, locale: us) == "$20 used of $100")
     }
+
+    /// Rounding must never call a window empty while it has use, or full while it has room.
+    @Test func percentNeverRoundsToAnEdgeItHasNotReached() {
+        #expect(Format.percent(0) == "0%")
+        #expect(Format.percent(0.04) == "<1%")
+        #expect(Format.percent(0.6) == "<1%")
+        #expect(Format.percent(1) == "1%")
+        #expect(Format.percent(42.4) == "42%")
+        #expect(Format.percent(99.6) == "99%")
+        #expect(Format.percent(100) == "100%")
+        #expect(Format.percent(112) == "112%")
+    }
+
+    @Test func durationsDropAZeroTrailingUnit() {
+        #expect(Format.duration(259_200) == "3d")
+        #expect(Format.duration(7_200) == "2h")
+        #expect(Format.duration(6_480) == "1h 48m")
+        #expect(Format.duration(3 * 86_400 + 4 * 3_600 + 59) == "3d 4h")
+        #expect(Format.duration(12 * 60) == "12m")
+        #expect(Format.duration(30) == "<1m")
+    }
+
+    /// VoiceOver reads "48m" as meters, so accessibility text spells the units out.
+    @Test func spokenDurationsSpellTheUnitsOut() {
+        #expect(Format.spokenDuration(6_480) == "1 hour, 48 minutes")
+        #expect(Format.spokenDuration(47 * 60) == "47 minutes")
+        #expect(Format.spokenDuration(2 * 86_400 + 4 * 3_600 + 10 * 60) == "2 days, 4 hours")
+        #expect(Format.spokenDuration(20) == "less than a minute")
+    }
 }

@@ -73,8 +73,9 @@ struct UsageBar: View {
             ZStack(alignment: .leading) {
                 ZStack(alignment: .leading) {
                     Capsule().fill(.quaternary)
+                    // Exact width, clipped by the track: a capsule fill needs a whole cap, so 0.04 % drew as 2 %.
                     if clamped > 0 {
-                        Capsule().fill(tint).frame(width: max(barHeight, width * clamped))
+                        Rectangle().fill(tint).frame(width: max(1, width * clamped))
                     }
                     if let x = tickOffset(width) {
                         Rectangle()
@@ -84,6 +85,7 @@ struct UsageBar: View {
                     }
                 }
                 .frame(height: barHeight)
+                .clipShape(Capsule())
                 .compositingGroup()
                 if let x = tickOffset(width) {
                     Capsule()
