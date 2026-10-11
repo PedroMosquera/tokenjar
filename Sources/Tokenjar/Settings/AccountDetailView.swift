@@ -286,15 +286,28 @@ struct AccountDetailView: View {
                 .labelsHidden()
             } label: {
                 Text("Usage page URL")
-                if account.provider == .devin {
-                    Text("On a grandfathered Windsurf plan, use https://windsurf.com/subscription/manage-plan.")
-                }
             }
             if dashboardError {
                 SettingsNotice(kind: .error, text: "Enter a web address starting with https://")
             }
+            // A button, not the address in a note: a long URL wraps at its slashes and pushes the field under its label.
+            if account.provider == .devin {
+                LabeledContent {
+                    Button("Use Windsurf Page") {
+                        dashboardError = false
+                        model.updateAccount(account.id) { $0.dashboardURL = Self.windsurfUsageURL }
+                    }
+                    .disabled(account.dashboardURL == Self.windsurfUsageURL)
+                    .help(Self.windsurfUsageURL)
+                } label: {
+                    Text("Windsurf plan")
+                    Text("A grandfathered Windsurf plan shows its usage on windsurf.com.")
+                }
+            }
         }
     }
+
+    static let windsurfUsageURL = "https://windsurf.com/subscription/manage-plan"
 
     // MARK: Actions
 
