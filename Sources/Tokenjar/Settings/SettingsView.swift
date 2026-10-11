@@ -129,6 +129,7 @@ struct SettingsSidebarRow: View {
             .selectableRow(isSelected)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

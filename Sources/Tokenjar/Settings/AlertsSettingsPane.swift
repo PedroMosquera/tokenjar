@@ -11,7 +11,7 @@ struct AlertsSettingsPane: View {
             Section {
                 Toggle(isOn: model.configBinding(\.alerts.enabled)) {
                     Text("Send alerts")
-                    Text("\(delivery.summary) Nothing fires on the first check after launch; that check only sets the baseline.")
+                    Text("\(delivery.summary) Alerts start from the second check after launch, so a restart never repeats one.")
                 }
                 .disabled(!model.canEditConfig)
                 if let action = delivery.action {
@@ -49,8 +49,8 @@ struct AlertsSettingsPane: View {
                     Text("When a limit window starts over after reaching 80% or more.")
                 }
                 Toggle(isOn: model.configBinding(\.alerts.sourceProblems)) {
-                    Text("A source stops working")
-                    Text("A CLI is missing, signed out or unsupported, a credential or subscription stops working, or its output cannot be read. Network errors, timeouts and rate limits never alert. Once per problem, cleared by the next good check.")
+                    Text("An account stops updating")
+                    Text("Its command is missing or out of date, it is signed out, or its key or subscription stops working. Network hiccups never alert. Once per problem.")
                 }
             }
             .disabled(!model.config.alerts.enabled || !model.canEditConfig)
