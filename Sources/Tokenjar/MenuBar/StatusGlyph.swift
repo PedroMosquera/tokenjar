@@ -8,6 +8,8 @@ enum StatusGlyph {
     static let barsHeight: CGFloat = 18
     static let barWidth: CGFloat = 3
     static let barGap: CGFloat = 2
+    /// The failure dot overhangs the glyph's top right corner by half its width.
+    static let dotDiameter: CGFloat = 5
 
     struct Bar: Equatable {
         /// 0...1 of the tightest window; nil when the account has no data.
@@ -144,11 +146,11 @@ enum StatusGlyph {
     }
 
     /// Fits `base` into a `glyphSide` box, optionally tinted, faded, and badged with a dot that knocks a ring
-    /// out of the glyph so it reads as separate even in a one-color template image.
+    /// out of the glyph so it reads as separate even in a one-color template image. The dot's room is kept with or
+    /// without it, so the status item, and every item to its left, stays put when a check fails or recovers.
     private static func compose(_ base: NSImage, description: String, tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
         let glyph = fitted(base.size)
-        let dotDiameter: CGFloat = 5
-        let size = NSSize(width: glyph.width + (dot ? dotDiameter / 2 : 0), height: max(glyphSide, glyph.height))
+        let size = NSSize(width: glyph.width + dotDiameter / 2, height: max(glyphSide, glyph.height))
         let glyphRect = NSRect(x: 0, y: (size.height - glyph.height) / 2, width: glyph.width, height: glyph.height)
         let image = NSImage(size: size, flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else { return false }

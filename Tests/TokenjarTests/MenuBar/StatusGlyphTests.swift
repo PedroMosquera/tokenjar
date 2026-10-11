@@ -1,6 +1,7 @@
 import AppKit
 import Testing
 @testable import Tokenjar
+import TokenjarCore
 
 /// Alpha of `image` at a point of the mark's 18 x 18 design grid, measured from the top left like the SVG source.
 @MainActor
@@ -72,6 +73,15 @@ struct StatusGlyphTests {
 
     @Test func theMarkIsSizedForTheMenuBar() {
         #expect(StatusGlyph.slot(0.5).size == NSSize(width: 18, height: 18))
+    }
+
+    /// The status item must not shift the items beside it when a check fails or recovers.
+    @Test(arguments: [MenuBarIcon.app, .markMana, .logoClaude, .symbolBrain])
+    func theDotNeverChangesTheWidth(_ icon: MenuBarIcon) {
+        let plain = StatusGlyph.image(icon, fraction: 0.42, tint: nil, alpha: 1, dot: false)
+        let dotted = StatusGlyph.image(icon, fraction: 0.42, tint: nil, alpha: 1, dot: true)
+        #expect(plain.size == dotted.size)
+        #expect(StatusGlyph.neutral(icon, dot: false).size == StatusGlyph.neutral(icon, dot: true).size)
     }
 
     /// Alpha of each device pixel along the slot's middle row, drawn at `scale`, from the left edge.

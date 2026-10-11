@@ -522,9 +522,9 @@ struct StatusIconRendererTests {
         #expect(StatusIconRenderer.render(state([entry("a", used: 85, severity: .warning)], icon: icon)).image?.isTemplate == false)
         let stale = StatusIconRenderer.render(state([entry("a", used: 42, stale: true)], icon: icon))
         #expect(abs(peakAlpha(stale.image) - 0.5) < 0.02)
-        let plain = StatusIconRenderer.render(state([entry("a", used: 42)], icon: icon))
         let failing = StatusIconRenderer.render(state([entry("a", used: 42, attention: .actionable)], icon: icon))
-        #expect((failing.image?.size.width ?? 0) > (plain.image?.size.width ?? 0))
+        #expect(pixels(failing.image) == pixels(StatusGlyph.image(icon, fraction: 0.42, tint: nil, alpha: 1, dot: true)))
+        #expect(pixels(failing.image) != pixels(StatusGlyph.image(icon, fraction: 0.42, tint: nil, alpha: 1, dot: false)))
         let neutral = StatusIconRenderer.render(state([entry("a", used: nil)], icon: icon)).image
         #expect(pixels(neutral) == pixels(StatusGlyph.neutral(icon, dot: false)))
         #expect(pixels(neutral) != pixels(StatusGlyph.neutral(.app, dot: false)))
