@@ -38,16 +38,59 @@ struct LegacyMoveTests {
         #expect(!exists(home, ".config/headroom"))
     }
 
-    @Test func launchLeavesHeadroomsFoldersAloneWhileItRuns() throws {
+    /// The move skips a Tokenjar name that is taken, so a launch that creates Tokenjar's config or database while
+    /// Headroom runs would strand Headroom's for good.
+    @Test func aLaunchWhileHeadroomRunsWaitsAndTheNextLaunchMoves() throws {
         let home = try ModelHome()
         defer { home.remove() }
         try writeHeadroomState(in: home)
-        let model = model(home, legacyAppIsRunning: true)
+        let first = model(home, legacyAppIsRunning: true)
 
-        model.loadState()
+        first.loadState()
+        first.tick()
+        first.loadConfig()
 
         #expect(exists(home, "Library/Application Support/Headroom/headroom.sqlite"))
         #expect(exists(home, ".config/headroom/config.json"))
-        #expect(model.statuses["work"]?.snapshot == nil)
+        #expect(!exists(home, "Library/Application Support/Tokenjar"))
+        #expect(!exists(home, ".config/tokenjar"))
+        #expect(first.statuses["work"]?.snapshot == nil)
+        #expect(first.configError?.contains("Quit Headroom, then reopen Tokenjar") == true)
+
+        let second = model(home, legacyAppIsRunning: false)
+        second.loadState()
+
+        #expect(second.config.accounts.map(\.id) == ["work"])
+        #expect(second.statuses["work"]?.snapshot?.source == "test")
+        #expect(second.configError == nil)
+    }
+
+    /// Here the config folder moves and the support folder cannot. Loading the moved config would let a refresh write
+    /// alert state into a new support folder, which then blocks the retry.
+    @Test func aMoveThatFailsLoadsNothingAndIsTriedAgainAtTheNextLaunch() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".claude")
+        try writeHeadroomState(in: home)
+        let parent = home.url.appending(path: "Library/Application Support").path
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: parent)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: parent) }
+        let first = model(home, legacyAppIsRunning: false)
+
+        first.loadState()
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: parent)
+        first.loadConfig()
+        await first.refresh(force: true)?.value
+
+        #expect(first.config.accounts.isEmpty)
+        #expect(!exists(home, "Library/Application Support/Tokenjar"))
+        #expect(first.configError?.contains("could not be moved") == true)
+
+        let second = model(home, legacyAppIsRunning: false)
+        second.loadState()
+
+        #expect(second.config.accounts.map(\.id) == ["work"])
+        #expect(second.statuses["work"]?.snapshot?.source == "test")
+        #expect(second.configError == nil)
     }
 }

@@ -74,6 +74,9 @@ final class AppModel {
     /// merge conflict or a hand edit in progress, so nothing is saved until a load succeeds.
     @ObservationIgnored private var configLoadFailed = false
     @ObservationIgnored private var hasLoadedConfig = false
+    /// Headroom's data is still under its old names. Nothing loads for the rest of this launch: a config, database or
+    /// alert state written under Tokenjar's names would take them, and the move never runs onto a taken name.
+    @ObservationIgnored private var waitingForLegacyMove = false
 
     /// `paths`, `fetcher` and `clock` are seams for tests; the app uses the defaults.
     init(paths: AppPaths = AppPaths(), fetcher: @escaping (ProviderID) -> any UsageFetcher = FetcherRegistry.fetcher(for:), clock: @escaping () -> Date = { Date() }) {
@@ -120,7 +123,12 @@ final class AppModel {
     /// Everything `start` reads from disk, without timers or observers. The Headroom move comes first, so the config and
     /// the database open under their new names.
     func loadState() {
-        moveLegacyData()
+        if let banner = moveLegacyData() {
+            waitingForLegacyMove = true
+            configLoadFailed = true
+            configProblem = banner
+            return
+        }
         loadConfig(firstRunAllowed: true)
         do {
             store = try SQLiteUsageStore(url: paths.databaseFile)
@@ -164,15 +172,21 @@ final class AppModel {
         return refresh(force: true)
     }
 
-    private func moveLegacyData() {
+    /// nil once nothing of Headroom's is left to move, else the banner that says why it stayed.
+    private func moveLegacyData() -> String? {
         let log = Logger(subsystem: AppPaths.bundleIdentifier, category: "legacy-move")
-        for event in LegacyMigration.run(paths: paths, legacyAppIsRunning: legacyAppIsRunning()) {
+        let running = legacyAppIsRunning()
+        for event in LegacyMigration.run(paths: paths, legacyAppIsRunning: running) {
             if case .failed(let reason) = event {
                 log.error("Headroom data not moved: \(reason, privacy: .public)")
             } else {
                 log.notice("Headroom data: \(String(describing: event), privacy: .public)")
             }
         }
+        guard LegacyMigration.hasDataToMove(paths: paths) else { return nil }
+        return running
+            ? "Headroom is still running, so its settings and history were not moved. Quit Headroom, then reopen Tokenjar."
+            : "Headroom's settings and history could not be moved, so neither is loaded. Tokenjar tries again when it next opens."
     }
 
     // MARK: Config
@@ -181,6 +195,7 @@ final class AppModel {
     /// not even a dangling stow link, is at its path. A reload never writes, so a config.json missing for a moment
     /// (a branch switch in the dotfiles repo) keeps the current settings instead of replacing the user's.
     func loadConfig(firstRunAllowed: Bool = false) {
+        guard !waitingForLegacyMove else { return }
         let configStore = ConfigStore(paths: paths)
         defer { configStamp = currentConfigStamp() }
         do {

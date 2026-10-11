@@ -178,6 +178,31 @@ struct LegacyMigrationTests {
         #expect(!exists(".config/tokenjar"))
     }
 
+    @Test func aHeadroomFolderWhoseTokenjarNameIsFreeIsLeftToMove() throws {
+        defer { home.remove() }
+        #expect(!LegacyMigration.hasDataToMove(paths: paths))
+
+        try home.write(".config/headroom/config.json", "old config")
+        #expect(LegacyMigration.hasDataToMove(paths: paths))
+        try home.write(".config/tokenjar/config.json", "new config")
+        #expect(!LegacyMigration.hasDataToMove(paths: paths))
+
+        try home.write("\(oldSupport)/headroom.sqlite", "db")
+        try paths.createProbeDirectory()
+        #expect(LegacyMigration.hasDataToMove(paths: paths))
+        try home.write("\(newSupport)/alert-state.json", "alerts")
+        #expect(!LegacyMigration.hasDataToMove(paths: paths))
+    }
+
+    @Test func aDatabaseStillUnderItsOldNameIsLeftToMove() throws {
+        defer { home.remove() }
+        try home.write("\(newSupport)/headroom.sqlite", "db")
+        #expect(LegacyMigration.hasDataToMove(paths: paths))
+
+        try home.write("\(newSupport)/tokenjar.sqlite-wal", "wal")
+        #expect(!LegacyMigration.hasDataToMove(paths: paths))
+    }
+
     @Test func withoutHeadroomFoldersNothingIsCreated() throws {
         defer { home.remove() }
 
