@@ -5,6 +5,22 @@ import Foundation
 /// there and are pasted again.
 public enum LegacyMigration {
     public static let legacyBundleIdentifier = "com.pedromosquera.headroom"
+    public static let legacyProcessName = "Headroom"
+
+    /// Whether a process whose kernel name is exactly `name` runs, the match `pgrep -x` makes in install.sh. A Headroom
+    /// started from `.build` has no bundle id, so a bundle id lookup misses it while it holds the database open.
+    public static func isProcessRunning(named name: String) -> Bool {
+        let count = proc_listallpids(nil, 0)
+        guard count > 0 else { return false }
+        // Room for processes started between the two calls.
+        var pids = [pid_t](repeating: 0, count: Int(count) + 64)
+        let filled = pids.withUnsafeMutableBufferPointer { proc_listallpids($0.baseAddress, Int32($0.count * MemoryLayout<pid_t>.size)) }
+        var buffer = [UInt8](repeating: 0, count: 2 * Int(MAXCOMLEN) + 1)
+        return pids.prefix(Int(max(filled, 0))).contains { pid in
+            let length = proc_name(pid, &buffer, UInt32(buffer.count))
+            return length > 0 && String(decoding: buffer.prefix(Int(length)), as: UTF8.self) == name
+        }
+    }
 
     public enum Event: Equatable, Sendable {
         case skippedWhileLegacyAppRuns

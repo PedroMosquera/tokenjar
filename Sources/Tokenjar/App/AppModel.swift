@@ -59,6 +59,7 @@ final class AppModel {
     /// Asked once per launch by the Headroom move; tests replace it.
     @ObservationIgnored var legacyAppIsRunning: () -> Bool = {
         !NSRunningApplication.runningApplications(withBundleIdentifier: LegacyMigration.legacyBundleIdentifier).isEmpty
+            || LegacyMigration.isProcessRunning(named: LegacyMigration.legacyProcessName)
     }
 
     @ObservationIgnored private var ticker: Timer?

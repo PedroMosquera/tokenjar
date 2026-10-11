@@ -178,6 +178,20 @@ struct LegacyMigrationTests {
         #expect(!exists(".config/tokenjar"))
     }
 
+    /// The match the app uses for a Headroom with no bundle id, such as one started from `.build`.
+    @Test func findsARunningProcessByItsExactName() throws {
+        defer { home.remove() }
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        child.arguments = ["30"]
+        try child.run()
+        defer { child.terminate(); child.waitUntilExit() }
+
+        #expect(LegacyMigration.isProcessRunning(named: "sleep"))
+        #expect(!LegacyMigration.isProcessRunning(named: "slee"))
+        #expect(!LegacyMigration.isProcessRunning(named: "no-such-\(UUID().uuidString.prefix(8))"))
+    }
+
     @Test func aHeadroomFolderWhoseTokenjarNameIsFreeIsLeftToMove() throws {
         defer { home.remove() }
         #expect(!LegacyMigration.hasDataToMove(paths: paths))
