@@ -87,3 +87,54 @@ struct TopProjectsCostColumnTests {
         #expect(TopProjectsTable.costColumn([210, nil], locale: us) == ["$210", nil])
     }
 }
+
+struct LimitsTimeAxisTests {
+    private let calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "America/New_York")!
+        return c
+    }()
+    private let gb = Locale(identifier: "en_GB")
+
+    /// Saturday 10 October 2026, 15:30 in New York.
+    private var saturday: Date { calendar.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 15, minute: 30))! }
+
+    private func axis(hours: Double) -> LimitsTimeAxis {
+        LimitsTimeAxis(saturday.addingTimeInterval(-hours * 3600)...saturday, calendar: calendar, locale: gb)
+    }
+
+    /// History from Thursday afternoon at 7d: Thursday shows less than half a day, so it goes unnamed.
+    @Test func newHistoryOverDaysNamesEachDayOnce() {
+        let texts = axis(hours: 50).labels.map(\.text)
+        #expect(texts == ["Fri 9", "Sat 10"])
+        #expect(Set(texts).count == texts.count)
+        #expect(axis(hours: 84).labels.map(\.text) == ["Wed 7", "Thu 8", "Fri 9", "Sat 10"])
+    }
+
+    @Test func eachDayLabelSitsInsideTheDayItNames() {
+        let shown = axis(hours: 50)
+        let domain = saturday.addingTimeInterval(-50 * 3600)...saturday
+        for label in shown.labels {
+            #expect(domain.contains(label.date))
+            #expect(label.date.formatted(Date.FormatStyle(locale: gb, calendar: calendar, timeZone: calendar.timeZone).weekday(.abbreviated).day()) == label.text)
+        }
+        #expect(shown.grid == [9, 10].map { calendar.date(from: DateComponents(year: 2026, month: 10, day: $0))! })
+        #expect(!shown.spansHours)
+    }
+
+    /// A bare "19 01 07" under a 7d picker reads like dates of the month.
+    @Test func aDayAndAHalfOrLessNamesTheDayAtMidnightAndTheTimeOtherwise() {
+        #expect(axis(hours: 30).labels.map(\.text) == ["12:00", "18:00", "Sat 10", "06:00", "12:00"])
+        #expect(axis(hours: 24).labels.map(\.text) == ["18:00", "Sat 10", "06:00", "12:00"])
+        #expect(axis(hours: 24).spansHours)
+    }
+
+    /// Centred on its tick, a label this close to either end would run past the plot.
+    @Test func ticksNearEitherEndKeepTheirGridLineButNoLabel() {
+        let start = calendar.date(from: DateComponents(year: 2026, month: 10, day: 9, hour: 11, minute: 30))!
+        let end = calendar.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 13))!
+        let shown = LimitsTimeAxis(start...end, calendar: calendar, locale: gb)
+        #expect(shown.grid.map { $0.formatted(Date.FormatStyle(locale: gb, calendar: calendar, timeZone: calendar.timeZone).hour().minute()) } == ["12:00", "18:00", "00:00", "06:00", "12:00"])
+        #expect(shown.labels.map(\.text) == ["18:00", "Sat 10", "06:00"])
+    }
+}

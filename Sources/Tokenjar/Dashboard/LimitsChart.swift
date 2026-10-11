@@ -27,9 +27,8 @@ struct LimitsChart: View, Equatable {
     /// Days at 7d and 30d, unless the history is new and the axis spans only a day or so.
     private var sharesSpendAxis: Bool { shownRange != .day && content.limitsSince == nil }
 
-    private var spansHours: Bool { domain.upperBound.timeIntervalSince(domain.lowerBound) <= 36 * 3600 }
-
     var body: some View {
+        let timeAxis = sharesSpendAxis ? nil : LimitsTimeAxis(domain)
         Chart {
             ForEach(content.resets) { marker in
                 RuleMark(x: .value("Reset", marker.date))
@@ -60,14 +59,14 @@ struct LimitsChart: View, Equatable {
                     .foregroundStyle(Color.secondary.opacity(0.5))
                     .lineStyle(StrokeStyle(lineWidth: 1))
                     .annotation(position: .top, spacing: 4, overflowResolution: .init(x: .fit(to: .chart), y: .fit(to: .chart))) {
-                        tooltip(at: hover)
+                        tooltip(at: hover, spansHours: timeAxis?.spansHours ?? false)
                     }
             }
         }
         .chartForegroundStyleScale(domain: content.series.map(\.label), range: content.series.map { DashboardPalette.series($0.colorIndex) })
         // The padding lifts a series at 0% off the axis line, where it would otherwise disappear.
         .chartYScale(domain: 0...100, range: .plotDimension(startPadding: 4, endPadding: 2))
-        // Hour labels are centred on their tick; without room past "now" the plot clips the last one.
+        // LimitsTimeAxis centres its labels; without room past "now" the plot clips one that sits near it.
         .chartXScale(domain: domain, range: .plotDimension(endPadding: sharesSpendAxis ? 0 : 12))
         .chartYAxis {
             AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
@@ -78,18 +77,20 @@ struct LimitsChart: View, Equatable {
             }
         }
         .chartXAxis {
-            if sharesSpendAxis {
+            if let timeAxis {
+                AxisMarks(values: timeAxis.grid) { _ in
+                    AxisGridLine().foregroundStyle(Color.primary.opacity(0.05))
+                }
+                AxisMarks(values: timeAxis.labels.map(\.date)) { value in
+                    AxisValueLabel(anchor: .top) { Text(timeAxis.labels[value.index].text) }
+                }
+            } else {
                 let days = content.periods.axisDays(of: shownRange)
                 AxisMarks(values: days) { _ in
                     AxisGridLine().foregroundStyle(Color.primary.opacity(0.05))
                 }
                 AxisMarks(values: DashboardAxis.labelDates(days)) { value in
                     AxisValueLabel(format: DashboardAxis.dayFormat(shownRange), anchor: DashboardAxis.labelAnchor(value, range: shownRange))
-                }
-            } else {
-                AxisMarks(values: .automatic(desiredCount: 6)) { _ in
-                    AxisGridLine().foregroundStyle(Color.primary.opacity(0.05))
-                    AxisValueLabel(format: spansHours ? .dateTime.hour() : .dateTime.weekday(.abbreviated).day())
                 }
             }
         }
@@ -117,9 +118,9 @@ struct LimitsChart: View, Equatable {
         DashboardPalette.series(content.series.first { $0.id == seriesID }?.colorIndex ?? .max)
     }
 
-    private func tooltip(at date: Date) -> some View {
+    private func tooltip(at date: Date, spansHours: Bool) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(date.formatted(spansHours ? .dateTime.hour().minute() : .dateTime.weekday(.abbreviated).month(.abbreviated).day().hour()))
+            Text(date.formatted(spansHours ? .dateTime.weekday(.abbreviated).hour().minute() : .dateTime.weekday(.abbreviated).month(.abbreviated).day().hour()))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             ForEach(content.series) { series in
@@ -147,5 +148,53 @@ struct LimitsChart: View, Equatable {
             if points[mid].date <= date { low = mid + 1 } else { high = mid }
         }
         return low > 0 ? points[low - 1] : nil
+    }
+}
+
+/// The limits chart's x axis when it cannot share the spend chart's days: at 24h, and while the history is newer than
+/// the range.
+struct LimitsTimeAxis: Equatable {
+    struct Label: Equatable {
+        var date: Date
+        var text: String
+    }
+
+    var grid: [Date]
+    var labels: [Label]
+    var spansHours: Bool
+
+    /// Past a day and a half, a grid line at each midnight and each day at least half in view named once, in the
+    /// middle of the part in view, so no label runs past the plot. Shorter spans get a grid line every 6 hours, named
+    /// by the day at midnight and by the time otherwise, so an hour never reads as a date; those near either end go
+    /// unnamed for the same reason.
+    init(_ domain: ClosedRange<Date>, calendar: Calendar = .current, locale: Locale = .current) {
+        let style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+        let dayStyle = style.weekday(.abbreviated).day()
+        var days: [Date] = []
+        var day = calendar.startOfDay(for: domain.lowerBound)
+        while day <= domain.upperBound, let next = calendar.date(byAdding: .day, value: 1, to: day) {
+            days.append(day)
+            day = next
+        }
+        spansHours = domain.upperBound.timeIntervalSince(domain.lowerBound) <= 36 * 3600
+
+        guard spansHours else {
+            grid = days.filter { $0 > domain.lowerBound }
+            labels = days.compactMap { start in
+                let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+                let shown = max(start, domain.lowerBound)...min(end, domain.upperBound)
+                let length = shown.upperBound.timeIntervalSince(shown.lowerBound)
+                guard length >= 12 * 3600 else { return nil }
+                return Label(date: shown.lowerBound.addingTimeInterval(length / 2), text: start.formatted(dayStyle))
+            }
+            return
+        }
+        grid = days
+            .flatMap { day in [0, 6, 12, 18].compactMap { calendar.date(bySettingHour: $0, minute: 0, second: 0, of: day) } }
+            .filter(domain.contains)
+        let margin: TimeInterval = 2 * 3600
+        labels = grid
+            .filter { $0.timeIntervalSince(domain.lowerBound) >= margin && domain.upperBound.timeIntervalSince($0) >= margin }
+            .map { Label(date: $0, text: $0.formatted($0 == calendar.startOfDay(for: $0) ? dayStyle : style.hour().minute())) }
     }
 }
