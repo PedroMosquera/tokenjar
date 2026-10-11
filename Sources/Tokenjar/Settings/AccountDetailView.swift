@@ -33,11 +33,12 @@ struct AccountDetailView: View {
                 if let variable = SignInCommand.profileVariable(for: account.provider) {
                     profileSection(variable: variable)
                 }
-                if account.provider.usesAPIKey {
+                // Zen reads only opencode's local database, so it has no key to choose and no login to run.
+                if account.provider == .opencodeGo {
                     AccountCredentialSection(account: account)
                         .id(Self.credentialAnchor)
                 }
-                if !account.provider.isLinkOnly {
+                if !account.provider.isLinkOnly, account.provider != .opencodeZen {
                     signInSection
                 }
                 overridesSection
@@ -158,8 +159,8 @@ struct AccountDetailView: View {
                 let label = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 model.updateAccount(account.id) { $0.label = label.isEmpty ? account.provider.displayName : label }
             }
-            // MenuBarState leaves link-only accounts out, so the toggle would do nothing.
-            if !account.provider.isLinkOnly {
+            // The menu bar shows windows, so an account that reports none would never appear there.
+            if account.provider.reportsWindows {
                 Toggle("Show in menu bar", isOn: model.accountBinding(account.id, \.showInMenuBar, fallback: account.showInMenuBar))
             }
             LabeledContent("ID") {
@@ -255,13 +256,16 @@ struct AccountDetailView: View {
                         Text(RefreshInterval.label(minutes)).tag(Int?.some(minutes))
                     }
                 }
-                Toggle(isOn: customThresholds) {
-                    Text("Custom alert thresholds")
-                    Text("Global: \(SettingsLogic.percentList(model.config.alerts.thresholds)) used")
-                }
-                if let thresholds = account.alertThresholds {
-                    ThresholdRows(values: thresholds) { values in
-                        model.updateAccount(account.id) { $0.alertThresholds = values }
+                // Thresholds are crossed by windows; spend-only Zen has none.
+                if account.provider.reportsWindows {
+                    Toggle(isOn: customThresholds) {
+                        Text("Custom alert thresholds")
+                        Text("Global: \(SettingsLogic.percentList(model.config.alerts.thresholds)) used")
+                    }
+                    if let thresholds = account.alertThresholds {
+                        ThresholdRows(values: thresholds) { values in
+                            model.updateAccount(account.id) { $0.alertThresholds = values }
+                        }
                     }
                 }
             }
