@@ -134,6 +134,14 @@ struct PaceVerdictTests {
         #expect(VerdictLine.windowSuffix("Claude and GPT · Week") == "·\u{00A0}Claude\u{00A0}and\u{00A0}GPT\u{00A0}·\u{00A0}Week")
     }
 
+    /// 2 of 5,000 credits is "under pace" by any measure, and saying so is noise.
+    @Test func noVerdictForAWindowUnderOnePercent() {
+        let credits = window("monthly", "AI credits", used: 0.04, minutes: 44_640, resetIn: 20 * 86_400)
+        #expect(PaceVerdict.make(windows: [credits], config: MenuBarConfig(), now: now) == nil)
+        let used = window("monthly", "AI credits", used: 1, minutes: 44_640, resetIn: 20 * 86_400)
+        #expect(PaceVerdict.make(windows: [used], config: MenuBarConfig(), now: now) != nil)
+    }
+
     @Test func noVerdictWithoutAPace() {
         #expect(PaceVerdict.make(windows: [window("session", "5-hour", used: 10, resetIn: nil)], config: MenuBarConfig(), now: now) == nil)
         #expect(PaceVerdict.make(windows: [], config: MenuBarConfig(), now: now) == nil)
@@ -343,6 +351,18 @@ struct BurnUpChartTests {
         let start = weekly.resetsAt!.addingTimeInterval(-7 * 86_400)
         let samples = [WindowSample(accountID: "a", windowID: "weekly", timestamp: now.addingTimeInterval(-10), usedPercent: 38, resetsAt: weekly.resetsAt)]
         #expect(BurnUpChart.points(samples: samples, window: weekly, start: start, now: now).map(\.used) == [40])
+    }
+
+    /// A stub at the right edge or a flat line on the floor says nothing the bar above it does not.
+    @Test func aChartNeedsATenthOfTheCycleAndSomeUse() {
+        let start = now.addingTimeInterval(-3 * 86_400)
+        let end = start.addingTimeInterval(7 * 86_400)
+        func point(_ at: Date, _ used: Double) -> BurnUpChart.Point { BurnUpChart.Point(date: at, used: used) }
+        #expect(!BurnUpChart.isWorthDrawing([point(now.addingTimeInterval(-0.05 * 7 * 86_400), 3), point(now, 5)], start: start, end: end))
+        #expect(!BurnUpChart.isWorthDrawing([point(start, 0), point(now, 0.04)], start: start, end: end))
+        #expect(!BurnUpChart.isWorthDrawing([point(now, 40)], start: start, end: end))
+        #expect(BurnUpChart.isWorthDrawing([point(start, 0), point(now, 40)], start: start, end: end))
+        #expect(BurnUpChart.isWorthDrawing([point(start, 0), point(end, 97)], start: start, end: end))
     }
 
     @Test func prefersTheWeeklyWindowElseTheLongest() {

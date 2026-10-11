@@ -31,6 +31,14 @@ struct BurnUpChart: View {
         return resetsAt.addingTimeInterval(-Double(minutes) * 60)
     }
 
+    /// At least a tenth of the cycle and 1 % used: less draws a stub at the edge or a flat line on the floor, which
+    /// says nothing the bar above does not.
+    static func isWorthDrawing(_ points: [Point], start: Date, end: Date) -> Bool {
+        guard let first = points.first, let last = points.last, end > start else { return false }
+        let span = last.date.timeIntervalSince(first.date) / end.timeIntervalSince(start)
+        return span >= 0.1 && (points.map(\.used).max() ?? 0) >= 1
+    }
+
     /// This cycle's samples, ending at the live value. Matched by their own reset time too, because a sample
     /// taken just before the previous reset can carry a timestamp inside this cycle.
     static func points(samples: [WindowSample], window: UsageWindow, start: Date, now: Date) -> [Point] {

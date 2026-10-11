@@ -239,7 +239,7 @@ private struct SnapshotBody: View {
         if let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
             let samples = model.samples(accountID: account.id, windowID: window.id, since: start)
             let points = BurnUpChart.points(samples: samples, window: window, start: start, now: now)
-            if points.count >= 2 {
+            if BurnUpChart.isWorthDrawing(points, start: start, end: window.resetsAt ?? now) {
                 BurnUpChart(window: window, start: start, points: points, tint: Severity.of(window, config: model.config.menuBar, now: now).color)
             }
         }

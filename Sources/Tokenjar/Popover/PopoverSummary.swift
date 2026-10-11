@@ -138,12 +138,12 @@ struct PaceVerdict: Equatable {
     /// Deltas inside this band read as "On pace"; smaller ones are noise from sampling and rounding.
     static let tolerance = 5.0
 
-    /// Judges every paced window and keeps the most urgent kind, then among run-outs the longer lockout before the
-    /// reset, then the higher severity, then the higher used %. "Runs out" uses the projected-exhaustion alert
-    /// thresholds in docs/design.md, so whenever that alert fires the verdict reads "Runs out" or "Limit reached";
-    /// earlier or smaller overuse reads as "Ahead of pace".
+    /// Judges every paced window from 1 % used and keeps the most urgent kind, then among run-outs the longer lockout
+    /// before the reset, then the higher severity, then the higher used %. "Runs out" uses the projected-exhaustion
+    /// alert thresholds in docs/design.md, so whenever that alert fires the verdict reads "Runs out" or "Limit
+    /// reached"; earlier or smaller overuse reads as "Ahead of pace".
     static func make(windows: [UsageWindow], config: MenuBarConfig, now: Date) -> PaceVerdict? {
-        let judged = windows.compactMap { window in
+        let judged = windows.filter { $0.usedPercent >= 1 }.compactMap { window in
             Pace.compute(window, now: now).map { pace in
                 (verdict: PaceVerdict(window: window, kind: kind(of: window, pace: pace)), severity: Severity.of(window, config: config, now: now))
             }
