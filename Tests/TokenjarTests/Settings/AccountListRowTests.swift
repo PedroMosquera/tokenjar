@@ -33,6 +33,11 @@ struct AccountListRowTests {
         #expect(off == AccountListRowContent(title: "Old", caption: "Off", isActionable: false))
     }
 
+    @Test func theWarningSymbolDropsItsOrangeOnASelectedRow() {
+        #expect(AccountListRow.symbolTint(isSelected: false) == .orange)
+        #expect(AccountListRow.symbolTint(isSelected: true) == nil)
+    }
+
     @Test func aPassingProblemGetsNoCaption() {
         #expect(row(AccountConfig(id: "c", provider: .claude, label: "Team"), AccountStatus(error: .network("offline"))).caption == nil)
         #expect(row(AccountConfig(id: "c", provider: .claude, label: "Team"), AccountStatus(error: .timeout)).caption == nil)

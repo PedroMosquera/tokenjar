@@ -63,7 +63,7 @@ struct AccountsSettingsPane: View {
                 if !accounts.isEmpty {
                     Section {
                         ForEach(accounts) { account in
-                            AccountListRow(content: AccountListRowContent.make(account: account, status: model.statusText(for: account)))
+                            AccountListRow(content: AccountListRowContent.make(account: account, status: model.statusText(for: account)), isSelected: account.id == selection)
                                 .tag(account.id)
                                 .listRowSeparator(.hidden)
                         }
@@ -147,6 +147,13 @@ struct AccountsSettingsPane: View {
 
 struct AccountListRow: View {
     var content: AccountListRowContent
+    var isSelected = false
+
+    /// Orange is hard to see on the selection's accent fill. SwiftUI does not tell an inset list's row when its selection
+    /// is emphasized, so a selected row always draws the symbol like its caption; its detail page shows the warning.
+    static func symbolTint(isSelected: Bool) -> Color? {
+        isSelected ? nil : .orange
+    }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -157,7 +164,8 @@ struct AccountListRow: View {
             if let caption = content.caption {
                 HStack(spacing: 3) {
                     if content.isActionable {
-                        Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
+                        Image(systemName: "exclamationmark.circle")
+                            .foregroundStyle(Self.symbolTint(isSelected: isSelected).map(AnyShapeStyle.init) ?? AnyShapeStyle(.secondary))
                     }
                     Text(caption)
                 }
