@@ -41,6 +41,13 @@ enum MainMenu {
         return bar
     }
 
+    /// Hands `app` the menu bar from `make`, with Window as the menu AppKit lists open windows in.
+    static func install(in app: NSApplication, appName: String, settingsTarget: AnyObject, settingsAction: Selector) {
+        let menu = make(appName: appName, settingsTarget: settingsTarget, settingsAction: settingsAction)
+        app.mainMenu = menu
+        app.windowsMenu = menu.item(withTitle: "Window")?.submenu
+    }
+
     private static func item(_ title: String, _ action: Selector, _ key: String = "", _ modifiers: NSEvent.ModifierFlags = .command) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.keyEquivalentModifierMask = modifiers

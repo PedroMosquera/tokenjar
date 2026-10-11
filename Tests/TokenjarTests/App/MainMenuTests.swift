@@ -56,6 +56,23 @@ struct MainMenuTests {
         #expect(menu().items.compactMap(\.submenu?.title) == ["Tokenjar", "Edit", "Window"])
     }
 
+    /// A built menu does nothing until the app holds it: no menu bar, so no Command-comma, Command-C, -V, -A or -W.
+    @Test func installingGivesTheAppTheMenuBarAndItsWindowMenu() throws {
+        let app = NSApplication.shared
+        let saved = (app.mainMenu, app.windowsMenu)
+        defer { (app.mainMenu, app.windowsMenu) = saved }
+        app.mainMenu = nil
+        app.windowsMenu = nil
+
+        MainMenu.install(in: app, appName: "Tokenjar", settingsTarget: opener, settingsAction: #selector(SettingsOpener.openSettings(_:)))
+
+        let bar = try #require(app.mainMenu)
+        #expect(bar.items.compactMap(\.submenu?.title) == ["Tokenjar", "Edit", "Window"])
+        #expect(bar.items.first?.submenu?.items.first { $0.keyEquivalent == "," }?.target === opener)
+        let window = try #require(app.windowsMenu)
+        #expect(window === bar.items.first { $0.submenu?.title == "Window" }?.submenu)
+    }
+
     @Test func theAppMenuOpensTokenjarSettingsWithCommandComma() throws {
         #expect(try entries("Tokenjar") == [
             Entry("About Tokenjar", action: "orderFrontStandardAboutPanel:"),

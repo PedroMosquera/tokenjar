@@ -8,9 +8,7 @@ enum TokenjarApp {
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
-        let menu = MainMenu.make(appName: "Tokenjar", settingsTarget: delegate, settingsAction: #selector(AppDelegate.openSettings(_:)))
-        app.mainMenu = menu
-        app.windowsMenu = menu.item(withTitle: "Window")?.submenu
+        MainMenu.install(in: app, appName: "Tokenjar", settingsTarget: delegate, settingsAction: #selector(AppDelegate.openSettings(_:)))
         // NSApplication holds its delegate weakly.
         withExtendedLifetime(delegate) { app.run() }
     }
