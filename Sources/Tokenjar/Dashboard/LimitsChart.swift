@@ -2,8 +2,8 @@ import Charts
 import SwiftUI
 import TokenjarCore
 
-/// Used % per window (one account) or per account's tightest window (All), with the warn and critical
-/// thresholds and a faint vertical rule at each reset.
+/// Used % per window (one account) or per account's tightest window (All), with the amber and red thresholds and a
+/// faint vertical rule at each reset.
 struct LimitsChart: View, Equatable {
     var content: DashboardContent
     var range: DashboardRange
@@ -30,8 +30,6 @@ struct LimitsChart: View, Equatable {
                     .foregroundStyle(color(for: marker.seriesID).opacity(0.35))
                     .lineStyle(StrokeStyle(lineWidth: 1))
             }
-            threshold(warnAt, severity: .warning)
-            threshold(criticalAt, severity: .critical)
             ForEach(content.linePoints) { point in
                 LineMark(
                     x: .value("Time", point.date),
@@ -48,6 +46,9 @@ struct LimitsChart: View, Equatable {
                     .foregroundStyle(by: .value("Series", point.label))
                     .symbolSize(16)
             }
+            // After the data, so the labels draw over a line or dot that passes under them.
+            threshold(warnAt, severity: .warning, name: "amber", below: criticalAt - warnAt < Self.closeThresholds)
+            threshold(criticalAt, severity: .critical, name: "red", below: false)
             if let hover, domain.contains(hover) {
                 RuleMark(x: .value("Hover", hover))
                     .foregroundStyle(Color.secondary.opacity(0.5))
@@ -69,14 +70,6 @@ struct LimitsChart: View, Equatable {
                     if let v = value.as(Int.self) { Text("\(v)%").monospacedDigit() }
                 }
             }
-            // Outside the plot so the labels never cover the newest data at the trailing edge. Warn hangs
-            // below its rule and critical sits above its own, so close thresholds cannot overlap.
-            AxisMarks(position: .trailing, values: [warnAt, criticalAt]) { value in
-                let isCritical = value.as(Int.self) == criticalAt
-                AxisValueLabel(anchor: isCritical ? .bottomLeading : .topLeading) {
-                    if let v = value.as(Int.self) { Text("\(isCritical ? "critical" : "warn") \(v)%").monospacedDigit() }
-                }
-            }
         }
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: range == .week ? 7 : 6)) { _ in
@@ -96,10 +89,22 @@ struct LimitsChart: View, Equatable {
         }
     }
 
-    private func threshold(_ percent: Int, severity: Severity) -> some ChartContent {
+    /// Below this many points apart the two labels would overlap, so the amber one hangs under its rule.
+    private static let closeThresholds = 8
+
+    /// Labelled inside the plot at the leading edge, where the lines are oldest, with the names Settings uses.
+    private func threshold(_ percent: Int, severity: Severity, name: String, below: Bool) -> some ChartContent {
         RuleMark(y: .value("Threshold", percent))
             .foregroundStyle(severity.color.opacity(0.8))
             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            .annotation(position: below ? .bottom : .top, alignment: .leading, spacing: 2) {
+                Text("\(percent)% \(name)")
+                    .font(.caption2)
+                    .foregroundStyle(severity.color)
+                    .padding(.horizontal, 3)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.85), in: RoundedRectangle(cornerRadius: 3))
+                    .padding(.leading, 2)
+            }
     }
 
     private func color(for seriesID: String) -> Color {
