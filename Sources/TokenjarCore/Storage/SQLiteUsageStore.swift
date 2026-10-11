@@ -13,15 +13,17 @@ public struct SQLiteError: Error, CustomStringConvertible {
 /// and deletes samples older than `sampleRetention` at most once a day. Dedupe keys are stored as `sha256Hex` digests,
 /// since they carry provider message, request and session ids; nothing reads them back.
 ///
-/// `@unchecked Sendable`: the store owns one connection, and every use of it and of `lastPrune` holds `lock`.
+/// `@unchecked Sendable`: the store owns one connection, and every use of it and of its mutable state holds `lock`.
 public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
     public static let sampleRetention: TimeInterval = 180 * 86_400
     public static let sampleDedupeInterval: TimeInterval = 5 * 60
+    static let upsertChunkSize = 2_000
     private static let busyTimeout: TimeInterval = 5
 
     private let connection: Connection
-    private let lock = NSLock()
+    private let lock = FairLock()
     private var lastPrune: Date?
+    private var commitCount = 0
 
     private var db: OpaquePointer { connection.handle }
 
@@ -92,8 +94,19 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         }
     }
 
+    /// Transactions committed since the store opened, for tests.
+    var commits: Int { locked { commitCount } }
+
+    /// Commits every `upsertChunkSize` events and lets go of the lock in between, so a first scan's tens of thousands of
+    /// events never hold off a read from the main thread for long. A failed chunk leaves the earlier ones stored; the
+    /// caller keeps its checkpoints, and the rescan merges into them.
     public func upsert(_ events: [UsageEvent]) throws {
-        guard !events.isEmpty else { return }
+        for start in stride(from: 0, to: events.count, by: Self.upsertChunkSize) {
+            try upsertChunk(events[start..<min(start + Self.upsertChunkSize, events.count)])
+        }
+    }
+
+    private func upsertChunk(_ events: ArraySlice<UsageEvent>) throws {
         try locked {
             try transaction {
                 // A NULL incoming cost keeps the stored one; otherwise keep the larger, a stored NULL counting as 0.
@@ -365,6 +378,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         do {
             try body()
             try exec("COMMIT")
+            commitCount += 1
         } catch {
             sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
             throw error
@@ -392,6 +406,28 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
     private func check(_ rc: Int32) throws {
         guard rc == SQLITE_OK else { throw SQLiteError(code: rc, message: String(cString: sqlite3_errmsg(db))) }
     }
+}
+
+/// A mutex that hands itself to the longest waiter. NSLock lets the thread that just unlocked take it straight back,
+/// so a scan committing chunk after chunk kept a main-thread read waiting through several of them.
+private final class FairLock: @unchecked Sendable {
+    private let mutex = UnsafeMutablePointer<pthread_mutex_t>.allocate(capacity: 1)
+
+    init() {
+        var attributes = pthread_mutexattr_t()
+        pthread_mutexattr_init(&attributes)
+        pthread_mutexattr_setpolicy_np(&attributes, PTHREAD_MUTEX_POLICY_FAIRSHARE_NP)
+        pthread_mutex_init(mutex, &attributes)
+        pthread_mutexattr_destroy(&attributes)
+    }
+
+    deinit {
+        pthread_mutex_destroy(mutex)
+        mutex.deallocate()
+    }
+
+    func lock() { pthread_mutex_lock(mutex) }
+    func unlock() { pthread_mutex_unlock(mutex) }
 }
 
 /// Closes the handle exactly once, including when `SQLiteUsageStore.init` throws after opening it.

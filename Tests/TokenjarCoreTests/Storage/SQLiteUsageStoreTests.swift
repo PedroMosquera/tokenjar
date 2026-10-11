@@ -130,6 +130,22 @@ struct SQLiteUsageStoreTests {
         #expect(rows.map(\.inputTokens) == expected.map(\.input))
     }
 
+    /// A first scan stores tens of thousands of events. Each chunk commits and lets go of the store, so a samples read
+    /// from the main thread waits for one chunk, not the whole scan.
+    @Test func largeUpsertsCommitInChunks() throws {
+        let store = try SQLiteUsageStore(url: temp.url.appending(path: "tokenjar.sqlite"))
+        let events = (0..<5_000).map { usageEvent("k\($0)", at: now.addingTimeInterval(Double($0)), input: 1) }
+        let before = store.commits
+
+        try store.upsert(events)
+
+        #expect(store.commits - before == 3)
+        try store.upsert(events.map { usageEvent($0.dedupeKey, at: $0.timestamp, input: 2) })
+        let rows = try store.dailyUsage(accountIDs: nil, since: .distantPast)
+        #expect(rows.map(\.requests).reduce(0, +) == 5_000)
+        #expect(rows.map(\.inputTokens).reduce(0, +) == 10_000)
+    }
+
     /// The popover reads one window's samples on every render, so that read must walk the index in order.
     @Test func oneWindowsSamplesAreReadInIndexOrder() throws {
         let url = temp.url.appending(path: "tokenjar.sqlite")
