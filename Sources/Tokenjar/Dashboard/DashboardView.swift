@@ -29,7 +29,6 @@ struct DashboardView: View {
         HStack(spacing: 0) {
             DashboardSidebar()
                 .frame(width: 230)
-                .background(Color.primary.opacity(0.035).ignoresSafeArea())
             Divider().ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
