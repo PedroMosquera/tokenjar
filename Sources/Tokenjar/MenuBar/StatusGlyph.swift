@@ -16,7 +16,7 @@ enum StatusGlyph {
         var dimmed: Bool
     }
 
-    /// Tokenjar's own mark, the app icon's ceiling over three rising bars. The menu bar uses it instead of a
+    /// Tokenjar's own mark, a ceiling over three rising bars. The menu bar uses it instead of a
     /// provider logo, which would be mistaken for that provider's own app sitting next to it.
     static func brand(tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
         compose(mark, description: "Tokenjar", tint: tint, alpha: alpha, dot: dot)
