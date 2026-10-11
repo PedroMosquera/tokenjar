@@ -59,7 +59,7 @@ struct ConfigStoreTests {
         try write(#"{"accounts": [{"id": "claude", "provider": "claude", "label": "Personal"}, {"id": "codex", "provider": "codex", "label": "Plus"}]}"#, to: paths.configFile)
         try write(#"""
             {"version": 2, "refreshMinutes": 2, "launchAtLogin": true, "cliPaths": {"claude": "/opt/claude"},
-             "menuBar": {"mode": "bars", "warnAt": 60, "criticalAt": 90, "showResetCountdownWhenFull": false},
+             "menuBar": {"mode": "bars", "icon": "symbol:cpu", "warnAt": 60, "criticalAt": 90, "showResetCountdownWhenFull": false},
              "alerts": {"enabled": false, "thresholds": [50], "projectedExhaustion": false, "windowResets": true, "sourceProblems": false},
              "accounts": [{"id": "claude", "label": "Work", "enabled": false, "profileDir": "~/.claude-alt",
                            "credential": {"keychain": {"account": "x"}}, "showInMenuBar": false, "refreshMinutes": 1,
@@ -109,7 +109,7 @@ struct ConfigStoreTests {
         new.refreshMinutes = 5
         new.launchAtLogin = true
         new.cliPaths = ["claude": "/opt/claude"]
-        new.menuBar = MenuBarConfig(mode: .icon, warnAt: 60, criticalAt: 90, showResetCountdownWhenFull: false)
+        new.menuBar = MenuBarConfig(mode: .icon, icon: .logoClaude, warnAt: 60, criticalAt: 90, showResetCountdownWhenFull: false)
         new.alerts = AlertConfig(enabled: false, thresholds: [70], projectedExhaustion: false, windowResets: true, sourceProblems: false)
 
         #expect(ConfigStore.apply(from: old, to: new, onto: old) == new)
@@ -206,7 +206,34 @@ struct ConfigStoreTests {
         let config = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"accounts": [{"id": "x", "provider": "codex"}]}"#.utf8))
         #expect(config.alerts.thresholds == [80, 95])
         #expect(config.menuBar.mode == .worst)
+        #expect(config.menuBar.icon == .app)
         #expect(config.accounts[0].label == "Codex")
         #expect(config.accounts[0].enabled)
+    }
+
+    /// These strings are what config.json stores, so renaming one would reset everyone who picked it.
+    @Test func menuBarIconValuesArePinned() {
+        #expect(MenuBarIcon.allCases.map(\.rawValue) == [
+            "app", "mark:mana", "mark:taper", "mark:tally", "mark:burnrate", "mark:genio",
+            "logo:claude", "logo:openai", "logo:antigravity", "logo:copilot", "logo:opencode", "logo:windsurf",
+            "symbol:sparkles", "symbol:brain", "symbol:cpu", "symbol:gauge.with.needle",
+        ])
+    }
+
+    @Test(arguments: MenuBarIcon.allCases)
+    func menuBarIconRoundTrips(_ icon: MenuBarIcon) throws {
+        let data = try JSONEncoder().encode(AppConfig(menuBar: MenuBarConfig(icon: icon)))
+        #expect(String(decoding: data, as: UTF8.self).contains(#""icon":"\#(icon.rawValue)""#))
+        #expect(try JSONDecoder().decode(AppConfig.self, from: data).menuBar.icon == icon)
+    }
+
+    /// A config written before the setting existed, or by a newer build with a choice this one lacks, keeps loading.
+    @Test(arguments: [
+        #"{"menuBar": {"mode": "icon"}}"#, #"{"menuBar": {"icon": "mark:unknown"}}"#, #"{"menuBar": {"icon": ""}}"#,
+        #"{"menuBar": {"icon": "logo:"}}"#, #"{"menuBar": {"icon": null}}"#,
+    ])
+    func menuBarIconFallsBackToTheAppMark(_ json: String) {
+        let config = try? JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
+        #expect(config?.menuBar.icon == .app)
     }
 }
