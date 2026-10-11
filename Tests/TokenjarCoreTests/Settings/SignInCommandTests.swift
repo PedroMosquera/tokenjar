@@ -34,8 +34,24 @@ struct SignInCommandTests {
         #expect(command(account) == "opencode auth login")
     }
 
+    @Test func copilotRunsGhsOwnLogin() {
+        #expect(command(AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")) == "gh auth login")
+        #expect(SignInCommand.profileVariable(for: .copilot)?.name == "GH_CONFIG_DIR")
+        #expect(SignInCommand.profileVariable(for: .copilot)?.defaultPath == "~/.config/gh")
+    }
+
+    @Test func copilotSecondAccountUsesItsOwnGhConfigDir() {
+        let account = AccountConfig(id: "copilot-work", provider: .copilot, label: "Work", profileDir: "~/.config/gh-work")
+        #expect(command(account) { "/opt/homebrew/bin/\($0)" } == "GH_CONFIG_DIR=/Users/tester/.config/gh-work /opt/homebrew/bin/gh auth login")
+    }
+
     @Test func antigravityHasNoLoginCommand() {
         #expect(command(AccountConfig(id: "agy", provider: .antigravity, label: "Google")) == nil)
+    }
+
+    @Test func devinHasNoLoginCommandOrProfile() {
+        #expect(command(AccountConfig(id: "devin", provider: .devin, label: "Devin", profileDir: "~/elsewhere")) == nil)
+        #expect(SignInCommand.profileVariable(for: .devin) == nil)
     }
 
     @Test func locatedExecutableWithSpacesIsQuoted() {

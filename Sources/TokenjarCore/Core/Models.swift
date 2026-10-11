@@ -6,6 +6,8 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     case opencodeGo = "opencode-go"
     case opencodeZen = "opencode-zen"
     case antigravity
+    case copilot
+    case devin
 
     public var displayName: String {
         switch self {
@@ -14,16 +16,20 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo: "OpenCode Go"
         case .opencodeZen: "OpenCode Zen"
         case .antigravity: "Antigravity"
+        case .copilot: "GitHub Copilot"
+        case .devin: "Devin"
         }
     }
 
-    /// Basename of the SVG in Resources/Logos (no extension).
+    /// Basename of the SVG in Resources/Logos (no extension). Devin has no mark of its own yet, so Windsurf's stands in.
     public var logoName: String {
         switch self {
         case .claude: "claude"
         case .codex: "openai"
         case .opencodeGo, .opencodeZen: "opencode"
         case .antigravity: "antigravity"
+        case .copilot: "copilot"
+        case .devin: "windsurf"
         }
     }
 
@@ -33,6 +39,8 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .codex: URL(string: "https://chatgpt.com/settings/usage")!
         case .opencodeGo, .opencodeZen: URL(string: "https://opencode.ai/auth")!
         case .antigravity: URL(string: "https://antigravity.google/docs/plans")!
+        case .copilot: URL(string: "https://github.com/settings/copilot")!
+        case .devin: URL(string: "https://app.devin.ai/settings/plans")!
         }
     }
 
@@ -40,7 +48,16 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         switch self {
         case .claude: URL(string: "https://status.claude.com")
         case .codex: URL(string: "https://status.openai.com")
-        case .opencodeGo, .opencodeZen, .antigravity: nil
+        case .copilot: URL(string: "https://www.githubstatus.com")
+        case .opencodeGo, .opencodeZen, .antigravity, .devin: nil
+        }
+    }
+
+    /// True when the provider shares no usage Tokenjar can read, so its account is a link to the provider's own page.
+    public var isLinkOnly: Bool {
+        switch self {
+        case .devin: true
+        case .claude, .codex, .opencodeGo, .opencodeZen, .antigravity, .copilot: false
         }
     }
 
@@ -50,7 +67,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: .claudeCode
         case .codex: .codex
         case .opencodeGo, .opencodeZen: .opencode
-        case .antigravity: nil
+        case .antigravity, .copilot, .devin: nil
         }
     }
 }
@@ -75,9 +92,9 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
     public var provider: ProviderID
     public var label: String
     public var enabled: Bool
-    /// CLAUDE_CONFIG_DIR for Claude, CODEX_HOME for Codex, opencode's data directory (holding auth.json and
-    /// opencode.db) for OpenCode. `nil` means the default: ~/.claude, ~/.codex, $XDG_DATA_HOME/opencode or
-    /// ~/.local/share/opencode.
+    /// CLAUDE_CONFIG_DIR for Claude, CODEX_HOME for Codex, GH_CONFIG_DIR for Copilot, opencode's data directory
+    /// (holding auth.json and opencode.db) for OpenCode. `nil` means the default: ~/.claude, ~/.codex, ~/.config/gh,
+    /// $XDG_DATA_HOME/opencode or ~/.local/share/opencode.
     public var profileDir: String?
     public var credential: CredentialRef?
     public var showInMenuBar: Bool
@@ -148,6 +165,16 @@ public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
         self.windowMinutes = windowMinutes
         self.resetsAt = resetsAt
         self.notStarted = notStarted
+    }
+
+    /// A monthly allowance follows its billing month, so its window is the UTC calendar month ending at the reported
+    /// reset: 28 to 31 days. Pace needs that length; nil only when the reset is unknown.
+    public static func monthMinutes(endingAt resetsAt: Date?) -> Int? {
+        guard let resetsAt else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        guard let start = calendar.date(byAdding: .month, value: -1, to: resetsAt) else { return nil }
+        return Int((resetsAt.timeIntervalSince(start) / 60).rounded())
     }
 }
 

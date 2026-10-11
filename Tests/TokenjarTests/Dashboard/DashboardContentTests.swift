@@ -130,6 +130,14 @@ struct DashboardSectionsTests {
         #expect(DashboardSections.make(account: zen, accounts: [zen], snapshot: nil) == DashboardSections(history: true, limits: true))
     }
 
+    /// Devin is a link: no limits card, not even the one that explains the wait before the first check.
+    @Test func aLinkOnlyAccountSkipsBothCards() {
+        let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
+        let link = UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page")
+        #expect(DashboardSections.make(account: devin, accounts: [devin, claude], snapshot: link) == DashboardSections(history: false, limits: false))
+        #expect(DashboardSections.make(account: devin, accounts: [devin, claude], snapshot: nil) == DashboardSections(history: false, limits: false))
+    }
+
     @Test func allAccountsKeepsHistoryWhenAnyAccountHasLogs() {
         #expect(DashboardSections.make(account: nil, accounts: [antigravity, claude], snapshot: nil) == DashboardSections(history: true, limits: true))
         #expect(DashboardSections.make(account: nil, accounts: [antigravity], snapshot: nil) == DashboardSections(history: false, limits: true))

@@ -36,7 +36,11 @@ struct AccountDetailView: View {
                 if account.provider == .opencodeGo || account.provider == .opencodeZen {
                     AccountCredentialSection(account: account)
                 }
-                signInSection
+                if account.provider.isLinkOnly {
+                    linkOnlySection
+                } else {
+                    signInSection
+                }
                 overridesSection
                 Section {
                     HStack {
@@ -84,7 +88,7 @@ struct AccountDetailView: View {
             if status.isRefreshing { return ("Checking\u{2026}", "arrow.triangle.2.circlepath", .secondary) }
             if let error = status.error { return (error.userMessage, "exclamationmark.triangle.fill", .orange) }
             if let snapshot = status.snapshot {
-                let windows = snapshot.windows.count == 1 ? "1 window" : "\(snapshot.windows.count) windows"
+                let windows = account.provider.isLinkOnly ? "link only" : snapshot.windows.count == 1 ? "1 window" : "\(snapshot.windows.count) windows"
                 return ("\(snapshot.source) \u{00B7} \(windows) \u{00B7} updated \(Format.age(of: snapshot.fetchedAt, now: model.now))", "checkmark.circle.fill", .green)
             }
             if !account.enabled { return ("Off", "pause.circle", .secondary) }
@@ -109,7 +113,10 @@ struct AccountDetailView: View {
                 let label = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 model.updateAccount(account.id) { $0.label = label.isEmpty ? account.provider.displayName : label }
             }
-            Toggle("Show in menu bar", isOn: model.accountBinding(account.id, \.showInMenuBar, fallback: account.showInMenuBar))
+            // MenuBarState leaves link-only accounts out, so the toggle would do nothing.
+            if !account.provider.isLinkOnly {
+                Toggle("Show in menu bar", isOn: model.accountBinding(account.id, \.showInMenuBar, fallback: account.showInMenuBar))
+            }
             LabeledContent("ID") {
                 Text(account.id)
                     .font(.system(.callout, design: .monospaced))
@@ -120,10 +127,11 @@ struct AccountDetailView: View {
     }
 
     private func profileSection(variable: (name: String, defaultPath: String)) -> some View {
-        Section {
-            LabeledContent("Profile folder") {
+        let title = account.provider == .copilot ? "gh config folder" : "Profile folder"
+        return Section {
+            LabeledContent(title) {
                 HStack(spacing: 6) {
-                    CommittingTextField(title: "Profile folder", prompt: "\(variable.defaultPath) (CLI default)", value: account.profileDir ?? "", monospaced: true) { text in
+                    CommittingTextField(title: title, prompt: "\(variable.defaultPath) (CLI default)", value: account.profileDir ?? "", monospaced: true) { text in
                         model.updateAccount(account.id) { $0.profileDir = SettingsLogic.profileDir(from: text) }
                     }
                     .labelsHidden()
@@ -138,7 +146,11 @@ struct AccountDetailView: View {
         } header: {
             Text("Profile")
         } footer: {
-            HelpText.footer("Sets \(variable.name) when Tokenjar runs \(account.provider == .claude ? "claude" : "codex"). Leave empty for \(variable.defaultPath).")
+            if account.provider == .copilot {
+                HelpText.footer("Sets \(variable.name) when Tokenjar runs gh. Leave empty for \(variable.defaultPath), your usual gh login. A second GitHub account needs a folder of its own: enter it here, then sign in to it with the command below.")
+            } else {
+                HelpText.footer("Sets \(variable.name) when Tokenjar runs \(account.provider == .claude ? "claude" : "codex"). Leave empty for \(variable.defaultPath).")
+            }
         }
     }
 
@@ -181,21 +193,39 @@ struct AccountDetailView: View {
         }
     }
 
+    private var linkOnlySection: some View {
+        Section {
+            Label {
+                Text("\(account.provider.displayName) doesn't share your quota with local apps yet, so this account opens its plan page. Tokenjar runs nothing for it and reads nothing.")
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "link")
+            }
+        } header: {
+            Text("Usage")
+        } footer: {
+            HelpText.footer("On a grandfathered Windsurf plan, set Usage page URL below to https://windsurf.com/subscription/manage-plan.")
+        }
+    }
+
     private var overridesSection: some View {
         Section("Overrides") {
-            Picker("Refresh", selection: model.accountBinding(account.id, \.refreshMinutes, fallback: account.refreshMinutes)) {
-                Text("Global (\(model.config.refreshMinutes) minutes)").tag(Int?.none)
-                ForEach(SettingsLogic.refreshOptions(including: account.refreshMinutes), id: \.self) { minutes in
-                    Text("Every \(minutes) minutes").tag(Int?.some(minutes))
+            // A link-only account has no window to refresh or alert on; its usage page is the one thing to set.
+            if !account.provider.isLinkOnly {
+                Picker("Refresh", selection: model.accountBinding(account.id, \.refreshMinutes, fallback: account.refreshMinutes)) {
+                    Text("Global (\(model.config.refreshMinutes) minutes)").tag(Int?.none)
+                    ForEach(SettingsLogic.refreshOptions(including: account.refreshMinutes), id: \.self) { minutes in
+                        Text("Every \(minutes) minutes").tag(Int?.some(minutes))
+                    }
                 }
-            }
-            Toggle(isOn: customThresholds) {
-                Text("Custom alert thresholds")
-                Text("Global: \(SettingsLogic.percentList(model.config.alerts.thresholds)) used")
-            }
-            if let thresholds = account.alertThresholds {
-                ThresholdRows(values: thresholds) { values in
-                    model.updateAccount(account.id) { $0.alertThresholds = values }
+                Toggle(isOn: customThresholds) {
+                    Text("Custom alert thresholds")
+                    Text("Global: \(SettingsLogic.percentList(model.config.alerts.thresholds)) used")
+                }
+                if let thresholds = account.alertThresholds {
+                    ThresholdRows(values: thresholds) { values in
+                        model.updateAccount(account.id) { $0.alertThresholds = values }
+                    }
                 }
             }
             LabeledContent("Usage page URL") {

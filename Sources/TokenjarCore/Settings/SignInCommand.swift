@@ -9,18 +9,20 @@ public enum SignInCommand {
         switch provider {
         case .claude: ("CLAUDE_CONFIG_DIR", "~/.claude")
         case .codex: ("CODEX_HOME", "~/.codex")
-        case .opencodeGo, .opencodeZen, .antigravity: nil
+        case .copilot: ("GH_CONFIG_DIR", "~/.config/gh")
+        case .opencodeGo, .opencodeZen, .antigravity, .devin: nil
         }
     }
 
-    /// nil for Antigravity. `executable` maps a CLI name to what should run (a located absolute path, or the bare name).
+    /// nil for Antigravity and Devin. `executable` maps a CLI name to what should run (a located absolute path, or the bare name).
     public static func command(for account: AccountConfig, paths: AppPaths, executable: (String) -> String) -> String? {
         let words: [String]
         switch account.provider {
         case .claude: words = [executable("claude"), "auth", "login"]
         case .codex: words = [executable("codex"), "login"]
         case .opencodeGo, .opencodeZen: words = [executable("opencode"), "auth", "login"]
-        case .antigravity: return nil
+        case .copilot: words = [executable("gh"), "auth", "login"]
+        case .antigravity, .devin: return nil
         }
         var parts = words.map(shellQuote)
         if let variable = profileVariable(for: account.provider), let dir = SettingsLogic.profileDir(from: account.profileDir ?? "") {

@@ -116,7 +116,8 @@ struct DashboardSections: Equatable {
             return DashboardSections(history: accounts.contains { $0.provider.harness != nil }, limits: true)
         }
         // Before the first check nothing says whether the account has limits, so the card stays to explain the wait.
-        return DashboardSections(history: account.provider.harness != nil, limits: snapshot.map { !$0.windows.isEmpty } ?? true)
+        let limits = !account.provider.isLinkOnly && (snapshot.map { !$0.windows.isEmpty } ?? true)
+        return DashboardSections(history: account.provider.harness != nil, limits: limits)
     }
 
     /// `status` is the selected account's, nil for All.

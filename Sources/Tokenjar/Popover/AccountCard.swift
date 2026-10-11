@@ -198,6 +198,16 @@ private struct SnapshotBody: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if account.provider.isLinkOnly {
+                Button {
+                    model.openProviderDashboard(account)
+                    model.closePopover()
+                } label: {
+                    Label("Open Usage Page", systemImage: "arrow.up.forward.square")
+                }
+                .controlSize(.small)
+                .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
+            }
             if snapshot.windows.isEmpty && snapshot.money.isEmpty && snapshot.notes.isEmpty {
                 Text("No limits reported")
                     .font(.callout)

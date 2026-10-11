@@ -12,6 +12,12 @@ struct SettingsLogicTests {
         #expect(account.label == "Default")
     }
 
+    /// A link-only account has no window to show there.
+    @Test func newDevinAccountStaysOutOfTheMenuBar() {
+        #expect(SettingsLogic.newAccount(provider: .devin, existing: []).showInMenuBar == false)
+        #expect(SettingsLogic.newAccount(provider: .copilot, existing: []).showInMenuBar == true)
+    }
+
     @Test func newAccountIdSkipsTakenSlugs() {
         let existing = [
             AccountConfig(id: "claude", provider: .claude, label: "Personal"),
@@ -60,6 +66,14 @@ struct SettingsLogicTests {
         let a = AccountConfig(id: "a", provider: .claude, label: "A")
         let b = AccountConfig(id: "b", provider: .claude, label: "B", profileDir: "~/.claude/")
         #expect(SettingsLogic.profileTwin(of: a, in: [a, b], paths: paths)?.id == "b")
+    }
+
+    @Test func profileTwinCoversGhsConfigFolder() {
+        let a = AccountConfig(id: "a", provider: .copilot, label: "A")
+        let b = AccountConfig(id: "b", provider: .copilot, label: "B", profileDir: "~/.config/gh")
+        let other = AccountConfig(id: "c", provider: .copilot, label: "C", profileDir: "~/.config/gh-work")
+        #expect(SettingsLogic.profileTwin(of: a, in: [a, other, b], paths: paths)?.id == "b")
+        #expect(SettingsLogic.profileTwin(of: other, in: [a, other, b], paths: paths) == nil)
     }
 
     @Test func profileTwinIgnoresOtherProvidersDisabledAccountsAndOtherDirs() {

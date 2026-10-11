@@ -75,11 +75,11 @@ public enum CodexBarImport {
         return out
     }
 
-    /// Same provider and same profile dir or credential file. Antigravity has one login per Mac. Two entries of one
+    /// Same provider and same profile dir or credential file. Antigravity and Devin have one login per Mac. Two entries of one
     /// auth.json are different logins, but an account without a credential uses the key discovery would pick.
     static func isSameLogin(_ a: AccountConfig, _ b: AccountConfig, paths: AppPaths, environment: [String: String]) -> Bool {
         guard a.provider == b.provider else { return false }
-        if a.provider == .antigravity { return true }
+        if a.provider == .antigravity || a.provider == .devin { return true }
         guard let locationA = AccountDiscovery.location(of: a, paths: paths, environment: environment),
               let locationB = AccountDiscovery.location(of: b, paths: paths, environment: environment),
               locationA.standardizedFileURL.path == locationB.standardizedFileURL.path
@@ -129,6 +129,8 @@ public enum CodexBarImport {
         case "opencodego": .opencodeGo
         case "opencode": .opencodeZen
         case "antigravity", "gemini": .antigravity
+        case "copilot": .copilot
+        case "devin", "windsurf": .devin
         default: nil
         }
     }

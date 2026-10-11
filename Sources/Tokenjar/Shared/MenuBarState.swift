@@ -27,7 +27,8 @@ struct MenuBarState: Equatable {
     }
 
     static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date) -> MenuBarState {
-        let entries = accounts.map { account -> Entry in
+        // A link-only account has no window: it would draw an empty bar and a "no data" line that reads as a failure.
+        let entries = accounts.filter { !$0.provider.isLinkOnly }.map { account -> Entry in
             let status = statuses[account.id] ?? AccountStatus()
             let tightest = status.snapshot?.tightestWindow
             return Entry(

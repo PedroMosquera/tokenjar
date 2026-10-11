@@ -15,7 +15,9 @@ public enum SettingsLogic {
             suffix += 1
         }
         let siblings = existing.filter { $0.provider == provider }.count
-        return AccountConfig(id: id, provider: provider, label: siblings == 0 ? "Default" : "Account \(siblings + 1)")
+        return AccountConfig(
+            id: id, provider: provider, label: siblings == 0 ? "Default" : "Account \(siblings + 1)", showInMenuBar: !provider.isLinkOnly
+        )
     }
 
     /// Unique, in 1...100, ascending.
@@ -61,14 +63,15 @@ public enum SettingsLogic {
 
     /// Another enabled account of the same provider reading the same profile, which would show the same login twice.
     public static func profileTwin(of account: AccountConfig, in accounts: [AccountConfig], paths: AppPaths) -> AccountConfig? {
-        guard account.provider == .claude || account.provider == .codex else { return nil }
-        let mine = resolvedProfile(account, paths: paths)
-        return accounts.first { $0.id != account.id && $0.provider == account.provider && $0.enabled && resolvedProfile($0, paths: paths) == mine }
+        guard let variable = SignInCommand.profileVariable(for: account.provider) else { return nil }
+        let mine = resolvedProfile(account, fallback: variable.defaultPath, paths: paths)
+        return accounts.first {
+            $0.id != account.id && $0.provider == account.provider && $0.enabled && resolvedProfile($0, fallback: variable.defaultPath, paths: paths) == mine
+        }
     }
 
-    private static func resolvedProfile(_ account: AccountConfig, paths: AppPaths) -> String {
-        let fallback = account.provider == .claude ? "~/.claude" : "~/.codex"
-        return paths.expand(profileDir(from: account.profileDir ?? "") ?? fallback).standardizedFileURL.path
+    private static func resolvedProfile(_ account: AccountConfig, fallback: String, paths: AppPaths) -> String {
+        paths.expand(profileDir(from: account.profileDir ?? "") ?? fallback).standardizedFileURL.path
     }
 
     /// Plain-language lines for a confirmation sheet, so an import never changes anything the user has not seen.

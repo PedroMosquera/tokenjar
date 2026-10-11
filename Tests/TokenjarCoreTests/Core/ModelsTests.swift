@@ -17,10 +17,39 @@ struct ModelsTests {
             .opencodeGo: "https://opencode.ai/auth",
             .opencodeZen: "https://opencode.ai/auth",
             .antigravity: "https://antigravity.google/docs/plans",
+            .copilot: "https://github.com/settings/copilot",
+            .devin: "https://app.devin.ai/settings/plans",
         ]
         for provider in ProviderID.allCases {
             #expect(provider.defaultDashboardURL.absoluteString == expected[provider], "\(provider)")
         }
+    }
+
+    @Test func statusPagesArePinned() {
+        let expected: [ProviderID: String] = [
+            .claude: "https://status.claude.com",
+            .codex: "https://status.openai.com",
+            .copilot: "https://www.githubstatus.com",
+        ]
+        for provider in ProviderID.allCases {
+            #expect(provider.statusPageURL?.absoluteString == expected[provider], "\(provider)")
+        }
+    }
+
+    /// Raw values key config.json, storage and alert state, so they can never change once released.
+    @Test func newProvidersHaveTheirPermanentIDsAndNames() {
+        #expect(ProviderID(rawValue: "copilot") == .copilot)
+        #expect(ProviderID.copilot.displayName == "GitHub Copilot")
+        #expect(ProviderID.copilot.logoName == "copilot")
+        #expect(ProviderID.copilot.harness == nil)
+        #expect(ProviderID(rawValue: "devin") == .devin)
+        #expect(ProviderID.devin.displayName == "Devin")
+        #expect(ProviderID.devin.logoName == "windsurf")
+        #expect(ProviderID.devin.harness == nil)
+    }
+
+    @Test func onlyDevinIsALinkOnlyProvider() {
+        #expect(ProviderID.allCases.filter(\.isLinkOnly) == [.devin])
     }
 
     @Test func httpsOverrideIsUsed() {
@@ -36,6 +65,12 @@ struct ModelsTests {
             UsageWindow(id: "weekly:Fable", label: "Week · Fable", usedPercent: 10),
         ], fetchedAt: now, source: "test")
         #expect(snapshot.tightestWindow?.id == "session")
+    }
+
+    @Test func monthLengthFollowsTheMonthEndingAtReset() {
+        #expect(UsageWindow.monthMinutes(endingAt: DateParsing.iso8601("2026-03-01T00:00:00Z")) == 28 * 1_440)
+        #expect(UsageWindow.monthMinutes(endingAt: DateParsing.iso8601("2026-05-15T08:00:00Z")) == 30 * 1_440)
+        #expect(UsageWindow.monthMinutes(endingAt: nil) == nil)
     }
 
     @Test func dateParsingAcceptsMixedFractionsAndOffsets() throws {

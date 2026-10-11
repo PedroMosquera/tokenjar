@@ -62,7 +62,7 @@ public struct OpenCodeGoUsageFetcher: UsageFetcher {
             // An idle window reports 0 with a reset time the server made up, so its countdown means nothing.
             let notStarted = percent == 0 && !limited
             windows.append(UsageWindow(
-                id: spec.id, label: spec.label, usedPercent: percent, windowMinutes: spec.fixedMinutes ?? monthMinutes(endingAt: resetsAt),
+                id: spec.id, label: spec.label, usedPercent: percent, windowMinutes: spec.fixedMinutes ?? UsageWindow.monthMinutes(endingAt: resetsAt),
                 resetsAt: resetsAt, notStarted: notStarted
             ))
             if limited { notes.append("\(spec.limitName) limit reached") }
@@ -89,16 +89,6 @@ public struct OpenCodeGoUsageFetcher: UsageFetcher {
             WindowSpec(key: "weekly", id: "weekly", label: "Week", limitName: "Weekly", fixedMinutes: 10_080),
             WindowSpec(key: "monthly", id: "monthly", label: "Month", limitName: "Monthly", fixedMinutes: nil),
         ]
-    }
-
-    /// The monthly window follows the subscription's billing month, so it is the calendar month ending at the
-    /// reported reset: 28 to 31 days. Pace needs that length; nil only when the reset is unknown.
-    static func monthMinutes(endingAt resetsAt: Date?) -> Int? {
-        guard let resetsAt else { return nil }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
-        guard let start = calendar.date(byAdding: .month, value: -1, to: resetsAt) else { return nil }
-        return Int((resetsAt.timeIntervalSince(start) / 60).rounded())
     }
 
     enum ErrorKind {

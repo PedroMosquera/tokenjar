@@ -3,15 +3,19 @@ import Testing
 @testable import TokenjarCore
 
 struct AccountDiscoveryTests {
-    /// A locator that only looks at the override, so the real /opt/homebrew/bin never leaks into a test.
-    func locator(_ home: TempHome, agy: Bool) throws -> CLILocator {
-        let path = home.url.appending(path: "bin/agy")
+    /// A locator that only looks at the overrides, so the real /opt/homebrew/bin never leaks into a test.
+    func locator(_ home: TempHome, agy: Bool, gh: Bool) throws -> CLILocator {
         if agy { try home.write("bin/agy", "#!/bin/sh\n", permissions: 0o755) }
-        return CLILocator(home: home.url, overrides: ["agy": path.path])
+        if gh { try home.write("bin/gh", "#!/bin/sh\n", permissions: 0o755) }
+        return CLILocator(home: home.url, overrides: ["agy": home.url.appending(path: "bin/agy").path, "gh": home.url.appending(path: "bin/gh").path])
     }
 
-    func discover(_ home: TempHome, agy: Bool = false, environment: [String: String] = [:]) throws -> [AccountConfig] {
-        AccountDiscovery.discover(paths: AppPaths(home: home.url), cli: try locator(home, agy: agy), environment: environment)
+    /// Stands in for /Applications, so an app installed on the machine running the tests is never seen.
+    func discover(_ home: TempHome, agy: Bool = false, gh: Bool = false, environment: [String: String] = [:]) throws -> [AccountConfig] {
+        AccountDiscovery.discover(
+            paths: AppPaths(home: home.url), cli: try locator(home, agy: agy, gh: gh), environment: environment,
+            systemApplications: home.url.appending(path: "SystemApplications")
+        )
     }
 
     @Test func emptyHomeFindsNothing() throws {
@@ -28,15 +32,50 @@ struct AccountDiscoveryTests {
         // Unreadable on purpose: discovery may only check that Codex's auth.json exists.
         try home.write(".codex/auth.json", "{}", permissions: 0o000)
         try home.copyFixture("opencode-auth.json", to: ".local/share/opencode/auth.json")
+        try home.makeDirectory("SystemApplications/Devin.app")
 
         let auth = "~/.local/share/opencode/auth.json"
-        #expect(try discover(home, agy: true) == [
+        #expect(try discover(home, agy: true, gh: true) == [
             AccountConfig(id: "claude", provider: .claude, label: "Work"),
             AccountConfig(id: "codex", provider: .codex, label: "ChatGPT"),
             AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go", credential: .file(path: auth, key: "opencode-go")),
             AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen", credential: .file(path: auth, key: "opencode"), showInMenuBar: false),
             AccountConfig(id: "antigravity", provider: .antigravity, label: "Google"),
+            AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"),
+            AccountConfig(id: "devin", provider: .devin, label: "Devin", showInMenuBar: false),
         ])
+    }
+
+    /// Existence only: the bundles and data folders are never opened.
+    @Test(arguments: [
+        "SystemApplications/Devin.app", "Applications/Devin.app", "SystemApplications/Windsurf.app", "Applications/Windsurf.app",
+        "Library/Application Support/Devin", "Library/Application Support/Windsurf",
+    ])
+    func anyDevinOrWindsurfInstallProposesALinkOnlyDevinAccount(marker: String) throws {
+        let home = try TempHome()
+        defer { home.remove() }
+        try home.makeDirectory(marker)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: home.url.appending(path: marker).path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: home.url.appending(path: marker).path) }
+        #expect(try discover(home) == [AccountConfig(id: "devin", provider: .devin, label: "Devin", showInMenuBar: false)])
+    }
+
+    @Test func otherApplicationsDoNotProposeDevin() throws {
+        let home = try TempHome()
+        defer { home.remove() }
+        try home.makeDirectory("SystemApplications/Cursor.app")
+        try home.makeDirectory("Library/Application Support/Code")
+        #expect(try discover(home).isEmpty)
+    }
+
+    /// gh is only located, never run, and its config folder is never opened: it can hold a token.
+    @Test func ghOnThePathProposesCopilot() throws {
+        let home = try TempHome()
+        defer { home.remove() }
+        try home.write(".config/gh/hosts.yml", "unreadable on purpose", permissions: 0o000)
+        try home.write("bin/gh", "#!/bin/sh\ntouch \"$0.ran\"\n", permissions: 0o755)
+        #expect(try discover(home) == [AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")])
+        #expect(!FileManager.default.fileExists(atPath: home.url.appending(path: "bin/gh.ran").path))
     }
 
     @Test(arguments: [
@@ -139,10 +178,33 @@ struct AccountDiscoveryTests {
         #expect(AccountDiscovery.isAvailable(implicit, paths: paths, environment: [:]))
     }
 
+    @Test func copilotNeedsGhsConfigFolder() throws {
+        let home = try TempHome()
+        defer { home.remove() }
+        let paths = AppPaths(home: home.url)
+        let copilot = AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")
+        let work = AccountConfig(id: "copilot-work", provider: .copilot, label: "Work", profileDir: "~/.config/gh-work")
+        #expect(!AccountDiscovery.isAvailable(copilot, paths: paths, environment: [:]))
+        #expect(!AccountDiscovery.isAvailable(work, paths: paths, environment: [:]))
+        try home.makeDirectory(".config/gh")
+        #expect(AccountDiscovery.isAvailable(copilot, paths: paths, environment: [:]))
+        #expect(!AccountDiscovery.isAvailable(work, paths: paths, environment: [:]))
+        try home.makeDirectory(".config/gh-work")
+        #expect(AccountDiscovery.isAvailable(work, paths: paths, environment: [:]))
+    }
+
     @Test func antigravityIsAlwaysAvailable() throws {
         let home = try TempHome()
         defer { home.remove() }
         let account = AccountConfig(id: "antigravity", provider: .antigravity, label: "Google")
+        #expect(AccountDiscovery.isAvailable(account, paths: AppPaths(home: home.url), environment: [:]))
+    }
+
+    /// A link reads nothing on this Mac, so a shared config shows it on every Mac.
+    @Test func devinIsAlwaysAvailable() throws {
+        let home = try TempHome()
+        defer { home.remove() }
+        let account = AccountConfig(id: "devin", provider: .devin, label: "Devin", profileDir: "~/missing")
         #expect(AccountDiscovery.isAvailable(account, paths: AppPaths(home: home.url), environment: [:]))
     }
 }

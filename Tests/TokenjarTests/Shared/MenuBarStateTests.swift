@@ -60,6 +60,22 @@ struct MenuBarStateTests {
         #expect(state.entries.map(\.isStale) == [true, false])
     }
 
+    /// A Devin link card has no window: in the menu bar it would be an empty bar and a "no data" line that reads
+    /// like a failure, even when showInMenuBar was set by hand.
+    @Test func aLinkOnlyAccountStaysOutOfTheMenuBar() {
+        let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin", showInMenuBar: true)
+        let link = AccountStatus(snapshot: UsageSnapshot(accountID: "devin", provider: .devin, fetchedAt: now, source: "plan page", notes: ["note"]))
+        let calm = window("weekly", used: 3, minutes: 10_080, resetIn: 6 * 86_400)
+        let state = MenuBarState.make(accounts: [devin, personal], statuses: ["devin": link, "personal": status([calm])], config: AppConfig(), now: now)
+        #expect(state.entries.map(\.accountID) == ["personal"])
+        #expect(!StatusIconRenderer.toolTip(for: state).contains("Devin"))
+        #expect(StatusIconRenderer.render(state).title == "3%")
+
+        let alone = MenuBarState.make(accounts: [devin], statuses: ["devin": link], config: AppConfig(), now: now)
+        #expect(alone.entries.isEmpty)
+        #expect(StatusIconRenderer.toolTip(for: alone) == "Tokenjar: no accounts in the menu bar")
+    }
+
     @Test func aFailedCheckIsFlagged() {
         let state = MenuBarState.make(
             accounts: [personal, work], statuses: ["personal": status([weeklyOnPace], error: .timeout), "work": status([weeklyOnPace])],

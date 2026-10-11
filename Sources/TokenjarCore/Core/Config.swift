@@ -66,7 +66,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var menuBar: MenuBarConfig
     public var alerts: AlertConfig
     public var accounts: [AccountConfig]
-    /// Absolute paths to CLIs that are not in the standard locations, keyed by binary name ("claude", "codex", "agy").
+    /// Absolute paths to CLIs that are not in the standard locations, keyed by binary name ("claude", "codex", "agy", "gh").
     public var cliPaths: [String: String]
     public var launchAtLogin: Bool
 

@@ -43,6 +43,8 @@ struct DashboardView: View {
                     if sections.history {
                         spendCard
                         projectsCard
+                    } else if let account, account.provider.isLinkOnly {
+                        linkOnlyPanel(account)
                     } else {
                         Label(noHistoryMessage, systemImage: "info.circle")
                             .font(.callout)
@@ -250,6 +252,27 @@ struct DashboardView: View {
         breakdown.isEstimate
             ? "API-equivalent cost per day, \(range.dayCaption) · est. from public prices"
             : "Cost per day, \(range.dayCaption)"
+    }
+
+    /// A link-only account has nothing to chart, so its page is the one thing to offer.
+    private func linkOnlyPanel(_ account: AccountConfig) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(model.status(for: account).snapshot?.notes ?? [], id: \.self) { note in
+                Text(note)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button {
+                model.openProviderDashboard(account)
+            } label: {
+                Label("Open Usage Page", systemImage: "arrow.up.forward.square")
+            }
+            .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
+        }
+        .font(.callout)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .dashboardSurface()
     }
 
     private var noHistoryMessage: String {

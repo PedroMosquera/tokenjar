@@ -104,6 +104,19 @@ struct CodexBarImportTests {
         #expect(CodexBarImport.providerID("cursor") == nil)
     }
 
+    @Test func copilotKeepsItsIDAndWindsurfIsNowDevin() {
+        #expect(CodexBarImport.providerID("copilot") == .copilot)
+        #expect(CodexBarImport.providerID("devin") == .devin)
+        #expect(CodexBarImport.providerID("windsurf") == .devin)
+    }
+
+    @Test func devinIsOneLoginPerMac() {
+        let config = AppConfig(accounts: [AccountConfig(id: "windsurf", provider: .devin, label: "Windsurf", showInMenuBar: false)])
+        let applied = apply(CodexBarImportPreview(enabledProviders: []), to: config, discovered: [AccountConfig(id: "devin", provider: .devin, label: "Devin")])
+        #expect(applied.accounts.map(\.id) == ["windsurf"])
+        #expect(applied.accounts.map(\.enabled) == [false])
+    }
+
     // MARK: apply
 
     let paths = AppPaths(home: URL(fileURLWithPath: "/Users/test"))
@@ -155,6 +168,20 @@ struct CodexBarImportTests {
 
         #expect(applied.accounts.map(\.id) == config.accounts.map(\.id))
         #expect(applied.accounts.map(\.enabled) == [false, true, true, false, false, true])
+    }
+
+    /// gh's default config folder spelled out is the same login, and another GH_CONFIG_DIR is a second one.
+    @Test func applyMatchesCopilotByGhConfigFolder() {
+        let config = AppConfig(accounts: [
+            AccountConfig(id: "github", provider: .copilot, label: "GitHub", profileDir: "~/.config/gh/"),
+            AccountConfig(id: "github-work", provider: .copilot, label: "Work", profileDir: "~/.config/gh-work"),
+        ])
+        let discovered = [AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")]
+
+        let applied = apply(CodexBarImportPreview(enabledProviders: []), to: config, discovered: discovered)
+
+        #expect(applied.accounts.map(\.id) == ["github", "github-work"])
+        #expect(applied.accounts.map(\.enabled) == [false, true])
     }
 
     @Test func applyAddsAnotherLoginUnderAFreeID() throws {
