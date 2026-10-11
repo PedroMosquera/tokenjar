@@ -78,6 +78,29 @@ struct SettingsNotice: View {
     }
 }
 
+/// The config or history problem across the top of a pane that has no row for it. Reload is offered while the
+/// problem blocks saving, since fixing the file and reloading is the way out.
+struct SettingsBanner: View {
+    @Environment(AppModel.self) private var model
+    var text: String
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                SettingsNotice(kind: .error, text: text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if !model.canEditConfig {
+                    Button("Reload") { model.loadConfig() }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(Color.red.opacity(0.08), ignoresSafeAreaEdges: [])
+            Divider()
+        }
+    }
+}
+
 /// A form row with no control: a title and its subtitle, laid out like every labelled control's label.
 struct TextRow<Label: View>: View {
     @ViewBuilder var label: Label

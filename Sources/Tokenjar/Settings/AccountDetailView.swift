@@ -29,26 +29,32 @@ struct AccountDetailView: View {
                 } header: {
                     header
                 }
+                // While config.json cannot be saved, edits would be dropped; checks, links and sign-in still work.
                 generalSection
+                    .disabled(!model.canEditConfig)
                 if let variable = SignInCommand.profileVariable(for: account.provider) {
                     profileSection(variable: variable)
+                        .disabled(!model.canEditConfig)
                 }
                 // Zen reads only opencode's local database, so it has no key to choose and no login to run.
                 if account.provider == .opencodeGo {
                     AccountCredentialSection(account: account, signInCommand: signInCommand, onSignIn: openSignIn)
                         .id(Self.credentialAnchor)
+                        .disabled(!model.canEditConfig)
                 }
                 // OpenCode's login belongs to its key source, inside the Credential section.
                 if !account.provider.isLinkOnly, !account.provider.usesAPIKey {
                     signInSection
                 }
                 overridesSection
+                    .disabled(!model.canEditConfig)
                 Section {
                     HStack {
                         Spacer()
                         Button("Remove Account\u{2026}", role: .destructive, action: onRemove)
                     }
                 }
+                .disabled(!model.canEditConfig)
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)

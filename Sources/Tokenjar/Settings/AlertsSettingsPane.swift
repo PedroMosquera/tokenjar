@@ -13,6 +13,7 @@ struct AlertsSettingsPane: View {
                     Text("Send alerts")
                     Text("\(delivery.summary) Nothing fires on the first check after launch; that check only sets the baseline.")
                 }
+                .disabled(!model.canEditConfig)
                 if let action = delivery.action {
                     HStack {
                         Spacer()
@@ -36,7 +37,7 @@ struct AlertsSettingsPane: View {
                     model.updateConfig { $0.alerts.thresholds = SettingsLogic.normalizedThresholds(values) }
                 }
             }
-            .disabled(!model.config.alerts.enabled)
+            .disabled(!model.config.alerts.enabled || !model.canEditConfig)
 
             Section("Also alert when") {
                 Toggle(isOn: model.configBinding(\.alerts.projectedExhaustion)) {
@@ -52,7 +53,7 @@ struct AlertsSettingsPane: View {
                     Text("A CLI is missing, signed out or unsupported, a credential or subscription stops working, or its output cannot be read. Network errors, timeouts and rate limits never alert. Once per problem, cleared by the next good check.")
                 }
             }
-            .disabled(!model.config.alerts.enabled)
+            .disabled(!model.config.alerts.enabled || !model.canEditConfig)
         }
         .onAppear { model.refreshNotificationPermission() }
         // The grant can change in System Settings while this pane is open.

@@ -80,11 +80,21 @@ struct SettingsView: View {
         case .general:
             GeneralSettingsPane()
         case .accounts:
-            AccountsSettingsPane(selection: accountID) { selectAccount($0) }
+            withConfigBanner { AccountsSettingsPane(selection: accountID) { selectAccount($0) } }
         case .alerts:
-            AlertsSettingsPane()
+            withConfigBanner { AlertsSettingsPane() }
         case .about:
             AboutSettingsPane()
+        }
+    }
+
+    /// General shows the problem in its Configuration rows; the panes that edit config without such a row get a banner.
+    private func withConfigBanner<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            if let problem = model.configError {
+                SettingsBanner(text: problem)
+            }
+            content()
         }
     }
 

@@ -77,7 +77,7 @@ struct AccountsSettingsPane: View {
             }
         }
         .listStyle(.inset)
-        .onDeleteCommand { removing = selectedAccount }
+        .onDeleteCommand { if model.canEditConfig { removing = selectedAccount } }
     }
 
     /// The list's add and remove buttons, as in other macOS source lists.
@@ -110,6 +110,7 @@ struct AccountsSettingsPane: View {
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
+            .disabled(!model.canEditConfig)
         }
     }
 
