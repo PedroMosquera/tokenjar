@@ -3,6 +3,7 @@ import TokenjarCore
 
 struct DashboardSidebar: View {
     @Environment(AppModel.self) private var model
+    @FocusState private var focused: Bool
 
     private enum Item: Hashable {
         case all
@@ -37,6 +38,39 @@ struct DashboardSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .focused($focused)
+        .background(UnfocusedWindowWatcher { focused = true })
+    }
+}
+
+/// Calls `onUnfocused` whenever its window is left with nothing focused, so the sidebar can take keyboard focus: its
+/// selection then draws in the accent color and the arrow keys move between pages. It happens without the user doing
+/// anything: WindowPresenter takes focus off a window it opens the first time that window becomes key.
+private struct UnfocusedWindowWatcher: NSViewRepresentable {
+    var onUnfocused: () -> Void
+
+    func makeNSView(context: Context) -> WatcherView {
+        WatcherView()
+    }
+
+    func updateNSView(_ view: WatcherView, context: Context) {
+        view.onUnfocused = onUnfocused
+    }
+
+    final class WatcherView: NSView {
+        var onUnfocused: () -> Void = {}
+        private var observation: NSKeyValueObservation?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            observation = window?.observe(\.firstResponder) { [weak self] window, _ in
+                // Later, so whatever cleared the focus has finished before the sidebar takes it.
+                DispatchQueue.main.async {
+                    guard window.firstResponder === window else { return }
+                    self?.onUnfocused()
+                }
+            }
+        }
     }
 }
 

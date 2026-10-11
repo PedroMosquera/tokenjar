@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 import Testing
 import TokenjarCore
 @testable import Tokenjar
@@ -136,5 +138,38 @@ struct LimitsTimeAxisTests {
         let shown = LimitsTimeAxis(start...end, calendar: calendar, locale: gb)
         #expect(shown.grid.map { $0.formatted(Date.FormatStyle(locale: gb, calendar: calendar, timeZone: calendar.timeZone).hour().minute()) } == ["12:00", "18:00", "00:00", "06:00", "12:00"])
         #expect(shown.labels.map(\.text) == ["18:00", "Sat 10", "06:00"])
+    }
+}
+
+@MainActor
+struct DashboardSidebarFocusTests {
+    /// Never ordered in, and parked off every display in case anything orders it in. Reports itself key, as the window
+    /// renderer's capture window does, so SwiftUI treats it as the active window.
+    private final class OffscreenWindow: NSWindow {
+        override var isKeyWindow: Bool { true }
+        override var canBecomeKey: Bool { true }
+        override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+    }
+
+    /// WindowPresenter takes focus off a window the first time it becomes key. Without focus the sidebar draws its
+    /// selection in gray and ignores the arrow keys.
+    @Test func theSidebarTakesFocusWhenTheWindowIsLeftWithNone() async throws {
+        let model = AppModel.preview()
+        model.secrets = InMemorySecretStore()
+        let window = OffscreenWindow(contentViewController: NSHostingController(rootView: DashboardSidebar().environment(model)))
+        window.isReleasedWhenClosed = false
+        window.setFrameOrigin(NSPoint(x: -30_000, y: -30_000))
+        defer { window.close() }
+        window.contentView?.layoutSubtreeIfNeeded()
+        func views(in view: NSView) -> [NSView] { [view] + view.subviews.flatMap(views) }
+        let content = try #require(window.contentView)
+        let list = try #require(views(in: content).first { $0 is NSTableView })
+        // Where AppKit puts the focus when the window becomes key, before anything takes it away.
+        #expect(window.makeFirstResponder(list))
+
+        window.makeFirstResponder(nil)
+        // Suspends rather than spinning the run loop: this test runs on the main queue, which runs nothing else meanwhile.
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(window.firstResponder === list)
     }
 }
