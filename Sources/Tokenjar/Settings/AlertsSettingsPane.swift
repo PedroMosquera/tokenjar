@@ -31,7 +31,7 @@ struct AlertsSettingsPane: View {
             Section("Usage thresholds") {
                 ThresholdRows(
                     values: model.config.alerts.thresholds,
-                    note: "Fires once per window when used % crosses a threshold, and again after the window resets. Only the highest crossed threshold fires. Accounts can set their own."
+                    note: "Fires once per window when used % crosses a threshold, and again after the window resets. Only the highest crossed threshold fires. Accounts can set their own. Separate from the amber and red colors in General."
                 ) { values in
                     model.updateConfig { $0.alerts.thresholds = SettingsLogic.normalizedThresholds(values) }
                 }

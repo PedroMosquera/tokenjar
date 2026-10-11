@@ -101,9 +101,10 @@ struct PercentField: View {
     var title: String
     @Binding var value: Int
     var range: ClosedRange<Int>
+    var note: String?
 
     var body: some View {
-        LabeledContent(title) {
+        LabeledContent {
             HStack(spacing: 4) {
                 TextField(title, value: clamped, format: .number)
                     .labelsHidden()
@@ -112,6 +113,9 @@ struct PercentField: View {
                 Text("%").foregroundStyle(.secondary)
                 Stepper(title, value: clamped, in: range).labelsHidden()
             }
+        } label: {
+            Text(title)
+            if let note { Text(note) }
         }
     }
 

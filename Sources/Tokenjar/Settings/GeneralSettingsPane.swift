@@ -56,7 +56,13 @@ struct GeneralSettingsPane: View {
                     Text("Preview")
                     Text("Healthy, amber and full")
                 }
-                PercentField(title: "Amber at", value: model.configBinding(\.menuBar.warnAt), range: 1...max(1, model.config.menuBar.criticalAt - 1))
+            }
+
+            Section("Usage colors") {
+                PercentField(
+                    title: "Amber at", value: model.configBinding(\.menuBar.warnAt), range: 1...max(1, model.config.menuBar.criticalAt - 1),
+                    note: "Bars turn amber and red at these levels in the menu bar, popover and dashboard. Alerts have their own thresholds."
+                )
                 PercentField(title: "Red at", value: model.configBinding(\.menuBar.criticalAt), range: min(100, model.config.menuBar.warnAt + 1)...100)
             }
 
