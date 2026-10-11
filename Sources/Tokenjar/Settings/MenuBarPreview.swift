@@ -35,7 +35,7 @@ struct MenuBarPreview: View {
         let now = Date(timeIntervalSince1970: 0)
         return [(42.0, Severity.ok), (85, .warning), (100, .critical)].map { used, severity in
             let window = UsageWindow(id: "session", label: "5-hour", usedPercent: used, windowMinutes: 300, resetsAt: now.addingTimeInterval(47 * 60))
-            let entry = MenuBarState.Entry(accountID: "sample", provider: .claude, label: "Sample", tightest: window, severity: severity, isStale: false)
+            let entry = MenuBarState.Entry(accountID: "sample", provider: .claude, label: "Sample", tightest: window, severity: severity, isStale: false, failureNeedsAttention: false)
             return StatusIconRenderer.render(MenuBarState(
                 mode: config.mode, icon: config.icon, entries: [entry], showResetCountdownWhenFull: config.showResetCountdownWhenFull, now: now
             ))

@@ -29,7 +29,7 @@ enum StatusIconRenderer {
             )
         case .bars:
             let bars = state.entries.map { entry in
-                StatusGlyph.Bar(fraction: entry.tightest.map { $0.usedPercent / 100 }, severity: entry.severity, dimmed: entry.isStale || entry.checkFailed)
+                StatusGlyph.Bar(fraction: entry.tightest.map { $0.usedPercent / 100 }, severity: entry.severity, dimmed: entry.isStale || entry.failureNeedsAttention)
             }
             return RenderedStatusIcon(image: StatusGlyph.bars(bars, description: barsDescription(state)), toolTip: toolTip)
         case .icon:
@@ -70,8 +70,8 @@ enum StatusIconRenderer {
         }
         let notes = state.entries.compactMap { entry in
             entry.cause.map { "\(spokenName(entry, in: state)) \(causeClause($0, tightest: entry.tightest, spoken: true))" }
-        } + state.entries.filter { $0.isStale && !$0.checkFailed }.map { "\(spokenName($0, in: state)) out of date" }
-            + state.entries.filter(\.checkFailed).map { "\(spokenName($0, in: state)) check failed" }
+        } + state.entries.filter { $0.isStale && !$0.failureNeedsAttention }.map { "\(spokenName($0, in: state)) out of date" }
+            + state.entries.filter(\.failureNeedsAttention).map { "\(spokenName($0, in: state)) check failed" }
         return (["Tokenjar"] + levels + notes).joined(separator: ", ")
     }
 

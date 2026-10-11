@@ -437,14 +437,15 @@ struct BurnUpChartTests {
 
 @MainActor
 struct StatusIconRendererTests {
+    /// An actionable failure always needs attention; a transient one only without fresh data, so a test says which.
     private func entry(
         _ id: String, used: Double?, severity: Severity = .ok, resetIn: TimeInterval? = 50 * 60, stale: Bool = false,
-        attention: FetchError.Attention? = nil, provider: ProviderID = .claude
+        attention: FetchError.Attention? = nil, needsAttention: Bool? = nil, provider: ProviderID = .claude
     ) -> MenuBarState.Entry {
         MenuBarState.Entry(
             accountID: id, provider: provider, label: id,
             tightest: used.map { window("session", "5-hour", used: $0, resetIn: resetIn) },
-            severity: severity, isStale: stale, attention: attention
+            severity: severity, isStale: stale, attention: attention, failureNeedsAttention: needsAttention ?? (attention == .actionable)
         )
     }
 
@@ -606,12 +607,13 @@ struct StatusIconRendererTests {
         #expect(rendered.image?.accessibilityDescription?.hasSuffix(", Codex check failed") == true)
     }
 
-    /// A timeout elsewhere is likely gone by the next check, and a missing subscription is nothing to fix.
-    @Test func onlyTheWorstAccountsPassingFailureShowsTheDot() {
-        let elsewhere = StatusIconRenderer.render(state([entry("a", used: 42), entry("b", used: 12, attention: .transient)]))
-        #expect(pixels(elsewhere.image) == pixels(undotted))
-        let worst = StatusIconRenderer.render(state([entry("a", used: 42, attention: .transient), entry("b", used: 12)]))
-        #expect(pixels(worst.image) == pixels(dotted))
+    /// A timeout over fresh data is likely gone by the next check, and a missing subscription is nothing to fix. A
+    /// timeout with nothing fresh to show needs attention on any account, as it does in the popover header.
+    @Test func onlyAFailureThatNeedsAttentionShowsTheDot() {
+        let blip = StatusIconRenderer.render(state([entry("a", used: 42, attention: .transient, needsAttention: false), entry("b", used: 12)]))
+        #expect(pixels(blip.image) == pixels(undotted))
+        let elsewhere = StatusIconRenderer.render(state([entry("a", used: 42), entry("b", used: nil, attention: .transient, needsAttention: true)]))
+        #expect(pixels(elsewhere.image) == pixels(dotted))
         let calm = StatusIconRenderer.render(state([entry("a", used: 42, attention: .calm)]))
         #expect(pixels(calm.image) == pixels(undotted))
         #expect(calm.toolTip?.contains("failed") == false)

@@ -114,6 +114,31 @@ struct MenuBarStateTests {
         #expect(state.entries.map(\.attention) == [.transient, nil])
     }
 
+    /// The dot and the popover header judge a failed check by one rule, so the menu bar never alarms over a blip the
+    /// header calls all clear, and never stays quiet about a failure the header counts.
+    @Test func theDotAndTheHeaderAgreeOnAFailedCheck() {
+        func judged(_ statuses: [String: AccountStatus]) -> (dot: String?, tone: PopoverSummary.Tone) {
+            let accounts = [personal, work]
+            let state = MenuBarState.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
+            return (state.failing?.accountID, PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now).tone)
+        }
+        let blipStatuses = ["personal": status([weeklyOnPace], error: .network("offline")), "work": status([weeklyOnPace])]
+        let blip = judged(blipStatuses)
+        #expect(blip.dot == nil)
+        #expect(blip.tone == .clear)
+        // Bars have no dot; a dimmed bar is how they say a check failed.
+        let bars = MenuBarState.make(accounts: [personal, work], statuses: blipStatuses, config: AppConfig(menuBar: MenuBarConfig(mode: .bars)), now: now)
+        #expect(StatusIconRenderer.render(bars).image?.accessibilityDescription == "Tokenjar, Claude Personal 75%, Claude Work 75%")
+
+        let gone = judged(["personal": status([weeklyOnPace], fetchedAgo: 3_600, error: .network("offline")), "work": status([weeklyOnPace])])
+        #expect(gone.dot == "personal")
+        #expect(gone.tone == .problem)
+
+        let elsewhere = judged(["personal": status([weeklyOnPace]), "work": AccountStatus(error: .timeout)])
+        #expect(elsewhere.dot == "work")
+        #expect(elsewhere.tone == .problem)
+    }
+
     /// Zen only has spend and a Go key without a subscription has nothing at all: either would be an empty bar and a
     /// "no data" line that reads as a failure.
     @Test func accountsWithNoLimitsToShowStayOut() {

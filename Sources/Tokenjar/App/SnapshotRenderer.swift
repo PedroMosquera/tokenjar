@@ -129,7 +129,7 @@ enum SnapshotRenderer {
     static func slotStates(now: Date) -> [(name: String, label: String, state: MenuBarState)] {
         func entry(_ used: Double?, _ severity: Severity = .ok, stale: Bool = false, error: Bool = false) -> MenuBarState.Entry {
             let window = used.map { UsageWindow(id: "session", label: "5-hour", usedPercent: $0, windowMinutes: 300, resetsAt: now.addingTimeInterval(47 * 60)) }
-            return MenuBarState.Entry(accountID: "preview", provider: .claude, label: "Preview", tightest: window, severity: severity, isStale: stale, attention: error ? .actionable : nil)
+            return MenuBarState.Entry(accountID: "preview", provider: .claude, label: "Preview", tightest: window, severity: severity, isStale: stale, attention: error ? .actionable : nil, failureNeedsAttention: error)
         }
         func state(_ entry: MenuBarState.Entry, mode: MenuBarMode = .worst) -> MenuBarState {
             MenuBarState(mode: mode, entries: [entry], showResetCountdownWhenFull: true, now: now)
@@ -156,7 +156,7 @@ enum SnapshotRenderer {
     private static func choiceStates(_ icon: MenuBarIcon, now: Date) -> [MenuBarState] {
         func state(_ used: Double?, _ severity: Severity = .ok, stale: Bool = false, error: Bool = false) -> MenuBarState {
             let window = used.map { UsageWindow(id: "session", label: "5-hour", usedPercent: $0, windowMinutes: 300, resetsAt: now.addingTimeInterval(47 * 60)) }
-            let entry = MenuBarState.Entry(accountID: "preview", provider: .claude, label: "Preview", tightest: window, severity: severity, isStale: stale, attention: error ? .actionable : nil)
+            let entry = MenuBarState.Entry(accountID: "preview", provider: .claude, label: "Preview", tightest: window, severity: severity, isStale: stale, attention: error ? .actionable : nil, failureNeedsAttention: error)
             return MenuBarState(mode: .worst, icon: icon, entries: [entry], showResetCountdownWhenFull: true, now: now)
         }
         return [state(42), state(85, .warning), state(100, .critical), state(nil), state(42, stale: true), state(42, error: true)]

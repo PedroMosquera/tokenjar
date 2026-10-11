@@ -12,6 +12,9 @@ struct MenuBarState: Equatable {
         var isStale: Bool
         /// How much the last check's failure matters; nil when it passed.
         var attention: FetchError.Attention? = nil
+        /// `AccountStatus.failureNeedsAttention`, the popover header's rule, so the menu bar and the header never
+        /// disagree about a failed check.
+        var failureNeedsAttention: Bool
         /// Set when a projection, not the tightest window's own number, gives `severity`.
         var cause: PaceVerdict? = nil
 
@@ -33,11 +36,11 @@ struct MenuBarState: Equatable {
         }
     }
 
-    /// The account the failure dot speaks for: the worst one when its check failed, else the first whose failure
-    /// needs the user. A timeout on another account is most likely gone by the next check.
+    /// The account the failure dot speaks for: the worst one when its failure needs attention, else the first that
+    /// does. A network error or timeout over fresh data draws no dot, as it draws no warning in the header.
     var failing: Entry? {
-        if let worst, worst.checkFailed { return worst }
-        return entries.first { $0.attention == .actionable }
+        if let worst, worst.failureNeedsAttention { return worst }
+        return entries.first(where: \.failureNeedsAttention)
     }
 
     static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date) -> MenuBarState {
@@ -45,6 +48,7 @@ struct MenuBarState: Equatable {
         // "no data" line that reads as a failure.
         let entries = accounts.compactMap { account -> Entry? in
             let status = statuses[account.id] ?? AccountStatus()
+            let refreshMinutes = account.refreshMinutes ?? config.refreshMinutes
             guard account.provider.reportsWindows, status.snapshot != nil || status.error?.attention != .calm else { return nil }
             let windows = status.snapshot?.windows ?? []
             let tightest = status.snapshot?.tightestWindow(now: now)
@@ -56,8 +60,9 @@ struct MenuBarState: Equatable {
                 label: account.label,
                 tightest: tightest,
                 severity: severity,
-                isStale: status.isStale(now: now, refreshMinutes: account.refreshMinutes ?? config.refreshMinutes),
+                isStale: status.isStale(now: now, refreshMinutes: refreshMinutes),
                 attention: status.error?.attention,
+                failureNeedsAttention: status.failureNeedsAttention(now: now, refreshMinutes: refreshMinutes),
                 cause: cause(of: severity, windows: windows, tightest: tightest, config: config.menuBar, now: now)
             )
         }
