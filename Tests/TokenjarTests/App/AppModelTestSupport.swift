@@ -33,6 +33,7 @@ struct ModelHome {
     }
 
     /// A file CLILocator accepts as a CLI. Tests inject fetchers, so it is never run.
+    @discardableResult
     func makeExecutable(_ relative: String, contents: String = "#!/bin/sh\nexit 1\n") throws -> URL {
         let file = try write(relative, contents)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)

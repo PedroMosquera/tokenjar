@@ -15,7 +15,9 @@ public enum SignInCommand {
     }
 
     /// nil for Antigravity and Devin. `executable` maps a CLI name to what should run (a located absolute path, or the bare name).
-    public static func command(for account: AccountConfig, paths: AppPaths, executable: (String) -> String) -> String? {
+    /// `abbreviatingHome` writes paths under the home folder as `~/...` for display; the result still runs the same,
+    /// but Terminal and the clipboard get the full paths so nothing depends on how a shell expands ~.
+    public static func command(for account: AccountConfig, paths: AppPaths, executable: (String) -> String, abbreviatingHome: Bool = false) -> String? {
         let words: [String]
         switch account.provider {
         case .claude: words = [executable("claude"), "auth", "login"]
@@ -24,12 +26,19 @@ public enum SignInCommand {
         case .copilot: words = [executable("gh"), "auth", "login"]
         case .antigravity, .devin: return nil
         }
-        var parts = words.map(shellQuote)
+        let quotePath = abbreviatingHome ? { tildeQuote($0, home: paths.home.path) } : shellQuote
+        var parts = [quotePath(words[0])] + words.dropFirst().map(shellQuote)
         if let variable = profileVariable(for: account.provider), let dir = SettingsLogic.profileDir(from: account.profileDir ?? "") {
             // Expanded here because a quoted ~ is not expanded by the shell.
-            parts.insert("\(variable.name)=\(shellQuote(paths.expand(dir).path))", at: 0)
+            parts.insert("\(variable.name)=\(quotePath(paths.expand(dir).path))", at: 0)
         }
         return parts.joined(separator: " ")
+    }
+
+    /// `~/` stays outside the quotes: a quoted ~ is not expanded by the shell.
+    static func tildeQuote(_ path: String, home: String) -> String {
+        guard path.hasPrefix(home + "/") else { return shellQuote(path) }
+        return "~/" + shellQuote(String(path.dropFirst(home.count + 1)))
     }
 
     /// POSIX single-quoting. Words made only of safe characters stay bare so the common case reads naturally.

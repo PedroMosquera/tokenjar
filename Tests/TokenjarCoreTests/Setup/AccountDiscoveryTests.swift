@@ -167,7 +167,7 @@ struct AccountDiscoveryTests {
         let paths = AppPaths(home: home.url)
         let file = AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go", credential: .file(path: "~/keys/auth.json", key: "opencode-go"))
         let keychain = AccountConfig(id: "opencode-go-2", provider: .opencodeGo, label: "Go", credential: .keychain(account: "opencode-go-2"))
-        let implicit = AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen")
+        let implicit = AccountConfig(id: "opencode-go-3", provider: .opencodeGo, label: "Go")
         #expect(!AccountDiscovery.isAvailable(file, paths: paths, environment: [:]))
         #expect(AccountDiscovery.isAvailable(keychain, paths: paths, environment: [:]))
         #expect(!AccountDiscovery.isAvailable(implicit, paths: paths, environment: [:]))
@@ -176,6 +176,42 @@ struct AccountDiscoveryTests {
         try home.write(".local/share/opencode/auth.json", "{}")
         #expect(AccountDiscovery.isAvailable(file, paths: paths, environment: [:]))
         #expect(AccountDiscovery.isAvailable(implicit, paths: paths, environment: [:]))
+    }
+
+    /// Zen never reads a key, so the auth.json path first run gives it must not hide it, or name a file it does not read.
+    @Test func zenNeedsOpencodesDatabaseNotAuthJSON() throws {
+        let home = try TempHome()
+        defer { home.remove() }
+        let paths = AppPaths(home: home.url)
+        let implicit = AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen")
+        let discovered = AccountConfig(
+            id: "opencode-zen", provider: .opencodeZen, label: "Zen",
+            credential: .file(path: "~/.local/share/opencode/auth.json", key: "opencode"), showInMenuBar: false
+        )
+        try home.write(".local/share/opencode/auth.json", "{}")
+        #expect(!AccountDiscovery.isAvailable(implicit, paths: paths, environment: [:]))
+        #expect(!AccountDiscovery.isAvailable(discovered, paths: paths, environment: [:]))
+
+        try FileManager.default.removeItem(at: home.url.appending(path: ".local/share/opencode/auth.json"))
+        try home.write(".local/share/opencode/opencode.db", "")
+        #expect(AccountDiscovery.isAvailable(implicit, paths: paths, environment: [:]))
+        #expect(AccountDiscovery.isAvailable(discovered, paths: paths, environment: [:]))
+        #expect(AccountDiscovery.location(of: discovered, paths: paths, environment: [:]) == home.url.appending(path: ".local/share/opencode/opencode.db"))
+    }
+
+    @Test(arguments: [
+        (profileDir: nil, environment: [:]),
+        (profileDir: nil, environment: ["XDG_DATA_HOME": "/data"]),
+        (profileDir: "~/elsewhere/opencode", environment: ["XDG_DATA_HOME": "/data"]),
+    ] as [(profileDir: String?, environment: [String: String])])
+    func zenIsLookedForWhereItsFetcherReads(profileDir: String?, environment: [String: String]) {
+        let paths = AppPaths(home: URL(fileURLWithPath: "/Users/tester"))
+        let zen = AccountConfig(
+            id: "opencode-zen", provider: .opencodeZen, label: "Zen", profileDir: profileDir,
+            credential: .file(path: "~/.local/share/opencode/auth.json", key: "opencode")
+        )
+        let read = OpenCodeHistoryScanner(providerIDs: [OpenCodeZenUsageFetcher.zenProviderID], environment: environment).databaseFile(for: zen, paths: paths)
+        #expect(AccountDiscovery.location(of: zen, paths: paths, environment: environment) == read)
     }
 
     @Test func copilotNeedsGhsConfigFolder() throws {

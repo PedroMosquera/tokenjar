@@ -46,8 +46,8 @@ public enum AccountDiscovery {
         return accounts
     }
 
-    /// False when the account's profile dir or credential file is missing on this machine; such accounts are hidden.
-    /// An OpenCode account without a credential falls back to opencode's own auth.json, as its fetcher does.
+    /// False when the file or folder `location` names is missing on this machine; such accounts are hidden. An OpenCode
+    /// Go account without a credential falls back to opencode's own auth.json, as its fetcher does.
     public static func isAvailable(
         _ account: AccountConfig, paths: AppPaths, environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Bool {
@@ -59,7 +59,8 @@ public enum AccountDiscovery {
     }
 
     /// The profile dir or credential file the account reads on this Mac (gh's config folder for Copilot, whose files
-    /// are never opened). nil for Antigravity, Devin and a key in the app's own Keychain, which have no file of their own.
+    /// are never opened, and opencode.db for Zen, which needs no key). nil for Antigravity, Devin and a key in the
+    /// app's own Keychain, which have no file of their own.
     public static func location(of account: AccountConfig, paths: AppPaths, environment: [String: String]) -> URL? {
         switch account.provider {
         case .claude:
@@ -68,7 +69,10 @@ public enum AccountDiscovery {
             account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".codex")
         case .copilot:
             account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".config/gh")
-        case .opencodeGo, .opencodeZen:
+        case .opencodeZen:
+            // First run gives Zen an auth.json credential that its fetcher never reads.
+            OpenCodeLocalData.databaseFile(in: OpenCodeLocalData.dataDirectory(for: account, paths: paths, environment: environment))
+        case .opencodeGo:
             switch account.credential {
             case .file(let path, _): paths.expand(path)
             case .keychain: nil

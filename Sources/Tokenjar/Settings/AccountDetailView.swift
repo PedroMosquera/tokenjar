@@ -101,8 +101,8 @@ struct AccountDetailView: View {
         return LabeledContent {
             switch fix {
             case .signIn:
-                if let command = signInCommand {
-                    Button("Sign In in Terminal\u{2026}") { openSignIn(command) }
+                if let line = signInCommand {
+                    Button("Sign In in Terminal\u{2026}") { openSignIn(line.command) }
                 }
             case .changeKey:
                 Button("Change Key\u{2026}") {
@@ -201,21 +201,21 @@ struct AccountDetailView: View {
 
     private var signInSection: some View {
         Section {
-            if let command = signInCommand {
+            if let line = signInCommand {
                 // One line: wrapping breaks at the hyphen in a profile path and reads like two paths. Copy Command
                 // copies it whole, and the tooltip shows it whole.
                 TextRow {
-                    Text(command)
+                    Text(line.shown)
                         .font(.system(.callout, design: .monospaced))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .help(command)
+                        .help(line.shown)
                     Text(signInNote)
                 }
                 HStack {
                     Spacer()
-                    Button("Copy Command") { SignInLauncher.copy(command) }
-                    Button("Sign In in Terminal\u{2026}") { openSignIn(command) }
+                    Button("Copy Command") { SignInLauncher.copy(line.command) }
+                    Button("Sign In in Terminal\u{2026}") { openSignIn(line.command) }
                 }
             } else {
                 switch AgySignInRow.make(status: model.status(for: account)) {
@@ -313,26 +313,28 @@ struct AccountDetailView: View {
 
     // MARK: Actions
 
-    private var signInCommand: String? {
-        Self.signInCommand(for: account, cliPaths: model.config.cliPaths, paths: model.paths, previewMode: model.previewMode)
+    private var signInCommand: SignInLine? {
+        Self.signInLine(for: account, cliPaths: model.config.cliPaths, paths: model.paths, previewMode: model.previewMode)
     }
 
     /// Preview renders become review images that get pasted into PRs, so they use a stand-in home folder and bare
     /// CLI names instead of this Mac's paths.
-    static func signInCommand(for account: AccountConfig, cliPaths: [String: String], paths: AppPaths, previewMode: Bool) -> String? {
+    static func signInLine(for account: AccountConfig, cliPaths: [String: String], paths: AppPaths, previewMode: Bool) -> SignInLine? {
         let cli = CLILocator(overrides: cliPaths)
         let paths = previewMode ? AppPaths(home: URL(fileURLWithPath: "/Users/you")) : paths
-        return SignInCommand.command(for: account, paths: paths) { name in
-            previewMode ? name : (cli.locate(name)?.path ?? name)
-        }
+        let executable = { (name: String) in previewMode ? name : (cli.locate(name)?.path ?? name) }
+        guard let command = SignInCommand.command(for: account, paths: paths, executable: executable),
+              let shown = SignInCommand.command(for: account, paths: paths, executable: executable, abbreviatingHome: true)
+        else { return nil }
+        return SignInLine(command: command, shown: shown)
     }
 
+    private var testBlocker: String? { Self.testBlocker(enabled: account.enabled, missingPath: missingPath) }
+
     /// Refresh only fetches enabled accounts that exist on this Mac, so Test would silently do nothing for the rest.
-    private var testBlocker: String? {
-        if !account.enabled { return "Turn the account on to test it" }
-        if !model.previewMode, !AccountDiscovery.isAvailable(account, paths: model.paths) {
-            return "Its profile folder or credential is not on this Mac"
-        }
+    static func testBlocker(enabled: Bool, missingPath: String?) -> String? {
+        if !enabled { return "Turn the account on to test it" }
+        if let missingPath { return "\(missingPath) is not on this Mac" }
         return nil
     }
 
@@ -381,6 +383,12 @@ extension AppModel {
     }
 }
 
+/// An account's login command: `command` is what Copy Command and Sign In in Terminal use, `shown` is the row's text.
+struct SignInLine: Equatable {
+    var command: String
+    var shown: String
+}
+
 /// What Settings says about one account: the status line at the top of its page and the caption on its list row.
 struct AccountStatusText: Equatable {
     enum Tone: Equatable {
@@ -407,8 +415,8 @@ struct AccountStatusText: Equatable {
     var caption: Caption?
     var offersCheck = true
 
-    /// `missingPath` is the tilde path of the profile folder or credential file the account reads, when it does not
-    /// exist on this Mac. Being off or missing outranks any old snapshot, which no longer describes this Mac.
+    /// `missingPath` is the tilde path of what the account reads (`AccountDiscovery.location`), when it does not exist on
+    /// this Mac. Being off or missing outranks any old snapshot, which no longer describes this Mac.
     static func make(account: AccountConfig, status: AccountStatus, missingPath: String?, now: Date) -> AccountStatusText {
         let provider = account.provider
         if !account.enabled {
@@ -453,10 +461,16 @@ struct AccountStatusText: Equatable {
                 return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Local spend only \u{00B7} updated \(age)", detail: zenNote)
             }
             // Its own line: some window labels contain a middle dot themselves, so a dot after the age would misread.
-            let limits = snapshot.windows.isEmpty ? snapshot.notes.first : "Limits: " + snapshot.windows.map(\.label).joined(separator: ", ")
+            let limits = snapshot.windows.isEmpty ? snapshot.notes.first : "Limits: " + snapshot.windows.map { unbreakable($0.label) }.joined(separator: ", ")
             return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Updated \(age)", detail: limits)
         }
         return AccountStatusText(symbol: "circle.dashed", tone: .neutral, text: "Not checked yet", detail: zenNote)
+    }
+
+    /// A label wrapped inside itself ("Gemini" then "· Week") reads as two windows, so the list may only wrap between
+    /// labels: no-break spaces, and a word joiner after each hyphen of a raw window name such as "two-day".
+    private static func unbreakable(_ label: String) -> String {
+        label.replacingOccurrences(of: " ", with: "\u{00A0}").replacingOccurrences(of: "-", with: "-\u{2060}")
     }
 
     /// The list row's caption: what to fix for an actionable failure, nothing for a passing one.

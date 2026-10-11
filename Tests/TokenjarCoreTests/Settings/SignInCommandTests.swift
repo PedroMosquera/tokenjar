@@ -72,6 +72,39 @@ struct SignInCommandTests {
         #expect(printed == word)
     }
 
+    @Test func theShownCommandWritesHomePathsWithTilde() {
+        let account = AccountConfig(id: "claude-work", provider: .claude, label: "Work", profileDir: "~/.claude-work")
+        let located: (String) -> String = { "/Users/tester/.local/bin/\($0)" }
+        #expect(SignInCommand.command(for: account, paths: paths, executable: located, abbreviatingHome: true)
+            == "CLAUDE_CONFIG_DIR=~/.claude-work ~/.local/bin/claude auth login")
+        #expect(command(account, executable: located) == "CLAUDE_CONFIG_DIR=/Users/tester/.claude-work /Users/tester/.local/bin/claude auth login")
+    }
+
+    @Test func theShownCommandKeepsPathsOutsideHome() {
+        let account = AccountConfig(id: "claude", provider: .claude, label: "Personal")
+        for path in ["/opt/homebrew/bin/claude", "/Users/testerX/bin/claude", "/Users/tester"] {
+            #expect(SignInCommand.command(for: account, paths: paths, executable: { _ in path }, abbreviatingHome: true) == "\(path) auth login")
+        }
+    }
+
+    /// Only the part after ~/ is quoted, so a shell still expands the shown path to the one Terminal runs.
+    @Test(arguments: ["~/Claude's work", "~/.claude-work", "~/Library/Application Support/claude"])
+    func aShownProfilePathExpandsToTheRealOne(profileDir: String) throws {
+        let account = AccountConfig(id: "claude-work", provider: .claude, label: "Work", profileDir: profileDir)
+        let shown = try #require(SignInCommand.command(for: account, paths: paths, executable: { $0 }, abbreviatingHome: true))
+        #expect(shown.hasPrefix("CLAUDE_CONFIG_DIR=~/"))
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.environment = ["HOME": "/Users/tester"]
+        process.arguments = ["-c", shown.replacingOccurrences(of: " claude auth login", with: " /usr/bin/printenv CLAUDE_CONFIG_DIR")]
+        let out = Pipe()
+        process.standardOutput = out
+        try process.run()
+        process.waitUntilExit()
+        let printed = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+        #expect(printed == paths.expand(profileDir).path + "\n")
+    }
+
     @Test func safeWordsStayBare() {
         #expect(SignInCommand.shellQuote("/Users/tester/.claude-work") == "/Users/tester/.claude-work")
     }

@@ -670,9 +670,21 @@ struct StatusIconRendererTests {
 struct SignInCommandDisplayTests {
     @Test func previewRendersNeverShowThisMacsHomeFolder() throws {
         let account = AccountConfig(id: "claude-work", provider: .claude, label: "Work", profileDir: "~/.claude-work")
-        let command = try #require(AccountDetailView.signInCommand(for: account, cliPaths: [:], paths: AppPaths(), previewMode: true))
-        #expect(command == "CLAUDE_CONFIG_DIR=/Users/you/.claude-work claude auth login")
-        #expect(!command.contains(NSHomeDirectory()))
+        let line = try #require(AccountDetailView.signInLine(for: account, cliPaths: [:], paths: AppPaths(), previewMode: true))
+        #expect(line.command == "CLAUDE_CONFIG_DIR=/Users/you/.claude-work claude auth login")
+        #expect(line.shown == "CLAUDE_CONFIG_DIR=~/.claude-work claude auth login")
+        #expect(!line.command.contains(NSHomeDirectory()))
+    }
+
+    /// The row reads like every other Settings path, while Copy Command and Terminal get the path that was found.
+    @Test func theRowShowsTildePathsAndTheButtonsUseTheRealOnes() throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        let claude = try home.makeExecutable(".local/bin/claude")
+        let account = AccountConfig(id: "claude-work", provider: .claude, label: "Work", profileDir: "~/.claude-work")
+        let line = try #require(AccountDetailView.signInLine(for: account, cliPaths: ["claude": claude.path], paths: home.paths, previewMode: false))
+        #expect(line.shown == "CLAUDE_CONFIG_DIR=~/.claude-work ~/.local/bin/claude auth login")
+        #expect(line.command == "CLAUDE_CONFIG_DIR=\(home.url.path)/.claude-work \(claude.path) auth login")
     }
 }
 

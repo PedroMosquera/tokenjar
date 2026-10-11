@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Tokenjar
@@ -46,13 +47,60 @@ struct AccountStatusTextTests {
         #expect(line.caption == AccountStatusText.Caption(text: "Not on this Mac", isActionable: false))
     }
 
+    /// Zen has neither a profile folder nor a credential it reads, so Test's tooltip names the file that is missing.
+    @Test func testIsBlockedByTheFileThatIsMissing() {
+        #expect(AccountDetailView.testBlocker(enabled: true, missingPath: nil) == nil)
+        #expect(AccountDetailView.testBlocker(enabled: false, missingPath: "~/.claude-work") == "Turn the account on to test it")
+        #expect(
+            AccountDetailView.testBlocker(enabled: true, missingPath: "~/.local/share/opencode/opencode.db")
+                == "~/.local/share/opencode/opencode.db is not on this Mac"
+        )
+    }
+
     @Test func aSnapshotListsItsLimitsNotACount() {
         let line = text(claude, AccountStatus(snapshot: snapshot(claude, windows: ["5-hour", "Week", "Week \u{00B7} Fable"])))
         #expect(line.text == "Updated \(age(60))")
-        #expect(line.detail == "Limits: 5-hour, Week, Week \u{00B7} Fable")
+        #expect(line.detail.map(Self.readable) == "Limits: 5-hour, Week, Week \u{00B7} Fable")
         #expect(line.symbol == "checkmark.circle.fill")
         #expect(line.tone == .good)
         #expect(line.caption == nil)
+    }
+
+    /// "Gemini" at the end of one line and "· Week" at the start of the next reads as two windows. "two-day" stands
+    /// for an agy window Tokenjar does not recognize, which keeps its raw name and can break after its hyphen.
+    @Test func theLimitsListWrapsOnlyBetweenLabels() throws {
+        let agy = AccountConfig(id: "antigravity", provider: .antigravity, label: "Google")
+        let labels = ["Gemini \u{00B7} 5-hour", "Gemini \u{00B7} Week", "Claude and GPT \u{00B7} Week", "Gemini 3 Pro \u{00B7} Week", "Gemini \u{00B7} two-day"]
+        let detail = try #require(text(agy, AccountStatus(snapshot: snapshot(agy, windows: labels))).detail)
+        let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let widest = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+        let labelStarts = Set((["Limits:"] + labels).map { String($0.prefix(4)) })
+        for width in stride(from: (widest + 12).rounded(.up), through: 420, by: 3) {
+            for line in Self.lines(of: detail, font: font, width: width) {
+                #expect(labelStarts.contains(String(Self.readable(line).prefix(4))), "line \"\(Self.readable(line))\" at width \(width)")
+            }
+        }
+    }
+
+    /// The list as it reads, whatever characters keep a label on one line.
+    private static func readable(_ text: String) -> String {
+        text.replacingOccurrences(of: "\u{00A0}", with: " ").replacingOccurrences(of: "\u{2060}", with: "")
+    }
+
+    /// How TextKit wraps `text` at `width`, one string per line with its trailing space dropped.
+    private static func lines(of text: String, font: NSFont, width: CGFloat) -> [String] {
+        let storage = NSTextStorage(string: text, attributes: [.font: font])
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(size: NSSize(width: width, height: .greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        layout.addTextContainer(container)
+        storage.addLayoutManager(layout)
+        var lines: [String] = []
+        layout.enumerateLineFragments(forGlyphRange: layout.glyphRange(for: container)) { _, _, _, glyphs, _ in
+            let characters = layout.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+            lines.append((text as NSString).substring(with: characters).trimmingCharacters(in: .whitespaces))
+        }
+        return lines
     }
 
     @Test func aSnapshotWithNoLimitsShowsItsNoteUnderTheAge() {
