@@ -56,6 +56,15 @@ struct AccountCredentialSection: View {
             }
 
             if source.wrappedValue == .authFile {
+                TextRow {
+                    Text("Key file")
+                    // One line: a wrapped path breaks at a slash and reads like two paths. The tooltip has it whole.
+                    Text(keyFile.path)
+                        .font(.system(.subheadline, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help("\(keyFile.path), \(keyFile.entry)")
+                }
                 if let command = signInCommand {
                     TextRow {
                         Text(command)
@@ -63,15 +72,13 @@ struct AccountCredentialSection: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                             .help(command)
-                        Text(authFileHelp)
+                        Text("Runs opencode's own login in Terminal. Tokenjar reads the key it saves.")
                     }
                     HStack {
                         Spacer()
                         Button("Copy Command") { SignInLauncher.copy(command) }
                         Button("Sign In in Terminal\u{2026}") { onSignIn(command) }
                     }
-                } else {
-                    TextRow { Text(authFileHelp) }
                 }
             } else {
                 // config.json syncs between Macs and the Keychain does not, so a .keychain reference does not prove a key is here.
@@ -94,12 +101,12 @@ struct AccountCredentialSection: View {
         }
     }
 
-    private var authFileHelp: String {
+    private var keyFile: (path: String, entry: String) {
         if case .file(let path, let key) = account.credential {
-            return "Uses the key opencode saved when you signed in (\(path), entry \(key))."
+            return (path, "entry \(key)")
         }
         let file = SettingsLogic.tildePath(AccountDiscovery.openCodeAuthFile(paths: model.paths, environment: ProcessInfo.processInfo.environment).path, home: model.paths.home.path)
-        return "Uses the key opencode saved when you signed in (\(file), entry opencode-go, else opencode)."
+        return (file, "entry opencode-go, else opencode")
     }
 
     private func saveKey() {
