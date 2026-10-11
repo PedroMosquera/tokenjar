@@ -79,12 +79,15 @@ private struct AccountCardHeader: View {
                 ProgressView()
                     .controlSize(.mini)
             } else if isStale, let fetchedAt = status.snapshot?.fetchedAt {
-                let age = Format.duration(model.popoverNow.timeIntervalSince(fetchedAt))
+                let seconds = model.popoverNow.timeIntervalSince(fetchedAt)
+                let age = Format.duration(seconds)
                 Label(String(age.prefix { $0 != " " }), systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize()
                     .help("Last successful update \(age) ago")
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(PopoverSpeech.staleBadge(age: seconds))
             }
             AccountMenu(account: account)
         }
@@ -124,6 +127,7 @@ private struct AccountMenu: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("More for \(account.displayName)")
+        .accessibilityLabel(PopoverSpeech.menuLabel(for: account))
     }
 }
 
@@ -265,6 +269,7 @@ struct VerdictLine: View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             Image(systemName: symbol)
                 .foregroundStyle(severity == .ok ? AnyShapeStyle(.secondary) : AnyShapeStyle(severity.color))
+                .spoken(PopoverSpeech.severity(severity))
             message
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -318,5 +323,44 @@ struct MoneyRow: View {
     static func amount(_ line: MoneyLine, locale: Locale = .autoupdatingCurrent) -> String {
         guard let limit = line.limit else { return Format.money(line.amount, currency: line.currency, locale: locale) }
         return Format.moneyUsed(line.amount, of: limit, currency: line.currency, locale: locale)
+    }
+}
+
+/// What VoiceOver reads where the popover's meaning is otherwise only visual: a color, a glyph or a short badge.
+enum PopoverSpeech {
+    static func menuLabel(for account: AccountConfig) -> String {
+        "Actions for \(AccountTitle(provider: account.provider, label: account.label).spokenName)"
+    }
+
+    static func staleBadge(age: TimeInterval) -> String {
+        "Last updated \(Format.spokenDuration(age)) ago"
+    }
+
+    /// nil where the header's text already says it all.
+    static func tone(_ tone: PopoverSummary.Tone) -> String? {
+        switch tone {
+        case .clear: "All clear"
+        case .warning: "Warning"
+        case .critical: "Critical"
+        case .problem: "Needs attention"
+        case .empty: nil
+        }
+    }
+
+    /// nil for ok, where the icon only repeats the text beside it.
+    static func severity(_ severity: Severity) -> String? {
+        switch severity {
+        case .ok: nil
+        case .warning: "Warning"
+        case .critical: "Critical"
+        }
+    }
+}
+
+extension View {
+    /// Reads `label` for an icon whose meaning is its color, and hides it when there is nothing to add.
+    @ViewBuilder
+    func spoken(_ label: String?) -> some View {
+        if let label { accessibilityLabel(label) } else { accessibilityHidden(true) }
     }
 }

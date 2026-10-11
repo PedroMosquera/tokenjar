@@ -9,6 +9,7 @@ struct PopoverHeader: View {
         HStack(spacing: 10) {
             toneIcon(summary.tone)
                 .frame(width: 26, alignment: .leading)
+                .spoken(PopoverSpeech.tone(summary.tone))
             VStack(alignment: .leading, spacing: 1) {
                 Text(summary.text)
                     .font(.headline)

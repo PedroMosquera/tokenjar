@@ -617,3 +617,31 @@ struct SignInCommandDisplayTests {
         #expect(!command.contains(NSHomeDirectory()))
     }
 }
+
+/// What VoiceOver reads where the popover's meaning is otherwise only visual. Not verified with VoiceOver running.
+@MainActor
+struct PopoverSpeechTests {
+    @Test func theCardMenuNamesItsAccount() {
+        #expect(PopoverSpeech.menuLabel(for: AccountConfig(id: "w", provider: .claude, label: "Work")) == "Actions for Claude Work")
+        #expect(PopoverSpeech.menuLabel(for: AccountConfig(id: "g", provider: .opencodeGo, label: "Go")) == "Actions for OpenCode Go")
+    }
+
+    @Test func theStaleBadgeSpellsTheAgeOut() {
+        #expect(PopoverSpeech.staleBadge(age: 3 * 3_600 + 5 * 60) == "Last updated 3 hours, 5 minutes ago")
+    }
+
+    @Test func theHeaderIconSaysWhatItsColorMeans() {
+        #expect(PopoverSpeech.tone(.clear) == "All clear")
+        #expect(PopoverSpeech.tone(.warning) == "Warning")
+        #expect(PopoverSpeech.tone(.critical) == "Critical")
+        #expect(PopoverSpeech.tone(.problem) == "Needs attention")
+        #expect(PopoverSpeech.tone(.empty) == nil)
+    }
+
+    /// An ok verdict icon repeats the text beside it, so only a warning or critical one is read.
+    @Test func onlyAWorryingVerdictIconIsRead() {
+        #expect(PopoverSpeech.severity(.ok) == nil)
+        #expect(PopoverSpeech.severity(.warning) == "Warning")
+        #expect(PopoverSpeech.severity(.critical) == "Critical")
+    }
+}

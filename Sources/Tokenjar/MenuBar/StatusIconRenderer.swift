@@ -86,13 +86,11 @@ enum StatusIconRenderer {
         failing.map { ", \(spokenName($0, in: state)) check failed" } ?? ""
     }
 
-    /// The provider alone names an account unless another menu bar account shares it. No middle dot: VoiceOver
-    /// reads it out.
+    /// The provider alone names an account unless another menu bar account shares it.
     private static func spokenName(_ entry: MenuBarState.Entry, in state: MenuBarState) -> String {
         let title = AccountTitle(provider: entry.provider, label: entry.label)
         let shared = state.entries.contains { $0.accountID != entry.accountID && $0.provider == entry.provider }
-        guard shared, let label = title.label else { return title.provider }
-        return "\(title.provider) \(label)"
+        return shared ? title.spokenName : title.provider
     }
 
     static func toolTip(for state: MenuBarState) -> String {

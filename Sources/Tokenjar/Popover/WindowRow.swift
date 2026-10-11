@@ -60,7 +60,7 @@ struct WindowRow: View {
     private var accessibilityValue: String {
         guard !window.notStarted else { return "not started" }
         if window.hasReset(now: now) { return "reset, updating" }
-        let countdown = Format.countdown(to: window.resetsAt, now: now).map { ", resets in \($0)" } ?? ""
+        let countdown = window.resetsAt.map { ", resets in \(Format.spokenDuration($0.timeIntervalSince(now)))" } ?? ""
         return "\(Format.percent(window.usedPercent)) used\(countdown)"
     }
 }

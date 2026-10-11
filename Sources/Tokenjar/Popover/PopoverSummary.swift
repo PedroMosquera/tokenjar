@@ -21,6 +21,8 @@ struct AccountTitle: Equatable {
     }
 
     var name: String { label.map { "\(provider) · \($0)" } ?? provider }
+    /// `name` without the middle dot, which VoiceOver can read out.
+    var spokenName: String { label.map { "\(provider) \($0)" } ?? provider }
 }
 
 /// The popover header's one-line answer: the account closest to a limit, or "All clear" with the next reset.
