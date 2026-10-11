@@ -60,10 +60,10 @@ struct GeneralSettingsPane: View {
 
             Section("Usage colors") {
                 PercentField(
-                    title: "Amber at", value: model.configBinding(\.menuBar.warnAt), range: 1...max(1, model.config.menuBar.criticalAt - 1),
+                    title: "Amber at", value: usageLevel(.warn), range: UsageLevels.warnRange,
                     note: "Bars turn amber and red at these levels in the menu bar, popover and dashboard. Alerts have their own thresholds."
                 )
-                PercentField(title: "Red at", value: model.configBinding(\.menuBar.criticalAt), range: min(100, model.config.menuBar.warnAt + 1)...100)
+                PercentField(title: "Red at", value: usageLevel(.critical), range: UsageLevels.criticalRange)
             }
 
             configFileSection
@@ -123,6 +123,21 @@ struct GeneralSettingsPane: View {
                 Text("Reads CodexBar's settings only when you click, and lists the changes before applying them. Never its keys or cookies.")
             }
         }
+    }
+
+    private func usageLevel(_ field: UsageLevels.Field) -> Binding<Int> {
+        Binding(
+            get: { field == .warn ? model.config.menuBar.warnAt : model.config.menuBar.criticalAt },
+            set: { value in
+                model.updateConfig { config in
+                    let levels = field == .warn
+                        ? UsageLevels.pushAlong(warn: value, critical: config.menuBar.criticalAt, keeping: .warn)
+                        : UsageLevels.pushAlong(warn: config.menuBar.warnAt, critical: value, keeping: .critical)
+                    config.menuBar.warnAt = levels.warn
+                    config.menuBar.criticalAt = levels.critical
+                }
+            }
+        )
     }
 
     @ViewBuilder private var launchAtLoginRow: some View {

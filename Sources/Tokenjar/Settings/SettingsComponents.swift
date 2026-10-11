@@ -105,17 +105,28 @@ struct PercentField: View {
 
     var body: some View {
         LabeledContent {
-            HStack(spacing: 4) {
-                TextField(title, value: clamped, format: .number)
-                    .labelsHidden()
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 44)
-                Text("%").foregroundStyle(.secondary)
-                Stepper(title, value: clamped, in: range).labelsHidden()
-            }
+            PercentInput(title: title, value: $value, range: range)
         } label: {
             Text(title)
             if let note { Text(note) }
+        }
+    }
+}
+
+/// The number field, % sign and stepper of every percent setting, so they line up the same in every pane.
+struct PercentInput: View {
+    var title: String
+    @Binding var value: Int
+    var range: ClosedRange<Int>
+
+    var body: some View {
+        HStack(spacing: 4) {
+            TextField(title, value: clamped, format: .number)
+                .labelsHidden()
+                .multilineTextAlignment(.trailing)
+                .frame(width: 44)
+            Text("%").foregroundStyle(.secondary)
+            Stepper(title, value: clamped, in: range).labelsHidden()
         }
     }
 
@@ -124,13 +135,53 @@ struct PercentField: View {
     }
 }
 
+/// Amber at and Red at. Red stays above amber: moving one onto or past the other pushes the other along instead of
+/// refusing the value the user typed.
+enum UsageLevels {
+    enum Field { case warn, critical }
+
+    struct Levels: Equatable {
+        var warn: Int
+        var critical: Int
+    }
+
+    static let warnRange = 1...99
+    static let criticalRange = 2...100
+
+    /// `kept` is the level the user just set; the other one moves if it has to.
+    static func pushAlong(warn: Int, critical: Int, keeping kept: Field = .warn) -> Levels {
+        switch kept {
+        case .warn:
+            let warn = warn.clamped(to: warnRange)
+            return Levels(warn: warn, critical: max(critical.clamped(to: criticalRange), warn + 1))
+        case .critical:
+            let critical = critical.clamped(to: criticalRange)
+            return Levels(warn: min(warn.clamped(to: warnRange), critical - 1), critical: critical)
+        }
+    }
+}
+
+private extension Int {
+    func clamped(to range: ClosedRange<Int>) -> Int { Swift.min(Swift.max(self, range.lowerBound), range.upperBound) }
+}
+
 struct ThresholdRows: View {
     var values: [Int]
     /// Shown under Add threshold, the row that sets them.
     var note: String?
     var onChange: ([Int]) -> Void
 
-    @SettingsState private var candidate = 90
+    /// nil until the user edits the field: the field then shows `seed(after:)`, so Add starts enabled.
+    @SettingsState private var typed: Int?
+
+    /// The first of 90 and 50 not listed yet, else the middle of the widest gap between listed values (0 and 100 as
+    /// its ends). nil only when every value is listed.
+    static func seed(after values: [Int]) -> Int? {
+        if let preferred = [90, 50].first(where: { !values.contains($0) }) { return preferred }
+        let points = [0] + Array(Set(values.filter(SettingsLogic.thresholdRange.contains))).sorted() + [SettingsLogic.thresholdRange.upperBound + 1]
+        let widest = zip(points, points.dropFirst()).filter { $1 - $0 >= 2 }.max { a, b in a.1 - a.0 < b.1 - b.0 }
+        return widest.map { ($0 + $1) / 2 }
+    }
 
     var body: some View {
         ForEach(values, id: \.self) { value in
@@ -142,21 +193,23 @@ struct ThresholdRows: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Remove \(value)%")
+                .accessibilityLabel("Remove \(value)% threshold")
             }
         }
         if values.isEmpty {
             Text("No thresholds").foregroundStyle(.secondary)
         }
+        let candidate = typed ?? Self.seed(after: values) ?? SettingsLogic.thresholdRange.upperBound
+        let isListed = values.contains(candidate)
         LabeledContent {
-            HStack(spacing: 6) {
-                TextField("Threshold", value: $candidate, format: .number)
-                    .labelsHidden()
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 44)
-                Text("%").foregroundStyle(.secondary)
-                Stepper("Threshold", value: $candidate, in: SettingsLogic.thresholdRange).labelsHidden()
-                Button("Add") { onChange(SettingsLogic.normalizedThresholds(values + [candidate])) }
-                    .disabled(values.contains(candidate) || !SettingsLogic.thresholdRange.contains(candidate))
+            HStack(spacing: 8) {
+                PercentInput(title: "Threshold", value: Binding(get: { candidate }, set: { typed = $0 }), range: SettingsLogic.thresholdRange)
+                Button("Add") {
+                    onChange(SettingsLogic.normalizedThresholds(values + [candidate]))
+                    typed = nil
+                }
+                .disabled(isListed)
+                .help(isListed ? "Already in the list" : "")
             }
         } label: {
             Text("Add threshold")
