@@ -281,6 +281,58 @@ struct ConfigStoreTests {
         #expect(try JSONDecoder().decode(AppConfig.self, from: Data(contentsOf: paths.configFile)) == expected)
     }
 
+    @Test func anAccountEditKeepsLocalOnlyAccountsOutOfConfigJSON() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"{"accounts": [{"id": "claude", "provider": "claude", "label": "Personal"}]}"#, to: paths.configFile)
+        try write(#"{"accounts": [{"id": "claude-work", "provider": "claude", "label": "Work", "profileDir": "~/.claude-work"}]}"#, to: paths.localConfigFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        edited.accounts[0].label = "Home"
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        let shared = try JSONDecoder().decode(AppConfig.self, from: Data(contentsOf: paths.configFile))
+        #expect(shared.accounts.map(\.id) == ["claude"])
+        #expect(shared.accounts[0].label == "Home")
+    }
+
+    enum AccountEdit: String, CaseIterable, Sendable {
+        case renameShared, renameLocalOnly, moveLocalOnlyFirst, addAccount, removeShared
+
+        func apply(_ accounts: inout [AccountConfig]) {
+            switch self {
+            case .renameShared: accounts[0].label = "Renamed"
+            case .renameLocalOnly: accounts[2].label = "Renamed"
+            case .moveLocalOnlyFirst: accounts.insert(accounts.removeLast(), at: 0)
+            case .addAccount: accounts.append(AccountConfig(id: "codex-2", provider: .codex, label: "Second"))
+            case .removeShared: accounts.remove(at: 1)
+            }
+        }
+    }
+
+    /// merge appends accounts that exist only in config.local.json, so they load last whatever order a save wrote.
+    @Test(arguments: AccountEdit.allCases)
+    func aLocalOnlyAccountStaysLastAfterAnyEditAndReload(_ edit: AccountEdit) throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"{"accounts": [{"id": "claude", "provider": "claude"}, {"id": "codex", "provider": "codex"}]}"#, to: paths.configFile)
+        try write(#"{"accounts": [{"id": "claude-work", "provider": "claude", "profileDir": "~/.claude-work"}]}"#, to: paths.localConfigFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        edit.apply(&edited.accounts)
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        let reloaded = try #require(try store.load())
+        #expect(reloaded.merged.accounts.last?.id == "claude-work")
+        #expect(!reloaded.base.accounts.contains { $0.id == "claude-work" })
+    }
+
     @Test func aConfigWithoutTheNewKeysLoadsTheDefaults() throws {
         let config = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"alerts": {"thresholds": [70]}, "accounts": []}"#.utf8))
         #expect(config.alerts.thresholds == [70])

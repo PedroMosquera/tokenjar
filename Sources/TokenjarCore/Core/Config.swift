@@ -264,8 +264,11 @@ public struct ConfigStore: Sendable {
         if old.accounts != new.accounts {
             let oldByID = Dictionary(old.accounts.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             let baseByID = Dictionary(base.accounts.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-            out.accounts = new.accounts.map { account in
-                guard let before = oldByID[account.id], let shared = baseByID[account.id] else { return account }
+            // An account only config.local.json holds stays out: config.json reaches every Mac, and merge appends such
+            // an account after the shared ones on each load anyway.
+            out.accounts = new.accounts.compactMap { account in
+                guard let before = oldByID[account.id] else { return account }
+                guard let shared = baseByID[account.id] else { return nil }
                 return Self.applyEditedFields(from: before, to: account, onto: shared)
             }
             // Accounts that exist only in base (hidden by a local override) are kept.

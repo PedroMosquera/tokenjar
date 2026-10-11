@@ -82,7 +82,7 @@ The default `~/.claude` (or `~/.codex`) can be a different login on each Mac: a 
 }
 ```
 
-The plan pill comes from the login itself, so it reads Max on one Mac and Enterprise on the other. A local entry whose `id` is not in `config.json` adds an account, and then needs `provider` too. The next time you add, remove or edit any account in Settings, that account is copied into `config.json`, so put accounts in `config.json` when you can.
+The plan pill comes from the login itself, so it reads Max on one Mac and Enterprise on the other. A local entry whose `id` is not in `config.json` adds an account, and then needs `provider` too. Such an account stays on this Mac: it is listed after the accounts in `config.json`, Settings never writes it to `config.json`, and a Settings edit to it lasts only until the next reload, so change it in `config.local.json`.
 
 Claude, Codex and GitHub Copilot accounts whose profile folder is missing on a Mac (for Copilot, gh's config folder, `~/.config/gh` by default), OpenCode Go accounts whose credential file (else opencode's default `auth.json`) is missing, and OpenCode Zen accounts without an `opencode.db` are hidden there (Settings lists them as "Not on this Mac"), so one shared file can list `~/.claude-work` and still work on another Mac. Antigravity, Devin and accounts with a pasted API key have no file to check; turn one off on a single Mac with `"enabled": false` in that Mac's `config.local.json`.
 
