@@ -90,8 +90,8 @@ struct FixtureShapeTests {
     }
 
     /// One finding per line that holds an email outside example.invalid, a key prefix followed by real-looking text, a
-    /// UUID that is not a placeholder, or a home folder that is not `/Users/placeholder`. Values are left out, so a real
-    /// secret never lands in the test log.
+    /// UUID that is not a placeholder, or a home folder other than `/Users/placeholder`, which the checksum-pinned
+    /// `codex/rollout-session-meta-local-oss.jsonl` holds. Values are left out, so a real secret never lands in a log.
     static func secretFindings(in text: String) -> [String] {
         let email = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
         let key = /(sk-ant-|ghp_|gho_|oc_sk_)[A-Za-z0-9_-]{16,}/
