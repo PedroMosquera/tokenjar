@@ -25,7 +25,9 @@ final class AppModel {
         var closePopover: () -> Void = {}
     }
 
-    var config = AppConfig()
+    var config = AppConfig() {
+        didSet { refreshAccounts() }
+    }
     private(set) var baseConfig = AppConfig()
     var hasLocalOverrides = false
     /// The one banner the popover and Settings show: a config problem first, else a history database problem.
@@ -55,7 +57,11 @@ final class AppModel {
     @ObservationIgnored var priceTable = PriceTable()
     @ObservationIgnored var notifications: NotificationManager?
     /// Set by `AppModel.preview()`: shows every configured account regardless of what exists on this Mac.
-    @ObservationIgnored var previewMode = false
+    @ObservationIgnored var previewMode = false {
+        didSet { refreshAccounts() }
+    }
+    /// Whether what an account reads exists on this Mac. Tests replace it.
+    @ObservationIgnored var isAvailable: (AccountConfig) -> Bool
     /// Set by `loadReadOnly`: this Mac's settings and history, shown without saving, fetching, scanning or asking macOS.
     @ObservationIgnored private(set) var readOnly = false
     /// What General shows for launch at login. Window renders replace it so they never ask macOS.
@@ -90,11 +96,17 @@ final class AppModel {
         self.paths = paths
         self.fetcher = fetcher
         self.clock = clock
+        isAvailable = { AccountDiscovery.isAvailable($0, paths: paths) }
     }
 
-    /// Accounts to show on this Mac: enabled, and with their profile dir or credential present.
-    var accounts: [AccountConfig] {
-        config.accounts.filter { $0.enabled && (previewMode || AccountDiscovery.isAvailable($0, paths: paths)) }
+    /// Accounts to show on this Mac: enabled, and with their profile dir or credential present. Views read this many
+    /// times per render, so it is kept rather than computed with a stat per account; it is redone when the config
+    /// changes and on every tick, which picks up a profile folder that appears or goes away.
+    private(set) var accounts: [AccountConfig] = []
+
+    private func refreshAccounts() {
+        let visible = config.accounts.filter { $0.enabled && (previewMode || isAvailable($0)) }
+        if visible != accounts { accounts = visible }
     }
 
     func status(for account: AccountConfig) -> AccountStatus {
@@ -174,6 +186,7 @@ final class AppModel {
     func tick() -> Task<Void, Never>? {
         now = clock()
         guard !sleeping else { return nil }
+        refreshAccounts()
         reloadConfigIfChanged()
         let fetches = refresh(force: false)
         if RefreshScheduler.shouldScan(lastScanAt: lastScanAt, now: now) { scanHistory() }
