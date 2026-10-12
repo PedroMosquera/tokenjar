@@ -359,7 +359,7 @@ struct ClaudeUsageFetcherTests {
         #expect(snapshot.plan == "Max 20x")
         #expect(snapshot.windows.map(\.id) == ["session", "weekly", "weekly:Fable"])
         #expect(snapshot.windows.map(\.usedPercent) == [30, 40, 10])
-        #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 25, limit: 50, currency: "USD")])
+        #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 25.5, limit: 50, currency: "GBP")])
         #expect(snapshot.notes == ["Can't find the claude command on this Mac. Showing the last values Claude Code saved."])
     }
 
