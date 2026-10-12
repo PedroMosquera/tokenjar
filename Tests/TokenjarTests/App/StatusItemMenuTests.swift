@@ -10,6 +10,7 @@ struct StatusItemMenuTests {
         func openDashboard(_ sender: Any?) { calls.append("dashboard") }
         func openSettings(_ sender: Any?) { calls.append("settings") }
         func requestQuit(_ sender: Any?) { calls.append("quit") }
+        func quitWithoutAsking(_ sender: Any?) { calls.append("quit without asking") }
     }
 
     private struct Entry: Equatable, CustomStringConvertible {
@@ -55,7 +56,7 @@ struct StatusItemMenuTests {
         StatusItemMenu.make(hasAccounts: hasAccounts, target: delegate).items.map { Entry($0, delegate: delegate) }
     }
 
-    /// Option turns "Quit Tokenjar..." into "Quit Tokenjar", which goes straight to NSApp and quits without asking.
+    /// Option turns "Quit Tokenjar..." into "Quit Tokenjar", which quits without asking.
     @Test func withAccountsTheMenuRefreshesOpensTheWindowsAndQuits() {
         #expect(entries(hasAccounts: true) == [
             Entry("Refresh Now", "refreshNow:", .delegate),
@@ -63,7 +64,7 @@ struct StatusItemMenuTests {
             Entry("Settings\u{2026}", "openSettings:", .delegate),
             .separator,
             Entry("Quit Tokenjar\u{2026}", "requestQuit:", .delegate),
-            Entry("Quit Tokenjar", "terminate:", .app, alternate: .option),
+            Entry("Quit Tokenjar", "quitWithoutAsking:", .delegate, alternate: .option),
         ])
     }
 
@@ -74,7 +75,7 @@ struct StatusItemMenuTests {
             Entry("Settings\u{2026}", "openSettings:", .delegate),
             .separator,
             Entry("Quit Tokenjar\u{2026}", "requestQuit:", .delegate),
-            Entry("Quit Tokenjar", "terminate:", .app, alternate: .option),
+            Entry("Quit Tokenjar", "quitWithoutAsking:", .delegate, alternate: .option),
         ])
     }
 
@@ -90,13 +91,13 @@ struct StatusItemMenuTests {
         #expect(items.allSatisfy { $0.keyEquivalent.isEmpty && $0.image == nil })
     }
 
-    /// The alternate is left out: it would quit the test run. An item aimed anywhere but the test's delegate is
-    /// recorded, not sent, since a terminate: that got through would end the run with exit code 0.
+    /// An item aimed anywhere but the test's delegate is recorded, not sent, since a terminate: that got through would
+    /// end the run with exit code 0.
     @Test func eachItemReachesItsTarget() {
         let menu = StatusItemMenu.make(hasAccounts: true, target: delegate)
         let refusal = RefusesToQuit()
         refusal.whileInstalled {
-            for item in menu.items where !item.isSeparatorItem && !item.isAlternate {
+            for item in menu.items where !item.isSeparatorItem {
                 guard item.target === delegate, let action = item.action else {
                     Issue.record("\(item.title) sends \(String(describing: item.action)) to \(String(describing: item.target))")
                     continue
@@ -105,6 +106,6 @@ struct StatusItemMenuTests {
             }
         }
         #expect(!refusal.wasAsked)
-        #expect(delegate.calls == ["refresh", "dashboard", "settings", "quit"])
+        #expect(delegate.calls == ["refresh", "dashboard", "settings", "quit", "quit without asking"])
     }
 }

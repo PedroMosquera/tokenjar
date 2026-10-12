@@ -175,6 +175,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
         }
     }
 
+    @objc func quitWithoutAsking(_ sender: Any?) {
+        NSApp.terminate(sender)
+    }
+
     private func askToQuit() {
         // An accessory app's alert would otherwise open behind the frontmost app.
         NSApp.activate()
