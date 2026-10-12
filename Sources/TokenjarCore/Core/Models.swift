@@ -70,6 +70,15 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         }
     }
 
+    /// Whether a check of this provider's account contacts a server, directly or through its CLI. Answers a different
+    /// question from `reportsWindows`, though the values match today: a Zen balance check would split them.
+    public var checkUsesNetwork: Bool {
+        switch self {
+        case .opencodeZen, .devin: false
+        case .claude, .codex, .opencodeGo, .antigravity, .copilot: true
+        }
+    }
+
     /// The harness whose local logs feed this provider's history, if any.
     public var harness: Harness? {
         switch self {
@@ -230,6 +239,25 @@ public struct MoneyLine: Codable, Hashable, Sendable {
     }
 }
 
+/// Why the live check failed when a snapshot is the provider's own saved copy. Stored with the snapshot, so the raw
+/// values are permanent; a value from a newer build decodes as `.other` rather than failing the whole row.
+public enum LiveCheckFailure: String, Codable, Sendable {
+    case network, timeout, other
+
+    public init(from decoder: Decoder) throws {
+        self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .other
+    }
+
+    /// A small stable enum rather than `FetchError`, whose cases may change without breaking stored rows.
+    public init(_ error: FetchError) {
+        switch error {
+        case .network: self = .network
+        case .timeout: self = .timeout
+        default: self = .other
+        }
+    }
+}
+
 /// How the account itself pays for use. `CostLine` reads it, so it decides who sees a dollar estimate.
 public enum Billing: String, Codable, CaseIterable, Sendable {
     case free
@@ -257,10 +285,12 @@ public struct UsageSnapshot: Codable, Hashable, Sendable {
     public var source: String
     /// Plain-language notes, e.g. "No plan limits for this login". Never raw errors, emails or ids.
     public var notes: [String]
+    /// nil for a live answer; set when this is the provider's saved copy, shown because the live check failed.
+    public var liveCheckFailure: LiveCheckFailure?
 
     public init(
         accountID: String, provider: ProviderID, plan: String? = nil, billing: Billing? = nil, windows: [UsageWindow] = [],
-        money: [MoneyLine] = [], fetchedAt: Date, source: String, notes: [String] = []
+        money: [MoneyLine] = [], fetchedAt: Date, source: String, notes: [String] = [], liveCheckFailure: LiveCheckFailure? = nil
     ) {
         self.accountID = accountID
         self.provider = provider
@@ -271,6 +301,7 @@ public struct UsageSnapshot: Codable, Hashable, Sendable {
         self.fetchedAt = fetchedAt
         self.source = source
         self.notes = notes
+        self.liveCheckFailure = liveCheckFailure
     }
 
     /// The window with the highest used %, ties broken by the sooner reset.

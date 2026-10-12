@@ -144,6 +144,39 @@ struct CodexUsageFetcherTests {
         #expect(connection.terminated)
     }
 
+    /// The logged copy looks like a live answer except for its note, so the snapshot itself says why it stands in: an
+    /// offline Mac and a missing CLI must not read alike.
+    @Test(.timeLimit(.minutes(1)))
+    func aLoggedCopyRecordsWhyTheLiveCheckFailed() async throws {
+        let temp = try CodexTempDirectory()
+        try temp.copyFixture("rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-a.jsonl")
+        let at = Date.codexFixture("2026-10-09T10:30:00Z")
+        let rpcFailure = RecordingCodexLauncher(.answering(
+            rateLimits: #"{"id":2,"error":{"code":-32603,"message":"failed to fetch codex rate limits: placeholder"}}"#
+        ))
+        let silent = RecordingCodexLauncher(ScriptedCodexConnection(replies: ["initialize": [#"{"id":1,"result":{}}"#]]))
+        let binary = try temp.fakeCodexBinary()
+
+        let network = try await CodexUsageFetcher(launcher: rpcFailure).fetch(account(temp), context: context(temp, binary: binary, now: at))
+        let timeout = try await CodexUsageFetcher(launcher: silent, timeout: 0.2).fetch(account(temp), context: context(temp, binary: binary, now: at))
+        let missing = try await CodexUsageFetcher(launcher: RecordingCodexLauncher(.answering(rateLimits: "{}"))).fetch(account(temp), context: context(temp, binary: nil, now: at))
+
+        #expect([network, timeout, missing].map(\.source) == Array(repeating: CodexRollouts.sessionLogSource, count: 3))
+        #expect(network.liveCheckFailure == .network)
+        #expect(timeout.liveCheckFailure == .timeout)
+        #expect(missing.liveCheckFailure == .other)
+    }
+
+    @Test func aLiveAnswerHasNoLiveCheckFailure() async throws {
+        let temp = try CodexTempDirectory()
+        let launcher = RecordingCodexLauncher(.answering(rateLimits: try CodexFixtures.line("rate-limits-plus.json")))
+
+        let snapshot = try await CodexUsageFetcher(launcher: launcher).fetch(account(temp), context: context(temp, binary: try temp.fakeCodexBinary()))
+
+        #expect(snapshot.source == "codex app-server")
+        #expect(snapshot.liveCheckFailure == nil)
+    }
+
     @Test func fallbackPicksTheNewestLogThatHasLimits() throws {
         let temp = try CodexTempDirectory()
         let home = temp.url.appending(path: "codex-home")

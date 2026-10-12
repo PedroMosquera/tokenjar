@@ -30,6 +30,21 @@ private final class FakeClaude: ProcessRunning, @unchecked Sendable {
 
     var calls: [Call] { lock.withLock { recorded } }
 
+    /// The ways a run can fail that make the fetcher fall back to Claude Code's cache.
+    enum Case: CustomTestStringConvertible, Sendable {
+        case timeout, unrecognized, missingCLI
+
+        var runner: FakeClaude {
+            switch self {
+            case .timeout: FakeClaude(timedOut: true)
+            case .unrecognized: FakeClaude(stdout: Data("Error: something went wrong\n".utf8), exitCode: 1)
+            case .missingCLI: FakeClaude()
+            }
+        }
+
+        var testDescription: String { "\(self)" }
+    }
+
     func run(
         _ executable: URL, arguments: [String], environment: [String: String],
         currentDirectory: URL?, stdin: Data?, timeout: TimeInterval, outputLimit: Int
@@ -417,6 +432,35 @@ struct ClaudeUsageFetcherTests {
 
         #expect(snapshot.source == "Claude Code cache")
         #expect(!snapshot.notes.contains("No plan limits for this login"))
+    }
+
+    /// The cache looks like a live answer except for its note, so the snapshot itself says why it stands in: an offline
+    /// Mac and a broken CLI must not read alike.
+    @Test(arguments: [
+        (FakeClaude.Case.timeout, LiveCheckFailure.timeout),
+        (.unrecognized, .other),
+        (.missingCLI, .other),
+    ])
+    fileprivate func aSavedCopyRecordsWhyTheLiveCheckFailed(_ run: FakeClaude.Case, _ expected: LiveCheckFailure) async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("claude-json-max.json", as: ".claude.json")
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(run.runner, cli: run == .missingCLI ? "/nonexistent/claude" : "/bin/sh", now: now))
+
+        #expect(snapshot.source == ClaudeUsageFetcher.cacheSource)
+        #expect(snapshot.liveCheckFailure == expected)
+    }
+
+    @Test func aLiveAnswerHasNoLiveCheckFailure() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("claude-json-max.json", as: ".claude.json")
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeClaude(stdout: try fixture("stream-plan-limits.jsonl")), now: now))
+
+        #expect(snapshot.source == ClaudeUsageFetcher.source)
+        #expect(snapshot.liveCheckFailure == nil)
     }
 
     @Test func unrecognizedOutputIsAParseError() async throws {

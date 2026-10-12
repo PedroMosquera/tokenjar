@@ -28,7 +28,7 @@ public struct ClaudeUsageFetcher: UsageFetcher {
             return UsageSnapshot(
                 accountID: account.id, provider: .claude, plan: config?.plan, windows: cached.windows, money: cached.money,
                 fetchedAt: cached.fetchedAt, source: Self.cacheSource,
-                notes: ["\(error.userMessage) Showing the last values Claude Code saved."]
+                notes: ["\(error.userMessage) Showing the last values Claude Code saved."], liveCheckFailure: LiveCheckFailure(error)
             )
         }
 
