@@ -6,8 +6,8 @@ numbers in them are made up. Where no real answer could be captured, the fixture
   `usage-camel.json` and `usage-snake.json` follow the field names of CodexBar's agy test fixture.
   `enterprise-no-quota.stdout.json`, `renamed-groups-envelope.stdout.json` and `model-turn.stdout.json` are copies of
   the synthetic envelopes in `Plans/antigravity/`.
-- `Copilot/`: the fixtures follow the shape of gh's filtered answer. Most Copilot
-  plans have not been probed, so their fixtures follow the shapes VS Code's Copilot extension and CodexBar read.
+- `Copilot/`: the fixtures follow the shape of gh's filtered answer. Most Copilot plans have not been checked against a
+  real account, so their fields follow what VS Code's Copilot extension and CodexBar read.
 - `Plans/`: fixtures for each plan and account state a provider can report, all mocked. Each provider folder has a
   `manifest.json` that lists its cases, and a `recorded` case reads its captures from the folders above. A case's
   `confidence` is `recorded` when every input it names has the shape of a real answer, `documented` when its shape

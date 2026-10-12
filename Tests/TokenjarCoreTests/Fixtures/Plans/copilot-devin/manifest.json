@@ -261,7 +261,7 @@
   {
     "id": "copilot.enterprise",
     "provider": "copilot",
-    "confidence": "recorded",
+    "confidence": "documented",
     "inputs": {
       "filtered": "fixtures:Copilot/user-enterprise.json"
     }

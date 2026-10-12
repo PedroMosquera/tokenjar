@@ -1,6 +1,6 @@
 # Tokenjar design
 
-Tokenjar is a personal macOS menu bar app that answers one question at a glance: how much room is left on each AI subscription before the next limit, and will the current pace run out before the window resets.
+Tokenjar is a macOS menu bar app that answers one question at a glance: how much room is left on each AI subscription before the next limit, and will the current pace run out before the window resets.
 
 It is an alternative to CodexBar that you build from source, so no third-party binary handles your AI credentials.
 
