@@ -4,7 +4,7 @@ import Testing
 
 @MainActor
 struct PopoverLogTests {
-    private final class Count: @unchecked Sendable {
+    private final class Count {
         var value = 0
     }
 
@@ -15,7 +15,10 @@ struct PopoverLogTests {
         let window = NSObject()
         let count = Count()
         let observe = {
-            NotificationCenter.default.addObserver(forName: name, object: window, queue: nil) { _ in count.value += 1 }
+            // A nil queue runs the block on the posting thread, and every post below comes from the main actor.
+            NotificationCenter.default.addObserver(forName: name, object: window, queue: nil) { _ in
+                MainActor.assumeIsolated { count.value += 1 }
+            }
         }
 
         delegate.popoverFrameObservers = [observe()]
