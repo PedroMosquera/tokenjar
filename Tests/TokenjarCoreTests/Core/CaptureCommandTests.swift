@@ -158,6 +158,21 @@ final class CaptureCommandTests {
         #expect(message.contains("1.1.11"))
     }
 
+    /// The fetcher keeps agy's arguments and timeouts inline, with no constant the capture could reuse, so this is what
+    /// stops the two from drifting apart.
+    @Test func agyCaptureRunsWhatTheFetcherRuns() async throws {
+        let answers = [output("agy 1.3.0\n"), output(#"{"command":{"data":{"groups":[]}}}"#)]
+        runner.answers = answers
+        _ = try await AntigravityUsageFetcher().fetch(account(.antigravity), context: context())
+        runner.answers = answers
+
+        _ = try document(await capture(.antigravity))
+
+        let calls = runner.calls
+        #expect(calls.count == 4)
+        #expect(Array(calls.suffix(2)) == Array(calls.prefix(2)))
+    }
+
     @Test func agyStderrBecomesPhraseHitsOnly() async throws {
         runner.answers = [
             output("agy 1.3.0\n"),
@@ -290,12 +305,13 @@ private func output(_ stdout: String, stderr: String = "", exitCode: Int32 = 0) 
 
 /// Answers each run with the next of `answers` (an empty success once they run out) and records the call.
 final class ScriptedRunner: ProcessRunning, @unchecked Sendable {
-    struct Call {
+    struct Call: Equatable {
         var executable: URL
         var arguments: [String]
         var environment: [String: String]
         var currentDirectory: URL?
         var timeout: TimeInterval
+        var outputLimit: Int
     }
 
     private let lock = NSLock()
@@ -314,7 +330,7 @@ final class ScriptedRunner: ProcessRunning, @unchecked Sendable {
         currentDirectory: URL?, stdin: Data?, timeout: TimeInterval, outputLimit: Int
     ) async throws -> ProcessResult {
         lock.withLock {
-            recorded.append(Call(executable: executable, arguments: arguments, environment: environment, currentDirectory: currentDirectory, timeout: timeout))
+            recorded.append(Call(executable: executable, arguments: arguments, environment: environment, currentDirectory: currentDirectory, timeout: timeout, outputLimit: outputLimit))
             return queued.isEmpty ? ProcessResult(exitCode: 0, stdout: Data(), stderr: Data(), timedOut: false) : queued.removeFirst()
         }
     }
