@@ -41,9 +41,10 @@ curl -sSf https://cdn.jsdelivr.net/npm/simple-icons@16.32.0/icons/claude.svg | s
 ## License and trademarks
 
 - The simple-icons collection is released under **CC0 1.0** (`LICENSE.md` in the package). Its `DISCLAIMER.md` notes that CC0 for the collection does not mean every icon is CC0.
+- `copilot.svg` is one of those exceptions: simple-icons takes it from Primer Octicons' `copilot-24` icon and lists it under the MIT License, so the Octicons notice ships in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 - The marks are **trademarks of their owners**: Claude (Anthropic), OpenAI, OpenCode, Google Gemini (Google), GitHub Copilot (GitHub) and Windsurf. CC0 covers the SVG drawing, not the trademark.
-- These logos are here for **personal, non-distributed use only**: a menu bar app built from source for one user.
-- **Do not publish this repository, or a build of it, with these logos** without first checking each brand's guidelines. simple-icons lists OpenAI's at https://openai.com/brand and Windsurf's at https://windsurf.com/brand. It lists no guidelines URL for Claude, OpenCode, Google Gemini or GitHub Copilot; GitHub's own logo page is https://github.com/logos. Check each owner's site.
+- The repository is published with these logos, used only to identify each provider. [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) holds the licenses and the trademark notice, and the repository's own MIT License does not cover the logos.
+- Brand guidelines: simple-icons lists OpenAI's at https://openai.com/brand and Windsurf's at https://windsurf.com/brand, and GitHub's logo page is https://github.com/logos. simple-icons lists no guidelines URL for Claude, OpenCode or Google Gemini.
 
 ## Marks
 
