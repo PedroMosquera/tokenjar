@@ -82,6 +82,20 @@ struct CLILocatorTests {
         #expect(locator.locate("claude")?.path == home.appending(path: "tools/claude").path)
     }
 
+    /// config.json syncs between Macs, so a `cliPaths` entry set on one Mac can name a path that does not exist here.
+    @Test func aMissingOverrideFallsBackToTheSearch() throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let found = home.appending(path: "fake-bin/claude")
+        try makeExecutable(found)
+
+        let locator = CLILocator(
+            home: home, overrides: ["claude": home.appending(path: "other-mac/claude").path], searchDirectories: [found.deletingLastPathComponent()]
+        )
+
+        #expect(locator.locate("claude")?.path == found.path)
+    }
+
     /// Every test that means "not installed" relies on this: /usr/bin/env exists on every Mac and /usr/bin is a
     /// standard folder, so only an honored list keeps it out.
     @Test func aFakeSearchFolderIsHonored() throws {

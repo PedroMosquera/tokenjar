@@ -32,11 +32,13 @@ public struct CLILocator: Sendable {
         ]
     }
 
+    /// An override wins only when it is an executable on this Mac. config.json syncs between Macs, so an entry set on
+    /// another one must not make the CLI read as missing here when the search would find it.
     public func locate(_ name: String) -> URL? {
         let fm = FileManager.default
         if let override = overrides[name] {
             let url = URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
-            return fm.isExecutableFile(atPath: url.path) ? url : nil
+            if fm.isExecutableFile(atPath: url.path) { return url }
         }
         return searchDirectories
             .map { $0.appending(path: name) }
