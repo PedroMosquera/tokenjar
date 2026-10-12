@@ -15,16 +15,16 @@
         {
           "kind": "session",
           "group": "session",
-          "percent": 17,
+          "percent": 30,
           "severity": "normal",
-          "resets_at": "2026-10-10T22:20:00+00:00",
+          "resets_at": "2026-10-10T22:30:00+00:00",
           "scope": null,
           "is_active": true
         },
         {
           "kind": "weekly_all",
           "group": "weekly",
-          "percent": 14,
+          "percent": 40,
           "severity": "normal",
           "resets_at": "2026-10-12T09:00:00+00:00",
           "scope": null,
