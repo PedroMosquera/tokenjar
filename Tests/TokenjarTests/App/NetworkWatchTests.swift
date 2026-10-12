@@ -100,6 +100,44 @@ struct NetworkWatchTests {
         #expect(watch.settle(at: at(80)) == .wentOffline)
     }
 
+    /// A check started offline can answer after the path is back. That proves nothing new, and the return still owes
+    /// every account a check.
+    @Test func anAnswerAfterThePathIsBackKeepsTheReturn() {
+        var watch = NetworkWatch()
+        _ = watch.report(.unusable, at: at(0))
+        _ = watch.settle(at: at(10))
+        _ = watch.report(.usable, at: at(20))
+        watch.trustAnswers()
+        #expect(watch.isOffline)
+        #expect(watch.settle(at: at(23)) == .cameBackOnline)
+    }
+
+    /// A lifted hold clears the slash at once, but the outage still pushed accounts a full interval out.
+    @Test func aReturnAfterALiftedHoldStillChecksEveryAccount() {
+        var watch = NetworkWatch()
+        _ = watch.report(.unusable, at: at(0))
+        _ = watch.settle(at: at(10))
+        watch.trustAnswers()
+        #expect(watch.report(.usable, at: at(20)) == nil)
+        #expect(!watch.isOffline)
+        #expect(watch.settle(at: at(23)) == .cameBackOnline)
+        #expect(!watch.isOffline)
+    }
+
+    /// Time asleep is not time awake without a network, in either direction: each settle starts again at wake.
+    @Test func wakeRestartsTheSettle() {
+        var watch = NetworkWatch()
+        _ = watch.report(.unusable, at: at(0))
+        watch.restart(at: at(3_600))
+        #expect(watch.settle(at: at(3_600)) == nil)
+        #expect(watch.settle(at: at(3_610)) == .wentOffline)
+
+        _ = watch.report(.usable, at: at(3_620))
+        watch.restart(at: at(7_200))
+        #expect(watch.settle(at: at(7_200)) == nil)
+        #expect(watch.settle(at: at(7_203)) == .cameBackOnline)
+    }
+
     @Test func pathStatusMapsToUsability() {
         #expect(PathMonitorNetworkStatus.usability(of: .satisfied) == .usable)
         #expect(PathMonitorNetworkStatus.usability(of: .requiresConnection) == .usable)
@@ -136,8 +174,10 @@ struct ConnectivityTests {
         checked(snapshot: UsageSnapshot(accountID: account.id, provider: account.provider, fetchedAt: at(0), source: "test"))
     }
 
-    private func make(_ watch: NetworkWatch, _ accounts: [AccountConfig], _ statuses: [String: AccountStatus], latched: Set<String> = []) -> Connectivity {
-        Connectivity.make(watch: watch, accounts: accounts, statuses: statuses, isLatched: { latched.contains($0) })
+    private func make(
+        _ watch: NetworkWatch, _ accounts: [AccountConfig], _ statuses: [String: AccountStatus], latched: Set<String> = [], previous: Connectivity = .online
+    ) -> Connectivity {
+        Connectivity.make(watch: watch, accounts: accounts, statuses: statuses, isLatched: { latched.contains($0) }, previous: previous)
     }
 
     /// Zen reads a local database and Devin is a link: nothing such a setup shows depends on the network.
@@ -181,6 +221,32 @@ struct ConnectivityTests {
         #expect(make(online(), [claude, copilot, go], statuses) == .online)
         // Zen answers without the network, so it proves nothing.
         #expect(make(online(), [claude, copilot, zen], statuses.merging(["zen": live(zen)]) { $1 }) == .noAnswer)
+    }
+
+    /// A 429 is the provider's own answer, so the connection to it works.
+    @Test func aRateLimitIsAnAnswer() {
+        let statuses = ["claude": checked(.timeout), "copilot": checked(.network("dial tcp")), "go": checked(.rateLimited(retryAfter: 600))]
+        #expect(make(online(), [claude, copilot, go], statuses) == .online)
+    }
+
+    /// A check that failed before the path last came back says nothing about the network now.
+    @Test func onlyResultsSinceThePathCameBackCount() {
+        var watch = online()
+        _ = watch.report(.unusable, at: at(1))
+        _ = watch.report(.usable, at: at(4))
+        let before = ["claude": checked(.timeout), "copilot": checked(.network("dial tcp"))]
+        #expect(make(watch, [claude, copilot], before) == .online)
+        let since = ["claude": AccountStatus(error: .timeout, lastAttempt: at(4)), "copilot": AccountStatus(error: .network("dial tcp"), lastAttempt: at(9))]
+        #expect(make(watch, [claude, copilot], since) == .noAnswer)
+    }
+
+    /// A drop too short to call offline decides nothing, so a flapping path neither sets nor clears what is shown.
+    @Test func aBlipKeepsWhatWasShown() {
+        var watch = online()
+        _ = watch.report(.unusable, at: at(1))
+        let failed = ["claude": checked(.timeout), "copilot": checked(.network("dial tcp"))]
+        #expect(make(watch, [claude, copilot], failed, previous: .noAnswer) == .noAnswer)
+        #expect(make(watch, [claude, copilot], failed, previous: .online) == .online)
     }
 
     /// The store's snapshot at launch may be a saved copy from an earlier launch, which says nothing about now. The

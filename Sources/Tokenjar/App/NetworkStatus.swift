@@ -9,7 +9,6 @@ enum NetworkPath: Equatable {
 protocol NetworkStatus: AnyObject {
     /// Reports the current path soon after the call, then every change, on the main actor.
     func start(onChange: @escaping @MainActor (NetworkPath) -> Void)
-    func stop()
 }
 
 /// Reads only the path's status: interface names, addresses, Wi-Fi names and the expensive or constrained flags are
@@ -27,11 +26,6 @@ final class PathMonitorNetworkStatus: NetworkStatus {
         }
         monitor.start(queue: .main)
         self.monitor = monitor
-    }
-
-    func stop() {
-        monitor?.cancel()
-        monitor = nil
     }
 
     /// `requiresConnection` counts as usable: a connection attempt may bring the path up, so a check is let try.

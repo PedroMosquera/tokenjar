@@ -108,11 +108,6 @@ final class FakeNetworkStatus: NetworkStatus {
         self.onChange = onChange
     }
 
-    func stop() {
-        isStarted = false
-        onChange = nil
-    }
-
     func report(_ path: NetworkPath) { onChange?(path) }
 }
 

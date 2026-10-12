@@ -138,6 +138,9 @@ final class AppModel {
     @ObservationIgnored private var ticker: Timer?
     @ObservationIgnored private var workspaceObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var sleeping = false
+    /// From the sleep notification to the wake notification, a shorter span than `sleeping`, which lasts until the
+    /// wake refresh. A settle that comes due in it would count the hours asleep, so it waits for the restart at wake.
+    @ObservationIgnored private var systemAsleep = false
     @ObservationIgnored private var alertState = AlertState()
     @ObservationIgnored private var scheduler = RefreshScheduler()
     @ObservationIgnored private var probeLatch = ProbeLatch()
@@ -266,7 +269,8 @@ final class AppModel {
     /// Runs when `NetworkWatch` said a settle was due. Tests move their clock and call it themselves.
     @discardableResult
     func settleNetwork() -> Task<Void, Never>? {
-        networkStateChanged(networkWatch.settle(at: clock()))
+        guard !systemAsleep else { return nil }
+        return networkStateChanged(networkWatch.settle(at: clock()))
     }
 
     private func networkStateChanged(_ event: NetworkWatch.Event?) -> Task<Void, Never>? {
@@ -306,7 +310,9 @@ final class AppModel {
     /// Previews set `connectivity` themselves.
     private func updateConnectivity() {
         guard !isInert else { return }
-        let current = Connectivity.make(watch: networkWatch, accounts: accounts, statuses: statuses, isLatched: probeLatch.isLatched)
+        let current = Connectivity.make(
+            watch: networkWatch, accounts: accounts, statuses: statuses, isLatched: probeLatch.isLatched, previous: connectivity
+        )
         if current != connectivity { connectivity = current }
     }
 
@@ -372,12 +378,19 @@ final class AppModel {
     /// every overdue account before the network is back, and that failure would hold for a full interval.
     func systemWillSleep() {
         sleeping = true
+        systemAsleep = true
     }
 
     @discardableResult
     func systemDidWake(networkDelay: Duration = .seconds(8)) async -> Task<Void, Never>? {
+        systemAsleep = false
+        networkWatch.restart(at: clock())
+        scheduleSettle()
         try? await Task.sleep(for: networkDelay)
         sleeping = false
+        // This refresh checks every account, so it pays the return an outage still owes; checking them all again a
+        // few seconds later, when the path settles, would only respawn every CLI.
+        if networkWatch.returnPending, !networkWatch.holdsChecks { lastBackOnlineRefresh = clock() }
         return refresh(force: true)
     }
 
