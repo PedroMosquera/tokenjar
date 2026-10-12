@@ -36,8 +36,8 @@ struct LimitsChart: View, Equatable {
                     .lineStyle(StrokeStyle(lineWidth: 1))
             }
             // Before the data, so a line or dot near a threshold draws over its label instead of under it.
-            threshold(warnAt, severity: .warning, name: "amber", below: criticalAt - warnAt < Self.closeThresholds)
-            threshold(criticalAt, severity: .critical, name: "red", below: false)
+            threshold(warnAt, severity: .warning, below: criticalAt - warnAt < Self.closeThresholds)
+            threshold(criticalAt, severity: .critical, below: false)
             ForEach(content.linePoints) { point in
                 LineMark(
                     x: .value("Time", point.date),
@@ -101,13 +101,24 @@ struct LimitsChart: View, Equatable {
     /// Below this many points apart the two labels would overlap, so the amber one hangs under its rule.
     private static let closeThresholds = 8
 
-    /// Labelled inside the plot at the leading edge, where the lines are oldest, with the names Settings uses.
-    private func threshold(_ percent: Int, severity: Severity, name: String, below: Bool) -> some ChartContent {
+    /// The rule is drawn in the color it stands for, so its label gives only the level.
+    static func thresholdLabel(_ percent: Int, severity: Severity) -> String {
+        "\(percent)%"
+    }
+
+    /// VoiceOver gets no color, so it hears what the rule means, in the words Settings uses for these levels.
+    static func thresholdAccessibilityLabel(_ percent: Int, severity: Severity) -> String {
+        "Turns \(severity == .critical ? "red" : "amber") at \(percent)%"
+    }
+
+    /// Labelled inside the plot at the leading edge, where the lines are oldest.
+    private func threshold(_ percent: Int, severity: Severity, below: Bool) -> some ChartContent {
         RuleMark(y: .value("Threshold", percent))
             .foregroundStyle(severity.color.opacity(0.8))
             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            .accessibilityLabel(Self.thresholdAccessibilityLabel(percent, severity: severity))
             .annotation(position: below ? .bottom : .top, alignment: .leading, spacing: 2) {
-                Text("\(percent)% \(name)")
+                Text(Self.thresholdLabel(percent, severity: severity))
                     .font(.caption2)
                     .foregroundStyle(severity.color)
                     .padding(.leading, 5)
