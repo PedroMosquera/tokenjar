@@ -53,6 +53,7 @@ struct PopoverHeader: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Text(updated)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .help(list)

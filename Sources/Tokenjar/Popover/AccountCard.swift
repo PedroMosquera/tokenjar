@@ -16,13 +16,19 @@ struct AccountCard: View {
         }
     }
 
+    /// The failure the card's row shows: the latest error, else the connection failure a saved copy stands in for, so
+    /// both read alike and both stay off the card under a Mac-wide cause.
+    static func rowError(status: AccountStatus, provider: ProviderID, connectivity: Connectivity) -> FetchError? {
+        (status.error ?? status.connectionFailure).flatMap { ErrorRow.isShown(error: $0, provider: provider, connectivity: connectivity) ? $0 : nil }
+    }
+
     var body: some View {
         let status = model.status(for: account)
         let refreshMinutes = account.refreshMinutes ?? model.config.refreshMinutes
         let isStale = status.isStale(now: model.popoverNow, refreshMinutes: refreshMinutes)
         // Zen and Devin need no network, so a Mac-wide cause says nothing about them.
         let connectivity = account.provider.checkUsesNetwork ? model.connectivity : .online
-        let shownError = status.error.flatMap { ErrorRow.isShown(error: $0, provider: account.provider, connectivity: connectivity) ? $0 : nil }
+        let shownError = Self.rowError(status: status, provider: account.provider, connectivity: connectivity)
         VStack(alignment: .leading, spacing: 10) {
             AccountCardHeader(account: account, status: status, isStale: isStale)
             if let shownError {

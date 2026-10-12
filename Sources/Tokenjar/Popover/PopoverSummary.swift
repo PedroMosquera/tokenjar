@@ -53,16 +53,13 @@ struct PopoverSummary: Equatable {
             if settings?.nothingLoaded == true { return PopoverSummary(tone: .problem, text: "Settings not loaded") }
             return PopoverSummary(tone: .empty, text: "No accounts yet")
         }
-        switch connectivity {
-        case .offline: return PopoverSummary(tone: .offline, text: "Offline")
-        case .noAnswer: return PopoverSummary(tone: .noAnswer, text: "Can't reach any provider")
-        case .online: break
-        }
         var worst: (account: AccountConfig, window: UsageWindow, severity: Severity)?
         var nextReset: Date?
         var failing = 0
         var withData = 0
         var needsALook: [AccountConfig] = []
+        /// `needsALook` without the accounts a Mac-wide cause already explains.
+        var needsYou: [AccountConfig] = []
         var unreachable: [(account: AccountConfig, failure: FetchError)] = []
         for account in accounts {
             let status = statuses[account.id] ?? AccountStatus()
@@ -71,9 +68,9 @@ struct PopoverSummary: Equatable {
             if failed { failing += 1 }
             let stuck = status.cannotRefresh(now: now, refreshMinutes: refreshMinutes)
             if stuck, let failure = status.connectionFailure { unreachable.append((account, failure)) }
-            if failed || stuck || Severity.worst(of: status.snapshot?.windows ?? [], config: config.menuBar, now: now) > .ok {
-                needsALook.append(account)
-            }
+            let pressed = Severity.worst(of: status.snapshot?.windows ?? [], config: config.menuBar, now: now) > .ok
+            if failed || stuck || pressed { needsALook.append(account) }
+            if failed || pressed { needsYou.append(account) }
             // A link card or a spend-only account is ready at once and has no limits, so it must not stand in for
             // accounts still being checked.
             guard let snapshot = status.snapshot, account.provider.reportsWindows else { continue }
@@ -88,6 +85,15 @@ struct PopoverSummary: Equatable {
                 }
             }
         }
+        let settingsName = settings == nil ? [] : ["settings"]
+        // The title outranks the limit summary, so the near-limit account and the one to fix, which the menu bar's color
+        // and dot point at, are named here instead.
+        switch connectivity {
+        case .offline: return PopoverSummary(tone: .offline, text: "Offline", others: needsYou.map { shortName($0, among: accounts) } + settingsName)
+        case .noAnswer:
+            return PopoverSummary(tone: .noAnswer, text: "Can't reach any provider", others: needsYou.map { shortName($0, among: accounts) } + settingsName)
+        case .online: break
+        }
         if let worst, worst.severity > .ok {
             let name = AccountTitle(provider: worst.account.provider, label: worst.account.label).name
             let window = worst.window
@@ -97,7 +103,7 @@ struct PopoverSummary: Equatable {
             } else {
                 detail = "\(window.label) at \(Format.percent(window.usedPercent))"
             }
-            let others = needsALook.filter { $0.id != worst.account.id }.map { shortName($0, among: accounts) } + (settings == nil ? [] : ["settings"])
+            let others = needsALook.filter { $0.id != worst.account.id }.map { shortName($0, among: accounts) } + settingsName
             return PopoverSummary(tone: worst.severity == .critical ? .critical : .warning, text: "\(name): \(detail)", others: others)
         }
         if settings != nil { return PopoverSummary(tone: .problem, text: "Settings need attention") }

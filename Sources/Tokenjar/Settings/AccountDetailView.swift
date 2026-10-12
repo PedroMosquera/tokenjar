@@ -441,7 +441,8 @@ struct AccountStatusText: Equatable {
             return AccountStatusText(symbol: "arrow.triangle.2.circlepath", tone: .neutral, text: "Checking\u{2026}", detail: zenNote, caption: caption)
         }
         if provider.checkUsesNetwork, let line = macWideLine(connectivity, status: status, now: now) { return line }
-        if let error = status.error {
+        // A saved copy shown because of a connection failure is that failure, not a fresh update.
+        if let error = status.error ?? status.connectionFailure {
             if ProbeLatch.spentTokens(error) {
                 return AccountStatusText(symbol: "exclamationmark.triangle.fill", tone: .warning, text: error.userMessage, caption: caption)
             }
@@ -452,7 +453,7 @@ struct AccountStatusText: Equatable {
                 // Its own line: messages are full sentences, and the age would read as part of the last one.
                 let shown = status.snapshot.map { "Showing data from \(Format.age(of: $0.fetchedAt, now: now))." }
                 return AccountStatusText(
-                    symbol: "exclamationmark.arrow.triangle.2.circlepath", tone: .neutral, text: error.userMessage(provider: provider), detail: shown ?? zenNote
+                    symbol: ErrorRow.symbol(for: error, needsAttention: false), tone: .neutral, text: error.userMessage(provider: provider), detail: shown ?? zenNote
                 )
             case .actionable:
                 return AccountStatusText(symbol: "exclamationmark.triangle.fill", tone: .warning, text: actionableText(error, account: account), caption: caption)
@@ -470,11 +471,12 @@ struct AccountStatusText: Equatable {
         return AccountStatusText(symbol: "circle.dashed", tone: .neutral, text: "Not checked yet", detail: zenNote)
     }
 
-    /// Under a Mac-wide cause, for a connection failure (a saved copy shown because of one included) or an account with
-    /// nothing yet: the cause, not the account, is the news. nil otherwise, so a failure the user can fix still reads as
-    /// the account's own.
+    /// Under a Mac-wide cause, for a connection failure (a saved copy shown because of one included), or for an account
+    /// whose last check passed or that has nothing yet, since every check of it is held or fails too: the cause, not the
+    /// account, is the news. nil otherwise, so a failure the user can fix still reads as the account's own.
     private static func macWideLine(_ connectivity: Connectivity, status: AccountStatus, now: Date) -> AccountStatusText? {
-        guard status.connectionFailure != nil || (status.error == nil && status.snapshot == nil) else { return nil }
+        let causeIsMacWide = status.error == nil ? status.snapshot?.liveCheckFailure != .other : status.connectionFailure != nil
+        guard causeIsMacWide else { return nil }
         let shown = status.snapshot.map { "Showing data from \(Format.age(of: $0.fetchedAt, now: now))." }
         switch connectivity {
         case .online:

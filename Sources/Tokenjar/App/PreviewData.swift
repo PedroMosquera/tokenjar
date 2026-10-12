@@ -234,8 +234,8 @@ extension AppModel {
 }
 
 extension AppModel {
-    /// A Mac offline for 25 minutes. Every network check is held, so the cards keep their last
-    /// numbers; the last batch of checks ended a minute ago, which the header must not call "Updated".
+    /// A Mac offline for 25 minutes. Every network check is held, so the cards keep their last numbers; the last batch
+    /// of checks ended a minute ago, which the header must not call "Updated".
     static func previewOffline(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
         let model = outagePreview(now: now, accounts: outageAccounts)
         model.statuses = outageStatuses(now: now, claude: outageClaude(now: now, ago: 25 * 60), codexFailure: .network, goError: nil, copilotError: .timeout)
@@ -249,7 +249,7 @@ extension AppModel {
         var claude = outageClaude(now: now, ago: 3 * 3_600)
         claude.source = ClaudeUsageFetcher.cacheSource
         claude.liveCheckFailure = .timeout
-        claude.notes = ["\(FetchError.timeout.userMessage) Showing the last values Claude Code saved."]
+        claude.notes = [ClaudeUsageFetcher.cacheNote]
         model.statuses = outageStatuses(now: now, claude: claude, codexFailure: .network, goError: .network("dial tcp"), copilotError: .timeout)
         model.connectivity = .noAnswer
         return model
@@ -309,8 +309,8 @@ extension AppModel {
         )
     }
 
-    /// The screenshot's set. `codexFailure` makes Codex's card the copy it logged two days ago; `goError` and
-    /// `copilotError` are those accounts' latest check.
+    /// The accounts every outage preview shows. `codexFailure` makes Codex's card the copy it logged two days ago;
+    /// `goError` and `copilotError` are those accounts' latest check.
     private static func outageStatuses(
         now: Date, claude: UsageSnapshot, codexFailure: LiveCheckFailure?, goError: FetchError?, copilotError: FetchError?
     ) -> [String: AccountStatus] {

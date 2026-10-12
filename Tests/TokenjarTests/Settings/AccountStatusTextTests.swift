@@ -60,11 +60,33 @@ struct AccountStatusTextTests {
         #expect(saved.detail == "Showing data from \(age(2 * 86_400)).")
     }
 
+    /// The same failure gets the card's icon, and a saved copy shown because of one says so rather than "Updated".
     @Test func aTransientFailureNamesTheProvider() {
         let reach = text(claude, AccountStatus(snapshot: snapshot(claude, windows: ["5-hour"], ago: 50 * 60), error: .network("offline")))
         #expect(reach.text == "Can't reach Claude. Tokenjar tries again at the next refresh.")
-        #expect(reach.symbol == "exclamationmark.arrow.triangle.2.circlepath")
-        #expect(text(codex, AccountStatus(error: .timeout)).text == "No answer from Codex in time. Tokenjar tries again at the next refresh.")
+        #expect(reach.symbol == "wifi.exclamationmark")
+        let late = text(codex, AccountStatus(error: .timeout))
+        #expect(late.text == "No answer from Codex in time. Tokenjar tries again at the next refresh.")
+        #expect(late.symbol == "clock.arrow.circlepath")
+        var cached = snapshot(claude, windows: ["5-hour"], ago: 3 * 3_600)
+        cached.liveCheckFailure = .timeout
+        let saved = text(claude, AccountStatus(snapshot: cached, lastAttempt: now))
+        #expect(saved.text == "No answer from Claude in time. Tokenjar tries again at the next refresh.")
+        #expect(saved.detail == "Showing data from \(age(3 * 3_600)).")
+    }
+
+    /// Offline, every account that needs the network is held, so one whose last check passed is not current either.
+    @Test func aHeldAccountWithDataSaysTheCauseToo() {
+        let passed = AccountStatus(snapshot: snapshot(claude, windows: ["5-hour"], ago: 25 * 60), lastAttempt: now.addingTimeInterval(-25 * 60))
+        let offline = text(claude, passed, connectivity: .offline)
+        #expect(offline.symbol == "wifi.slash")
+        #expect(offline.text == "This Mac is offline. Tokenjar checks this account again when it is back online.")
+        #expect(offline.detail == "Showing data from \(age(25 * 60)).")
+        #expect(text(claude, passed, connectivity: .noAnswer).text == "Can't reach any provider. Tokenjar tries again at the next refresh.")
+        // A copy saved because the CLI is missing is the account's own problem, whatever the network does.
+        var missing = snapshot(claude, windows: ["5-hour"], ago: 25 * 60)
+        missing.liveCheckFailure = .other
+        #expect(text(claude, AccountStatus(snapshot: missing, lastAttempt: now), connectivity: .offline).symbol != "wifi.slash")
     }
 
     @Test func noSubscriptionIsCalmNotAWarning() {

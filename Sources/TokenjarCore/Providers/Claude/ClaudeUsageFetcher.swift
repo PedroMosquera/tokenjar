@@ -8,6 +8,7 @@ public struct ClaudeUsageFetcher: UsageFetcher {
     public static let source = "claude CLI"
     public static let cacheSource = "Claude Code cache"
     public static let noLimitsNote = "No plan limits for this login"
+    public static let cacheNote = "Showing the last values Claude Code saved."
     public static let modelTurnMessage = "Claude Code ran /usage as a prompt, which spends tokens. Checks for this account are paused until claude updates or you click Try Once More."
 
     static let arguments = [
@@ -25,10 +26,13 @@ public struct ClaudeUsageFetcher: UsageFetcher {
         /// The CLI could not answer: use Claude Code's own cache if it is usable, else surface `error`.
         func fallback(_ error: FetchError) throws -> UsageSnapshot {
             guard let cached = config?.cachedLimits(now: now) else { throw error }
+            let failure = LiveCheckFailure(error)
+            // The card words a network error or a timeout itself, for the provider and the network state, so only any
+            // other reason goes in the note.
+            let note = failure == .other ? "\(error.userMessage) \(Self.cacheNote)" : Self.cacheNote
             return UsageSnapshot(
                 accountID: account.id, provider: .claude, plan: config?.plan, windows: cached.windows, money: cached.money,
-                fetchedAt: cached.fetchedAt, source: Self.cacheSource,
-                notes: ["\(error.userMessage) Showing the last values Claude Code saved."], liveCheckFailure: LiveCheckFailure(error)
+                fetchedAt: cached.fetchedAt, source: Self.cacheSource, notes: [note], liveCheckFailure: failure
             )
         }
 

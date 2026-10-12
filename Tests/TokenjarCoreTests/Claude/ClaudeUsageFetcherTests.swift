@@ -452,6 +452,18 @@ struct ClaudeUsageFetcherTests {
         #expect(snapshot.liveCheckFailure == expected)
     }
 
+    /// The card says why a network error or a timeout made the copy stand in, in the provider's name and only when the
+    /// cause is not Mac-wide, so the note says only where the numbers come from.
+    @Test func aConnectionFailureLeavesItsReasonToTheCard() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("claude-json-max.json", as: ".claude.json")
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeClaude(timedOut: true), now: now))
+
+        #expect(snapshot.notes == ["Showing the last values Claude Code saved."])
+    }
+
     @Test func aLiveAnswerHasNoLiveCheckFailure() async throws {
         let box = try Sandbox()
         defer { box.remove() }

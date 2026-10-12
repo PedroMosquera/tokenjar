@@ -319,9 +319,13 @@ struct PopoverSummaryTests {
             "personal": AccountStatus(error: .notSignedIn),
         ]
         let kept = SettingsProblem(message: "Could not read config.local.json.", file: "config.local.json", nothingLoaded: false)
+        // The near-limit account and the one to fix are still named, as the menu bar's color and dot point at them.
         #expect(PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now, connectivity: .offline, settings: kept)
-            == PopoverSummary(tone: .offline, text: "Offline"))
+            == PopoverSummary(tone: .offline, text: "Offline", others: ["Claude · Personal", "Claude · Work", "settings"]))
         #expect(PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now, connectivity: .noAnswer).tone == .noAnswer)
+        // A connection failure is what the title already says, so it is not named again.
+        let unreachable = ["work": AccountStatus(error: .timeout, lastAttempt: now), "personal": AccountStatus(error: .network("dial tcp"), lastAttempt: now)]
+        #expect(PopoverSummary.make(accounts: accounts, statuses: unreachable, config: AppConfig(), now: now, connectivity: .noAnswer).others.isEmpty)
     }
 
     @MainActor
@@ -893,6 +897,19 @@ struct ErrorRowTests {
         #expect(ErrorRow.isShown(error: .timeout, provider: .copilot, connectivity: .online))
         // Zen reads a local database, so its failure is its own whatever the network does.
         #expect(ErrorRow.isShown(error: .network("locked"), provider: .opencodeZen, connectivity: .offline))
+    }
+
+    /// A saved copy shown because the provider could not be reached gets the same gray row as the error would, and
+    /// under a Mac-wide cause the same silence; its note only says where the numbers come from.
+    @Test func aSavedCopyNamesWhyOnlyWhenTheCauseIsItsOwn() {
+        var cached = UsageSnapshot(accountID: "claude", provider: .claude, fetchedAt: now.addingTimeInterval(-3_600), source: ClaudeUsageFetcher.cacheSource)
+        cached.liveCheckFailure = .timeout
+        let saved = AccountStatus(snapshot: cached, lastAttempt: now)
+        #expect(AccountCard.rowError(status: saved, provider: .claude, connectivity: .online) == .timeout)
+        #expect(AccountCard.rowError(status: saved, provider: .claude, connectivity: .noAnswer) == nil)
+        cached.liveCheckFailure = .other
+        #expect(AccountCard.rowError(status: AccountStatus(snapshot: cached, lastAttempt: now), provider: .claude, connectivity: .online) == nil)
+        #expect(AccountCard.rowError(status: AccountStatus(error: .notSignedIn), provider: .claude, connectivity: .offline) == .notSignedIn)
     }
 
     @Test func anActionableRowStaysWhileOffline() {
