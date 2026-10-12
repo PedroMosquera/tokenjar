@@ -4,6 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 DEST="${1:-$HOME/Applications}"
 mkdir -p "$DEST"
+# Absolute, because the running app is matched below by the full path LaunchServices started it with.
+DEST="$(CDPATH='' cd -- "$DEST" && pwd)"
 
 # The app used to be Headroom. Tokenjar moves its data only once Headroom has quit, so quit it and remove its bundle,
 # but only a bundle that carries Headroom's own bundle id.
@@ -22,7 +24,10 @@ if [ -d "$OLD" ] && [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' 
   echo "Removed $OLD"
 fi
 
-pkill -x Tokenjar 2>/dev/null && sleep 1 || true
+# Only the copy being replaced: matching the name alone would also stop a debug build or a window render.
+APP_EXECUTABLE="$DEST/Tokenjar.app/Contents/MacOS/Tokenjar"
+APP_PATTERN="^$(printf '%s' "$APP_EXECUTABLE" | sed 's/[][\.*^$+?(){}|]/\\&/g')( |\$)"
+pkill -f "$APP_PATTERN" 2>/dev/null && sleep 1 || true
 rm -rf "$DEST/Tokenjar.app"
 ditto build/Tokenjar.app "$DEST/Tokenjar.app"
 codesign --verify --strict "$DEST/Tokenjar.app"
