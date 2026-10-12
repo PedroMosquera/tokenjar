@@ -42,7 +42,7 @@ The binary takes five flags that do one job and exit:
 
 `<provider>` is one of `claude`, `codex`, `opencode-go`, `opencode-zen`, `antigravity`, `copilot`, `devin`. None of the five writes `tokenjar.sqlite` or `config.json`, and none moves the folders left by Headroom, Tokenjar's old name. [privacy.md](privacy.md#what-it-writes) lists what each reads and writes.
 
-`renders/` and `captures/` at the repository root are for real-data renders and captures: they hold your own data, and `.gitignore` keeps them out of git.
+`renders/` and `captures/` at the repository root are for real-data renders and captures: they hold your own data, and `.gitignore` keeps them out of git. A real-data render also copies your history into a `.tokenjar-render-<id>` folder next to `<dir>` while it runs. A killed run leaves that copy behind, so delete it; `.gitignore` covers it at the repository root.
 
 ```sh
 .build/debug/Tokenjar --render-windows renders --real-data

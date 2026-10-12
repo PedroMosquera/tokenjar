@@ -6,3 +6,4 @@ build/
 .DS_Store
 /renders/
 /captures/
+/.tokenjar-render-*/
