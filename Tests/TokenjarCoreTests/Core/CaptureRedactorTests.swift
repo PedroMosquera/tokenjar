@@ -101,13 +101,13 @@ struct CaptureRedactorTests {
         let inventory = try json(#"{"result": {"rateLimitResetCredits": {"availableCount": 1, "credits": [{"status": "available", "expiresAt": "2026-10-20T00:00:00Z"}]}}}"#)
         let cases: [(ProviderID, Any, [String])] = [
             (.claude, ["probe": ["lines": claudeLines]], [
-                #""resets_at" : "2026-10-10T22:19:59.863707+00:00""#, #""resets_at" : "2026-10-12T09:00:00+00:00""#,
+                #""resets_at" : "2026-10-10T22:29:59.750000+00:00""#, #""resets_at" : "2026-10-12T09:00:00+00:00""#,
             ]),
             (.copilot, ["response": try json(fixture("Copilot/user-enterprise.json"))], [
                 #""quota_reset_date_utc" : "2026-11-01T00:00:00.000Z""#, #""quota_reset_date" : "2026-11-01""#,
             ]),
             (.opencodeGo, ["response": try json(fixture("OpenCode/go-usage.json"))], [
-                #""resetsAt" : "2026-10-10T14:20:00.000Z""#, #""resetsAt" : "2026-11-03T09:15:00.000Z""#,
+                #""resetsAt" : "2026-10-10T14:20:00.000Z""#, #""resetsAt" : "2026-11-05T12:00:00.000Z""#,
             ]),
             (.codex, ["response": inventory], [#""expiresAt" : "2026-10-20T00:00:00Z""#]),
         ]

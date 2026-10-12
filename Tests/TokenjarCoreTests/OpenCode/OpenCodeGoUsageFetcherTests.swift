@@ -25,11 +25,11 @@ struct OpenCodeGoUsageFetcherTests {
         let s = try snapshot("go-usage.json")
         #expect(s.windows.map(\.id) == ["session", "weekly", "monthly"])
         #expect(s.windows.map(\.label) == ["5-hour", "Week", "Month"])
-        #expect(s.windows.map(\.usedPercent) == [37, 45, 61])
+        #expect(s.windows.map(\.usedPercent) == [40, 50, 60])
         #expect(s.windows.map(\.windowMinutes) == [300, 10_080, 31 * 1_440])
         #expect(s.windows.map(\.resetsAt) == [
             DateParsing.iso8601("2026-10-10T14:20:00Z"), DateParsing.iso8601("2026-10-12T00:00:00Z"),
-            DateParsing.iso8601("2026-11-03T09:15:00Z"),
+            DateParsing.iso8601("2026-11-05T12:00:00Z"),
         ])
         #expect(s.windows.allSatisfy { !$0.notStarted })
         #expect(s.plan == "Go")

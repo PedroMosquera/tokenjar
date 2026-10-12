@@ -85,8 +85,8 @@ struct ClaudeUsageFetcherTests {
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
         #expect(snapshot.windows == [
-            UsageWindow(id: "session", label: "5-hour", usedPercent: 19, windowMinutes: 300, resetsAt: DateParsing.iso8601("2026-10-10T22:19:59.863707+00:00")),
-            UsageWindow(id: "weekly", label: "Week", usedPercent: 14, windowMinutes: 10_080, resetsAt: DateParsing.iso8601("2026-10-12T08:59:59.863734+00:00")),
+            UsageWindow(id: "session", label: "5-hour", usedPercent: 20, windowMinutes: 300, resetsAt: DateParsing.iso8601("2026-10-10T22:29:59.750000+00:00")),
+            UsageWindow(id: "weekly", label: "Week", usedPercent: 40, windowMinutes: 10_080, resetsAt: DateParsing.iso8601("2026-10-12T08:59:59.750000+00:00")),
             UsageWindow(id: "weekly:Fable", label: "Week · Fable", usedPercent: 0, windowMinutes: 10_080, resetsAt: DateParsing.iso8601("2026-10-12T09:00:00+00:00")),
         ])
         #expect(snapshot.windows[0].resetsAt != nil && snapshot.windows[2].resetsAt != nil)
@@ -355,10 +355,10 @@ struct ClaudeUsageFetcherTests {
 
         #expect(runner.calls.isEmpty)
         #expect(snapshot.source == "Claude Code cache")
-        #expect(snapshot.fetchedAt == Date(timeIntervalSince1970: 1_791_661_279.383))
+        #expect(snapshot.fetchedAt == Date(timeIntervalSince1970: 1_791_660_000.5))
         #expect(snapshot.plan == "Max 20x")
         #expect(snapshot.windows.map(\.id) == ["session", "weekly", "weekly:Fable"])
-        #expect(snapshot.windows.map(\.usedPercent) == [17, 14, 3])
+        #expect(snapshot.windows.map(\.usedPercent) == [30, 40, 10])
         #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 25, limit: 50, currency: "USD")])
         #expect(snapshot.notes == ["Can't find the claude command on this Mac. Showing the last values Claude Code saved."])
     }

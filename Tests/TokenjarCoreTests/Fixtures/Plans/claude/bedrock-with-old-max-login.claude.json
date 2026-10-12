@@ -8,7 +8,7 @@
     "seatTier": null
   },
   "cachedUsageUtilization": {
-    "fetchedAtMs": 1791661279383,
+    "fetchedAtMs": 1791660000500,
     "accountUuid": "ACCOUNT_UUID_FAKE",
     "utilization": {
       "limits": [

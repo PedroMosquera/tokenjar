@@ -1,1 +1,1 @@
-{"usage":{"rolling":{"status":"rate-limited","percent":100,"resetsAt":"2026-10-10T14:20:00.000Z"},"weekly":{"status":"ok","percent":80,"resetsAt":"2026-10-12T00:00:00.000Z"},"monthly":{"status":"ok","percent":40,"resetsAt":"2026-11-03T09:15:00.000Z"}}}
+{"usage":{"rolling":{"status":"rate-limited","percent":100,"resetsAt":"2026-10-10T14:20:00.000Z"},"weekly":{"status":"ok","percent":80,"resetsAt":"2026-10-12T00:00:00.000Z"},"monthly":{"status":"ok","percent":40,"resetsAt":"2026-11-05T12:00:00.000Z"}}}
