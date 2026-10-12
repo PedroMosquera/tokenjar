@@ -8,7 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let windows = WindowPresenter()
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
-    private var popoverFrameObservers: [NSObjectProtocol] = []
+    var popoverFrameObservers: [NSObjectProtocol] = [] {
+        didSet { oldValue.forEach(NotificationCenter.default.removeObserver) }
+    }
     private static let popoverLog = Logger(subsystem: AppPaths.bundleIdentifier, category: "popover")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -124,7 +126,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func popoverDidClose(_ notification: Notification) {
         model.isPopoverShown = false
-        popoverFrameObservers.forEach(NotificationCenter.default.removeObserver)
         popoverFrameObservers = []
     }
 
