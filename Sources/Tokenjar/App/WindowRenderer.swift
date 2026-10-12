@@ -103,7 +103,7 @@ private final class RenderSession {
         let states = AppModel.previewStates()
         let empty = AppModel.previewEmpty()
         let configError = AppModel.preview()
-        configError.showFailedReload(of: "config.json")
+        configError.showFailedLoad(of: "config.json", nothingLoaded: false)
         let short = AppModel.preview()
         short.popoverMaxHeight = 400
         let plans = PreviewPlans.pages(now: model.now)

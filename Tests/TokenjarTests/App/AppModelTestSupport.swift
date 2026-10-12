@@ -98,6 +98,24 @@ nonisolated struct FakeFetcher: UsageFetcher {
     }
 }
 
+/// Stands in for macOS's path monitor: a test reports a path when it wants one, so nothing touches the Mac's network.
+final class FakeNetworkStatus: NetworkStatus {
+    private(set) var isStarted = false
+    private var onChange: (@MainActor (NetworkPath) -> Void)?
+
+    func start(onChange: @escaping @MainActor (NetworkPath) -> Void) {
+        isStarted = true
+        self.onChange = onChange
+    }
+
+    func stop() {
+        isStarted = false
+        onChange = nil
+    }
+
+    func report(_ path: NetworkPath) { onChange?(path) }
+}
+
 @MainActor
 final class TestClock {
     var now = Date(timeIntervalSince1970: 1_791_660_000)

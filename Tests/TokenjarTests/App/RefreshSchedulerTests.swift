@@ -86,6 +86,22 @@ struct RefreshSchedulerTests {
         #expect(RefreshScheduler.retryDelay(accountMinutes: accountMinutes, globalMinutes: globalMinutes, lowPower: lowPower, result: result) == expected)
     }
 
+    /// What the header's "Tokenjar tries again in ..." reads: a backoff pushes an account out, and a running check has
+    /// no next time yet.
+    @Test func nextCheckIsTheEarliestDueOrBackoff() {
+        var scheduler = RefreshScheduler()
+        #expect(scheduler.nextCheck(["a"]) == nil)
+        scheduler.begin(["a", "b", "c"], at: t0)
+        scheduler.finish("a", at: t0, delay: 600, rateLimited: false)
+        scheduler.finish("b", at: t0.addingTimeInterval(10), delay: 300, rateLimited: true)
+        #expect(scheduler.nextCheck(["a", "b"]) == t0.addingTimeInterval(310))
+        #expect(scheduler.nextCheck(["a"]) == t0.addingTimeInterval(600))
+        #expect(scheduler.nextCheck(["a", "b", "c"]) == t0.addingTimeInterval(310))
+        scheduler.begin(["b"], at: t0.addingTimeInterval(320))
+        #expect(scheduler.nextCheck(["a", "b"]) == t0.addingTimeInterval(600))
+        #expect(scheduler.nextCheck(["c"]) == nil)
+    }
+
     @Test func thePopoverRefreshesAtMostEveryTwoMinutes() {
         #expect(RefreshScheduler.shouldRefreshOnPopoverOpen(lastRefreshAt: nil, now: t0))
         #expect(!RefreshScheduler.shouldRefreshOnPopoverOpen(lastRefreshAt: t0.addingTimeInterval(-119), now: t0))

@@ -59,6 +59,12 @@ struct PopoverHeader: View {
         return "Updated \(Format.age(of: last, now: now))"
     }
 
+    /// The refresh button and Command-R. The user asked, so it runs whatever macOS says about the network.
+    @discardableResult
+    static func refreshNow(_ model: AppModel) -> Task<Void, Never>? {
+        model.refresh(force: true, userInitiated: true)
+    }
+
     /// Without accounts a refresh has nothing to check, so the button and Command-R stay off rather than do nothing.
     static func canRefresh(hasAccounts: Bool, isRefreshing: Bool) -> Bool {
         hasAccounts && !isRefreshing
@@ -105,7 +111,7 @@ private struct RefreshButton: View {
 
     var body: some View {
         Button {
-            model.refresh(force: true)
+            PopoverHeader.refreshNow(model)
         } label: {
             ZStack {
                 if model.isRefreshing {
