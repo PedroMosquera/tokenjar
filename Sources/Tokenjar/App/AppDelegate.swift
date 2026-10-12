@@ -83,8 +83,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     /// Runs `willOpen`, which may change what the popover shows, sizes the popover to the result, then calls `show`.
-    /// NSPopover places itself once, from `contentSize`, and that is 0x0 until set here: assigning a controller whose
-    /// view was never laid out leaves it so, and the popover then opens at a default size and grows past the menu bar.
+    /// NSPopover places the popover from `contentSize` at show, and that is 0x0 for a controller never laid out.
+    /// Later size changes reach NSPopover through the preferred size (see `popoverContent`) and it re-places the
+    /// popover for each one, so the app should not move a shown popover itself.
     static func open(_ popover: NSPopover, willOpen: () -> Void, show: () -> Void) {
         willOpen()
         if let size = settledSize(of: popover.contentViewController) { popover.contentSize = size }
@@ -100,7 +101,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         return size.width > 0 && size.height > 0 ? size : nil
     }
 
-    /// The status button's frame on screen and its screen's visible frame. nil while the button is in no window.
     private static func anchorGeometry(of button: NSView) -> (anchor: NSRect, visibleFrame: NSRect)? {
         guard let window = button.window, let screen = window.screen else { return nil }
         return (window.convertToScreen(button.convert(button.bounds, to: nil)), screen.visibleFrame)
@@ -172,9 +172,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// The popover's content. `--render-windows` captures this same controller.
     static func popoverContent(_ model: AppModel) -> NSViewController {
         let controller = NSHostingController(rootView: PopoverView().environment(model))
-        // The default options let SwiftUI resize the popover's window itself, from its bottom edge, so content that
-        // grows while the popover is open pushes the arrow and header above the menu bar. This leaves the resizing to
-        // AppKit, and keeps preferredContentSize current for `open`.
+        // Under the default options SwiftUI resizes the popover's window itself and NSPopover's contentSize does not
+        // follow; in a popover window that was never shown, the window grew from a fixed bottom edge. This option
+        // hands every size change to NSPopover, and keeps preferredContentSize current for `open`.
         controller.sizingOptions = .preferredContentSize
         return controller
     }

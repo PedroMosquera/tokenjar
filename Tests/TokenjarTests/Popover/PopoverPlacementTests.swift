@@ -42,8 +42,7 @@ struct PopoverPlacementTests {
         #expect(PopoverPlacement.maxContentHeight(anchor: anchor, visibleFrame: visible) == (943.5 - PopoverPlacement.arrowAllowance).rounded(.down))
     }
 
-    /// A reported screenshot: about 640 pt of popover whose footer stayed in place while its top went 280 pt above
-    /// the screen.
+    /// A reported screenshot: about 640 pt of popover with its top about 280 pt above the screen.
     @Test func aPopoverThatGrewOverTheMenuBarIsAboveItsAnchor() {
         let window = NSRect(x: 1335, y: 806, width: 360, height: 643)
         #expect(PopoverPlacement.isAboveAnchor(window: window, anchor: statusItem))
