@@ -20,10 +20,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         switch LaunchMode.parse(args) {
         case .renderSnapshots(let directory):
             StrayWindowSweeper.start()
+            Self.pinPreviewRegion()
             SnapshotRenderer.run(outputDirectory: directory)
             exit(0)
         case .renderWindows(let options):
             StrayWindowSweeper.start()
+            if !options.realData { Self.pinPreviewRegion() }
             WindowRenderer.run(options)
             exit(0)
         case .devCommand:
@@ -64,6 +66,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         observeIcon()
         model.start()
         if model.config.alerts.enabled { model.requestNotificationPermission(prominent: false) }
+    }
+
+    /// Preview renders end up in the README and in PRs, so they use US English and UTC instead of this Mac's region
+    /// and time zone. In memory only: the argument domain and TZ last for this process and are never saved.
+    private static func pinPreviewRegion() {
+        var arguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        arguments["AppleLocale"] = "en_US"
+        arguments["AppleLanguages"] = ["en-US"]
+        UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+        setenv("TZ", "UTC", 1)
+        NSTimeZone.resetSystemTimeZone()
     }
 
     @objc private func togglePopover(_ sender: NSStatusBarButton) {

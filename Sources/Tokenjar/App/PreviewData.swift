@@ -1,10 +1,16 @@
 import Foundation
 import TokenjarCore
 
+extension AppPaths {
+    /// Preview renders end up in the README and in PRs, so they never see this Mac's home folder, stow links or XDG
+    /// variables.
+    static let preview = AppPaths(home: URL(fileURLWithPath: "/Users/you"), environment: [:], systemRoot: URL(fileURLWithPath: "/var/empty"))
+}
+
 /// Deterministic sample data for `--render-snapshots` and visual checks. Prices here are placeholders, not real.
 extension AppModel {
     static func preview(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
-        let model = AppModel()
+        let model = AppModel(paths: .preview)
         model.now = now
         model.popoverNow = now
         model.lastRefreshAt = now.addingTimeInterval(-90)
@@ -126,7 +132,7 @@ extension AppModel {
         }
 
         // Daily usage events for 30 days across harnesses, models and projects.
-        let projects = ["tokenjar", "dotfiles", "mobile-app", "data-pipeline"]
+        let projects = ["tokenjar", "website", "mobile-app", "data-pipeline"]
         let mixes: [(String, Harness, String, Double, Bool)] = [
             ("claude-personal", .claudeCode, "claude-opus-5-5", 1.0, false),
             ("claude-personal", .claudeCode, "claude-fable-5-1", 0.4, false),
@@ -172,7 +178,7 @@ extension AppModel {
     /// Edge states for visual review: stale, refreshing, full window, signed out, no subscription, network error,
     /// a window whose reset has passed since the last check, and a pasted key the Keychain refused.
     static func previewStates(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
-        let model = AppModel()
+        let model = AppModel(paths: .preview)
         model.previewMode = true
         model.now = now
         model.popoverNow = now
@@ -224,7 +230,7 @@ extension AppModel {
 extension AppModel {
     /// A Mac where no account is set up or found.
     static func previewEmpty(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
-        let model = AppModel()
+        let model = AppModel(paths: .preview)
         model.previewMode = true
         model.now = now
         model.popoverNow = now

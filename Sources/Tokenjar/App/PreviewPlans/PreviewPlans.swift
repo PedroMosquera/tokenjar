@@ -52,7 +52,7 @@ enum PreviewPlans {
     }
 
     private static func model(_ rows: [PreviewPlanRow], now: Date, prices: PriceTable) -> AppModel {
-        let model = AppModel()
+        let model = AppModel(paths: .preview)
         // Before the config, so no account is looked for on this Mac.
         model.previewMode = true
         model.now = now

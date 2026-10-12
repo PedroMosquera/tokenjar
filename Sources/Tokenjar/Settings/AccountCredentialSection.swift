@@ -105,7 +105,8 @@ struct AccountCredentialSection: View {
         if case .file(let path, let key) = account.credential {
             return (path, "entry \(key)")
         }
-        let file = SettingsLogic.tildePath(AccountDiscovery.openCodeAuthFile(paths: model.paths, environment: ProcessInfo.processInfo.environment).path, home: model.paths.home.path)
+        let environment = model.previewMode ? [:] : ProcessInfo.processInfo.environment
+        let file = SettingsLogic.tildePath(AccountDiscovery.openCodeAuthFile(paths: model.paths, environment: environment).path, home: model.paths.home.path)
         return (file, "entry opencode-go, else opencode")
     }
 

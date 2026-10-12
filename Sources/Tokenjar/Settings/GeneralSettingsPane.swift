@@ -89,9 +89,8 @@ struct GeneralSettingsPane: View {
     }
 
     private var configFileSection: some View {
-        let file = model.paths.configFile
-        let target = file.resolvingSymlinksInPath()
-        let isLink = target.path != file.path
+        let target = model.paths.configFile.resolvingSymlinksInPath()
+        let caption = Self.configFileCaption(paths: model.paths)
         return Section("Configuration") {
             LabeledContent {
                 HStack {
@@ -104,7 +103,7 @@ struct GeneralSettingsPane: View {
             } label: {
                 Text("Config file")
                 // One line: a wrapped path breaks at a slash and reads like two paths. The tooltip has it whole.
-                (Text(isLink ? "Links to " : "") + Text(abbreviated(isLink ? target : file)).font(.system(.subheadline, design: .monospaced)))
+                (Text(caption.isLink ? "Links to " : "") + Text(caption.path).font(.system(.subheadline, design: .monospaced)))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help("\(target.path)\nHolds no keys, so it is safe in a dotfiles repo. Saves go through the link.")
@@ -207,8 +206,12 @@ struct GeneralSettingsPane: View {
         )
     }
 
-    private func abbreviated(_ url: URL) -> String {
-        SettingsLogic.tildePath(url.path, home: model.paths.home.path)
+    /// A stow link shows its target, so the row says where saves land.
+    static func configFileCaption(paths: AppPaths) -> (isLink: Bool, path: String) {
+        let file = paths.configFile
+        let target = file.resolvingSymlinksInPath()
+        let isLink = target.path != file.path
+        return (isLink, SettingsLogic.tildePath((isLink ? target : file).path, home: paths.home.path))
     }
 }
 
