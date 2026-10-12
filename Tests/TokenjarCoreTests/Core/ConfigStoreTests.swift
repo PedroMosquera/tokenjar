@@ -236,4 +236,151 @@ struct ConfigStoreTests {
         let config = try? JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
         #expect(config?.menuBar.icon == .app)
     }
+
+    enum NewLeaf: String, CaseIterable, Sendable {
+        case shortThresholds, paceDays, hotkey
+
+        func edit(_ config: inout AppConfig) {
+            switch self {
+            case .shortThresholds: config.alerts.shortThresholds = [90]
+            case .paceDays: config.paceDays = .workingDays
+            case .hotkey: config.hotkey = "control+option+command+U"
+            }
+        }
+
+        /// A config.local.json value for this leaf that differs from its default, the value config.json holds, so a
+        /// leak shows in the saved file.
+        var localOverride: [String: Any] {
+            switch self {
+            case .shortThresholds: ["alerts": ["shortThresholds": [50]]]
+            case .paceDays: ["paceDays": "workingDays"]
+            case .hotkey: ["hotkey": "control+U"]
+            }
+        }
+    }
+
+    /// config.local.json overrides every other new leaf, so one save checks that the edited leaf is written and that
+    /// none of the others leaks.
+    @Test(arguments: NewLeaf.allCases)
+    func everyNewLeafSavesWithoutLeakingLocalOverrides(_ leaf: NewLeaf) throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"{"accounts": [{"id": "claude", "provider": "claude", "label": "Personal"}]}"#, to: paths.configFile)
+        let local = NewLeaf.allCases.filter { $0 != leaf }.reduce(["refreshMinutes": 2] as [String: Any]) { ConfigStore.merge($0, $1.localOverride) }
+        try FileManager.default.createDirectory(at: paths.configDirectory, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: local).write(to: paths.localConfigFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        leaf.edit(&edited)
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        var expected = loaded.base
+        leaf.edit(&expected)
+        #expect(try JSONDecoder().decode(AppConfig.self, from: Data(contentsOf: paths.configFile)) == expected)
+    }
+
+    @Test func anAccountEditKeepsLocalOnlyAccountsOutOfConfigJSON() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"{"accounts": [{"id": "claude", "provider": "claude", "label": "Personal"}]}"#, to: paths.configFile)
+        try write(#"{"accounts": [{"id": "claude-work", "provider": "claude", "label": "Work", "profileDir": "~/.claude-work"}]}"#, to: paths.localConfigFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        edited.accounts[0].label = "Home"
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        let shared = try JSONDecoder().decode(AppConfig.self, from: Data(contentsOf: paths.configFile))
+        #expect(shared.accounts.map(\.id) == ["claude"])
+        #expect(shared.accounts[0].label == "Home")
+    }
+
+    enum AccountEdit: String, CaseIterable, Sendable {
+        case renameShared, renameLocalOnly, moveLocalOnlyFirst, addAccount, removeShared
+
+        func apply(_ accounts: inout [AccountConfig]) {
+            switch self {
+            case .renameShared: accounts[0].label = "Renamed"
+            case .renameLocalOnly: accounts[2].label = "Renamed"
+            case .moveLocalOnlyFirst: accounts.insert(accounts.removeLast(), at: 0)
+            case .addAccount: accounts.append(AccountConfig(id: "codex-2", provider: .codex, label: "Second"))
+            case .removeShared: accounts.remove(at: 1)
+            }
+        }
+    }
+
+    /// merge appends accounts that exist only in config.local.json, so they load last whatever order a save wrote.
+    @Test(arguments: AccountEdit.allCases)
+    func aLocalOnlyAccountStaysLastAfterAnyEditAndReload(_ edit: AccountEdit) throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"{"accounts": [{"id": "claude", "provider": "claude"}, {"id": "codex", "provider": "codex"}]}"#, to: paths.configFile)
+        try write(#"{"accounts": [{"id": "claude-work", "provider": "claude", "profileDir": "~/.claude-work"}]}"#, to: paths.localConfigFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        edit.apply(&edited.accounts)
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        let reloaded = try #require(try store.load())
+        #expect(reloaded.merged.accounts.last?.id == "claude-work")
+        #expect(reloaded.base.accounts.map(\.id) == edited.accounts.map(\.id).filter { $0 != "claude-work" })
+    }
+
+    /// config.json syncs to Macs that may run a newer build; a save here must not drop what that build added.
+    @Test func saveKeepsKeysThisBuildDoesNotKnow() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"""
+            {"futureTop": {"nested": [1, 2]}, "menuBar": {"mode": "bars", "futureMenuBarKey": "x"},
+             "alerts": {"futureAlertKey": true}, "cliPaths": {"agy": "/opt/agy", "codex": "/opt/codex"},
+             "accounts": [{"id": "claude", "provider": "claude", "dashboardURL": "https://x.example", "futureAccountKey": 7},
+                          {"id": "codex", "provider": "codex", "futureAccountKey": 8}]}
+            """#, to: paths.configFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        edited.refreshMinutes = 5
+        edited.cliPaths["agy"] = nil
+        edited.accounts[0].dashboardURL = nil
+        edited.accounts.remove(at: 1)
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        let raw = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: paths.configFile)) as? [String: Any])
+        #expect(raw["futureTop"] as? [String: [Int]] == ["nested": [1, 2]])
+        #expect((raw["menuBar"] as? [String: Any])?["futureMenuBarKey"] as? String == "x")
+        #expect((raw["menuBar"] as? [String: Any])?["mode"] as? String == "bars")
+        #expect((raw["alerts"] as? [String: Any])?["futureAlertKey"] as? Bool == true)
+        #expect(raw["refreshMinutes"] as? Int == 5)
+        // Keys this build knows follow the edit, so a removed value stays removed.
+        #expect(raw["cliPaths"] as? [String: String] == ["codex": "/opt/codex"])
+        let accounts = try #require(raw["accounts"] as? [[String: Any]])
+        #expect(accounts.map { $0["id"] as? String } == ["claude"])
+        #expect(accounts.first?["futureAccountKey"] as? Int == 7)
+        #expect(accounts.first?["dashboardURL"] == nil)
+    }
+
+    @Test func aConfigWithoutTheNewKeysLoadsTheDefaults() throws {
+        let config = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"alerts": {"thresholds": [70]}, "accounts": []}"#.utf8))
+        #expect(config.alerts.thresholds == [70])
+        #expect(config.alerts.shortThresholds == [95])
+        #expect(config.paceDays == .everyDay)
+        #expect(config.hotkey == nil)
+    }
+
+    /// Like the menu bar icon: a choice from a newer build must not fail the whole load on an older one.
+    @Test(arguments: [#"{"paceDays": "someFutureChoice"}"#, #"{"paceDays": null}"#])
+    func aPaceDaysValueThisBuildDoesNotKnowReadsAsEveryDay(_ json: String) {
+        let config = try? JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
+        #expect(config?.paceDays == .everyDay)
+    }
 }
