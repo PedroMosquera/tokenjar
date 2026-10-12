@@ -67,3 +67,16 @@ make build
 - `menubar-*.png` joins six items from `--render-snapshots` into one strip: `menubar-slot-030`, `menubar-worst`, `menubar-slot-critical` and `menubar-slot-100`, then `menubar-bars` and `menubar-icon`. Those files are Display P3, so they are converted to sRGB first.
 
 The window captures get rounded corners and a hairline edge, and the menu bar strip gets rounded corners only. Each image is saved with no metadata, at about twice the width the README shows it at. The banner, `banner-<theme>.svg`, is a plain SVG built from `Resources/AppIcon.svg` and the shape of the menu bar slot. Its numbers are made up, and it has no provider logos.
+
+## Releasing
+
+A release is a tag on `main` with a GitHub release for it, plus the Homebrew formula `tokenjar.rb` in [PedroMosquera/homebrew-tap](https://github.com/PedroMosquera/homebrew-tap) pointing at that tag. There is no prebuilt app. The formula downloads the tag's source archive, runs `make app SWIFT_FLAGS="--disable-sandbox --manifest-cache local"` with network access denied, and installs `Scripts/install.sh` as the `tokenjar-install-app` command. So a change to the `release` or `app` targets, to `Scripts/bundle.sh` or to `Scripts/install.sh` reaches Homebrew users at the next release.
+
+1. Check that `VERSION` holds the version being released. The app's version comes from it, and step 5 checks that the built app reports it.
+2. Tag the commit on `main` and push the tag: `git tag v<version>`, then `git push origin v<version>`.
+3. Get the checksum of the archive Homebrew will download: `curl -fsSLo tokenjar.tar.gz https://github.com/PedroMosquera/tokenjar/archive/refs/tags/v<version>.tar.gz && shasum -a 256 tokenjar.tar.gz`. It prints no checksum if the download fails, for example before the tag is pushed.
+4. In the tap, set `url` and `sha256` in `tokenjar.rb` to the new tag and checksum, commit as `tokenjar <version>` and push.
+5. Check it with a real install: `brew update`, then `brew upgrade tokenjar`, or `brew install PedroMosquera/tap/tokenjar` on a Mac that does not have it yet. Then `codesign --verify --strict "$(brew --prefix)/opt/tokenjar/Tokenjar.app"` must pass, `plutil -extract CFBundleShortVersionString raw "$(brew --prefix)/opt/tokenjar/Tokenjar.app/Contents/Info.plist"` must print the new version, and `cat "$(brew --prefix)/bin/tokenjar-install-app"` must name the new version's `libexec/install.sh`.
+6. Once those checks pass, create a GitHub release for the tag, with short notes and no uploaded files. Tokenjar has no update check, so this is how people who watch the repository's releases hear about a new version, and by then Homebrew can install it.
+
+A release does not run `brew test` or `brew audit`. They are Homebrew developer commands, and running one turns on Homebrew's developer mode, which moves `brew update` to Homebrew's `main` branch and installs gems that `brew developer off` leaves behind.

@@ -5,7 +5,7 @@
 
 Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot. Devin gets a card that opens its usage page.
 
-I built it because I did not want a third-party app handling my AI logins. Tokenjar asks each provider's own CLI for the numbers, except for OpenCode, where it reads opencode's key and local database. History stays on your Mac. There is no prebuilt download: you build it from source with the Command Line Tools.
+I built it because I did not want a third-party app handling my AI logins. Tokenjar asks each provider's own CLI for the numbers, except for OpenCode, where it reads opencode's key and local database. History stays on your Mac. There is no prebuilt download: you build it from source with the Command Line Tools, by hand or through Homebrew.
 
 <p align="center">
   <picture>
@@ -73,9 +73,25 @@ On disk it keeps token counts, model ids, timestamps and project folder names, p
 
 - macOS 14 or later.
 - Command Line Tools with Swift 6.2 or later (`xcode-select --install`). Xcode is not needed.
+- For the Homebrew install, macOS 15.6 or later (Homebrew checks only for macOS 15).
 - The CLI for each provider you track: `claude`, `codex`, `agy` 1.1.11 or later, and `gh` signed in with `gh auth login`. OpenCode and Devin need none.
 
 ## Install
+
+Both ways below build Tokenjar from source on your Mac with the Command Line Tools, sign it ad-hoc there and end with the app in `~/Applications`. Neither needs admin rights, though installing Homebrew itself does if you do not have it yet. Pick one and stay with it, so that only one copy runs.
+
+### With Homebrew
+
+```sh
+brew install PedroMosquera/tap/tokenjar
+tokenjar-install-app
+```
+
+The full name adds the [PedroMosquera/homebrew-tap](https://github.com/PedroMosquera/homebrew-tap) tap and trusts only this formula. Homebrew downloads the tagged source, builds it with network access turned off (a minute or a few, depending on the Mac), and keeps `Tokenjar.app` in its own folder. Homebrew does not put apps in `~/Applications`, so `tokenjar-install-app` then does what `make install` does with its own build: it quits the Tokenjar running from `~/Applications`, copies Homebrew's build there and opens it. `tokenjar-install-app <folder>` puts it somewhere else.
+
+To update, run `brew upgrade tokenjar`, then `tokenjar-install-app` again. Until you do, the previous version keeps running. Homebrew reminds you after each install and upgrade. If you used `make install` before, run `make clean` in that clone or delete it, so macOS does not pick that build over this one. If that was `make install INSTALL_DIR=<folder>`, give `tokenjar-install-app` the same folder, so it replaces that copy. Homebrew's own install analytics include the formula's name; `brew analytics off` turns them off ([docs/privacy.md](docs/privacy.md#traffic-that-is-not-tokenjars)).
+
+### With make
 
 ```sh
 git clone https://github.com/PedroMosquera/tokenjar.git
@@ -83,11 +99,19 @@ cd tokenjar
 make install
 ```
 
-That builds a release binary, wraps it in `Tokenjar.app`, signs it ad-hoc, copies it to `~/Applications` and opens it. It needs no admin rights and shows no Gatekeeper prompt. `make install INSTALL_DIR=<folder>` puts it somewhere else. Tokenjar has no Dock icon, except while the dashboard or Settings is open. Launch at login stays off until you turn it on in Settings > General.
+That builds a release binary, wraps it in `Tokenjar.app`, signs it ad-hoc, copies it to `~/Applications` and opens it. It shows no Gatekeeper prompt. `make install INSTALL_DIR=<folder>` puts it somewhere else.
 
-To update, pull and run `make install` again. It quits the Tokenjar running from the install folder, replaces it and opens the new build. A copy started anywhere else, such as by `make run` or a `.build` binary, keeps running. If you pasted an API key in Settings, macOS asks once more for Keychain access after each update, because every build gets a new ad-hoc signature.
+To update, pull and run `make install` again. It quits the Tokenjar running from the install folder, replaces it and opens the new build. A copy started anywhere else, such as by `make run` or a `.build` binary, keeps running.
 
-To remove it, turn off Launch at login, quit Tokenjar and delete `~/Applications/Tokenjar.app`. To clear its data as well, delete `~/Library/Application Support/Tokenjar` (history) and `~/.config/tokenjar` (settings), run `defaults delete com.pedromosquera.tokenjar` (window sizes and positions), and remove any "Tokenjar API key" item in Keychain Access. [docs/privacy.md](docs/privacy.md#what-it-writes) lists everything it writes. These steps have not been tested on a clean Mac.
+### After installing
+
+Tokenjar has no Dock icon, except while the dashboard or Settings is open. Launch at login stays off until you turn it on in Settings > General; turn it on from the copy in `~/Applications`. If you pasted an API key in Settings, macOS asks once more for Keychain access after each update, because every build gets a new ad-hoc signature.
+
+### Removing it
+
+Turn off Launch at login, quit Tokenjar and delete `~/Applications/Tokenjar.app`. If you installed with Homebrew, also run `brew uninstall tokenjar`, which removes Homebrew's copy and the `tokenjar-install-app` command. If you use nothing else from that tap, `brew untap PedroMosquera/tap` removes the tap too, so `brew update` stops fetching it.
+
+To clear its data as well, delete `~/Library/Application Support/Tokenjar` (history), run `defaults delete com.pedromosquera.tokenjar` (window sizes and positions), and remove any "Tokenjar API key" item in Keychain Access. Delete settings with `rm -r ~/.config/tokenjar` (or `$XDG_CONFIG_HOME/tokenjar` if Tokenjar runs with that variable set), typed out with no trailing slash, which tab completion can add. If that folder or its `config.json` is a link into a dotfiles repository, this removes only the link. If the folder that holds it, such as `~/.config`, is itself a link into a repository, this deletes the `tokenjar` folder inside that repository. [docs/privacy.md](docs/privacy.md#what-it-writes) lists everything Tokenjar writes. These steps have not been tested on a clean Mac.
 
 ## First run
 
@@ -116,7 +140,7 @@ The file holds no secrets, only where keys live, so it can sit in a dotfiles rep
 
 No notifications: alerts only come from the installed app, not from `swift run` or a `.build` binary.
 
-[docs/troubleshooting.md](docs/troubleshooting.md) covers sign-in, Copilot access, proxies, paused checks, a broken config file, the Keychain prompt and Macs that only run approved software.
+[docs/troubleshooting.md](docs/troubleshooting.md) covers sign-in, Copilot access, proxies, paused checks, a broken config file, the Keychain prompt, Macs that only run approved software, and a Homebrew build that stops on older developer tools.
 
 ## Development
 

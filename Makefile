@@ -3,6 +3,9 @@ CLT ?= $(shell xcode-select -p)
 APP_NAME := Tokenjar
 INSTALL_DIR ?= $(HOME)/Applications
 SCRATCH ?= .build
+# Extra flags for the release build. Homebrew passes --disable-sandbox (SwiftPM's sandbox cannot nest in
+# Homebrew's) and --manifest-cache local (keeps the build out of ~/Library/Caches).
+SWIFT_FLAGS ?=
 
 # SwiftPM's default build system stamps the deployment target as the SDK version, which makes macOS run
 # the app in compatibility mode. Stamp the real SDK generation instead.
@@ -20,7 +23,7 @@ build:
 	swift build --scratch-path $(SCRATCH)
 
 release:
-	swift build -c release --scratch-path $(SCRATCH) $(LINK_SDK)
+	swift build -c release --scratch-path $(SCRATCH) $(SWIFT_FLAGS) $(LINK_SDK)
 
 test:
 	swift test --scratch-path $(SCRATCH) $(TEST_FLAGS)
@@ -28,8 +31,9 @@ test:
 app: release
 	SCRATCH=$(SCRATCH) ./Scripts/bundle.sh
 
+# Cleared so that a TOKENJAR_APP exported in the shell cannot replace this build with another app.
 install: app
-	./Scripts/install.sh "$(INSTALL_DIR)"
+	TOKENJAR_APP= ./Scripts/install.sh "$(INSTALL_DIR)"
 
 run: app
 	open build/$(APP_NAME).app

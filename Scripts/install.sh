@@ -1,7 +1,26 @@
 #!/usr/bin/env bash
-# Copies build/Tokenjar.app into ~/Applications (no admin rights) and relaunches it.
+# Copies Tokenjar.app into ~/Applications (no admin rights) and relaunches it. make install copies build/Tokenjar.app;
+# Homebrew's tokenjar-install-app sets TOKENJAR_APP to the app in its keg.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+case "${1:-}" in
+  -*)
+    echo "error: this command takes no options, only the folder to install into (~/Applications by default)." >&2
+    exit 64
+    ;;
+esac
+# Only build/ needs the cd into the repo. With the app named, the script stays in the caller's folder, so a relative
+# destination is not resolved inside Homebrew's keg.
+if [ -n "${TOKENJAR_APP:-}" ]; then
+  APP="$TOKENJAR_APP"
+else
+  cd "$(dirname "$0")/.."
+  APP=build/Tokenjar.app
+fi
+# Before anything is quit or deleted, so a missing app never leaves the install folder empty.
+if [ ! -d "$APP" ]; then
+  echo "error: $APP not found. Nothing was changed." >&2
+  exit 1
+fi
 DEST="${1:-$HOME/Applications}"
 mkdir -p "$DEST"
 # Absolute, because the running app is matched below by the full path it was started with. Through a symlinked folder
@@ -19,7 +38,7 @@ if [ -d "$OLD" ] && [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' 
     sleep 0.1
   done
   if pgrep -x Headroom >/dev/null; then
-    echo "error: Headroom is still running. Quit it, then run make install again." >&2
+    echo "error: Headroom is still running. Quit it, then run this command again." >&2
     exit 1
   fi
   rm -rf "$OLD"
@@ -31,7 +50,7 @@ regex_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
 APP_PATTERN="^($(regex_escape "$DEST")|$(regex_escape "$DEST_RESOLVED"))/Tokenjar\.app/Contents/MacOS/Tokenjar( |\$)"
 pkill -f "$APP_PATTERN" 2>/dev/null && sleep 1 || true
 rm -rf "$DEST/Tokenjar.app"
-ditto build/Tokenjar.app "$DEST/Tokenjar.app"
+ditto "$APP" "$DEST/Tokenjar.app"
 codesign --verify --strict "$DEST/Tokenjar.app"
 open "$DEST/Tokenjar.app"
 echo "Installed to $DEST/Tokenjar.app"
