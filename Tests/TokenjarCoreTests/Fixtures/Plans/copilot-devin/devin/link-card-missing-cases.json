@@ -38,7 +38,7 @@
     {
       "plan": "Any plan, hand-edited empty usage page (Settings can never write this)",
       "billing": "any",
-      "evidence": "tj:Sources/TokenjarCore/Providers/Devin/DevinUsageFetcher.swift:17, tj:Sources/Tokenjar/Settings/AccountDetailView.swift:232-239",
+      "evidence": "Sources/TokenjarCore/Providers/Devin/DevinUsageFetcher.swift, Sources/Tokenjar/Settings/AccountDetailView.swift",
       "account": {"id": "devin", "provider": "devin", "label": "Devin", "dashboardURL": ""},
       "expectedNotes": "noQuotaNote + windsurfNote (today: noQuotaNote only, because the check is dashboardURL == nil)",
       "expectedResolvedDashboardURL": "https://app.devin.ai/settings/plans"

@@ -56,7 +56,7 @@
     "inputs": {
       "usage": "opencode/go-usage-v2-console-meters.json"
     },
-    "blocked": "Capture 2d: the 200 shape of the v2 backend is unknown."
+    "blocked": "A capture of the v2 backend: its 200 shape is unknown."
   },
   {
     "id": "opencode-go.no-sub",

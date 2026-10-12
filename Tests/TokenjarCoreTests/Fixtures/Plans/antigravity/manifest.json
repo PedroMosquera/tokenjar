@@ -169,6 +169,6 @@
     "inputs": {
       "stdout": "antigravity/pro-exhausted-fraction-omitted.stdout.json"
     },
-    "blocked": "Capture 2c with an exhausted bucket (A7): whether remaining_fraction is omitted is inferred."
+    "blocked": "A capture with an exhausted bucket: whether remaining_fraction is omitted is inferred."
   }
 ]

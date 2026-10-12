@@ -3,7 +3,8 @@ import Testing
 import TokenjarCore
 
 struct FixtureShapeTests {
-    /// The row ids of section 1 of the plan matrix. A row added there is added here and to its provider's manifest.
+    /// Every plan case id, kept apart from the manifests so a case that drops out of one fails here instead of silently.
+    /// A new case goes into its provider's manifest and into this list.
     static let planRowIDs = [
         "claude.free", "claude.pro", "claude.max5x", "claude.max20x", "claude.team-standard", "claude.team-premium",
         "claude.enterprise-seat", "claude.enterprise-usage-based", "claude.enterprise-usage-seat-report",
