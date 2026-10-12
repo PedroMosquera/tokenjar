@@ -26,6 +26,13 @@ public protocol HistoryScanner: Sendable {
     /// Stable name used to namespace checkpoints in storage.
     var name: String { get }
     func scan(_ account: AccountConfig, checkpoints: ScanCheckpoints, paths: AppPaths) throws -> ScanResult
+    /// Equal non-nil keys mean two accounts read the same local source, so its rows belong under one of them only.
+    /// A digest, never a path: callers may store or log it. nil means the account's source is its own.
+    func sharedSourceKey(for account: AccountConfig, paths: AppPaths) -> String?
+}
+
+extension HistoryScanner {
+    public func sharedSourceKey(for account: AccountConfig, paths: AppPaths) -> String? { nil }
 }
 
 public enum UsageGrouping: String, CaseIterable, Sendable {

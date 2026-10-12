@@ -18,7 +18,7 @@ struct ModelsTests {
             .opencodeZen: "https://opencode.ai/auth",
             .antigravity: "https://antigravity.google/docs/plans",
             .copilot: "https://github.com/settings/copilot",
-            .devin: "https://app.devin.ai/settings/plans",
+            .devin: "https://app.devin.ai/settings/usage",
         ]
         for provider in ProviderID.allCases {
             #expect(provider.defaultDashboardURL.absoluteString == expected[provider], "\(provider)")
@@ -133,6 +133,85 @@ struct ModelsTests {
             #expect(message.hasSuffix("click Try Once More."))
             #expect(!message.contains("CLI"))
         }
+    }
+
+    /// The quota sits on Usage & limits; Settings > Plans only lists plans.
+    @Test func devinOpensItsUsagePage() {
+        #expect(ProviderID.devin.defaultDashboardURL.absoluteString == "https://app.devin.ai/settings/usage")
+        #expect(AccountConfig(id: "devin", provider: .devin, label: "Devin").resolvedDashboardURL.absoluteString == "https://app.devin.ai/settings/usage")
+    }
+
+    @Test func anOutdatedCLINamesItsMinimumVersion() {
+        #expect(FetchError.cliTooOld(name: "agy", minimum: "1.1.11").userMessage == "Update agy to 1.1.11 or later.")
+        #expect(FetchError.cliTooOld(name: "codex", minimum: nil).userMessage == "Update codex: this version answers in a format Tokenjar can't read.")
+    }
+
+    /// Updating the CLI is the user's move; waiting for the next check changes nothing.
+    @Test func outdatedCLIIsActionable() {
+        #expect(FetchError.cliTooOld(name: "codex", minimum: "0.50.0").attention == .actionable)
+        #expect(FetchError.cliTooOld(name: "codex", minimum: nil).attention == .actionable)
+    }
+
+    /// Tokenjar runs claude outside the user's shell, so a key or cloud switch exported only there reads as signed out.
+    @Test func claudeSignedOutCopyNamesTheAPIKeyAndCloudRoutes() {
+        let message = FetchError.notSignedIn.userMessage(provider: .claude)
+        for route in ["Sign in", "claude", "API key", "Bedrock", "Vertex", "settings.json", "shell"] {
+            #expect(message.contains(route), "\(route) missing from \(message)")
+        }
+        #expect(message.hasSuffix("."))
+    }
+
+    @Test func otherProvidersKeepTheSignedOutCopy() {
+        for provider in ProviderID.allCases where provider != .claude {
+            #expect(FetchError.notSignedIn.userMessage(provider: provider) == FetchError.notSignedIn.userMessage, "\(provider)")
+        }
+        let others: [FetchError] = [.unauthorized, .cliNotFound("claude"), .parse("shape"), .cliTooOld(name: "claude", minimum: nil), .keychainDenied]
+        for error in others {
+            #expect(error.userMessage(provider: .claude) == error.userMessage, "\(error)")
+        }
+    }
+
+    /// `latestSnapshots` shows each account's last snapshot at launch, so a field the stored JSON drops is gone until
+    /// the next check.
+    @Test func billingRoundTripsThroughStoredJSON() throws {
+        let temp = TemporaryDirectory()
+        let store = try SQLiteUsageStore(url: temp.url.appending(path: "tokenjar.sqlite"))
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        for billing in Billing.allCases {
+            try store.record(UsageSnapshot(accountID: billing.rawValue, provider: .claude, billing: billing, fetchedAt: now, source: "test"))
+        }
+        let stored = Dictionary(uniqueKeysWithValues: try store.latestSnapshots().map { ($0.accountID, $0.billing) })
+        #expect(stored.count == Billing.allCases.count)
+        for billing in Billing.allCases {
+            #expect(stored[billing.rawValue] == billing, "\(billing)")
+        }
+        // Raw values are stored, so renaming a case would orphan every row written before.
+        #expect(Billing.allCases.map(\.rawValue) == ["free", "subscription", "pooled", "usageBased", "payAsYouGo"])
+    }
+
+    /// A row written before `billing` and `limitStyle` existed. `latestSnapshots` drops a row that fails to decode, so a
+    /// required field would blank every account at the first launch after an update.
+    @Test func aStoredSnapshotWithoutBillingStillDecodes() throws {
+        let json = """
+            {"accountID":"max","provider":"claude","plan":"Max 20x","windows":[{"id":"session","label":"5-hour","usedPercent":40,\
+            "windowMinutes":300,"resetsAt":800000000,"notStarted":false}],"money":[],"fetchedAt":799990000,"source":"claude CLI","notes":[]}
+            """
+        let decoded = try? JSONDecoder().decode(UsageSnapshot.self, from: Data(json.utf8))
+        let snapshot = try #require(decoded)
+        #expect(snapshot.billing == nil)
+        #expect(snapshot.windows.map(\.limitStyle) == [nil])
+        #expect(snapshot.plan == "Max 20x")
+    }
+
+    @Test func limitStyleRoundTripsAndDefaultsToHard() throws {
+        let windows = [
+            UsageWindow(id: "monthly", label: "AI credits", usedPercent: 120, limitStyle: .overage),
+            UsageWindow(id: "share", label: "Seat share", usedPercent: 80, limitStyle: .share),
+            UsageWindow(id: "session", label: "5-hour", usedPercent: 40),
+        ]
+        let decoded = try JSONDecoder().decode([UsageWindow].self, from: JSONEncoder().encode(windows))
+        #expect(decoded.map(\.limitStyle) == [.overage, .share, nil])
+        #expect(LimitStyle.allCases.map(\.rawValue) == ["overage", "share"])
     }
 
     @Test func monthLengthFollowsTheMonthEndingAtReset() {

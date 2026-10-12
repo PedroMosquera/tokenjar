@@ -40,7 +40,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: URL(string: "https://opencode.ai/auth")!
         case .antigravity: URL(string: "https://antigravity.google/docs/plans")!
         case .copilot: URL(string: "https://github.com/settings/copilot")!
-        case .devin: URL(string: "https://app.devin.ai/settings/plans")!
+        case .devin: URL(string: "https://app.devin.ai/settings/usage")!
         }
     }
 
@@ -155,6 +155,14 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
+/// What reaching 100 % of a window means when it is not a hard stop.
+public enum LimitStyle: String, Codable, CaseIterable, Sendable {
+    /// Use past 100 % is billed as extra use; nothing stops.
+    case overage
+    /// The window is this seat's share of an allowance pooled across an org, so 100 % is not where the pool runs out.
+    case share
+}
+
 public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
     /// Stable key: `session`, `weekly`, `weekly:<model>`, `monthly`, `<limitId>:<window>` for extra Codex limits,
     /// `spend-cap` for a Codex workspace cap, or `<pool>:session` / `<pool>:weekly` for Antigravity's quota pools.
@@ -166,14 +174,20 @@ public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
     public var resetsAt: Date?
     /// True when the provider reports an idle window whose reset time is synthetic (now + window).
     public var notStarted: Bool
+    /// nil means a hard limit: at 100 % the provider stops serving.
+    public var limitStyle: LimitStyle?
 
-    public init(id: String, label: String, usedPercent: Double, windowMinutes: Int? = nil, resetsAt: Date? = nil, notStarted: Bool = false) {
+    public init(
+        id: String, label: String, usedPercent: Double, windowMinutes: Int? = nil, resetsAt: Date? = nil, notStarted: Bool = false,
+        limitStyle: LimitStyle? = nil
+    ) {
         self.id = id
         self.label = label
         self.usedPercent = usedPercent
         self.windowMinutes = windowMinutes
         self.resetsAt = resetsAt
         self.notStarted = notStarted
+        self.limitStyle = limitStyle
     }
 
     /// A monthly allowance follows its billing month, so its window is the UTC calendar month ending at the reported
@@ -207,11 +221,26 @@ public struct MoneyLine: Codable, Hashable, Sendable {
     }
 }
 
+/// How the account itself pays for use. `CostLine` reads it, so it decides who sees a dollar estimate.
+public enum Billing: String, Codable, CaseIterable, Sendable {
+    case free
+    /// A flat plan, extra usage included: the provider's own money row is the bill.
+    case subscription
+    /// A seat that draws on credits pooled at the org.
+    case pooled
+    /// A seat billed per use under an org or team contract.
+    case usageBased
+    /// An API key, cloud lane, gateway or prepaid balance.
+    case payAsYouGo
+}
+
 public struct UsageSnapshot: Codable, Hashable, Sendable {
     public var accountID: String
     public var provider: ProviderID
     /// Human plan label, e.g. "Max 20x", "Plus", "Enterprise".
     public var plan: String?
+    /// nil when the fetcher cannot tell, which never shows a cost line.
+    public var billing: Billing?
     public var windows: [UsageWindow]
     public var money: [MoneyLine]
     public var fetchedAt: Date
@@ -220,10 +249,14 @@ public struct UsageSnapshot: Codable, Hashable, Sendable {
     /// Plain-language notes, e.g. "No plan limits for this login". Never raw errors, emails or ids.
     public var notes: [String]
 
-    public init(accountID: String, provider: ProviderID, plan: String? = nil, windows: [UsageWindow] = [], money: [MoneyLine] = [], fetchedAt: Date, source: String, notes: [String] = []) {
+    public init(
+        accountID: String, provider: ProviderID, plan: String? = nil, billing: Billing? = nil, windows: [UsageWindow] = [],
+        money: [MoneyLine] = [], fetchedAt: Date, source: String, notes: [String] = []
+    ) {
         self.accountID = accountID
         self.provider = provider
         self.plan = plan
+        self.billing = billing
         self.windows = windows
         self.money = money
         self.fetchedAt = fetchedAt
@@ -261,6 +294,9 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
     case unsupported(String)
     /// The user refused Tokenjar's own Keychain item. Only the account's Try Again asks again.
     case keychainDenied
+    /// The CLI is older than the answer format this build reads. `minimum` is the first version known to work, when
+    /// there is one.
+    case cliTooOld(name: String, minimum: String?)
 
     /// How much a failed check asks of the user. The popover, menu bar, dashboard and Settings all read this one
     /// classification, so they agree on what counts as a problem.
@@ -276,7 +312,7 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
         switch self {
         case .noSubscription: .calm
         case .network, .timeout, .rateLimited: .transient
-        case .cliNotFound, .notSignedIn, .unauthorized, .parse, .unsupported, .keychainDenied: .actionable
+        case .cliNotFound, .notSignedIn, .unauthorized, .parse, .unsupported, .keychainDenied, .cliTooOld: .actionable
         }
     }
 
@@ -293,7 +329,17 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
         case .parse: "Couldn't read the usage answer. An update may have changed it."
         case .unsupported(let detail): detail
         case .keychainDenied: "Keychain access was denied. Tokenjar won't ask again on its own."
+        case .cliTooOld(let name, let minimum?): "Update \(name) to \(minimum) or later."
+        case .cliTooOld(let name, nil): "Update \(name): this version answers in a format Tokenjar can't read."
         }
+    }
+
+    /// `userMessage`, except that Claude's signed-out copy also names the routes a shell-only setup hides: Tokenjar
+    /// runs claude outside the user's shell, so an API key or cloud switch exported only there reads as signed out.
+    public func userMessage(provider: ProviderID) -> String {
+        guard self == .notSignedIn, provider == .claude else { return userMessage }
+        return "Signed out of claude. Sign in again, or set up your API key or cloud provider (Bedrock, Vertex and others) in "
+            + "Claude's settings.json: Tokenjar can't see one set only in your shell."
     }
 }
 
