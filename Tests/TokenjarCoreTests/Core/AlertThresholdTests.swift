@@ -34,4 +34,19 @@ struct AlertThresholdTests {
         overridden.alertThresholds = [90, 70]
         #expect(AppConfig().thresholds(for: overridden, window: window(minutes: minutes)) == [70, 90])
     }
+
+    @Test(arguments: [(300, [99]), (1440, [99]), (10_080, [70, 90]), (nil, [70, 90])] as [(Int?, [Int])])
+    func anAccountShortOverrideWinsOnShortWindowsOnly(minutes: Int?, expected: [Int]) {
+        var overridden = account
+        overridden.alertThresholds = [90, 70]
+        overridden.shortAlertThresholds = [99]
+        #expect(AppConfig().thresholds(for: overridden, window: window(minutes: minutes)) == expected)
+    }
+
+    @Test(arguments: [(300, [99]), (10_080, [80, 95])] as [(Int?, [Int])])
+    func anAccountWithOnlyAShortOverrideKeepsTheGlobalLongList(minutes: Int?, expected: [Int]) {
+        var overridden = account
+        overridden.shortAlertThresholds = [99]
+        #expect(AppConfig().thresholds(for: overridden, window: window(minutes: minutes)) == expected)
+    }
 }

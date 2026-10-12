@@ -155,9 +155,13 @@ public struct AppConfig: Codable, Equatable, Sendable {
         (account.alertThresholds ?? alerts.thresholds).sorted()
     }
 
-    /// An account's own list applies to both kinds of window, so an override set before the split keeps its alerts.
+    /// An account's `alertThresholds` also covers its short windows until it sets `shortAlertThresholds`, so an
+    /// override set before the split keeps its alerts.
     public func thresholds(for account: AccountConfig, window: UsageWindow) -> [Int] {
-        (account.alertThresholds ?? (window.isShort ? alerts.shortThresholds : alerts.thresholds)).sorted()
+        let list = window.isShort
+            ? account.shortAlertThresholds ?? account.alertThresholds ?? alerts.shortThresholds
+            : account.alertThresholds ?? alerts.thresholds
+        return list.sorted()
     }
 }
 
@@ -292,6 +296,8 @@ public struct ConfigStore: Sendable {
         if before.showInMenuBar != after.showInMenuBar { out.showInMenuBar = after.showInMenuBar }
         if before.refreshMinutes != after.refreshMinutes { out.refreshMinutes = after.refreshMinutes }
         if before.alertThresholds != after.alertThresholds { out.alertThresholds = after.alertThresholds }
+        if before.shortAlertThresholds != after.shortAlertThresholds { out.shortAlertThresholds = after.shortAlertThresholds }
+        if before.creditAllowance != after.creditAllowance { out.creditAllowance = after.creditAllowance }
         if before.dashboardURL != after.dashboardURL { out.dashboardURL = after.dashboardURL }
         return out
     }
