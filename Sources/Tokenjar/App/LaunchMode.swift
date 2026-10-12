@@ -46,7 +46,7 @@ enum LaunchMode: Equatable {
 /// `Tokenjar --render-windows <dir> [--real-data] [--only <name-prefix>]`.
 struct WindowRenderOptions: Equatable {
     var directory: URL
-    /// This Mac's config and a copy of its history instead of `AppModel.preview()`.
+    /// The local config and a copy of its history instead of `AppModel.preview()`.
     var realData = false
     /// Screen name prefixes to render; empty renders every screen.
     var only: [String] = []

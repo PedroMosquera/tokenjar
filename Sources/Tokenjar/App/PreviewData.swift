@@ -2,7 +2,7 @@ import Foundation
 import TokenjarCore
 
 extension AppPaths {
-    /// Preview renders end up in the README and in PRs, so they never see this Mac's home folder, stow links or XDG
+    /// Preview renders end up in the README and in PRs, so they never see the local home folder, stow links or XDG
     /// variables.
     static let preview = AppPaths(home: URL(fileURLWithPath: "/Users/you"), environment: [:], systemRoot: URL(fileURLWithPath: "/var/empty"))
 }

@@ -63,7 +63,7 @@ extension AntigravityUsageFetcher {
         !version.lexicographicallyPrecedes(minimumVersion)
     }
 
-    // Unverified live: agy was not installed on the build machine. The shape comes from CodexBar's synthetic
+    // Unverified live: no answer from a real agy account has been captured. The shape comes from CodexBar's synthetic
     // agy test fixture, {"command":{"data":{"groups":[{"name","buckets":[{"window","remaining_fraction",
     // "reset_time","disabled"}]}]}}}, so `groups` is looked up at any depth and both key casings are accepted.
     /// An empty result means agy reported no limits: a `groups` array with no enabled buckets, or a `data.message`

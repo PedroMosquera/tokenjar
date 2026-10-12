@@ -3,7 +3,7 @@ import SwiftUI
 import TokenjarCore
 
 /// Loads provider marks from Contents/Resources/Logos (installed app) or the repo's Resources/Logos (swift run).
-/// Never uses Bundle.module: its lookup traps when the bundle is moved off the build machine.
+/// Never uses Bundle.module: its lookup traps once the app runs anywhere other than where it was built.
 enum ProviderLogo {
     private static var cache: [String: NSImage] = [:]
 

@@ -318,7 +318,7 @@ struct AccountDetailView: View {
     }
 
     /// Preview renders become review images that get pasted into PRs, so they use a stand-in home folder and bare
-    /// CLI names instead of this Mac's paths.
+    /// CLI names instead of local paths.
     static func signInLine(for account: AccountConfig, cliPaths: [String: String], paths: AppPaths, previewMode: Bool) -> SignInLine? {
         let cli = CLILocator(overrides: cliPaths)
         let paths = previewMode ? AppPaths.preview : paths

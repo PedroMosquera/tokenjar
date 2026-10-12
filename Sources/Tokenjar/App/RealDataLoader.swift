@@ -1,7 +1,7 @@
 import Foundation
 import TokenjarCore
 
-/// This Mac's settings and stored history for `--render-windows --real-data`, read next to the running app without
+/// The local settings and stored history for `--render-windows --real-data`, read next to the running app without
 /// writing to anything it owns: config.json through `ConfigStore.load` only, and the database through a copy made in
 /// `scratch` with SQLite's online backup. Nothing is fetched, scanned, saved or asked of macOS or the Keychain.
 struct RealDataLoader {

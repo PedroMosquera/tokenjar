@@ -1,7 +1,7 @@
 import Foundation
 import TokenjarCore
 
-/// Developer entry points for checking fetchers and scanners against this Mac's real CLIs and logs.
+/// Developer entry points for checking fetchers and scanners against the real CLIs and logs on the local Mac.
 /// Output is the snapshot JSON, aggregate counts or a redacted capture; none ever contains tokens, emails or prompt text.
 ///
 ///   Tokenjar --probe <provider> [--profile-dir DIR] [--credential-file FILE --credential-key KEY]

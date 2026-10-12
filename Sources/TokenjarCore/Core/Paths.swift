@@ -9,7 +9,7 @@ public struct AppPaths: Sendable {
     public var systemRoot: URL
     private var xdgConfigHome: String?
 
-    /// `environment` and `systemRoot` are seams for tests, so a test never reads this Mac's managed settings.
+    /// `environment` and `systemRoot` are seams for tests, so a test never reads the real managed settings.
     public init(
         home: URL = FileManager.default.homeDirectoryForCurrentUser, environment: [String: String] = ProcessInfo.processInfo.environment,
         systemRoot: URL = URL(fileURLWithPath: "/")

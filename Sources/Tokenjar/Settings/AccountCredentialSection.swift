@@ -105,7 +105,7 @@ struct AccountCredentialSection: View {
         Self.keyFile(for: account, paths: model.paths, previewMode: model.previewMode, environment: ProcessInfo.processInfo.environment)
     }
 
-    /// A preview render ignores `environment`, so this Mac's `XDG_DATA_HOME` never reaches a README image.
+    /// A preview render ignores `environment`, so the local `XDG_DATA_HOME` never reaches a README image.
     static func keyFile(for account: AccountConfig, paths: AppPaths, previewMode: Bool, environment: [String: String]) -> (path: String, entry: String) {
         if case .file(let path, let key) = account.credential {
             return (path, "entry \(key)")

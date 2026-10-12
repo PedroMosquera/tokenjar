@@ -10,7 +10,7 @@ import TokenjarCore
 /// Windows stay off every screen and the app never activates, so the frontmost app keeps keyboard focus. `CaptureWindow`
 /// stands in for the key window an activation would give: it draws as key and ends up with the focus the app leaves it.
 ///
-/// Data is `AppModel.preview()` and the `PreviewPlans` pages, or with `--real-data` this Mac's config and a copy of its
+/// Data is `AppModel.preview()` and the `PreviewPlans` pages, or with `--real-data` the local config and a copy of its
 /// history (`RealDataLoader`).
 enum WindowRenderer {
     static func run(_ options: WindowRenderOptions) {
