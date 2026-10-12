@@ -321,7 +321,7 @@ struct AccountDetailView: View {
     /// CLI names instead of this Mac's paths.
     static func signInLine(for account: AccountConfig, cliPaths: [String: String], paths: AppPaths, previewMode: Bool) -> SignInLine? {
         let cli = CLILocator(overrides: cliPaths)
-        let paths = previewMode ? AppPaths(home: URL(fileURLWithPath: "/Users/you")) : paths
+        let paths = previewMode ? AppPaths.preview : paths
         let executable = { (name: String) in previewMode ? name : (cli.locate(name)?.path ?? name) }
         guard let command = SignInCommand.command(for: account, paths: paths, executable: executable),
               let shown = SignInCommand.command(for: account, paths: paths, executable: executable, abbreviatingHome: true)

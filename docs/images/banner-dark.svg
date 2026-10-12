@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" width="1280" height="400" role="img" aria-labelledby="title" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif">
+<title id="title">Tokenjar: how much room is left on your AI plans</title>
+<defs><clipPath id="square"><rect x="4" y="4" width="10" height="10" rx="1"/></clipPath></defs>
+<rect x="0.75" y="0.75" width="1278.5" height="398.5" rx="24" fill="#0E0D24" stroke="#24224A" stroke-width="1.5"/>
+<rect x="157" y="83" width="234" height="234" rx="53.09" fill="#2C2A5C"/>
+<g transform="translate(158 84) scale(0.281553) translate(-100 -100)">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#16143D"/>
+  <rect x="255.33" y="255.33" width="513.33" height="513.33" rx="95.33" fill="none" stroke="#8BE9FD" stroke-width="58.67"/>
+  <rect x="339.67" y="339.67" width="344.67" height="344.67" rx="36.67" fill="#FFB86B"/>
+  <path d="M512 512V339.67L647.67 339.67A36.67 36.67 0 0 1 684.33 376.33L684.33 647.67A36.67 36.67 0 0 1 647.67 684.33L376.33 684.33A36.67 36.67 0 0 1 339.67 647.67L339.67 456.01Z" fill="#8BE9FD"/>
+</g>
+<text x="446" y="168" font-size="112" font-weight="700" letter-spacing="-2" fill="#F3F2FA">Tokenjar</text>
+<text x="450" y="233" font-size="38" font-weight="400" fill="#A9A6C9">How much room is left on your AI plans</text>
+<rect x="450" y="262" width="128.86" height="54" rx="12" fill="#1E1C3A" stroke="#2D2B52" stroke-width="1.5"/>
+<g transform="translate(464 272) scale(1.88889)">
+  <rect x="1.75" y="1.75" width="14.5" height="14.5" rx="2.75" fill="none" stroke="#F5F5F7" stroke-width="1.5"/>
+  <path d="M9 9V0A9 9 0 0 1 17.143 5.168Z" fill="#F5F5F7" clip-path="url(#square)"/>
+</g>
+<text x="506" y="298.72" font-size="27" font-weight="400" fill="#F5F5F7" style="font-variant-numeric: tabular-nums">18%</text>
+<rect x="594.86" y="262" width="128.86" height="54" rx="12" fill="#1E1C3A" stroke="#2D2B52" stroke-width="1.5"/>
+<g transform="translate(608.86 272) scale(1.88889)">
+  <rect x="1.75" y="1.75" width="14.5" height="14.5" rx="2.75" fill="none" stroke="#F5F5F7" stroke-width="1.5"/>
+  <path d="M9 9V0A9 9 0 1 1 7.872 17.929Z" fill="#F5F5F7" clip-path="url(#square)"/>
+</g>
+<text x="650.86" y="298.72" font-size="27" font-weight="400" fill="#F5F5F7" style="font-variant-numeric: tabular-nums">52%</text>
+<rect x="739.72" y="262" width="131.21" height="54" rx="12" fill="#1E1C3A" stroke="#2D2B52" stroke-width="1.5"/>
+<g transform="translate(753.72 272) scale(1.88889)">
+  <rect x="1.75" y="1.75" width="14.5" height="14.5" rx="2.75" fill="none" stroke="#FF9F0A" stroke-width="1.5"/>
+  <path d="M9 9V0A9 9 0 1 1 2.065 3.263Z" fill="#FF9F0A" clip-path="url(#square)"/>
+</g>
+<text x="795.72" y="298.72" font-size="27" font-weight="600" fill="#FF9F0A" style="font-variant-numeric: tabular-nums">86%</text>
+<rect x="886.93" y="262" width="175.02" height="54" rx="12" fill="#1E1C3A" stroke="#2D2B52" stroke-width="1.5"/>
+<g transform="translate(900.93 272) scale(1.88889)">
+  <rect x="1.75" y="1.75" width="14.5" height="14.5" rx="2.75" fill="none" stroke="#FF453A" stroke-width="1.5"/>
+  <rect x="4" y="4" width="10" height="10" rx="1" fill="#FF453A"/>
+</g>
+<text x="942.93" y="298.72" font-size="27" font-weight="600" fill="#FF453A" style="font-variant-numeric: tabular-nums">1h 12m</text>
+</svg>
