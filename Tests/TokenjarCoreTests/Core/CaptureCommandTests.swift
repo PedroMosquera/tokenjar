@@ -126,7 +126,7 @@ final class CaptureCommandTests {
         let program = try #require(call.arguments.last)
 
         let raw = #"""
-        {"login":"placeholder-login","id":1234,"user_id":4321,"orgId":8765,"analytics_tracking_id":"0123456789abcdef0123456789abcdef",
+        {"login":"placeholder-login","id":1234,"user_id":4321,"orgId":8765,"enterpriseid":9753,"analytics_tracking_id":"0123456789abcdef0123456789abcdef",
          "assigned_date":"2026-01-01T00:00:00Z","organization_login_list":["placeholder-org"],
          "organization_list":[{"id":5,"login":"placeholder-org","name":"Placeholder Org"}],"enterprise_list":[{"id":6,"slug":"placeholder-ent"}],
          "endpoints":{"api":"https://api.example.invalid"},"copilot_plan":"enterprise","access_type_sku":"copilot_enterprise_seat_quota",
@@ -137,7 +137,7 @@ final class CaptureCommandTests {
         let (status, filtered) = try jq(program, raw)
 
         #expect(status == 0)
-        for leaked in ["placeholder", "Placeholder", "1234", "4321", "8765", "0123456789abcdef", "example", #""id":5"#, #""id":6"#, "2026-"] {
+        for leaked in ["placeholder", "Placeholder", "1234", "4321", "8765", "9753", "0123456789abcdef", "example", #""id":5"#, #""id":6"#, "2026-"] {
             #expect(!filtered.contains(leaked), "\(leaked)")
         }
         for kept in [#""copilot_plan":"enterprise""#, #""access_type_sku":"copilot_enterprise_seat_quota""#, #""quota_id":"premium_interactions""#, #""entitlement":5000"#, #""credits_used":2"#, #""unlimited":false"#, #""login":"<redacted>""#] {

@@ -89,14 +89,15 @@ struct CaptureRedactorTests {
     @Test func numericIDsAreRedacted() throws {
         let input = try json(#"""
         {"user_id": 1234, "orgId": 5678, "id": 9, "ID": 10, "account_uuid": 11, "organization_ids": [12, 13],
-         "percent": 12.5, "count": 3, "valid": 1, "nested": {"limitId": 14, "used": 15}}
+         "userid": 7001, "orgid": 7002, "accountid": 7003, "ACCOUNTID": 7004, "valid": 7005,
+         "percent": 12.5, "count": 3, "nested": {"limitId": 14, "used": 15}}
         """#)
         let output = try CaptureRedactor.render(input, provider: .codex)
 
-        for planted in ["1234", "5678", ": 9", ": 10", ": 11", "12,", "13", "14"] {
+        for planted in ["1234", "5678", ": 9", ": 10", ": 11", "12,", "13", "14", "7001", "7002", "7003", "7004", "7005"] {
             #expect(!output.contains(planted), "\(planted)")
         }
-        for kept in [#""percent" : 12.5"#, #""count" : 3"#, #""valid" : 1"#, #""used" : 15"#] {
+        for kept in [#""percent" : 12.5"#, #""count" : 3"#, #""used" : 15"#] {
             #expect(output.contains(kept), "\(kept)")
         }
     }

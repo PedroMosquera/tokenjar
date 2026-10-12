@@ -71,11 +71,10 @@ public enum CaptureRedactor {
         let patterns = (allowlist[provider] ?? []).compactMap { path in
             path.hasPrefix(prefix + ".") ? pathRegex(String(path.dropFirst(prefix.count + 1))) : nil
         }
-        let suffixes = idSuffixes.map { "($l | endswith(\(jqString($0))))" }.joined(separator: " or ")
-        let camel = camelIDSuffixes.map { "endswith(\(jqString($0)))" }.joined(separator: " or ")
+        let suffixes = idSuffixes.map { "endswith(\(jqString($0)))" }.joined(separator: " or ")
         return [
             "def secret: test(\(jqString(secretPattern)));",
-            "def idkey: ascii_downcase as $l | ($l == \"id\" or $l == \"ids\" or \(suffixes) or \(camel));",
+            "def idkey: ascii_downcase | (\(suffixes));",
             "def allowed($p): any(\(jqArray(patterns))[]; . as $re | $p | test($re));",
             "def r($p; $k): if type == \"object\" then to_entries | [range(0; length) as $i | .[$i]",
             "| (if (.key | secret) then \"<redacted-key-\\($i)>\" else .key end) as $name",
@@ -88,17 +87,18 @@ public enum CaptureRedactor {
         ].joined(separator: " ")
     }
 
+    /// Any key ending in "id" or "ids", whatever its case. Numbers under `valid` or `paid` go too: no narrower rule tells
+    /// those from an all-lowercase `userid` or `orgid` without guessing.
     static func isIDKey(_ key: String) -> Bool {
         let lower = key.lowercased()
-        return lower == "id" || lower == "ids" || idSuffixes.contains { lower.hasSuffix($0) } || camelIDSuffixes.contains { key.hasSuffix($0) }
+        return idSuffixes.contains { lower.hasSuffix($0) }
     }
 
     static func looksSecret(_ text: String) -> Bool {
         text.range(of: secretPattern, options: .regularExpression) != nil
     }
 
-    private static let idSuffixes = ["_id", "_ids", "-id", "uuid"]
-    private static let camelIDSuffixes = ["Id", "ID", "Ids", "IDs"]
+    private static let idSuffixes = ["id", "ids"]
 
     private static func redact(_ value: Any, path: String, key: String, allowed: [String]) -> Any {
         if let object = value as? [String: Any] {
