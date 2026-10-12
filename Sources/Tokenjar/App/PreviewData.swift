@@ -330,8 +330,8 @@ extension AppModel {
         )
         let copilotAge: TimeInterval = copilotError == nil ? 60 : 25 * 60
         let copilot = UsageSnapshot(
-            accountID: "copilot", provider: .copilot, plan: "Enterprise",
-            windows: [UsageWindow(id: "monthly", label: "AI credits", usedPercent: 2.0 / 5_000 * 100, windowMinutes: 44_640, resetsAt: now.addingTimeInterval(19 * 86_400 + 14 * 3_600))],
+            accountID: "copilot", provider: .copilot, plan: "Pro",
+            windows: [UsageWindow(id: "monthly", label: "AI credits", usedPercent: 300.0 / 1_500 * 100, windowMinutes: 44_640, resetsAt: now.addingTimeInterval(19 * 86_400 + 14 * 3_600))],
             fetchedAt: now.addingTimeInterval(-copilotAge), source: "gh CLI"
         )
         let zen = UsageSnapshot(
@@ -340,7 +340,7 @@ extension AppModel {
             fetchedAt: now.addingTimeInterval(-60), source: "opencode.db", notes: ["Balance needs a console sign-in; showing local spend only."]
         )
         let personal = UsageSnapshot(
-            accountID: "claude-personal", provider: .claude, plan: "Max 20x",
+            accountID: "claude-personal", provider: .claude, plan: "Max 5x",
             windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: 97, windowMinutes: 300, resetsAt: now.addingTimeInterval(70 * 60))],
             fetchedAt: now.addingTimeInterval(-25 * 60), source: ClaudeUsageFetcher.source
         )
