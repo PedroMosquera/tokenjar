@@ -25,14 +25,16 @@ struct PopoverView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 10)
             if let configError = model.configError {
-                ConfigErrorBanner(message: configError)
+                // While edits are off, fixing the file and reloading is the way out, as on Settings' banner.
+                ConfigErrorBanner(message: configError, file: model.canEditConfig ? nil : model.settingsProblem?.file)
                     .padding(.horizontal, Self.cardMargin)
                     .padding(.bottom, 10)
             }
             Divider()
                 .padding(.horizontal, Self.dividerInset)
             if model.accounts.isEmpty {
-                EmptyAccounts()
+                // With no settings loaded, "Add an account" would contradict the banner: the accounts exist, unread.
+                if model.settingsProblem?.nothingLoaded != true { EmptyAccounts() }
             } else {
                 ScrollView {
                     VStack(spacing: 8) {
@@ -59,16 +61,30 @@ struct PopoverView: View {
 }
 
 private struct ConfigErrorBanner: View {
+    @Environment(AppModel.self) private var model
     var message: String
+    /// The settings file at fault, offered with Reveal in Finder and Reload; nil shows the message alone.
+    var file: String?
 
     var body: some View {
-        Label(message, systemImage: "exclamationmark.triangle.fill")
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .symbolRenderingMode(.multicolor)
-            .padding(PopoverView.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        VStack(alignment: .trailing, spacing: 8) {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.secondary)
+                .symbolRenderingMode(.multicolor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            if let file {
+                HStack(spacing: 6) {
+                    Button("Reveal in Finder") { model.revealConfigFile(file) }
+                    Button("Reload") { model.loadConfig() }
+                }
+                .controlSize(.small)
+            }
+        }
+        .font(.callout)
+        .padding(PopoverView.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 

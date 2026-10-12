@@ -374,12 +374,19 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
         }
     }
 
-    /// `userMessage`, except that Claude's signed-out copy also names the routes a shell-only setup hides: Tokenjar
-    /// runs claude outside the user's shell, so an API key or cloud switch exported only there reads as signed out.
+    /// `userMessage` for a surface that shows one account: a connection failure names the provider, since "the server"
+    /// does not say which of several is down, and Claude's signed-out copy also names the routes a shell-only setup
+    /// hides (Tokenjar runs claude outside the user's shell, so an API key or cloud switch exported only there reads as
+    /// signed out).
     public func userMessage(provider: ProviderID) -> String {
-        guard self == .notSignedIn, provider == .claude else { return userMessage }
-        return "Signed out of claude. Sign in again, or set up your API key or cloud provider (Bedrock, Vertex and others) in "
-            + "Claude's settings.json: Tokenjar can't see one set only in your shell."
+        switch self {
+        case .network: return "Can't reach \(provider.displayName). Tokenjar tries again at the next refresh."
+        case .timeout: return "No answer from \(provider.displayName) in time. Tokenjar tries again at the next refresh."
+        case .notSignedIn where provider == .claude:
+            return "Signed out of claude. Sign in again, or set up your API key or cloud provider (Bedrock, Vertex and others) in "
+                + "Claude's settings.json: Tokenjar can't see one set only in your shell."
+        default: return userMessage
+        }
     }
 }
 

@@ -29,6 +29,10 @@ struct AccountTitle: Equatable {
 struct PopoverSummary: Equatable {
     enum Tone: Equatable {
         case clear, warning, critical, problem, empty
+        /// The Mac has no usable network path.
+        case offline
+        /// The network is up, but no provider answers.
+        case noAnswer
         /// An account that needs the network has no fresh data and its latest check could not reach the provider.
         case unreachable(onlyTimeouts: Bool)
     }
@@ -40,8 +44,20 @@ struct PopoverSummary: Equatable {
     /// Cards keep config order, so this is how an at-risk account below the fold still reaches the header.
     var others: [String] = []
 
-    static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date) -> PopoverSummary {
-        guard !accounts.isEmpty else { return PopoverSummary(tone: .empty, text: "No accounts yet") }
+    static func make(
+        accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date,
+        connectivity: Connectivity = .online, settings: SettingsProblem? = nil
+    ) -> PopoverSummary {
+        // In priority order: what stops every check, then what makes every number old, then one account at a time.
+        guard !accounts.isEmpty else {
+            if settings?.nothingLoaded == true { return PopoverSummary(tone: .problem, text: "Settings not loaded") }
+            return PopoverSummary(tone: .empty, text: "No accounts yet")
+        }
+        switch connectivity {
+        case .offline: return PopoverSummary(tone: .offline, text: "Offline")
+        case .noAnswer: return PopoverSummary(tone: .noAnswer, text: "Can't reach any provider")
+        case .online: break
+        }
         var worst: (account: AccountConfig, window: UsageWindow, severity: Severity)?
         var nextReset: Date?
         var failing = 0
@@ -81,9 +97,10 @@ struct PopoverSummary: Equatable {
             } else {
                 detail = "\(window.label) at \(Format.percent(window.usedPercent))"
             }
-            let others = needsALook.filter { $0.id != worst.account.id }.map { shortName($0, among: accounts) }
+            let others = needsALook.filter { $0.id != worst.account.id }.map { shortName($0, among: accounts) } + (settings == nil ? [] : ["settings"])
             return PopoverSummary(tone: worst.severity == .critical ? .critical : .warning, text: "\(name): \(detail)", others: others)
         }
+        if settings != nil { return PopoverSummary(tone: .problem, text: "Settings need attention") }
         if failing > 0 {
             return PopoverSummary(tone: .problem, text: failing == 1 ? "1 account needs attention" : "\(failing) accounts need attention")
         }

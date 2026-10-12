@@ -370,7 +370,7 @@ struct AccountDetailView: View {
 
 extension AppModel {
     func statusText(for account: AccountConfig) -> AccountStatusText {
-        AccountStatusText.make(account: account, status: status(for: account), missingPath: missingPath(of: account), now: now)
+        AccountStatusText.make(account: account, status: status(for: account), missingPath: missingPath(of: account), now: now, connectivity: connectivity)
     }
 
     /// The tilde path of what the account reads when it is not on this Mac. Preview data describes accounts on no real
@@ -417,7 +417,7 @@ struct AccountStatusText: Equatable {
 
     /// `missingPath` is the tilde path of what the account reads (`AccountDiscovery.location`), when it does not exist on
     /// this Mac. Being off or missing outranks any old snapshot, which no longer describes this Mac.
-    static func make(account: AccountConfig, status: AccountStatus, missingPath: String?, now: Date) -> AccountStatusText {
+    static func make(account: AccountConfig, status: AccountStatus, missingPath: String?, now: Date, connectivity: Connectivity = .online) -> AccountStatusText {
         let provider = account.provider
         if !account.enabled {
             return AccountStatusText(symbol: "pause.circle", tone: .neutral, text: "Off", caption: Caption(text: "Off", isActionable: false))
@@ -440,6 +440,7 @@ struct AccountStatusText: Equatable {
         if status.isRefreshing {
             return AccountStatusText(symbol: "arrow.triangle.2.circlepath", tone: .neutral, text: "Checking\u{2026}", detail: zenNote, caption: caption)
         }
+        if provider.checkUsesNetwork, let line = macWideLine(connectivity, status: status, now: now) { return line }
         if let error = status.error {
             if ProbeLatch.spentTokens(error) {
                 return AccountStatusText(symbol: "exclamationmark.triangle.fill", tone: .warning, text: error.userMessage, caption: caption)
@@ -450,7 +451,9 @@ struct AccountStatusText: Equatable {
             case .transient:
                 // Its own line: messages are full sentences, and the age would read as part of the last one.
                 let shown = status.snapshot.map { "Showing data from \(Format.age(of: $0.fetchedAt, now: now))." }
-                return AccountStatusText(symbol: "exclamationmark.arrow.triangle.2.circlepath", tone: .neutral, text: error.userMessage, detail: shown ?? zenNote)
+                return AccountStatusText(
+                    symbol: "exclamationmark.arrow.triangle.2.circlepath", tone: .neutral, text: error.userMessage(provider: provider), detail: shown ?? zenNote
+                )
             case .actionable:
                 return AccountStatusText(symbol: "exclamationmark.triangle.fill", tone: .warning, text: actionableText(error, account: account), caption: caption)
             }
@@ -465,6 +468,26 @@ struct AccountStatusText: Equatable {
             return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Updated \(age)", detail: limits)
         }
         return AccountStatusText(symbol: "circle.dashed", tone: .neutral, text: "Not checked yet", detail: zenNote)
+    }
+
+    /// Under a Mac-wide cause, for a connection failure (a saved copy shown because of one included) or an account with
+    /// nothing yet: the cause, not the account, is the news. nil otherwise, so a failure the user can fix still reads as
+    /// the account's own.
+    private static func macWideLine(_ connectivity: Connectivity, status: AccountStatus, now: Date) -> AccountStatusText? {
+        guard status.connectionFailure != nil || (status.error == nil && status.snapshot == nil) else { return nil }
+        let shown = status.snapshot.map { "Showing data from \(Format.age(of: $0.fetchedAt, now: now))." }
+        switch connectivity {
+        case .online:
+            return nil
+        case .offline:
+            return AccountStatusText(
+                symbol: "wifi.slash", tone: .neutral, text: "This Mac is offline. Tokenjar checks this account again when it is back online.", detail: shown
+            )
+        case .noAnswer:
+            return AccountStatusText(
+                symbol: "wifi.exclamationmark", tone: .neutral, text: "Can't reach any provider. Tokenjar tries again at the next refresh.", detail: shown
+            )
+        }
     }
 
     /// A label wrapped inside itself ("Gemini" then "· Week") reads as two windows, so the list may only wrap between

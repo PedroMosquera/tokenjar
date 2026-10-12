@@ -757,6 +757,13 @@ final class AppModel {
         NSWorkspace.shared.open(account.resolvedDashboardURL)
     }
 
+    /// Selects `file` (config.json or config.local.json) in the Finder through its link, or its folder when it is gone.
+    func revealConfigFile(_ file: String) {
+        let url = (file == "config.local.json" ? paths.localConfigFile : paths.configFile).resolvingSymlinksInPath()
+        let exists = FileManager.default.fileExists(atPath: url.path)
+        NSWorkspace.shared.activateFileViewerSelecting([exists ? url : url.deletingLastPathComponent()])
+    }
+
     func openStatusPage(_ account: AccountConfig) {
         if let url = account.provider.statusPageURL { NSWorkspace.shared.open(url) }
     }

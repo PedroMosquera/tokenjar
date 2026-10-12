@@ -17,6 +17,14 @@ enum SnapshotRenderer {
             let states = AppModel.previewStates()
             render(PopoverView(maxCardsHeight: 4000).environment(states), size: nil, width: 360, appearance: appearance, to: outputDirectory.appending(path: "popover-states-\(suffix).png"))
             renderStatusIcon(states.menuBarState, appearance: appearance, to: outputDirectory.appending(path: "menubar-states-\(suffix).png"))
+            let outages = [
+                ("offline", AppModel.previewOffline()), ("no-answer", AppModel.previewNoAnswer()),
+                ("partial-outage", AppModel.previewPartialOutage()), ("settings-unloaded", AppModel.previewSettingsUnloaded()),
+            ]
+            for (name, outage) in outages {
+                outage.secrets = SessionSecretStore(InMemorySecretStore())
+                render(PopoverView(maxCardsHeight: 4000).environment(outage), size: nil, width: 360, appearance: appearance, to: outputDirectory.appending(path: "popover-\(name)-\(suffix).png"))
+            }
 
             model.dashboardSelection = nil
             render(DashboardView().environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-all-\(suffix).png"))

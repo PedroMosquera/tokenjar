@@ -280,11 +280,80 @@ struct PopoverSummaryTests {
     /// With no accounts there is nothing to update, so "No accounts yet" stands alone instead of over "Not updated yet".
     @MainActor
     @Test func theUpdateLineIsLeftOutWithoutAccounts() {
-        #expect(PopoverHeader.updateLine(hasAccounts: false, isRefreshing: false, lastRefreshAt: nil, now: now) == nil)
-        #expect(PopoverHeader.updateLine(hasAccounts: false, isRefreshing: false, lastRefreshAt: now.addingTimeInterval(-60), now: now) == nil)
-        #expect(PopoverHeader.updateLine(hasAccounts: true, isRefreshing: false, lastRefreshAt: nil, now: now) == "Not updated yet")
-        #expect(PopoverHeader.updateLine(hasAccounts: true, isRefreshing: true, lastRefreshAt: nil, now: now) == "Updating")
-        #expect(PopoverHeader.updateLine(hasAccounts: true, isRefreshing: false, lastRefreshAt: now.addingTimeInterval(-60), now: now) == "Updated 1m ago")
+        func line(_ hasAccounts: Bool, refreshing: Bool = false, updatedAgo: TimeInterval?) -> String? {
+            PopoverHeader.updateLine(
+                hasAccounts: hasAccounts, isRefreshing: refreshing, lastUpdated: updatedAgo.map { now.addingTimeInterval(-$0) },
+                connectivity: .online, nextCheck: nil, now: now
+            )
+        }
+        #expect(line(false, updatedAgo: nil) == nil)
+        #expect(line(false, updatedAgo: 60) == nil)
+        #expect(line(true, updatedAgo: nil) == "Not updated yet")
+        #expect(line(true, refreshing: true, updatedAgo: nil) == "Updating")
+        #expect(line(true, updatedAgo: 60) == "Updated 1m ago")
+    }
+
+    /// The second line says how old the numbers are and what happens next, so the title can stay one or two words.
+    @MainActor
+    @Test func updateLineSaysWhatHappensNext() {
+        let ago25m = now.addingTimeInterval(-25 * 60)
+        func line(_ connectivity: Connectivity, updated: Date? = ago25m, next: Date? = nil, refreshing: Bool = false) -> String? {
+            PopoverHeader.updateLine(hasAccounts: true, isRefreshing: refreshing, lastUpdated: updated, connectivity: connectivity, nextCheck: next, now: now)
+        }
+        #expect(line(.offline) == "Updated 25m ago. Tokenjar checks again when the Mac is back online.")
+        #expect(line(.offline, updated: nil) == "Tokenjar checks when the Mac is back online.")
+        #expect(line(.noAnswer, next: now.addingTimeInterval(5 * 60)) == "Updated 25m ago. Tokenjar tries again in 5m.")
+        #expect(line(.noAnswer, next: now.addingTimeInterval(20)) == "Updated 25m ago. Tokenjar tries again in under a minute.")
+        #expect(line(.noAnswer, next: now.addingTimeInterval(-90)) == "Updated 25m ago. Tokenjar tries again in under a minute.")
+        #expect(line(.noAnswer) == "Updated 25m ago. Tokenjar tries again at the next refresh.")
+        #expect(line(.noAnswer, updated: nil) == "Tokenjar tries again at the next refresh.")
+        #expect(line(.online) == "Updated 25m ago")
+        #expect(line(.offline, refreshing: true) == "Updating")
+    }
+
+    /// Every number on screen is old while offline, so that comes first; the amber or red stays on its card and on the
+    /// menu bar number.
+    @Test func offlineOutranksTheLimitSummary() {
+        let statuses = [
+            "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
+            "personal": AccountStatus(error: .notSignedIn),
+        ]
+        let kept = SettingsProblem(message: "Could not read config.local.json.", file: "config.local.json", nothingLoaded: false)
+        #expect(PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now, connectivity: .offline, settings: kept)
+            == PopoverSummary(tone: .offline, text: "Offline"))
+        #expect(PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now, connectivity: .noAnswer).tone == .noAnswer)
+    }
+
+    @MainActor
+    @Test func noAnswerSaysNoProviderIsAnswering() {
+        let summary = PopoverSummary.make(accounts: accounts, statuses: ["work": AccountStatus(error: .timeout)], config: AppConfig(), now: now, connectivity: .noAnswer)
+        #expect(summary == PopoverSummary(tone: .noAnswer, text: "Can't reach any provider"))
+        #expect(PopoverHeader.help(for: summary) == "No provider answered the last check. A VPN, a proxy or a Wi-Fi sign-in page can cause this.")
+        let offline = PopoverSummary(tone: .offline, text: "Offline")
+        #expect(PopoverHeader.help(for: offline) == "Offline")
+    }
+
+    /// A config that failed at launch leaves no accounts; "No accounts yet" would say the install is fresh.
+    @Test func settingsNotLoadedIsNotAnEmptyInstall() {
+        let unloaded = SettingsProblem(message: "Could not read config.json.", file: "config.json", nothingLoaded: true)
+        #expect(PopoverSummary.make(accounts: [], statuses: [:], config: AppConfig(), now: now, settings: unloaded) == PopoverSummary(tone: .problem, text: "Settings not loaded"))
+        #expect(PopoverSummary.make(accounts: [], statuses: [:], config: AppConfig(), now: now, connectivity: .offline, settings: unloaded).text == "Settings not loaded")
+        #expect(PopoverSummary.make(accounts: [], statuses: [:], config: AppConfig(), now: now).text == "No accounts yet")
+    }
+
+    @Test func aSettingsProblemReachesTheHeaderAndAlso() {
+        let kept = SettingsProblem(message: "Could not save config.json.", file: "config.json", nothingLoaded: false)
+        let fine = ["personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 10, resetIn: 130 * 60)]))]
+        #expect(PopoverSummary.make(accounts: accounts, statuses: fine, config: AppConfig(), now: now, settings: kept) == PopoverSummary(tone: .problem, text: "Settings need attention"))
+        let signedOut = fine.merging(["work": AccountStatus(error: .notSignedIn)]) { $1 }
+        #expect(PopoverSummary.make(accounts: accounts, statuses: signedOut, config: AppConfig(), now: now, settings: kept).text == "Settings need attention")
+        let warned = [
+            "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
+            "personal": AccountStatus(error: .notSignedIn),
+        ]
+        let summary = PopoverSummary.make(accounts: accounts, statuses: warned, config: AppConfig(), now: now, settings: kept)
+        #expect(summary.tone == .warning)
+        #expect(summary.others == ["Claude · Personal", "settings"])
     }
 
     @MainActor
@@ -814,6 +883,31 @@ struct SignInCommandDisplayTests {
 
 @MainActor
 struct ErrorRowTests {
+    /// The header says a Mac-wide cause once; a Retry on every card could not work anyway.
+    @Test func aMacWideCauseHidesTheConnectionRow() {
+        for connectivity in [Connectivity.offline, .noAnswer] {
+            for error in [FetchError.network("dial tcp"), .timeout] {
+                #expect(!ErrorRow.isShown(error: error, provider: .copilot, connectivity: connectivity), "\(connectivity) \(error)")
+            }
+        }
+        #expect(ErrorRow.isShown(error: .timeout, provider: .copilot, connectivity: .online))
+        // Zen reads a local database, so its failure is its own whatever the network does.
+        #expect(ErrorRow.isShown(error: .network("locked"), provider: .opencodeZen, connectivity: .offline))
+    }
+
+    @Test func anActionableRowStaysWhileOffline() {
+        for error in [FetchError.notSignedIn, .cliNotFound("gh"), .parse("shape"), .rateLimited(retryAfter: 60), .noSubscription("none")] {
+            #expect(ErrorRow.isShown(error: error, provider: .codex, connectivity: .offline), "\(error)")
+        }
+    }
+
+    @Test func anEmptyCardSaysWhenItWillBeChecked() {
+        #expect(AccountCard.emptyText(isRefreshing: true, connectivity: .offline) == "Checking usage")
+        #expect(AccountCard.emptyText(isRefreshing: false, connectivity: .offline) == "No usage yet. Tokenjar checks when the Mac is back online.")
+        #expect(AccountCard.emptyText(isRefreshing: false, connectivity: .noAnswer) == "No usage yet. Tokenjar tries again at the next refresh.")
+        #expect(AccountCard.emptyText(isRefreshing: false, connectivity: .online) == "No data yet")
+    }
+
     /// The gray icon over fresh data names the cause: only a network error is a connection problem.
     @Test func onlyANetworkErrorShowsWiFi() {
         #expect(ErrorRow.symbol(for: .network("offline"), needsAttention: false) == "wifi.exclamationmark")
@@ -847,6 +941,10 @@ struct PopoverSpeechTests {
         #expect(PopoverSpeech.tone(.critical) == "Critical")
         #expect(PopoverSpeech.tone(.problem) == "Needs attention")
         #expect(PopoverSpeech.tone(.empty) == nil)
+        // The title says these in words.
+        for tone in [PopoverSummary.Tone.offline, .noAnswer, .unreachable(onlyTimeouts: false)] {
+            #expect(PopoverSpeech.tone(tone) == nil)
+        }
     }
 
     /// An ok verdict icon repeats the text beside it, so only a warning or critical one is read.

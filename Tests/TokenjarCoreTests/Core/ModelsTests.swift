@@ -161,6 +161,16 @@ struct ModelsTests {
         #expect(message.hasSuffix("."))
     }
 
+    /// "The server" told the user nothing about which of several providers was down.
+    @Test func connectionMessagesNameTheProvider() {
+        #expect(FetchError.network("dial tcp").userMessage(provider: .copilot) == "Can't reach GitHub Copilot. Tokenjar tries again at the next refresh.")
+        #expect(FetchError.timeout.userMessage(provider: .copilot) == "No answer from GitHub Copilot in time. Tokenjar tries again at the next refresh.")
+        #expect(FetchError.network("HTTP 503").userMessage(provider: .opencodeGo) == "Can't reach OpenCode Go. Tokenjar tries again at the next refresh.")
+        #expect(FetchError.timeout.userMessage(provider: .opencodeGo) == "No answer from OpenCode Go in time. Tokenjar tries again at the next refresh.")
+        // Notifications read the provider-free copy, which stays as it was.
+        #expect(FetchError.timeout.userMessage == "No answer in time. Tokenjar tries again at the next refresh.")
+    }
+
     @Test func otherProvidersKeepTheSignedOutCopy() {
         for provider in ProviderID.allCases where provider != .claude {
             #expect(FetchError.notSignedIn.userMessage(provider: provider) == FetchError.notSignedIn.userMessage, "\(provider)")
