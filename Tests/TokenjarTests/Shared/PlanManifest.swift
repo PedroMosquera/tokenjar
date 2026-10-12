@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import TokenjarCore
 
-/// One row of the plan matrix, from `Fixtures/Plans/<folder>/manifest.json`. `expect` is nil until the area that owns
+/// One plan case from `Fixtures/Plans/<folder>/manifest.json`. `expect` is nil until the area that owns
 /// the provider writes it. Each test target carries this file; keep the copies the same apart from `folder`.
 nonisolated struct PlanCase: Decodable, Sendable, CustomTestStringConvertible {
     enum Confidence: String, Decodable, Sendable { case recorded, documented, inferred }

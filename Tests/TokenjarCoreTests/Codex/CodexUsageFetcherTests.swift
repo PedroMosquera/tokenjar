@@ -3,7 +3,7 @@ import Testing
 @testable import TokenjarCore
 
 struct CodexUsageFetcherTests {
-    let now = Date(timeIntervalSince1970: 1_791_660_465)
+    let now = Date(timeIntervalSince1970: 1_791_658_800)
 
     private func context(_ temp: CodexTempDirectory, binary: URL?, now: Date? = nil) -> FetchContext {
         let missing = temp.url.appending(path: "no-such-codex").path

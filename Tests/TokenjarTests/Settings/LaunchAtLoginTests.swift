@@ -2,7 +2,7 @@ import ServiceManagement
 import Testing
 @testable import Tokenjar
 
-/// Only the pure mapping is tested: asking SMAppService for a status or registering would touch this Mac's login items.
+/// Only the pure mapping is tested: asking SMAppService for a status or registering would touch the real login items.
 struct LaunchAtLoginTests {
     @Test func anInstalledAppThatMacOSDoesNotKnowYetIsOffSoTheToggleCanRegisterIt() {
         #expect(LaunchAtLogin.state(isBundledApp: true, status: .notFound) == .disabled)

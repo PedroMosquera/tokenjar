@@ -3,8 +3,8 @@ import Testing
 @testable import TokenjarCore
 
 struct CodexRateLimitMappingTests {
-    /// 2026-10-10T19:27:45Z, exactly 300 minutes before the plus fixture's 5-hour reset.
-    let now = Date(timeIntervalSince1970: 1_791_660_465)
+    /// 2026-10-10T19:00:00Z, exactly 300 minutes before the plus fixture's 5-hour reset.
+    let now = Date(timeIntervalSince1970: 1_791_658_800)
 
     private func snapshot(_ fixture: String, at date: Date? = nil) throws -> UsageSnapshot {
         let result = try CodexFixtures.rateLimitsResult(fixture)
@@ -17,9 +17,9 @@ struct CodexRateLimitMappingTests {
         #expect(s.provider == .codex)
         #expect(s.windows.map(\.id) == ["session", "weekly"])
         #expect(s.windows.map(\.label) == ["5-hour", "Week"])
-        #expect(s.windows.map(\.usedPercent) == [0, 2])
+        #expect(s.windows.map(\.usedPercent) == [0, 20])
         #expect(s.windows.map(\.windowMinutes) == [300, 10_080])
-        #expect(s.windows[1].resetsAt == Date(timeIntervalSince1970: 1_792_150_113))
+        #expect(s.windows[1].resetsAt == Date(timeIntervalSince1970: 1_792_152_000))
         #expect(s.windows[0].notStarted)
         #expect(!s.windows[1].notStarted)
         #expect(s.notes.isEmpty)
@@ -44,7 +44,7 @@ struct CodexRateLimitMappingTests {
     @Test func fiveHourWindowInTheSecondarySlotIsStillTheSession() {
         let limits = CodexRateLimitSnapshot(
             limitId: "codex",
-            primary: .init(usedPercent: 9, windowDurationMins: 10_080, resetsAt: 1_792_150_113),
+            primary: .init(usedPercent: 9, windowDurationMins: 10_080, resetsAt: 1_792_152_000),
             secondary: .init(usedPercent: 3, windowDurationMins: 300, resetsAt: 1_791_670_000)
         )
 
@@ -138,7 +138,7 @@ struct CodexRateLimitMappingTests {
     }
 
     @Test func unexpectedFieldTypesDropTheFieldNotTheResponse() throws {
-        let json = #"{"rateLimits":{"limitId":"codex","primary":{"usedPercent":"oops","windowDurationMins":300},"secondary":{"usedPercent":9,"windowDurationMins":10080,"resetsAt":1792150113},"credits":7,"planType":"plus"}}"#
+        let json = #"{"rateLimits":{"limitId":"codex","primary":{"usedPercent":"oops","windowDurationMins":300},"secondary":{"usedPercent":9,"windowDurationMins":10080,"resetsAt":1792152000},"credits":7,"planType":"plus"}}"#
         let result = try JSONDecoder().decode(CodexRateLimitsResult.self, from: Data(json.utf8))
         let s = try #require(CodexRateLimitMapping.snapshot(from: result, accountID: "a", fetchedAt: now, source: "s"))
         #expect(s.windows.map(\.id) == ["weekly"])

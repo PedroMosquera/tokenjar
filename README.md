@@ -128,4 +128,4 @@ make app     # release build, bundled and signed as build/Tokenjar.app
 
 ## License
 
-I have not picked a license yet, so there is no license file. The provider logos in the app and in these screenshots belong to their owners; [docs/logos.md](docs/logos.md) says where each came from.
+Tokenjar is under the [MIT License](LICENSE). The provider logos in the app and in these screenshots belong to their owners; [docs/logos.md](docs/logos.md) says where each came from. The logos and a few test fixtures keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Tokenjar is not affiliated with or endorsed by Anthropic, OpenAI, Google, GitHub, OpenCode, Cognition, Windsurf or CodexBar.

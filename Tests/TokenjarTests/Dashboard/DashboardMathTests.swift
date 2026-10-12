@@ -50,10 +50,11 @@ struct DashboardMathTests {
         #expect(periods.days(of: .week) == (-6...0).map(day))
     }
 
+    /// March 2026 holds New York's change to daylight saving time, so its days are not all 24 hours long.
     @Test func loadStartCoversTheWholeMonthLateInLongMonths() {
-        let late = Self.calendar.date(from: DateComponents(year: 2026, month: 10, day: 31, hour: 9))!
+        let late = Self.calendar.date(from: DateComponents(year: 2026, month: 3, day: 31, hour: 9))!
         let periods = DashboardPeriods(now: late, calendar: Self.calendar)
-        #expect(periods.loadStart == Self.calendar.date(from: DateComponents(year: 2026, month: 10, day: 1))!)
+        #expect(periods.loadStart == Self.calendar.date(from: DateComponents(year: 2026, month: 3, day: 1))!)
     }
 
     // MARK: Cost and totals

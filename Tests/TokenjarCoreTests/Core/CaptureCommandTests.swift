@@ -98,7 +98,7 @@ final class CaptureCommandTests {
         #expect((connection.sentObjects[2]["params"] as? [String: Any])?["excludeResetCreditDetails"] as? Bool == false)
         #expect(connection.terminated)
         #expect(text.contains(#""planType" : "plus""#))
-        #expect(text.contains(#""availableCount" : 3"#))
+        #expect(text.contains(#""availableCount" : 2"#))
         #expect(!text.contains("ACCOUNT_ID_PLACEHOLDER"))
     }
 
@@ -131,8 +131,8 @@ final class CaptureCommandTests {
          "organization_list":[{"id":5,"login":"placeholder-org","name":"Placeholder Org"}],"enterprise_list":[{"id":6,"slug":"placeholder-ent"}],
          "endpoints":{"api":"https://api.example.invalid"},"copilot_plan":"enterprise","access_type_sku":"copilot_enterprise_seat_quota",
          "quota_reset_date_utc":"2026-11-01T00:00:00.000Z","someone@example.com":{"seen":true},
-         "quota_snapshots":{"premium_interactions":{"entitlement":5000,"quota_remaining":4998.2,"quota_id":"premium_interactions",
-         "unlimited":false,"credits_used":2,"timestamp_utc":"2026-10-11T12:00:00Z"}}}
+         "quota_snapshots":{"premium_interactions":{"entitlement":1000,"quota_remaining":750.5,"quota_id":"premium_interactions",
+         "unlimited":false,"credits_used":250,"timestamp_utc":"2026-10-11T12:00:00Z"}}}
         """#
         let (status, filtered) = try jq(program, raw)
 
@@ -140,7 +140,7 @@ final class CaptureCommandTests {
         for leaked in ["placeholder", "Placeholder", "1234", "4321", "8765", "9753", "0123456789abcdef", "example", #""id":5"#, #""id":6"#, "2026-01-01", "2026-10-11"] {
             #expect(!filtered.contains(leaked), "\(leaked)")
         }
-        for kept in [#""copilot_plan":"enterprise""#, #""access_type_sku":"copilot_enterprise_seat_quota""#, #""quota_id":"premium_interactions""#, #""entitlement":5000"#, #""credits_used":2"#, #""unlimited":false"#, #""login":"<redacted>""#] {
+        for kept in [#""copilot_plan":"enterprise""#, #""access_type_sku":"copilot_enterprise_seat_quota""#, #""quota_id":"premium_interactions""#, #""entitlement":1000"#, #""credits_used":250"#, #""unlimited":false"#, #""login":"<redacted>""#] {
             #expect(filtered.contains(kept), "\(kept)")
         }
     }

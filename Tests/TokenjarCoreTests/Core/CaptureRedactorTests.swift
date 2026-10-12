@@ -64,7 +64,10 @@ struct CaptureRedactorTests {
         let codexAmounts = ["credits.balance", "individualLimit.limit", "individualLimit.used", "individualLimit.remaining"]
         #expect(CaptureRedactor.dateAllowlist == [
             .claude: ["\(limit).resets_at"],
-            .codex: ["response.result.rateLimitResetCredits.credits[].expiresAt"],
+            .codex: [
+                "response.result.rateLimitResetCredits.credits[].expiresAt",
+                "response.result.rateLimits.individualLimit.resetsAt", "response.result.rateLimitsByLimitId.*.individualLimit.resetsAt",
+            ],
             .copilot: ["response.quota_reset_date_utc", "response.quota_reset_date"],
             .opencodeGo: [
                 "response.rolling.resetsAt", "response.weekly.resetsAt", "response.monthly.resetsAt",
@@ -101,13 +104,13 @@ struct CaptureRedactorTests {
         let inventory = try json(#"{"result": {"rateLimitResetCredits": {"availableCount": 1, "credits": [{"status": "available", "expiresAt": "2026-10-20T00:00:00Z"}]}}}"#)
         let cases: [(ProviderID, Any, [String])] = [
             (.claude, ["probe": ["lines": claudeLines]], [
-                #""resets_at" : "2026-10-10T22:19:59.863707+00:00""#, #""resets_at" : "2026-10-12T09:00:00+00:00""#,
+                #""resets_at" : "2026-10-10T22:29:59.750000+00:00""#, #""resets_at" : "2026-10-12T09:00:00+00:00""#,
             ]),
             (.copilot, ["response": try json(fixture("Copilot/user-enterprise.json"))], [
                 #""quota_reset_date_utc" : "2026-11-01T00:00:00.000Z""#, #""quota_reset_date" : "2026-11-01""#,
             ]),
             (.opencodeGo, ["response": try json(fixture("OpenCode/go-usage.json"))], [
-                #""resetsAt" : "2026-10-10T14:20:00.000Z""#, #""resetsAt" : "2026-11-03T09:15:00.000Z""#,
+                #""resetsAt" : "2026-10-10T14:20:00.000Z""#, #""resetsAt" : "2026-11-05T12:00:00.000Z""#,
             ]),
             (.codex, ["response": inventory], [#""expiresAt" : "2026-10-20T00:00:00Z""#]),
         ]
@@ -116,6 +119,23 @@ struct CaptureRedactorTests {
             let output = try rendered(document, provider)
             for line in kept {
                 #expect(output.contains(line), "\(provider) \(line)")
+            }
+        }
+    }
+
+    /// The decoder accepts a spend cap's reset as an ISO string as well as a number, so a capture must show the string
+    /// form too, and only that form.
+    @Test func aCodexSpendCapResetDateIsKeptInDateFormOnly() throws {
+        let reset = "2026-11-01T00:00:00Z"
+        let cap: [String: Any] = ["limit": "50", "used": "12.5", "remainingPercent": 75, "resetsAt": reset]
+        let response: [String: Any] = ["result": ["rateLimits": ["individualLimit": cap], "rateLimitsByLimitId": ["codex": ["individualLimit": cap]]]]
+        let output = try rendered(["response": response], .codex)
+        #expect(output.components(separatedBy: #""resetsAt" : "\#(reset)""#).count - 1 == 2)
+
+        let paths = ["response.result.rateLimits.individualLimit.resetsAt", "response.result.rateLimitsByLimitId.*.individualLimit.resetsAt"]
+        for path in paths {
+            for value in ["next week", "2026-11-01 00:00:00", "2026-11-01T00:00:00Z placeholder-login", "12.5"] {
+                #expect(try !rendered(nest(path, value), .codex).contains(value), "\(path) \(value.debugDescription)")
             }
         }
     }

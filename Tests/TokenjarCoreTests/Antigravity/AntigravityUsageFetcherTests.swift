@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import TokenjarCore
 
-/// The fixtures are synthetic. agy is not installed on the build machine, so they follow the field names of
-/// CodexBar's agy test fixture instead of captured output.
+/// The fixtures are synthetic. No answer from a real agy account has been captured, so they follow the field names
+/// of CodexBar's agy test fixture.
 final class AntigravityUsageFetcherTests {
     let home: URL
     let account = AccountConfig(id: "agy-test", provider: .antigravity, label: "Google")

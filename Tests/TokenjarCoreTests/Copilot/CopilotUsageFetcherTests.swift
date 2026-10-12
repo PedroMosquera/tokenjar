@@ -75,9 +75,9 @@ final class CopilotUsageFetcherTests {
          "organization_login_list":["placeholder-org"],"organization_list":[{"id":5,"login":"placeholder-org","name":"Placeholder"}],
          "enterprise_list":[{"id":6}],"endpoints":{"api":"https://api.example.invalid"},"copilot_plan":"enterprise",
          "access_type_sku":"copilot_enterprise_seat_quota","token_based_billing":true,"quota_reset_date":"2026-11-01",
-         "quota_reset_date_utc":"2026-11-01T00:00:00.000Z","quota_snapshots":{"premium_interactions":{"entitlement":5000,
-         "remaining":4998,"quota_remaining":4998.2,"percent_remaining":99.9,"unlimited":false,"has_quota":true,"overage_count":0,
-         "overage_permitted":true,"overage_entitlement":0,"credits_used":2,"token_based_billing":true,"quota_id":"placeholder",
+         "quota_reset_date_utc":"2026-11-01T00:00:00.000Z","quota_snapshots":{"premium_interactions":{"entitlement":1000,
+         "remaining":750,"quota_remaining":750.5,"percent_remaining":75.0,"unlimited":false,"has_quota":true,"overage_count":0,
+         "overage_permitted":true,"overage_entitlement":0,"credits_used":250,"token_based_billing":true,"quota_id":"placeholder",
          "quota_reset_at":0,"timestamp_utc":"2026-10-11T12:00:00Z"}},
          "monthly_quotas":{"chat":50,"completions":2000,"organization_login":"placeholder-org","id":7},
          "limited_user_quotas":{"chat":40,"completions":1500,"login":"placeholder-login"}}
@@ -88,7 +88,7 @@ final class CopilotUsageFetcherTests {
         for leaked in ["placeholder", "1234", "login", "\"id\"", "organization", "enterprise_list", "endpoints", "assigned_date", "quota_id", "timestamp_utc"] {
             #expect(!filtered.contains(leaked), "\(leaked)")
         }
-        #expect(filtered.contains("\"credits_used\":2"))
+        #expect(filtered.contains("\"credits_used\":250"))
         #expect(filtered.contains(#""monthly_quotas":{"chat":50,"completions":2000}"#))
         #expect(filtered.contains(#""limited_user_quotas":{"chat":40,"completions":1500}"#))
     }
@@ -112,7 +112,7 @@ final class CopilotUsageFetcherTests {
     @Test func enterpriseSeatShowsItsMonthlyAICredits() async throws {
         let snapshot = try await fetch(output(try fixture("user-enterprise.json")))
         #expect(snapshot.windows == [
-            UsageWindow(id: "monthly", label: "AI credits", usedPercent: (5000 - 4998.2) / 5000 * 100, windowMinutes: 31 * 1_440, resetsAt: cycleEnd),
+            UsageWindow(id: "monthly", label: "AI credits", usedPercent: (1000 - 750.5) / 1000 * 100, windowMinutes: 31 * 1_440, resetsAt: cycleEnd),
         ])
         #expect(snapshot.plan == "Enterprise")
         #expect(snapshot.source == "gh CLI")

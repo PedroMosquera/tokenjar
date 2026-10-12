@@ -14,6 +14,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Tokenjar" "$APP/Contents/MacOS/Tokenjar"
 cp -R Resources/Logos "$APP/Contents/Resources/Logos"
 cp -R Resources/Marks "$APP/Contents/Resources/Marks"
+# The MIT licenses of Tokenjar and of the bundled logos require their notices in every copy.
+cp LICENSE THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/"
 [ -f Resources/pricing.json ] && cp Resources/pricing.json "$APP/Contents/Resources/pricing.json"
 if [ -f Resources/AppIcon.icns ]; then
   cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"

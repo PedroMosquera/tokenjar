@@ -221,12 +221,12 @@ struct ModelsTests {
     }
 
     @Test func dateParsingAcceptsMixedFractionsAndOffsets() throws {
-        let a = try #require(DateParsing.iso8601("2026-10-10T22:19:59.526764+00:00"))
+        let a = try #require(DateParsing.iso8601("2026-10-10T22:29:59.123456+00:00"))
         let b = try #require(DateParsing.iso8601("2026-10-12T09:00:00+00:00"))
         let c = try #require(DateParsing.iso8601("2026-10-12T11:00:00+02:00"))
-        #expect(abs(a.timeIntervalSince1970 - 1_791_670_799.526764) < 0.000_01)
+        #expect(abs(a.timeIntervalSince1970 - 1_791_671_399.123456) < 0.000_01)
         #expect(b == c)
         #expect(DateParsing.iso8601("2026-10-12 09:00:00") == nil)
-        #expect(DateParsing.epoch(1_791_660_379_473) == DateParsing.epoch(1_791_660_379.473))
+        #expect(DateParsing.epoch(1_791_660_000_500) == DateParsing.epoch(1_791_660_000.5))
     }
 }

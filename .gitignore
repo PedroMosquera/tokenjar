@@ -4,3 +4,6 @@ build/
 *.xcodeproj
 .swiftpm/
 .DS_Store
+/renders/
+/captures/
+/.tokenjar-render-*/

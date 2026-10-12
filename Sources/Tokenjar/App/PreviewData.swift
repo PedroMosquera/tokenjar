@@ -2,7 +2,7 @@ import Foundation
 import TokenjarCore
 
 extension AppPaths {
-    /// Preview renders end up in the README and in PRs, so they never see this Mac's home folder, stow links or XDG
+    /// Preview renders end up in the README and in PRs, so they never see the local home folder, stow links or XDG
     /// variables.
     static let preview = AppPaths(home: URL(fileURLWithPath: "/Users/you"), environment: [:], systemRoot: URL(fileURLWithPath: "/var/empty"))
 }
@@ -19,7 +19,7 @@ extension AppModel {
             accounts: [
                 AccountConfig(id: "claude-personal", provider: .claude, label: "Personal"),
                 AccountConfig(id: "claude-work", provider: .claude, label: "Work", profileDir: "~/.claude-work", alertThresholds: [70, 90]),
-                AccountConfig(id: "codex", provider: .codex, label: "Plus"),
+                AccountConfig(id: "codex", provider: .codex, label: "Pro"),
                 AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go", credential: .file(path: "~/.local/share/opencode/auth.json", key: "opencode-go")),
                 AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen", showInMenuBar: false),
                 AccountConfig(id: "antigravity", provider: .antigravity, label: "Google", showInMenuBar: false),
@@ -35,7 +35,7 @@ extension AppModel {
 
         let snapshots: [UsageSnapshot] = [
             UsageSnapshot(
-                accountID: "claude-personal", provider: .claude, plan: "Max 20x",
+                accountID: "claude-personal", provider: .claude, plan: "Max 5x",
                 windows: [
                     window("session", "5-hour", 42, 300, resetIn: 2 * 3600 + 10 * 60),
                     window("weekly", "Week", 63, 10_080, resetIn: 2 * 86_400 + 4 * 3600),
@@ -49,11 +49,11 @@ extension AppModel {
                     window("session", "5-hour", 88, 300, resetIn: 50 * 60),
                     window("weekly", "Week", 71, 10_080, resetIn: 3 * 86_400 + 6 * 3600),
                 ],
-                money: [MoneyLine(label: "Extra usage", amount: 12.40, limit: 100)],
+                money: [MoneyLine(label: "Extra usage", amount: 18.75, limit: 100)],
                 fetchedAt: now.addingTimeInterval(-95), source: "claude CLI"
             ),
             UsageSnapshot(
-                accountID: "codex", provider: .codex, plan: "Plus",
+                accountID: "codex", provider: .codex, plan: "Pro",
                 windows: [
                     window("session", "5-hour", 8, 300, resetIn: 4 * 3600 + 20 * 60),
                     window("weekly", "Week", 34, 10_080, resetIn: 5 * 86_400 + 2 * 3600),

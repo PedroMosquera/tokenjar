@@ -1,4 +1,4 @@
 [
-  {"at":"2026-10-10T12:00:00Z","status":200,"headers":{"content-type":"application/json"},"body":{"usage":{"rolling":{"status":"ok","percent":37,"resetsAt":"2026-10-10T14:20:00.000Z"},"weekly":{"status":"ok","percent":85,"resetsAt":"2026-10-12T00:00:00.000Z"},"monthly":{"status":"ok","percent":96,"resetsAt":"2026-11-03T09:15:00.000Z"}}}},
+  {"at":"2026-10-10T12:00:00Z","status":200,"headers":{"content-type":"application/json"},"body":{"usage":{"rolling":{"status":"ok","percent":37,"resetsAt":"2026-10-10T14:20:00.000Z"},"weekly":{"status":"ok","percent":85,"resetsAt":"2026-10-12T00:00:00.000Z"},"monthly":{"status":"ok","percent":96,"resetsAt":"2026-11-05T12:00:00.000Z"}}}},
   {"at":"2026-10-10T12:10:00Z","status":403,"headers":{"content-type":"application/json"},"body":{"type":"error","error":{"type":"EntitlementError","message":"OpenCode Go subscription required."}}}
 ]

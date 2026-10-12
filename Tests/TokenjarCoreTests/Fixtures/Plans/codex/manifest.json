@@ -134,7 +134,7 @@
     "inputs": {
       "rateLimits": "codex/rate-limits-spend-cap-zero-limit.json"
     },
-    "blocked": "Volunteer capture (D11): the shape of a member credit limit of 0 is inferred."
+    "blocked": "Volunteer capture: the shape of a member credit limit of 0 is inferred."
   },
   {
     "id": "codex.enterprise-seat",

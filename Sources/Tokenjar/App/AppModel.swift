@@ -76,7 +76,7 @@ final class AppModel {
     }
     /// Whether what an account reads exists on this Mac. Tests replace it.
     @ObservationIgnored var isAvailable: (AccountConfig) -> Bool
-    /// Set by `loadReadOnly`: this Mac's settings and history, shown without saving, fetching, scanning or asking macOS.
+    /// Set by `loadReadOnly`: the local settings and history, shown without saving, fetching, scanning or asking macOS.
     @ObservationIgnored private(set) var readOnly = false
     /// What General shows for launch at login. Window renders replace it so they never ask macOS.
     @ObservationIgnored var launchAtLoginState: () -> LaunchAtLogin.State = { LaunchAtLogin.state }

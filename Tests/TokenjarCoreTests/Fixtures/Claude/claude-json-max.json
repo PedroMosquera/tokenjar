@@ -1,5 +1,5 @@
 {
-  "numStartups": 12,
+  "numStartups": 100,
   "oauthAccount": {
     "accountUuid": "ACCOUNT_UUID_A",
     "emailAddress": "EMAIL_PLACEHOLDER",
@@ -7,7 +7,7 @@
     "displayName": "NAME_PLACEHOLDER",
     "organizationUuid": "ORG_UUID_PLACEHOLDER",
     "organizationName": "ORG_NAME_PLACEHOLDER",
-    "organizationRole": "admin",
+    "organizationRole": "user",
     "organizationType": "claude_max",
     "organizationRateLimitTier": "default_claude_max_20x",
     "userRateLimitTier": null,
@@ -16,20 +16,20 @@
     "hasExtraUsageEnabled": true
   },
   "cachedUsageUtilization": {
-    "fetchedAtMs": 1791661279383,
+    "fetchedAtMs": 1791660000500,
     "accountUuid": "ACCOUNT_UUID_A",
     "utilization": {
-      "five_hour": {"utilization": 17, "resets_at": "2026-10-10T22:20:00.429375+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null},
-      "seven_day": {"utilization": 14, "resets_at": "2026-10-12T09:00:00.429396+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null},
+      "five_hour": {"utilization": 30, "resets_at": "2026-10-10T22:30:00.500000+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null},
+      "seven_day": {"utilization": 40, "resets_at": "2026-10-12T09:00:00.500000+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null},
       "seven_day_opus": null,
       "seven_day_sonnet": null,
       "seven_day_cowork": null,
       "limits": [
-        {"kind": "session", "group": "session", "percent": 17, "severity": "normal", "resets_at": "2026-10-10T22:20:00.429375+00:00", "scope": null, "is_active": true},
-        {"kind": "weekly_all", "group": "weekly", "percent": 14, "severity": "normal", "resets_at": "2026-10-12T09:00:00.429396+00:00", "scope": null, "is_active": false},
-        {"kind": "weekly_scoped", "group": "weekly", "percent": 3, "severity": "normal", "resets_at": "2026-10-12T09:00:00+00:00", "scope": {"model": {"id": null, "display_name": "Fable"}, "surface": null}, "is_active": false}
+        {"kind": "session", "group": "session", "percent": 30, "severity": "normal", "resets_at": "2026-10-10T22:30:00.500000+00:00", "scope": null, "is_active": true},
+        {"kind": "weekly_all", "group": "weekly", "percent": 40, "severity": "normal", "resets_at": "2026-10-12T09:00:00.500000+00:00", "scope": null, "is_active": false},
+        {"kind": "weekly_scoped", "group": "weekly", "percent": 10, "severity": "normal", "resets_at": "2026-10-12T09:00:00+00:00", "scope": {"model": {"id": null, "display_name": "Fable"}, "surface": null}, "is_active": false}
       ],
-      "extra_usage": {"is_enabled": true, "monthly_limit": 5000, "used_credits": 2500, "utilization": 50, "currency": "USD", "decimal_places": 2, "disabled_reason": null, "user_disabled": false, "spend_limit_reached": false, "credits_ever_enabled": true, "daily": null, "weekly": null},
+      "extra_usage": {"is_enabled": true, "monthly_limit": 5000, "used_credits": 2550, "utilization": 51, "currency": "GBP", "decimal_places": 2, "disabled_reason": null, "user_disabled": false, "spend_limit_reached": false, "credits_ever_enabled": true, "daily": null, "weekly": null},
       "spend": {"used": {"amount": 0}, "limit": null, "percent": 0, "enabled": false},
       "weekly_scoped_shares": []
     }

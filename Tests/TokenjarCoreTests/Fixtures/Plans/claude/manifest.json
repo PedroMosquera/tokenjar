@@ -100,7 +100,7 @@
       "claudeJSON": "claude/enterprise-seat.claude.json",
       "stream": "claude/free.stream.jsonl"
     },
-    "blocked": "Capture 1a: the seatTier of an Enterprise seat without Claude Code has never been captured."
+    "blocked": "A capture of an Enterprise seat without Claude Code: its seatTier has never been captured."
   },
   {
     "id": "claude.team-usage-based",

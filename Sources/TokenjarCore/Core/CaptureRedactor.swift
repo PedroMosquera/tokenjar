@@ -51,8 +51,11 @@ public enum CaptureRedactor {
     /// Reset dates sent as strings, which a capture exists partly to show. Kept only in `datePattern`'s form.
     static let dateAllowlist: [ProviderID: [String]] = [
         .claude: ["\(claudeLimit).resets_at"],
-        // CodexBar decodes the inventory this way; no recorded answer here shows it yet.
-        .codex: ["response.result.rateLimitResetCredits.credits[].expiresAt"],
+        .codex: [
+            // CodexBar decodes the inventory this way; no recorded answer here shows it yet.
+            "response.result.rateLimitResetCredits.credits[].expiresAt",
+            "response.result.rateLimits.individualLimit.resetsAt", "response.result.rateLimitsByLimitId.*.individualLimit.resetsAt",
+        ],
         .copilot: ["response.quota_reset_date_utc", "response.quota_reset_date"],
         .opencodeGo: goWindows.map { "response.\($0).resetsAt" } + goWindows.map { "response.usage.\($0).resetsAt" },
     ]

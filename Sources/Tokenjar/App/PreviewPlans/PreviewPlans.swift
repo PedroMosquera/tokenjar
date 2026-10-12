@@ -1,7 +1,7 @@
 import Foundation
 import TokenjarCore
 
-/// One preview account for a plan matrix case. `status` is the case's manifest `expect` written as Swift, which
+/// One preview account for a plan manifest case. `status` is the case's manifest `expect` written as Swift, which
 /// `PreviewPlansTests` holds to the manifest.
 struct PreviewPlanRow {
     var id: String
@@ -12,7 +12,7 @@ struct PreviewPlanRow {
     var history: Bool
 }
 
-/// Preview pages with one account per plan matrix case, for `--render-windows --only popover-plans-<provider>`.
+/// Preview pages with one account per plan manifest case, for `--render-windows --only popover-plans-<provider>`.
 enum PreviewPlans {
     /// The same instant as `AppModel.preview()`, so rows written against it render the same countdowns.
     static let now = Date(timeIntervalSince1970: 1_791_660_000)
