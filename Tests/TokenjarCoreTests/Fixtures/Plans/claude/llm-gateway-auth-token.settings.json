@@ -1,0 +1,6 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://llm-gateway.example.invalid",
+    "ANTHROPIC_AUTH_TOKEN": "AUTH_TOKEN_PLACEHOLDER"
+  }
+}

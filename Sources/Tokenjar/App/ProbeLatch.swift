@@ -34,6 +34,9 @@ nonisolated struct ProbeLatch: Codable, Equatable {
         var owner: CLI { cli ?? .claude }
     }
 
+    /// Inside `AppPaths.supportDirectory`.
+    static let fileName = "probe-latch.json"
+
     private var entries: [String: Entry] = [:]
 
     /// True when a fetch failed because its probe ran as a model turn, whichever CLI it was.
@@ -59,6 +62,12 @@ nonisolated struct ProbeLatch: Codable, Equatable {
 
     func isLatched(_ accountID: String) -> Bool {
         entries[accountID] != nil
+    }
+
+    /// Whether running `cli` from the binary with fingerprint `binary` could repeat a turn the app latched, for any
+    /// account. An entry without a fingerprint blocks every binary, since nothing shows which build it ran with.
+    func blocks(cli: CLI, binary: String?) -> Bool {
+        entries.values.contains { $0.owner == cli && ($0.binary == nil || $0.binary == binary) }
     }
 
     /// nil when the account is not latched.

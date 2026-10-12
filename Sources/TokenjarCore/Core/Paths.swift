@@ -5,12 +5,23 @@ public struct AppPaths: Sendable {
     public static let keychainService = "com.pedromosquera.tokenjar.apikeys"
 
     public var home: URL
+    /// Where machine-wide files such as an MDM profile's managed settings live.
+    public var systemRoot: URL
     private var xdgConfigHome: String?
 
-    /// `environment` is a seam for tests; the app uses the default.
-    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser, environment: [String: String] = ProcessInfo.processInfo.environment) {
+    /// `environment` and `systemRoot` are seams for tests, so a test never reads this Mac's managed settings.
+    public init(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser, environment: [String: String] = ProcessInfo.processInfo.environment,
+        systemRoot: URL = URL(fileURLWithPath: "/")
+    ) {
         self.home = home
+        self.systemRoot = systemRoot
         xdgConfigHome = environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// Claude Code's machine-wide settings, written by an administrator or an MDM profile.
+    public var claudeManagedSettingsFile: URL {
+        systemRoot.appending(path: "Library/Application Support/ClaudeCode/managed-settings.json")
     }
 
     /// ~/.config/tokenjar. Honors XDG_CONFIG_HOME only when it is set in the app's own environment.

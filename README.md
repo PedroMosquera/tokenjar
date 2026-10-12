@@ -26,7 +26,7 @@ cd tokenjar
 make install
 ```
 
-This builds a release binary, bundles `Tokenjar.app`, signs it ad-hoc, copies it to `~/Applications` and launches it. An older `Headroom.app` there, with bundle id `com.pedromosquera.headroom`, is quit and deleted first, and Tokenjar moves its settings and history to its own folders on first launch ([docs/privacy.md](docs/privacy.md#renamed-from-headroom) has the details). If Headroom is still running then (it is not quit by `make run`, or when it is installed somewhere else), Tokenjar loads nothing and its banner asks you to quit Headroom and reopen Tokenjar. No admin rights, no quarantine flag, no Gatekeeper prompt. Run `make install` again to update. `make install INSTALL_DIR=<folder>` installs somewhere else.
+This builds a release binary, bundles `Tokenjar.app`, signs it ad-hoc, copies it to `~/Applications` and launches it. A Tokenjar already running from that folder is quit first; a copy started from anywhere else, such as by `make run` or a `.build` binary, keeps running. An older `Headroom.app` there, with bundle id `com.pedromosquera.headroom`, is quit and deleted first, and Tokenjar moves its settings and history to its own folders on first launch ([docs/privacy.md](docs/privacy.md#renamed-from-headroom) has the details). If Headroom is still running then (it is not quit by `make run`, or when it is installed somewhere else), Tokenjar loads nothing and its banner asks you to quit Headroom and reopen Tokenjar. No admin rights, no quarantine flag, no Gatekeeper prompt. Run `make install` again to update. `make install INSTALL_DIR=<folder>` installs somewhere else.
 
 On the first launch, when nothing is at the config path (not even a stow link), Tokenjar writes a `config.json` with default settings and the accounts it finds on this Mac: `~/.claude`, `~/.codex/auth.json`, the `opencode-go` and `opencode` entries of opencode's `auth.json`, `agy`, `gh` (found, never run), and a Devin or Windsurf app or data folder (a Devin account, off the menu bar). To bring over CodexBar's providers and thresholds, use Settings > General > Import from CodexBar, which lists the changes before applying them.
 
@@ -53,7 +53,7 @@ Tokenjar reads `~/.config/tokenjar/config.json` (`$XDG_CONFIG_HOME/tokenjar/conf
 }
 ```
 
-`provider` is one of `claude`, `codex`, `opencode-go`, `opencode-zen`, `antigravity`, `copilot`, `devin`. `profileDir` is `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex, `GH_CONFIG_DIR` for GitHub Copilot (a second GitHub login needs its own gh folder), and opencode's data folder for OpenCode. Other account fields: `enabled`, `showInMenuBar`, `refreshMinutes`, `alertThresholds`, `dashboardURL`. Top-level fields: `refreshMinutes`, `menuBar` (`mode`, `icon`, `warnAt`, `criticalAt`, `showResetCountdownWhenFull`), `alerts`, `cliPaths`, `launchAtLogin`. Every field but `id` and `provider` has a default; [docs/design.md](docs/design.md#config-and-sync) has the full list.
+`provider` is one of `claude`, `codex`, `opencode-go`, `opencode-zen`, `antigravity`, `copilot`, `devin`. `profileDir` is `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex, `GH_CONFIG_DIR` for GitHub Copilot (a second GitHub login needs its own gh folder), and opencode's data folder for OpenCode. Other account fields: `enabled`, `showInMenuBar`, `refreshMinutes`, `alertThresholds`, `shortAlertThresholds`, `creditAllowance`, `dashboardURL`. Top-level fields: `refreshMinutes`, `menuBar` (`mode`, `icon`, `warnAt`, `criticalAt`, `showResetCountdownWhenFull`), `alerts`, `cliPaths`, `launchAtLogin`, `paceDays`, `hotkey`. `alerts.shortThresholds` and an account's `shortAlertThresholds` (both for windows of a day or less), an account's `creditAllowance` (AI credits per billing cycle), `paceDays` and `hotkey` are kept in the file but have no effect in this build yet: every window alerts at the account's `alertThresholds`, else `alerts.thresholds`. Every field but `id` and `provider` has a default; [docs/design.md](docs/design.md#config-and-sync) has the full list.
 
 Never rename an account `id` once it has data: it is the key for history and alerts.
 
@@ -82,9 +82,11 @@ The default `~/.claude` (or `~/.codex`) can be a different login on each Mac: a 
 }
 ```
 
-The plan pill comes from the login itself, so it reads Max on one Mac and Enterprise on the other. A local entry whose `id` is not in `config.json` adds an account, and then needs `provider` too. The next time you add, remove or edit any account in Settings, that account is copied into `config.json`, so put accounts in `config.json` when you can.
+The plan pill comes from the login itself, so it reads Max on one Mac and Enterprise on the other. A local entry whose `id` is not in `config.json` adds an account, and then needs `provider` too. Such an account stays on this Mac: it is listed after the accounts in `config.json`, Settings never writes it to `config.json`, and a Settings edit to it lasts only until the next reload, so change it in `config.local.json`.
 
 Claude, Codex and GitHub Copilot accounts whose profile folder is missing on a Mac (for Copilot, gh's config folder, `~/.config/gh` by default), OpenCode Go accounts whose credential file (else opencode's default `auth.json`) is missing, and OpenCode Zen accounts without an `opencode.db` are hidden there (Settings lists them as "Not on this Mac"), so one shared file can list `~/.claude-work` and still work on another Mac. Antigravity, Devin and accounts with a pasted API key have no file to check; turn one off on a single Mac with `"enabled": false` in that Mac's `config.local.json`.
+
+Settings keeps keys it does not know when it saves, so a setting a newer build added survives an edit on a Mac that has not updated yet. Builds from before that rule drop such keys, so update every Mac that shares the file together.
 
 Settings writes only `config.json`. Editing a field that `config.local.json` overrides changes the shared value for your other Macs, while this Mac keeps its local one, so change such a field in `config.local.json` by hand.
 
@@ -106,28 +108,30 @@ History and alert state stay on each Mac and are never synced. `tokenjar.sqlite`
 
 ## Developer flags
 
-The binary takes four flags that do one job and exit:
+The binary takes five flags that do one job and exit:
 
 ```
 .build/debug/Tokenjar --probe <provider> [--profile-dir DIR] [--credential-file FILE --credential-key KEY]
+.build/debug/Tokenjar --capture <provider> [--profile-dir DIR] [--credential-file FILE --credential-key KEY]
 .build/debug/Tokenjar --scan <provider> [--profile-dir DIR] [--days N]
 .build/debug/Tokenjar --render-snapshots <dir>
 .build/debug/Tokenjar --render-windows <dir> [--real-data] [--only <name-prefix>]
 ```
 
-- `--probe` runs one live check and prints the snapshot as JSON. It runs the real CLI, ignores the probe latch and does not read `config.json` (so `cliPaths` does not apply), and it can spend tokens if `/usage` turns into a model turn. A Devin probe runs nothing and prints a snapshot with no windows, only its source and notes.
+- `--probe` runs one live check and prints the snapshot as JSON. It runs the real CLI and does not read `config.json` (so `cliPaths` does not apply), and it can spend tokens if `/usage` turns into a model turn. It refuses claude or agy while the app has latched that CLI's binary; use Try Once More in the app first. A Devin probe runs nothing and prints a snapshot with no windows, only its source and notes.
+- `--capture` runs the request a check sends, once, and prints its raw answer as one JSON document in which every string outside a pinned allowlist, every numeric id and anything that looks like an email, UUID or key is replaced by `<redacted>`. It is how a plan's answer becomes a test fixture; read the output before sharing it. It refuses a latched CLI like `--probe`. If its own claude or agy run turns into a model turn, it prints no document, only a stop message on stderr, and exits 1.
 - `--scan` reads the provider's local history from the start and prints totals and an API-equivalent cost for the last N days (default 30). Antigravity, GitHub Copilot and Devin have no history to scan.
 - `--render-snapshots` renders the popover, the menu bar item (every slot state and every icon choice), the dashboard and the General and account Settings pages to PNG, light and dark, from built-in preview data.
 - `--render-windows` captures the app's real windows (Settings panes and account pages, the dashboard at three sizes, the popover, menu bar strips) to `<screen>-<light|dark>.png` at 2x, built by the same code the app uses. Each window is parked off every display and the app never activates, so nothing shows on screen and the frontmost app keeps focus; `StrayWindowSweeper` hides any window that lands on a display anyway and prints "stray window hidden" on stderr. Preview data by default; `--real-data` shows this Mac's config and a read-only copy of its history, and `--only` (repeatable) limits the screens by name prefix.
 
-`<provider>` is one of `claude`, `codex`, `opencode-go`, `opencode-zen`, `antigravity`, `copilot`, `devin`. None of the four writes `tokenjar.sqlite` or `config.json`, and none moves Headroom's folders. [docs/privacy.md](docs/privacy.md#what-it-writes) lists what each reads and writes.
+`<provider>` is one of `claude`, `codex`, `opencode-go`, `opencode-zen`, `antigravity`, `copilot`, `devin`. None of the five writes `tokenjar.sqlite` or `config.json`, and none moves Headroom's folders. [docs/privacy.md](docs/privacy.md#what-it-writes) lists what each reads and writes.
 
 ## Troubleshooting
 
-- **"Can't find the claude command on this Mac."** (or codex, agy, gh). Tokenjar does not use your shell `PATH`. It looks in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.opencode/bin`, `~/.bun/bin`, `~/.npm-global/bin`, `~/.volta/bin` and `/usr/bin`, and the account's Settings page says where it looked. Anywhere else, set the full path in config: `"cliPaths": { "claude": "/path/to/claude" }`. A `cliPaths` entry replaces the search, so a wrong path there also reads as not found. When a saved copy exists the card shows it with a note instead (Claude Code's own cache for Claude, the last limits in a session log for Codex).
+- **"Can't find the claude command on this Mac."** (or codex, agy, gh). Tokenjar does not use your shell `PATH`. It looks in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.opencode/bin`, `~/.bun/bin`, `~/.npm-global/bin`, `~/.volta/bin` and `/usr/bin`, and the account's Settings page says where it looked. Anywhere else, set the full path in config: `"cliPaths": { "claude": "/path/to/claude" }`. A `cliPaths` entry is used when that path is an executable on this Mac. Otherwise, as with a path set on another Mac that shares `config.json`, the folders above are searched as if it were not set. When a saved copy exists the card shows it with a note instead (Claude Code's own cache for Claude, the last limits in a session log for Codex).
 - **Signed out.** The card's Sign In... button opens the account's Settings page. Sign In in Terminal there runs the provider's own login (`claude auth login`, `codex login`, `opencode auth login`, `gh auth login`) in Terminal, and Copy Command copies it instead. Tokenjar never sees your credentials. With an older claude that has no `auth` command, run `claude` and type `/login`.
 - **"No Copilot access for this GitHub account".** GitHub answered 403 or 404, so the gh login Tokenjar uses has no Copilot seat; the card stays gray rather than warning. To track another GitHub login, give the account its own GitHub CLI folder in Settings and sign in to it with the command shown there.
-- **Copilot behind a proxy.** Tokenjar passes no proxy variables to the CLIs it runs, so a gh that reaches GitHub only through `HTTPS_PROXY` in your shell cannot connect from Tokenjar.
+- **A CLI behind a proxy.** Tokenjar passes `HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY` and their lowercase forms to the CLIs it runs when they are set in its own environment. Opened from Login Items or the Finder, it gets launchd's environment rather than your shell's, so a proxy exported only in `.zshrc` does not reach gh, claude, codex or agy.
 - **No notifications.** Alerts need the app bundle, so they never come from `swift run` or a `.build` binary; use the installed copy (`make install`). If they arrive only in Notification Center, click Allow Banners in Settings > Alerts. If macOS has them turned off, the same pane offers Open Notification Settings.
 - **"Checks for this account are paused".** The last `/usage` check ran as a model turn and spent tokens (claude) or quota (agy), so Tokenjar stopped checking that account. It checks again once by itself when that CLI updates. Click Try Once More on the card or in Settings to run one check now; if it repeats, checks stop again. Disable turns the account off.
 - **"Could not read config.json"** (or `config.local.json`). The file is not valid JSON, often a leftover merge conflict. Tokenjar keeps the last good settings (none, if the file was already broken at launch) and saves nothing until the file loads again. Fix it and save; the app reloads within 30 seconds, or click Reload in Settings > General. "config.json is missing or its link is broken" means the same for a missing file or a dangling stow link.

@@ -23,6 +23,15 @@ struct CodexAppServerSessionTests {
         }
     }
 
+    @Test func resetCreditDetailsAreAskedForOnlyWhenRequested() async throws {
+        let connection = ScriptedCodexConnection.answering(rateLimits: try CodexFixtures.line("rate-limits-plus.json"))
+
+        _ = try await CodexAppServerSession.readRateLimits(over: connection, clientVersion: "dev", excludeResetCreditDetails: false)
+
+        #expect(connection.sentMethods == ["initialize", "initialized", "account/rateLimits/read"])
+        #expect((connection.sentObjects[2]["params"] as? [String: Any])?["excludeResetCreditDetails"] as? Bool == false)
+    }
+
     @Test func skipsNotificationsServerRequestsAndOtherIds() async throws {
         let rateLimits = try CodexFixtures.line("rate-limits-plus.json")
         let connection = ScriptedCodexConnection(replies: [

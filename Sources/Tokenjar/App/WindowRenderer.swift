@@ -10,7 +10,8 @@ import TokenjarCore
 /// Windows stay off every screen and the app never activates, so the frontmost app keeps keyboard focus. `CaptureWindow`
 /// stands in for the key window an activation would give: it draws as key and ends up with the focus the app leaves it.
 ///
-/// Data is `AppModel.preview()`, or with `--real-data` this Mac's config and a copy of its history (`RealDataLoader`).
+/// Data is `AppModel.preview()` and the `PreviewPlans` pages, or with `--real-data` this Mac's config and a copy of its
+/// history (`RealDataLoader`).
 enum WindowRenderer {
     static func run(_ options: WindowRenderOptions) {
         RenderSession(options: options).render()
@@ -41,6 +42,9 @@ private final class RenderSession {
         var configError: AppModel?
         var short: AppModel?
         var menuBar: [(name: String, state: MenuBarState)]
+        var plans: [(name: String, model: AppModel)] = []
+        /// Plan rows with usage history, the only ones whose dashboard page has more than All to show.
+        var planHistory: Set<String> = []
     }
 
     func render() {
@@ -77,6 +81,14 @@ private final class RenderSession {
                     ]
                 }
             }
+            for page in data.plans {
+                renderPopover(page.model, screen: "popover-\(page.name)", appearance: appearance, suffix: suffix)
+                renderSettingsAccounts(page.model, prefix: "settings-\(page.name)", appearance: appearance, suffix: suffix)
+                renderDashboard(
+                    page.model, prefix: "dashboard-\(page.name)", sizes: ["default"],
+                    accounts: page.model.accounts.filter { data.planHistory.contains($0.id) }, appearance: appearance, suffix: suffix
+                )
+            }
             renderMenuBar(data.menuBar, appearance: appearance, suffix: suffix)
         }
     }
@@ -94,11 +106,13 @@ private final class RenderSession {
         configError.showFailedReload(of: "config.json")
         let short = AppModel.preview()
         short.popoverMaxHeight = 400
-        for preview in [model, states, empty, configError, short] { preview.secrets = SessionSecretStore(InMemorySecretStore()) }
+        let plans = PreviewPlans.pages(now: model.now)
+        for preview in [model, states, empty, configError, short] + plans.map(\.model) { preview.secrets = SessionSecretStore(InMemorySecretStore()) }
         let slots = SnapshotRenderer.slotStates(now: model.now).map { (name: "slot-\($0.name)", state: $0.state) }
         return RenderData(
             model: model, states: states, empty: empty, configError: configError, short: short,
-            menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + slots
+            menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + slots + plans.map { ($0.name, $0.model.menuBarState) },
+            plans: plans, planHistory: Set(PreviewPlans.rows.filter(\.history).map(\.id))
         )
     }
 
@@ -146,14 +160,15 @@ private final class RenderSession {
         }
     }
 
-    /// One window per size, opened on All and then moved through the sidebar's accounts.
+    /// One window per size, opened on All and then moved through the sidebar's accounts, or only `accounts` when given.
     private func renderDashboard(
-        _ model: AppModel, prefix: String = "dashboard", sizes: Set<String> = ["default", "small", "large"], appearance: NSAppearance, suffix: String
+        _ model: AppModel, prefix: String = "dashboard", sizes: Set<String> = ["default", "small", "large"], accounts: [AccountConfig]? = nil,
+        appearance: NSAppearance, suffix: String
     ) {
         let spec = WindowPresenter.Spec.dashboard
         for (sizeName, size) in [("default", spec.size), ("small", spec.minSize), ("large", Self.largeDashboard)] where sizes.contains(sizeName) {
             var steps = [Step(screen: "\(prefix)-all-\(sizeName)") { model.dashboardSelection = nil }]
-            for account in model.accounts {
+            for account in accounts ?? model.accounts {
                 steps.append(Step(screen: "\(prefix)-\(slug(account.id))-\(sizeName)") { model.dashboardSelection = account.id })
             }
             walk(steps, appearance: appearance, suffix: suffix) {

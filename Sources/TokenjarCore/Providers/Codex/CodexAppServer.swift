@@ -29,12 +29,15 @@ enum CodexAppServerSession {
     static let rateLimitsMethod = "account/rateLimits/read"
 
     /// Returns the raw `account/rateLimits/read` response line. Notifications and server-initiated requests are ignored.
-    static func readRateLimits(over connection: any CodexAppServerConnection, clientVersion: String) async throws -> Data {
+    /// Only `--capture codex` passes false, to see the reset-credit inventory's shape; the fetcher never decodes it.
+    static func readRateLimits(
+        over connection: any CodexAppServerConnection, clientVersion: String, excludeResetCreditDetails: Bool = true
+    ) async throws -> Data {
         var lines = connection.lines.makeAsyncIterator()
         try send(["id": 1, "method": "initialize", "params": ["clientInfo": ["name": "tokenjar", "version": clientVersion]]], over: connection)
         _ = try await response(to: 1, method: "initialize", from: &lines)
         try send(["method": "initialized"], over: connection)
-        try send(["id": 2, "method": rateLimitsMethod, "params": ["excludeResetCreditDetails": true]], over: connection)
+        try send(["id": 2, "method": rateLimitsMethod, "params": ["excludeResetCreditDetails": excludeResetCreditDetails]], over: connection)
         return try await response(to: 2, method: rateLimitsMethod, from: &lines)
     }
 

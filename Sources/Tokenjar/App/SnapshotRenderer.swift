@@ -152,6 +152,7 @@ enum SnapshotRenderer {
             ("neutral-error", "No data, check failed", state(entry(nil, error: true))),
             ("stale", "42 %, out of date", state(entry(42, stale: true))),
             ("stale-warn", "85 %, amber, out of date", state(entry(85, .warning, stale: true))),
+            ("stale-critical", "97 %, red, out of date", state(entry(97, .critical, stale: true))),
             ("error", "42 %, check failed", state(entry(42, error: true))),
             ("critical-error", "97 %, red, check failed", state(entry(97, .critical, error: true))),
             ("icon-030", "Icon only, 30 %", state(entry(30), mode: .icon)),

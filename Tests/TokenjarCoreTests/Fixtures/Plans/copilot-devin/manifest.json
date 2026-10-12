@@ -1,0 +1,436 @@
+[
+  {
+    "id": "copilot.free",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "fixtures:Copilot/user-free.json"
+    }
+  },
+  {
+    "id": "copilot.free-credits",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-free-ai-credits.json",
+      "raw": "copilot-devin/copilot/raw/user-free-ai-credits.json"
+    }
+  },
+  {
+    "id": "copilot.free-exhausted",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-free-exhausted.json",
+      "raw": "copilot-devin/copilot/raw/user-free-exhausted.json"
+    }
+  },
+  {
+    "id": "copilot.free-no-sku",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-free-sku-missing.json",
+      "raw": "copilot-devin/copilot/raw/user-free-sku-missing.json"
+    }
+  },
+  {
+    "id": "copilot.free-placeholder",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {}
+  },
+  {
+    "id": "copilot.never-signed-up",
+    "provider": "copilot",
+    "confidence": "inferred",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-never-signed-up.json",
+      "raw": "copilot-devin/copilot/raw/user-never-signed-up.json"
+    }
+  },
+  {
+    "id": "copilot.student",
+    "provider": "copilot",
+    "confidence": "inferred",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-student.json",
+      "raw": "copilot-devin/copilot/raw/user-student.json"
+    },
+    "blocked": "Volunteer capture (P7): the Student SKU strings are inferred."
+  },
+  {
+    "id": "copilot.complimentary",
+    "provider": "copilot",
+    "confidence": "inferred",
+    "source": {
+      "shape": "inferred; the real SKU of a complimentary Pro is unknown, so the paid Pro SKU stands in",
+      "evidence": "'Verified teachers, and maintainers of popular open source projects may be eligible for free access to Copilot Pro' (https://docs.github.com/en/copilot/get-started/plans)",
+      "today": "Pro, 'AI credits' 20%, no notes"
+    },
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-pro-complimentary.json",
+      "raw": "copilot-devin/copilot/raw/user-pro-complimentary.json"
+    }
+  },
+  {
+    "id": "copilot.pro",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-pro-ai-credits.json",
+      "raw": "copilot-devin/copilot/raw/user-pro-ai-credits.json"
+    }
+  },
+  {
+    "id": "copilot.pro-plus",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-pro-plus-ai-credits.json",
+      "raw": "copilot-devin/copilot/raw/user-pro-plus-ai-credits.json"
+    }
+  },
+  {
+    "id": "copilot.premium-models",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "fixtures:Copilot/user-premium-models.json"
+    }
+  },
+  {
+    "id": "copilot.max",
+    "provider": "copilot",
+    "confidence": "inferred",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-max-ai-credits.json",
+      "raw": "copilot-devin/copilot/raw/user-max-ai-credits.json"
+    }
+  },
+  {
+    "id": "copilot.pro-at-allowance",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-pro-at-allowance-no-budget.json",
+      "raw": "copilot-devin/copilot/raw/user-pro-at-allowance-no-budget.json"
+    }
+  },
+  {
+    "id": "copilot.pro-overage",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-pro-paying-overage.json",
+      "raw": "copilot-devin/copilot/raw/user-pro-paying-overage.json",
+      "filteredRequestEra": "fixtures:Copilot/user-overage.json"
+    }
+  },
+  {
+    "id": "copilot.pro-overage-budget-spent",
+    "provider": "copilot",
+    "confidence": "inferred",
+    "source": {
+      "shape": "inferred: same flags as user-pro-paying-overage.json, because copilot_internal/user carries no budget",
+      "evidence": "Additional usage 'may be capped' by the budget (https://docs.github.com/en/copilot/concepts/billing-and-usage/individuals/billing); budgets are only on github.com web endpoints (cb:docs/copilot.md:44-60)",
+      "today": "Pro, 'AI credits' 133.33% critical, 'Limit reached', note '500 AI credits over the allowance this cycle'"
+    },
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-pro-overage-budget-spent.json",
+      "raw": "copilot-devin/copilot/raw/user-pro-overage-budget-spent.json"
+    }
+  },
+  {
+    "id": "copilot.legacy",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "fixtures:Copilot/user-legacy-premium.json"
+    }
+  },
+  {
+    "id": "copilot.legacy-at-allowance",
+    "provider": "copilot",
+    "confidence": "inferred",
+    "source": {
+      "shape": "inferred from tj Fixtures/Copilot/user-legacy-premium.json with all 300 premium requests spent",
+      "evidence": "Legacy Pro has 300 premium requests; once they are used 'you can still use Copilot with one of the included models for the rest of the month' (https://docs.github.com/en/copilot/reference/copilot-billing/request-based-billing-legacy/copilot-requests)",
+      "today": "Pro, 'Premium requests' 100% critical, 'Limit reached, resets in ...', alerts at 80 and 95, no notes"
+    },
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-legacy-pro-at-allowance.json",
+      "raw": "copilot-devin/copilot/raw/user-legacy-pro-at-allowance.json"
+    }
+  },
+  {
+    "id": "copilot.legacy-overage",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-legacy-pro-overage.json",
+      "raw": "copilot-devin/copilot/raw/user-legacy-pro-overage.json"
+    }
+  },
+  {
+    "id": "copilot.business-share",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-business-per-seat.json",
+      "raw": "copilot-devin/copilot/raw/user-business-per-seat.json"
+    }
+  },
+  {
+    "id": "copilot.business-past-share-paid-on",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-business-past-share-paid-usage.json",
+      "raw": "copilot-devin/copilot/raw/user-business-past-share-paid-usage.json"
+    }
+  },
+  {
+    "id": "copilot.business-past-share-paid-off",
+    "provider": "copilot",
+    "confidence": "inferred",
+    "source": {
+      "shape": "inferred; overage_count 0 assumes GitHub counts only paid overage",
+      "evidence": "Business credits are pooled at the billing entity, not tracked per user (https://docs.github.com/en/copilot/concepts/billing-and-usage/organizations-and-enterprises/billing)",
+      "today": "Business, 'AI credits' clamped to 100% critical, 'Limit reached', alerts at 80 and 95, no notes"
+    },
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-business-past-share-paid-off.json",
+      "raw": "copilot-devin/copilot/raw/user-business-past-share-paid-off.json"
+    }
+  },
+  {
+    "id": "copilot.business-pool-exhausted",
+    "provider": "copilot",
+    "confidence": "inferred",
+    "source": {
+      "shape": "inferred; nothing in the filtered fields says the pool is spent",
+      "evidence": "With paid usage off and the pool spent, 'Usage is blocked until the next billing cycle' (org billing URL above)",
+      "today": "Business, 'AI credits' 60%, orange from the projection, 'Runs out ~13d 12h before reset', projected-exhaustion alert"
+    },
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-business-pool-exhausted-share-left.json",
+      "raw": "copilot-devin/copilot/raw/user-business-pool-exhausted-share-left.json"
+    }
+  },
+  {
+    "id": "copilot.pooled-unlimited",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "fixtures:Copilot/user-pooled-unlimited.json"
+    }
+  },
+  {
+    "id": "copilot.placeholder-credits",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-business-placeholder-credits.json",
+      "raw": "copilot-devin/copilot/raw/user-business-placeholder-credits.json"
+    }
+  },
+  {
+    "id": "copilot.token-placeholder",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-business-token-placeholder.json",
+      "raw": "copilot-devin/copilot/raw/user-business-token-placeholder.json"
+    }
+  },
+  {
+    "id": "copilot.business-monthly-completions",
+    "provider": "copilot",
+    "confidence": "documented",
+    "source": {
+      "shape": "recorded in CodexBar's tests (cb:Tests/CodexBarTests/CopilotUsageModelsTests.swift:568-593), identity added as placeholders",
+      "evidence": "CodexBar turns monthly_quotas completions into a 75% window and keeps credits_used 31; Tokenjar reads monthly_quotas only for Free (tj:Sources/TokenjarCore/Providers/Copilot/CopilotUsageFetcher.swift:101-107)",
+      "today": "Business, no windows, note '31 AI credits used this cycle (no per-user limit)'"
+    },
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-business-credits-with-monthly-completions.json",
+      "raw": "copilot-devin/copilot/raw/user-business-credits-with-monthly-completions.json"
+    }
+  },
+  {
+    "id": "copilot.enterprise",
+    "provider": "copilot",
+    "confidence": "recorded",
+    "inputs": {
+      "filtered": "fixtures:Copilot/user-enterprise.json"
+    }
+  },
+  {
+    "id": "copilot.enterprise-unlimited",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-enterprise-unlimited-no-counter.json",
+      "raw": "copilot-devin/copilot/raw/user-enterprise-unlimited-no-counter.json"
+    }
+  },
+  {
+    "id": "copilot.ghecom",
+    "provider": "copilot",
+    "confidence": "inferred",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-ghecom-enterprise.json",
+      "raw": "copilot-devin/copilot/raw/user-ghecom-enterprise.json"
+    }
+  },
+  {
+    "id": "copilot.ghecom-multihost",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "error": "copilot-devin/copilot/errors/ghecom-multi-host-picks-github-com.json"
+    }
+  },
+  {
+    "id": "copilot.no-access",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "error": "copilot-devin/copilot/errors/gh-404-no-copilot.json",
+      "errorNoMessage": "copilot-devin/copilot/errors/gh-404-no-message.json"
+    }
+  },
+  {
+    "id": "copilot.saml-403",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "error": "copilot-devin/copilot/errors/gh-403-saml.json"
+    }
+  },
+  {
+    "id": "copilot.signed-out",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "error": "copilot-devin/copilot/errors/gh-not-logged-in.json"
+    }
+  },
+  {
+    "id": "copilot.xdg",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {}
+  },
+  {
+    "id": "copilot.remaining-only",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-pro-remaining-only.json",
+      "raw": "copilot-devin/copilot/raw/user-pro-remaining-only.json"
+    }
+  },
+  {
+    "id": "copilot.overage-percent-only",
+    "provider": "copilot",
+    "confidence": "documented",
+    "inputs": {
+      "filtered": "copilot-devin/copilot/filtered/user-pro-overage-percent-only.json",
+      "raw": "copilot-devin/copilot/raw/user-pro-overage-percent-only.json"
+    }
+  },
+  {
+    "id": "devin.free",
+    "provider": "devin",
+    "confidence": "documented",
+    "inputs": {
+      "linkCard": "copilot-devin/devin/link-card-expected.json"
+    }
+  },
+  {
+    "id": "devin.pro",
+    "provider": "devin",
+    "confidence": "documented",
+    "inputs": {
+      "linkCard": "copilot-devin/devin/link-card-expected.json"
+    }
+  },
+  {
+    "id": "devin.max",
+    "provider": "devin",
+    "confidence": "documented",
+    "inputs": {
+      "linkCard": "copilot-devin/devin/link-card-expected.json"
+    }
+  },
+  {
+    "id": "devin.teams",
+    "provider": "devin",
+    "confidence": "documented",
+    "inputs": {
+      "linkCard": "copilot-devin/devin/link-card-expected.json"
+    }
+  },
+  {
+    "id": "devin.teams-flex",
+    "provider": "devin",
+    "confidence": "documented",
+    "source": {
+      "shape": "no source; every case must give the link-card snapshot"
+    },
+    "inputs": {
+      "linkCard": "copilot-devin/devin/link-card-missing-cases.json"
+    }
+  },
+  {
+    "id": "devin.enterprise",
+    "provider": "devin",
+    "confidence": "documented",
+    "inputs": {
+      "linkCard": "copilot-devin/devin/link-card-expected.json"
+    }
+  },
+  {
+    "id": "devin.legacy-core",
+    "provider": "devin",
+    "confidence": "documented",
+    "source": {
+      "shape": "no source; every case must give the link-card snapshot"
+    },
+    "inputs": {
+      "linkCard": "copilot-devin/devin/link-card-missing-cases.json"
+    }
+  },
+  {
+    "id": "devin.chatgpt-sharing",
+    "provider": "devin",
+    "confidence": "documented",
+    "source": {
+      "shape": "no source; every case must give the link-card snapshot"
+    },
+    "inputs": {
+      "linkCard": "copilot-devin/devin/link-card-missing-cases.json"
+    }
+  },
+  {
+    "id": "devin.windsurf",
+    "provider": "devin",
+    "confidence": "documented",
+    "inputs": {
+      "linkCard": "copilot-devin/devin/link-card-expected.json"
+    }
+  },
+  {
+    "id": "devin.windsurf-enterprise",
+    "provider": "devin",
+    "confidence": "documented",
+    "source": {
+      "shape": "no source; every case must give the link-card snapshot"
+    },
+    "inputs": {
+      "linkCard": "copilot-devin/devin/link-card-missing-cases.json"
+    }
+  }
+]

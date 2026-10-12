@@ -1,0 +1,16 @@
+{
+  "numStartups": 3,
+  "oauthAccount": {
+    "accountUuid": "ACCOUNT_UUID_FAKE",
+    "emailAddress": "EMAIL_PLACEHOLDER",
+    "organizationUuid": "ORG_UUID_PLACEHOLDER",
+    "organizationName": "ORG_NAME_PLACEHOLDER",
+    "organizationRole": "user",
+    "organizationType": "claude_enterprise",
+    "organizationRateLimitTier": null,
+    "userRateLimitTier": null,
+    "billingType": "stripe_subscription_contracted",
+    "seatTier": "enterprise_usage_based",
+    "hasExtraUsageEnabled": true
+  }
+}

@@ -486,7 +486,7 @@ struct AccountStatusText: Equatable {
         case .unauthorized: account.provider.usesAPIKey ? "Key rejected" : "Login rejected"
         case .cliNotFound: "Not installed"
         case .keychainDenied: "Keychain denied"
-        case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported: "Check failed"
+        case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported, .cliTooOld: "Check failed"
         }
         return Caption(text: text, isActionable: true)
     }
@@ -561,7 +561,7 @@ enum AccountFix: Equatable {
             return .searchedFolders
         case .keychainDenied:
             return .tryAgain
-        case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported:
+        case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported, .cliTooOld:
             return nil
         }
     }

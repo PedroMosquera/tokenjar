@@ -70,6 +70,26 @@ struct ProbeLatchTests {
         #expect(ProbeLatch.fingerprint(ofBinaryAt: link) != before)
     }
 
+    @Test func blocksMatchesOnlyTheSameBinary() {
+        var latch = ProbeLatch()
+        latch.latch("work", cli: .claude, binary: "claude-1")
+
+        #expect(latch.blocks(cli: .claude, binary: "claude-1"))
+        #expect(!latch.blocks(cli: .claude, binary: "claude-2"))
+        #expect(!latch.blocks(cli: .claude, binary: nil))
+        #expect(!latch.blocks(cli: .agy, binary: "claude-1"))
+        #expect(!ProbeLatch().blocks(cli: .claude, binary: "claude-1"))
+    }
+
+    @Test func aLatchWithoutAFingerprintBlocks() {
+        var latch = ProbeLatch()
+        latch.latch("google", cli: .agy, binary: nil)
+
+        #expect(latch.blocks(cli: .agy, binary: "agy-2"))
+        #expect(latch.blocks(cli: .agy, binary: nil))
+        #expect(!latch.blocks(cli: .claude, binary: "agy-2"))
+    }
+
     @Test func survivesARoundTripThroughJSON() throws {
         var latch = ProbeLatch()
         latch.latch("work", cli: .claude, binary: "abc")

@@ -21,7 +21,7 @@ struct AccountAction {
         case .unauthorized: [AccountAction(title: "Settings\u{2026}") { model.showSettings(accountID: account.id) }]
         case .network, .timeout, .rateLimited, .parse: [AccountAction(title: "Retry") { model.refresh(accountID: account.id) }]
         case .keychainDenied: [AccountAction(title: "Try Again") { model.refresh(accountID: account.id) }]
-        case .noSubscription, .unsupported: []
+        case .noSubscription, .unsupported, .cliTooOld: []
         }
     }
 

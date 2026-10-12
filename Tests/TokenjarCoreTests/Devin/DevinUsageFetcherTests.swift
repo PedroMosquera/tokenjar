@@ -9,7 +9,7 @@ struct DevinUsageFetcherTests {
         let home = URL(fileURLWithPath: "/nonexistent-tokenjar-devin-home")
         let now = self.now
         let context = FetchContext(
-            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: ["devin": "/nonexistent/devin"]),
+            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: ["devin": "/nonexistent/devin"], searchDirectories: []),
             paths: AppPaths(home: home), now: { now }
         )
         return try await DevinUsageFetcher().fetch(account, context: context)
