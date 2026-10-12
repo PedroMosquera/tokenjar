@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let windows = WindowPresenter()
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
+    private var quitConfirmation = QuitConfirmation()
     var popoverFrameObservers: [NSObjectProtocol] = [] {
         didSet { oldValue.forEach(NotificationCenter.default.removeObserver) }
     }
@@ -44,7 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         model.presenter = .init(
             showDashboard: { [weak self] accountID in self?.showDashboard(accountID: accountID) },
             showSettings: { [weak self] accountID in self?.showSettings(accountID: accountID) },
-            closePopover: { [weak self] in self?.popover.performClose(nil) }
+            closePopover: { [weak self] in self?.popover.performClose(nil) },
+            requestQuit: { [weak self] in self?.requestQuit(nil) }
         )
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -135,6 +137,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     @objc func openSettings(_ sender: Any?) {
         model.showSettings()
+    }
+
+    /// The alert waits for the run loop's default mode, which menu tracking never runs in, so a request from a menu
+    /// shows it only after that menu has closed and the status item has let go of it.
+    @objc func requestQuit(_ sender: Any?) {
+        guard quitConfirmation.shouldAsk() else { return }
+        if popover.isShown { popover.performClose(nil) }
+        RunLoop.main.perform(inModes: [.default]) {
+            MainActor.assumeIsolated { self.askToQuit() }
+        }
+    }
+
+    private func askToQuit() {
+        // An accessory app's alert would otherwise open behind the frontmost app.
+        NSApp.activate()
+        let response = QuitConfirmation.makeAlert().runModal()
+        if quitConfirmation.quits(after: response) { NSApp.terminate(nil) }
     }
 
     func popoverWillShow(_ notification: Notification) {

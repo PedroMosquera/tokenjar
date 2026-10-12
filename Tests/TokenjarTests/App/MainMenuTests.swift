@@ -5,8 +5,9 @@ import Testing
 
 @MainActor
 struct MainMenuTests {
-    private final class SettingsOpener: NSObject {
+    private final class Delegate: NSObject {
         @objc func openSettings(_ sender: Any?) {}
+        @objc func requestQuit(_ sender: Any?) {}
     }
 
     private struct Entry: Equatable, CustomStringConvertible {
@@ -34,10 +35,13 @@ struct MainMenuTests {
         var description: String { "\(title) \(key) \(modifiers.rawValue) \(action ?? "nil")" }
     }
 
-    private let opener = SettingsOpener()
+    private let delegate = Delegate()
 
     private func menu() -> NSMenu {
-        MainMenu.make(appName: "Tokenjar", settingsTarget: opener, settingsAction: #selector(SettingsOpener.openSettings(_:)))
+        MainMenu.make(
+            appName: "Tokenjar", target: delegate,
+            settingsAction: #selector(Delegate.openSettings(_:)), quitAction: #selector(Delegate.requestQuit(_:))
+        )
     }
 
     private func entries(_ title: String) throws -> [Entry] {
@@ -64,16 +68,20 @@ struct MainMenuTests {
         app.mainMenu = nil
         app.windowsMenu = nil
 
-        MainMenu.install(in: app, appName: "Tokenjar", settingsTarget: opener, settingsAction: #selector(SettingsOpener.openSettings(_:)))
+        MainMenu.install(
+            in: app, appName: "Tokenjar", target: delegate,
+            settingsAction: #selector(Delegate.openSettings(_:)), quitAction: #selector(Delegate.requestQuit(_:))
+        )
 
         let bar = try #require(app.mainMenu)
         #expect(bar.items.compactMap(\.submenu?.title) == ["Tokenjar", "Edit", "Window"])
-        #expect(bar.items.first?.submenu?.items.first { $0.keyEquivalent == "," }?.target === opener)
+        #expect(bar.items.first?.submenu?.items.first { $0.keyEquivalent == "," }?.target === delegate)
         let window = try #require(app.windowsMenu)
         #expect(window === bar.items.first { $0.submenu?.title == "Window" }?.submenu)
     }
 
-    @Test func theAppMenuOpensTokenjarSettingsWithCommandComma() throws {
+    /// Quit keeps Command-Q but asks first, like the popover's Quit; Dock > Quit and logout skip the menu and never ask.
+    @Test func theAppMenuOpensTokenjarSettingsWithCommandCommaAndAsksBeforeQuitting() throws {
         #expect(try entries("Tokenjar") == [
             Entry("About Tokenjar", action: "orderFrontStandardAboutPanel:"),
             .separator,
@@ -83,10 +91,20 @@ struct MainMenuTests {
             Entry("Hide Others", "h", [.command, .option], action: "hideOtherApplications:"),
             Entry("Show All", action: "unhideAllApplications:"),
             .separator,
-            Entry("Quit Tokenjar", "q", action: "terminate:"),
+            Entry("Quit Tokenjar", "q", action: "requestQuit:"),
         ])
-        let settings = try #require(menu().items.first?.submenu?.items.first { $0.title == "Settings\u{2026}" })
-        #expect(settings.target === opener)
+        let app = try #require(menu().items.first?.submenu)
+        #expect(app.items.first { $0.title == "Settings\u{2026}" }?.target === delegate)
+        #expect(app.items.first { $0.title == "Quit Tokenjar" }?.target === delegate)
+    }
+
+    /// macOS 26 picks a menu item's symbol from its action, and Quit's action is no longer terminate:. Before macOS 26
+    /// neither has a symbol.
+    @Test func quitKeepsTheSymbolOfTheStandardQuitItem() throws {
+        let quit = try #require(menu().items.first?.submenu?.items.first { $0.title == "Quit Tokenjar" })
+        let standard = NSMenuItem(title: "Quit Tokenjar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        #expect((quit.image == nil) == (standard.image == nil))
+        #expect(quit.image?.size == standard.image?.size)
     }
 
     /// Text fields take Command-C, -V and -A only through these items: without them a pasted API key needs the context menu.
