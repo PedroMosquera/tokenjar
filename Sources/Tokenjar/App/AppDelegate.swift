@@ -85,11 +85,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// Runs `willOpen`, which may change what the popover shows, sizes the popover to the result, then calls `show`.
     /// NSPopover places the popover from `contentSize` at show, and that is 0x0 for a controller never laid out.
     /// Later size changes reach NSPopover through the preferred size (see `popoverContent`) and it re-places the
-    /// popover for each one, so the app should not move a shown popover itself.
+    /// popover for each one, so the app should not move a shown popover itself. The content lives as long as the
+    /// app, so its cards would otherwise reopen where the last open left them; they go back to the top before `show`.
     static func open(_ popover: NSPopover, willOpen: () -> Void, show: () -> Void) {
         willOpen()
         if let size = settledSize(of: popover.contentViewController) { popover.contentSize = size }
+        if let view = popover.contentViewController?.view { scrollToTop(view) }
         show()
+    }
+
+    private static func scrollToTop(_ view: NSView) {
+        if let scrollView = view as? NSScrollView {
+            let clip = scrollView.contentView
+            let documentHeight = scrollView.documentView?.frame.height ?? 0
+            let top = clip.isFlipped ? 0 : max(0, documentHeight - clip.bounds.height)
+            clip.scroll(to: NSPoint(x: clip.bounds.minX, y: top))
+            scrollView.reflectScrolledClipView(clip)
+            return
+        }
+        view.subviews.forEach(scrollToTop)
     }
 
     /// The content's size with every pending change applied. SwiftUI applies a model change at the next layout, which
