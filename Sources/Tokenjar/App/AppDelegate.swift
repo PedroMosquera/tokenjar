@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private var quitConfirmation = QuitConfirmation()
+    private var clicks = StatusItemClick.Router()
     var popoverFrameObservers: [NSObjectProtocol] = [] {
         didSet { oldValue.forEach(NotificationCenter.default.removeObserver) }
     }
@@ -83,8 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
-        let event = NSApp.currentEvent
-        switch StatusItemClick.route(event?.type, modifiers: event?.modifierFlags ?? []) {
+        switch clicks.route(NSApp.currentEvent) {
         case .popover: togglePopover(sender)
         case .menu: showMenu(from: sender)
         }
