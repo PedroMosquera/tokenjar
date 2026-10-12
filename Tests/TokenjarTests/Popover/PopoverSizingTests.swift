@@ -39,7 +39,7 @@ struct PopoverSizingTests {
         controller.view.layoutSubtreeIfNeeded()
         let before = controller.preferredContentSize.height
 
-        model.showFailedReload(of: "config.json")
+        model.showFailedLoad(of: "config.json", nothingLoaded: false)
         controller.view.layoutSubtreeIfNeeded()
 
         #expect(before > 0)
@@ -92,7 +92,7 @@ struct PopoverSizingTests {
         popover.contentViewController?.view.layoutSubtreeIfNeeded()
         var sizeAtShow: NSSize?
 
-        AppDelegate.open(popover, willOpen: { model.showFailedReload(of: "config.json") }) { sizeAtShow = popover.contentSize }
+        AppDelegate.open(popover, willOpen: { model.showFailedLoad(of: "config.json", nothingLoaded: false) }) { sizeAtShow = popover.contentSize }
 
         let opened = idealSize(of: model)
         let shown = try #require(sizeAtShow)

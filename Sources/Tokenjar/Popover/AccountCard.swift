@@ -6,21 +6,41 @@ struct AccountCard: View {
     var account: AccountConfig
     var burnUps: BurnUpSamples
 
+    /// What a card with no data and no error row says.
+    static func emptyText(isRefreshing: Bool, connectivity: Connectivity) -> String {
+        if isRefreshing { return "Checking usage" }
+        switch connectivity {
+        case .online: return "No data yet"
+        case .offline: return "No usage yet. Tokenjar checks when the Mac is back online."
+        case .noAnswer: return "No usage yet. Tokenjar tries again at the next refresh."
+        }
+    }
+
+    /// The failure the card's row shows: the latest error, else the connection failure a saved copy stands in for, so
+    /// both read alike and both stay off the card under a Mac-wide cause.
+    static func rowError(status: AccountStatus, provider: ProviderID, connectivity: Connectivity) -> FetchError? {
+        (status.error ?? status.connectionFailure).flatMap { ErrorRow.isShown(error: $0, provider: provider, connectivity: connectivity) ? $0 : nil }
+    }
+
     var body: some View {
         let status = model.status(for: account)
         let refreshMinutes = account.refreshMinutes ?? model.config.refreshMinutes
         let isStale = status.isStale(now: model.popoverNow, refreshMinutes: refreshMinutes)
+        // Zen and Devin need no network, so a Mac-wide cause says nothing about them.
+        let connectivity = account.provider.checkUsesNetwork ? model.connectivity : .online
+        let shownError = Self.rowError(status: status, provider: account.provider, connectivity: connectivity)
         VStack(alignment: .leading, spacing: 10) {
             AccountCardHeader(account: account, status: status, isStale: isStale)
-            if let error = status.error {
-                ErrorRow(account: account, error: error, needsAttention: status.failureNeedsAttention(now: model.popoverNow, refreshMinutes: refreshMinutes))
+            if let shownError {
+                ErrorRow(account: account, error: shownError, needsAttention: status.failureNeedsAttention(now: model.popoverNow, refreshMinutes: refreshMinutes))
             }
             if let snapshot = status.snapshot {
                 SnapshotBody(account: account, snapshot: snapshot, isStale: isStale, burnUps: burnUps)
-            } else if status.error == nil {
-                Text(status.isRefreshing ? "Checking usage" : "No data yet")
+            } else if shownError == nil {
+                Text(Self.emptyText(isRefreshing: status.isRefreshing, connectivity: connectivity))
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(PopoverView.cardPadding)
@@ -144,7 +164,7 @@ struct ErrorRow: View {
         VStack(alignment: .trailing, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 icon
-                Text(error.userMessage)
+                Text(error.userMessage(provider: account.provider))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
@@ -163,6 +183,16 @@ struct ErrorRow: View {
     private var icon: some View {
         Image(systemName: Self.symbol(for: error, needsAttention: needsAttention))
             .foregroundStyle(needsAttention ? AnyShapeStyle(Severity.warning.color) : AnyShapeStyle(.secondary))
+    }
+
+    /// Under a Mac-wide cause the header says it once, so a connection error row and its Retry, which cannot work,
+    /// stay off the card. A row the user can act on, and a rate limit, are still true and stay.
+    static func isShown(error: FetchError, provider: ProviderID, connectivity: Connectivity) -> Bool {
+        guard connectivity != .online, provider.checkUsesNetwork else { return true }
+        switch error {
+        case .network, .timeout: return false
+        default: return true
+        }
     }
 
     /// A gray icon over fresh data names what Tokenjar is waiting out. Wi-Fi only for a network error: a CLI that did
@@ -347,7 +377,7 @@ enum PopoverSpeech {
         case .warning: "Warning"
         case .critical: "Critical"
         case .problem: "Needs attention"
-        case .empty: nil
+        case .empty, .unreachable, .offline, .noAnswer: nil
         }
     }
 

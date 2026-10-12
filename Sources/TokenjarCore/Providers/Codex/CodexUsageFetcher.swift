@@ -27,10 +27,14 @@ public struct CodexUsageFetcher: UsageFetcher {
 
     public func fetch(_ account: AccountConfig, context: FetchContext) async throws -> UsageSnapshot {
         let home = CodexRollouts.home(for: account, paths: context.paths)
-        let fallback = { CodexRollouts.lastLoggedSnapshot(codexHome: home, accountID: account.id, now: context.now()) }
+        func fallback(_ error: FetchError) -> UsageSnapshot? {
+            var logged = CodexRollouts.lastLoggedSnapshot(codexHome: home, accountID: account.id, now: context.now())
+            logged?.liveCheckFailure = LiveCheckFailure(error)
+            return logged
+        }
 
         guard let binary = context.cli.locate("codex") else {
-            if let logged = fallback() { return logged }
+            if let logged = fallback(.cliNotFound("codex")) { return logged }
             throw FetchError.cliNotFound("codex")
         }
 
@@ -54,7 +58,7 @@ public struct CodexUsageFetcher: UsageFetcher {
             case .failed(.notSignedIn):
                 throw FetchError.notSignedIn
             case .failed(let fetchError):
-                if let logged = fallback() { return logged }
+                if let logged = fallback(fetchError) { return logged }
                 throw fetchError
             }
         }

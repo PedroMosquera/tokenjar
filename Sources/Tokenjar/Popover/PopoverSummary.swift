@@ -29,28 +29,48 @@ struct AccountTitle: Equatable {
 struct PopoverSummary: Equatable {
     enum Tone: Equatable {
         case clear, warning, critical, problem, empty
+        /// The Mac has no usable network path.
+        case offline
+        /// The network is up, but no provider answers.
+        case noAnswer
+        /// An account that needs the network has no fresh data and its latest check could not reach the provider.
+        case unreachable(onlyTimeouts: Bool)
     }
 
     var tone: Tone
     var text: String
-    /// When an account is named, the other accounts with a window above ok or a failed check, in config order.
+    /// When an account is named, the other accounts with a window above ok, a failed check or no way to refresh, in
+    /// config order.
     /// Cards keep config order, so this is how an at-risk account below the fold still reaches the header.
     var others: [String] = []
 
-    static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date) -> PopoverSummary {
-        guard !accounts.isEmpty else { return PopoverSummary(tone: .empty, text: "No accounts yet") }
+    static func make(
+        accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date,
+        connectivity: Connectivity = .online, settings: SettingsProblem? = nil
+    ) -> PopoverSummary {
+        // In priority order: what stops every check, then what makes every number old, then one account at a time.
+        guard !accounts.isEmpty else {
+            if settings?.nothingLoaded == true { return PopoverSummary(tone: .problem, text: "Settings not loaded") }
+            return PopoverSummary(tone: .empty, text: "No accounts yet")
+        }
         var worst: (account: AccountConfig, window: UsageWindow, severity: Severity)?
         var nextReset: Date?
         var failing = 0
         var withData = 0
         var needsALook: [AccountConfig] = []
+        /// `needsALook` without the accounts a Mac-wide cause already explains.
+        var needsYou: [AccountConfig] = []
+        var unreachable: [(account: AccountConfig, failure: FetchError)] = []
         for account in accounts {
             let status = statuses[account.id] ?? AccountStatus()
-            let failed = status.failureNeedsAttention(now: now, refreshMinutes: account.refreshMinutes ?? config.refreshMinutes)
+            let refreshMinutes = account.refreshMinutes ?? config.refreshMinutes
+            let failed = status.failureNeedsAttention(now: now, refreshMinutes: refreshMinutes)
             if failed { failing += 1 }
-            if failed || Severity.worst(of: status.snapshot?.windows ?? [], config: config.menuBar, now: now) > .ok {
-                needsALook.append(account)
-            }
+            let stuck = status.cannotRefresh(now: now, refreshMinutes: refreshMinutes)
+            if stuck, let failure = status.connectionFailure { unreachable.append((account, failure)) }
+            let pressed = Severity.worst(of: status.snapshot?.windows ?? [], config: config.menuBar, now: now) > .ok
+            if failed || stuck || pressed { needsALook.append(account) }
+            if failed || pressed { needsYou.append(account) }
             // A link card or a spend-only account is ready at once and has no limits, so it must not stand in for
             // accounts still being checked.
             guard let snapshot = status.snapshot, account.provider.reportsWindows else { continue }
@@ -65,6 +85,15 @@ struct PopoverSummary: Equatable {
                 }
             }
         }
+        let settingsName = settings == nil ? [] : ["settings"]
+        // The title outranks the limit summary, so the near-limit account and the one to fix, which the menu bar's color
+        // and dot point at, are named here instead.
+        switch connectivity {
+        case .offline: return PopoverSummary(tone: .offline, text: "Offline", others: needsYou.map { shortName($0, among: accounts) } + settingsName)
+        case .noAnswer:
+            return PopoverSummary(tone: .noAnswer, text: "Can't reach any provider", others: needsYou.map { shortName($0, among: accounts) } + settingsName)
+        case .online: break
+        }
         if let worst, worst.severity > .ok {
             let name = AccountTitle(provider: worst.account.provider, label: worst.account.label).name
             let window = worst.window
@@ -74,15 +103,20 @@ struct PopoverSummary: Equatable {
             } else {
                 detail = "\(window.label) at \(Format.percent(window.usedPercent))"
             }
-            // The caption has room for a few words: the provider alone names an account unless another account shares it.
-            let others = needsALook.filter { $0.id != worst.account.id }.map { account in
-                let shared = accounts.contains { $0.id != account.id && $0.provider == account.provider }
-                return shared ? AccountTitle(provider: account.provider, label: account.label).name : account.provider.displayName
-            }
+            let others = needsALook.filter { $0.id != worst.account.id }.map { shortName($0, among: accounts) } + settingsName
             return PopoverSummary(tone: worst.severity == .critical ? .critical : .warning, text: "\(name): \(detail)", others: others)
         }
+        if settings != nil { return PopoverSummary(tone: .problem, text: "Settings need attention") }
         if failing > 0 {
             return PopoverSummary(tone: .problem, text: failing == 1 ? "1 account needs attention" : "\(failing) accounts need attention")
+        }
+        if !unreachable.isEmpty {
+            let onlyTimeouts = unreachable.allSatisfy { $0.failure == .timeout }
+            guard unreachable.count == 1, let only = unreachable.first else {
+                return PopoverSummary(tone: .unreachable(onlyTimeouts: onlyTimeouts), text: "\(unreachable.count) accounts can't refresh")
+            }
+            let name = shortName(only.account, among: accounts)
+            return PopoverSummary(tone: .unreachable(onlyTimeouts: onlyTimeouts), text: onlyTimeouts ? "No answer from \(name)" : "Can't reach \(name)")
         }
         if withData == 0 {
             let nothingToTrack = accounts.allSatisfy { !$0.provider.reportsWindows || statuses[$0.id]?.error?.attention == .calm }
@@ -91,18 +125,25 @@ struct PopoverSummary: Equatable {
         guard let nextReset else { return PopoverSummary(tone: .clear, text: "All clear") }
         return PopoverSummary(tone: .clear, text: "All clear · next reset in \(Format.duration(nextReset.timeIntervalSince(now)))")
     }
+
+    /// The header has room for a few words: the provider alone names an account unless another account shares it.
+    private static func shortName(_ account: AccountConfig, among accounts: [AccountConfig]) -> String {
+        let shared = accounts.contains { $0.id != account.id && $0.provider == account.provider }
+        return shared ? AccountTitle(provider: account.provider, label: account.label).name : account.provider.displayName
+    }
 }
 
 extension AccountStatus {
-    /// Whether the last failed check should reach the header. A missing subscription never does, and a network
-    /// error or timeout only once there is no fresh data to show instead.
+    /// A connection failure with no fresh data to show instead.
+    func cannotRefresh(now: Date, refreshMinutes: Int) -> Bool {
+        connectionFailure != nil && (snapshot == nil || isStale(now: now, refreshMinutes: refreshMinutes))
+    }
+
+    /// Whether the last failed check needs the user: the menu bar dot, the header's count and the orange icons. Only an
+    /// actionable failure does. A network error, a timeout or a rate limit is nothing to fix, however old the data;
+    /// the header names one that leaves no fresh data (`cannotRefresh`).
     func failureNeedsAttention(now: Date, refreshMinutes: Int) -> Bool {
-        guard let error else { return false }
-        switch error.attention {
-        case .calm: return false
-        case .transient: return snapshot == nil || isStale(now: now, refreshMinutes: refreshMinutes)
-        case .actionable: return true
-        }
+        error?.attention == .actionable
     }
 }
 

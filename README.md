@@ -30,7 +30,7 @@ The Antigravity reader has never run against a live install. Copilot's endpoint 
 
 ## Using it
 
-The menu bar item shows the used percent of the account with the least room left. By default it turns red at 95% and amber at 80%, or sooner when a window that is at least half used is on pace to run out before it resets. When a window is full it counts down to the reset instead. Faded numbers are out of date, and a dot means a check failed and needs you. Devin and OpenCode Zen never show up there. Settings > General changes both levels and can switch the item to one thin bar per account, or to the icon alone.
+The menu bar item shows the used percent of the account with the least room left. By default it turns red at 95% and amber at 80%, or sooner when a window that is at least half used is on pace to run out before it resets. When a window is full it counts down to the reset instead. A slash across the icon means Tokenjar can't refresh right now, because the Mac is offline or no provider answered. Faded numbers are out of date, and a dot means something needs you: a failed check you can fix, or settings that can't be read. Devin and OpenCode Zen never show up there. Settings > General changes both levels and can switch the item to one thin bar per account, or to the icon alone.
 
 <p align="center">
   <picture>
@@ -39,7 +39,7 @@ The menu bar item shows the used percent of the account with the least room left
   </picture>
 </p>
 
-Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. Command-R refreshes.
+Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. When the Mac is offline or no provider answers, the header says so once and the cards keep their last numbers with their age. Command-R refreshes.
 
 The dashboard (Command-D) charts each limit over time with its resets and estimates what your usage would have cost at API prices, split by model, harness, project or account. Antigravity and Copilot keep no local logs, so they show limits only.
 

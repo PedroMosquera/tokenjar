@@ -41,6 +41,11 @@ private final class RenderSession {
         var empty: AppModel?
         var configError: AppModel?
         var short: AppModel?
+        /// Offline, no provider answering, one provider down, and settings that failed to load at launch.
+        var offline: AppModel?
+        var noAnswer: AppModel?
+        var partialOutage: AppModel?
+        var settingsUnloaded: AppModel?
         var menuBar: [(name: String, state: MenuBarState)]
         var plans: [(name: String, model: AppModel)] = []
         /// Plan rows with usage history, the only ones whose dashboard page has more than All to show.
@@ -80,6 +85,22 @@ private final class RenderSession {
                         Step(screen: "settings-config-error-alerts") { controller.rootView = SettingsRoot(model: failed, pane: .alerts) },
                     ]
                 }
+                renderPopover(failed, screen: "popover-config-error", appearance: appearance, suffix: suffix)
+            }
+            if let offline = data.offline {
+                renderPopover(offline, screen: "popover-offline", appearance: appearance, suffix: suffix)
+                renderSettingsAccounts(offline, prefix: "settings-offline", appearance: appearance, suffix: suffix)
+                renderDashboard(offline, prefix: "dashboard-offline", sizes: ["default"], accounts: [], appearance: appearance, suffix: suffix)
+            }
+            if let noAnswer = data.noAnswer {
+                renderPopover(noAnswer, screen: "popover-no-answer", appearance: appearance, suffix: suffix)
+                renderSettingsAccounts(noAnswer, prefix: "settings-no-answer", appearance: appearance, suffix: suffix)
+            }
+            if let partialOutage = data.partialOutage {
+                renderPopover(partialOutage, screen: "popover-partial-outage", appearance: appearance, suffix: suffix)
+            }
+            if let settingsUnloaded = data.settingsUnloaded {
+                renderPopover(settingsUnloaded, screen: "popover-settings-unloaded", appearance: appearance, suffix: suffix)
             }
             for page in data.plans {
                 renderPopover(page.model, screen: "popover-\(page.name)", appearance: appearance, suffix: suffix)
@@ -103,15 +124,23 @@ private final class RenderSession {
         let states = AppModel.previewStates()
         let empty = AppModel.previewEmpty()
         let configError = AppModel.preview()
-        configError.showFailedReload(of: "config.json")
+        configError.showFailedLoad(of: "config.json", nothingLoaded: false)
         let short = AppModel.preview()
         short.popoverMaxHeight = 400
+        let offline = AppModel.previewOffline(), noAnswer = AppModel.previewNoAnswer()
+        let partialOutage = AppModel.previewPartialOutage(), settingsUnloaded = AppModel.previewSettingsUnloaded()
+        let outages = [offline, noAnswer, partialOutage, settingsUnloaded]
         let plans = PreviewPlans.pages(now: model.now)
-        for preview in [model, states, empty, configError, short] + plans.map(\.model) { preview.secrets = SessionSecretStore(InMemorySecretStore()) }
+        for preview in [model, states, empty, configError, short] + outages + plans.map(\.model) { preview.secrets = SessionSecretStore(InMemorySecretStore()) }
         let slots = SnapshotRenderer.slotStates(now: model.now).map { (name: "slot-\($0.name)", state: $0.state) }
+        let outageStrips: [(name: String, state: MenuBarState)] = [
+            ("offline", offline.menuBarState), ("no-answer", noAnswer.menuBarState), ("partial-outage", partialOutage.menuBarState),
+            ("settings-unloaded", settingsUnloaded.menuBarState), ("config-error", configError.menuBarState),
+        ]
         return RenderData(
             model: model, states: states, empty: empty, configError: configError, short: short,
-            menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + slots + plans.map { ($0.name, $0.model.menuBarState) },
+            offline: offline, noAnswer: noAnswer, partialOutage: partialOutage, settingsUnloaded: settingsUnloaded,
+            menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + outageStrips + slots + plans.map { ($0.name, $0.model.menuBarState) },
             plans: plans, planHistory: Set(PreviewPlans.rows.filter(\.history).map(\.id))
         )
     }

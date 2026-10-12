@@ -42,6 +42,14 @@ struct RefreshScheduler {
         backoffUntil[id] = rateLimited ? due : nil
     }
 
+    /// The soonest any of `ids` is checked again: each one's next due time or backoff, whichever is later, skipping
+    /// checks already running. nil when none has a time yet.
+    func nextCheck(_ ids: [String]) -> Date? {
+        ids.filter { !inFlight.contains($0) }
+            .compactMap { id in [nextDue[id], backoffUntil[id]].compactMap { $0 }.max() }
+            .min()
+    }
+
     /// Edited accounts are due at once; a rate-limit backoff still holds.
     mutating func invalidate(_ ids: [String]) {
         for id in ids { nextDue[id] = nil }

@@ -240,6 +240,122 @@ extension AppModel {
 }
 
 extension AppModel {
+    /// A Mac offline for 25 minutes. Every network check is held, so the cards keep their last numbers; the last batch
+    /// of checks ended a minute ago, which the header must not call "Updated".
+    static func previewOffline(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = outagePreview(now: now, accounts: outageAccounts)
+        model.statuses = outageStatuses(now: now, claude: outageClaude(now: now, ago: 25 * 60), codexFailure: .network, goError: nil, copilotError: .timeout)
+        model.connectivity = .offline
+        return model
+    }
+
+    /// Online, but no provider answers: a VPN, a proxy or a Wi-Fi sign-in page.
+    static func previewNoAnswer(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = outagePreview(now: now, accounts: outageAccounts)
+        var claude = outageClaude(now: now, ago: 3 * 3_600)
+        claude.source = ClaudeUsageFetcher.cacheSource
+        claude.liveCheckFailure = .timeout
+        claude.notes = [ClaudeUsageFetcher.cacheNote]
+        model.statuses = outageStatuses(now: now, claude: claude, codexFailure: .network, goError: .network("dial tcp"), copilotError: .timeout)
+        model.connectivity = .noAnswer
+        return model
+    }
+
+    /// Online, and only GitHub Copilot can't be reached: the header names it in gray and its card keeps Retry.
+    static func previewPartialOutage(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = outagePreview(now: now, accounts: Array(outageAccounts.prefix(5)))
+        var statuses = outageStatuses(now: now, claude: outageClaude(now: now, ago: 60), codexFailure: nil, goError: nil, copilotError: .network("dial tcp"))
+        statuses["opencode-go"] = AccountStatus(snapshot: UsageSnapshot(
+            accountID: "opencode-go", provider: .opencodeGo, plan: "Go",
+            windows: [UsageWindow(id: "weekly", label: "Week", usedPercent: 18, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(3 * 86_400))],
+            fetchedAt: now.addingTimeInterval(-60), source: "opencode API"
+        ), lastAttempt: now.addingTimeInterval(-60))
+        statuses["claude-personal"] = nil
+        statuses["codex-work"] = nil
+        model.statuses = statuses
+        return model
+    }
+
+    /// config.json failed to load at launch, so nothing at all is loaded.
+    static func previewSettingsUnloaded(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = previewEmpty(now: now)
+        model.showFailedLoad(of: "config.json", nothingLoaded: true)
+        return model
+    }
+
+    private static let outageAccounts = [
+        AccountConfig(id: "claude-team", provider: .claude, label: "Team"),
+        AccountConfig(id: "codex", provider: .codex, label: "ChatGPT"),
+        AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go", credential: .file(path: "~/.local/share/opencode/auth.json", key: "opencode-go")),
+        AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen", showInMenuBar: false),
+        AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"),
+        AccountConfig(id: "claude-personal", provider: .claude, label: "Personal"),
+        AccountConfig(id: "codex-work", provider: .codex, label: "Work"),
+    ]
+
+    private static func outagePreview(now: Date, accounts: [AccountConfig]) -> AppModel {
+        let model = AppModel()
+        model.previewMode = true
+        model.now = now
+        model.popoverNow = now
+        model.lastRefreshAt = now.addingTimeInterval(-60)
+        model.config = AppConfig(refreshMinutes: 10, accounts: accounts)
+        model.store = InMemoryUsageStore()
+        return model
+    }
+
+    private static func outageClaude(now: Date, ago: TimeInterval) -> UsageSnapshot {
+        UsageSnapshot(
+            accountID: "claude-team", provider: .claude, plan: "Team",
+            windows: [
+                UsageWindow(id: "session", label: "5-hour", usedPercent: 16, windowMinutes: 300, resetsAt: now.addingTimeInterval(3 * 3_600)),
+                UsageWindow(id: "weekly", label: "Week", usedPercent: 41, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(4 * 86_400)),
+            ],
+            fetchedAt: now.addingTimeInterval(-ago), source: ClaudeUsageFetcher.source
+        )
+    }
+
+    /// The accounts every outage preview shows. `codexFailure` makes Codex's card the copy it logged two days ago;
+    /// `goError` and `copilotError` are those accounts' latest check.
+    private static func outageStatuses(
+        now: Date, claude: UsageSnapshot, codexFailure: LiveCheckFailure?, goError: FetchError?, copilotError: FetchError?
+    ) -> [String: AccountStatus] {
+        let attempt = now.addingTimeInterval(-60)
+        let codexAge: TimeInterval = codexFailure == nil ? 60 : 2 * 86_400
+        let codex = UsageSnapshot(
+            accountID: "codex", provider: .codex, plan: "Plus",
+            windows: [UsageWindow(id: "weekly", label: "Week", usedPercent: 2, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(4 * 86_400 + 2 * 3_600))],
+            fetchedAt: now.addingTimeInterval(-codexAge), source: codexFailure == nil ? "codex app-server" : "Codex session log",
+            notes: codexFailure == nil ? [] : ["Live check unavailable; showing the last limits Codex logged."], liveCheckFailure: codexFailure
+        )
+        let copilotAge: TimeInterval = copilotError == nil ? 60 : 25 * 60
+        let copilot = UsageSnapshot(
+            accountID: "copilot", provider: .copilot, plan: "Enterprise",
+            windows: [UsageWindow(id: "monthly", label: "AI credits", usedPercent: 2.0 / 5_000 * 100, windowMinutes: 44_640, resetsAt: now.addingTimeInterval(19 * 86_400 + 14 * 3_600))],
+            fetchedAt: now.addingTimeInterval(-copilotAge), source: "gh CLI"
+        )
+        let zen = UsageSnapshot(
+            accountID: "opencode-zen", provider: .opencodeZen, plan: "Pay as you go",
+            money: [MoneyLine(label: "Spent this month (this Mac)", amount: 0)],
+            fetchedAt: now.addingTimeInterval(-60), source: "opencode.db", notes: ["Balance needs a console sign-in; showing local spend only."]
+        )
+        let personal = UsageSnapshot(
+            accountID: "claude-personal", provider: .claude, plan: "Max 20x",
+            windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: 97, windowMinutes: 300, resetsAt: now.addingTimeInterval(70 * 60))],
+            fetchedAt: now.addingTimeInterval(-25 * 60), source: ClaudeUsageFetcher.source
+        )
+        var statuses: [String: AccountStatus] = [
+            "claude-team": AccountStatus(snapshot: claude, lastAttempt: attempt),
+            "codex": AccountStatus(snapshot: codex, lastAttempt: attempt),
+            "opencode-zen": AccountStatus(snapshot: zen, lastAttempt: attempt),
+            "copilot": AccountStatus(snapshot: copilot, error: copilotError, lastAttempt: attempt),
+            "claude-personal": AccountStatus(snapshot: personal, lastAttempt: personal.fetchedAt),
+            "codex-work": AccountStatus(error: .notSignedIn, lastAttempt: attempt),
+        ]
+        if let goError { statuses["opencode-go"] = AccountStatus(error: goError, lastAttempt: attempt) }
+        return statuses
+    }
+
     /// What DevinUsageFetcher returns for an account without a usage page override.
     fileprivate static func devinLink(now: Date) -> UsageSnapshot {
         UsageSnapshot(

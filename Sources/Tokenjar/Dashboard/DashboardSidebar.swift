@@ -151,12 +151,15 @@ private struct SidebarBadgeView: View {
                 .accessibilityLabel(badge.percent)
                 .accessibilityValue(badge.detail)
         } else if let error = status.error,
-                  let icon = SidebarErrorIcon.make(status: status, now: model.now, refreshMinutes: account.refreshMinutes ?? model.config.refreshMinutes) {
+                  let icon = SidebarErrorIcon.make(
+                      status: status, provider: account.provider, now: model.now, refreshMinutes: account.refreshMinutes ?? model.config.refreshMinutes,
+                      connectivity: model.connectivity
+                  ) {
             Image(systemName: icon.symbol)
                 .font(.caption)
                 .foregroundStyle(icon.isWarning && !onSelection ? AnyShapeStyle(Severity.warning.color) : AnyShapeStyle(.secondary))
-                .help(error.userMessage)
-                .accessibilityLabel(error.userMessage)
+                .help(error.userMessage(provider: account.provider))
+                .accessibilityLabel(error.userMessage(provider: account.provider))
         }
     }
 }
@@ -167,9 +170,11 @@ struct SidebarErrorIcon: Equatable {
     var symbol: String
     var isWarning: Bool
 
-    /// nil for a calm failure, which the row's caption already answers.
-    static func make(status: AccountStatus, now: Date, refreshMinutes: Int) -> SidebarErrorIcon? {
-        guard let error = status.error, error.attention != .calm else { return nil }
+    /// nil for a calm failure, which the row's caption already answers, and where the popover's card hides its row (a
+    /// connection failure under a Mac-wide cause, which the header says once).
+    static func make(status: AccountStatus, provider: ProviderID, now: Date, refreshMinutes: Int, connectivity: Connectivity) -> SidebarErrorIcon? {
+        guard let error = status.error, error.attention != .calm,
+              ErrorRow.isShown(error: error, provider: provider, connectivity: connectivity) else { return nil }
         let needsAttention = status.failureNeedsAttention(now: now, refreshMinutes: refreshMinutes)
         return SidebarErrorIcon(symbol: ErrorRow.symbol(for: error, needsAttention: needsAttention), isWarning: needsAttention)
     }

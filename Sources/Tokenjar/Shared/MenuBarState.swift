@@ -17,9 +17,9 @@ struct MenuBarState: Equatable {
         var failureNeedsAttention: Bool
         /// Set when a projection, not the tightest window's own number, gives `severity`.
         var cause: PaceVerdict? = nil
-
-        /// A calm failure, such as no subscription, is a state of the account rather than a check that failed.
-        var checkFailed: Bool { attention.map { $0 != .calm } ?? false }
+        var fetchedAt: Date? = nil
+        /// `AccountStatus.connectionFailure`: the network error or timeout behind the latest check, saved copies included.
+        var connectionFailure: FetchError? = nil
     }
 
     var mode: MenuBarMode
@@ -27,6 +27,17 @@ struct MenuBarState: Equatable {
     var entries: [Entry]
     var showResetCountdownWhenFull: Bool
     var now: Date
+    var connectivity: Connectivity = .online
+    var settingsProblem: SettingsProblem? = nil
+
+    /// Tokenjar can't refresh right now: the Mac is offline, or no provider answers.
+    var isSlashed: Bool { connectivity != .online }
+
+    /// Something needs the user: a failed check they can fix, or settings that can't be read.
+    var showsDot: Bool { failing != nil || settingsProblem != nil }
+
+    /// The newest successful check among the menu bar's accounts.
+    var lastUpdated: Date? { entries.compactMap(\.fetchedAt).max() }
 
     /// The entry with the least room left: highest severity, then highest used %.
     var worst: Entry? {
@@ -37,13 +48,16 @@ struct MenuBarState: Equatable {
     }
 
     /// The account the failure dot speaks for: the worst one when its failure needs attention, else the first that
-    /// does. A network error or timeout over fresh data draws no dot, as it draws no warning in the header.
+    /// does. A network error, a timeout or a rate limit never draws the dot, as it never counts in the header.
     var failing: Entry? {
         if let worst, worst.failureNeedsAttention { return worst }
         return entries.first(where: \.failureNeedsAttention)
     }
 
-    static func make(accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date) -> MenuBarState {
+    static func make(
+        accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date,
+        connectivity: Connectivity = .online, settingsProblem: SettingsProblem? = nil
+    ) -> MenuBarState {
         // An account with no window to show (a link, spend only, or no subscription) would draw an empty bar and a
         // "no data" line that reads as a failure.
         let entries = accounts.compactMap { account -> Entry? in
@@ -63,10 +77,15 @@ struct MenuBarState: Equatable {
                 isStale: status.isStale(now: now, refreshMinutes: refreshMinutes),
                 attention: status.error?.attention,
                 failureNeedsAttention: status.failureNeedsAttention(now: now, refreshMinutes: refreshMinutes),
-                cause: cause(of: severity, windows: windows, tightest: tightest, config: config.menuBar, now: now)
+                cause: cause(of: severity, windows: windows, tightest: tightest, config: config.menuBar, now: now),
+                fetchedAt: status.snapshot?.fetchedAt,
+                connectionFailure: status.connectionFailure
             )
         }
-        return MenuBarState(mode: config.menuBar.mode, icon: config.menuBar.icon, entries: entries, showResetCountdownWhenFull: config.menuBar.showResetCountdownWhenFull, now: now)
+        return MenuBarState(
+            mode: config.menuBar.mode, icon: config.menuBar.icon, entries: entries, showResetCountdownWhenFull: config.menuBar.showResetCountdownWhenFull,
+            now: now, connectivity: connectivity, settingsProblem: settingsProblem
+        )
     }
 
     /// The verdict behind a color the tightest window's own number does not explain: a projected run-out, on that

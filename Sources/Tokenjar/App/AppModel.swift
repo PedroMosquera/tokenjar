@@ -14,6 +14,39 @@ struct AccountStatus: Equatable {
         guard let fetchedAt = snapshot?.fetchedAt else { return false }
         return now.timeIntervalSince(fetchedAt) > Double(max(refreshMinutes, 1) * 2 * 60)
     }
+
+    /// The network error or timeout behind the latest check this launch, whether the card shows it as an error or shows a
+    /// saved copy because of it. A saved copy maps to `.network("saved copy")` or `.timeout`, so every surface reads
+    /// this one property.
+    var connectionFailure: FetchError? {
+        if let error {
+            switch error {
+            case .network, .timeout: return error
+            default: return nil
+            }
+        }
+        // The store's snapshot at launch may be a saved copy from an earlier launch, which says nothing about now.
+        guard lastAttempt != nil else { return nil }
+        switch snapshot?.liveCheckFailure {
+        case .network: return .network("saved copy")
+        case .timeout: return .timeout
+        case .other, nil: return nil
+        }
+    }
+
+    /// The latest check this launch got the provider's own answer, not a saved copy.
+    var hasLiveAnswer: Bool {
+        lastAttempt != nil && error == nil && snapshot != nil && snapshot?.liveCheckFailure == nil
+    }
+}
+
+/// What the banner says about config.json or config.local.json, for the surfaces that need more than its text.
+struct SettingsProblem: Equatable {
+    var message: String
+    /// "config.json" or "config.local.json" when a file is at fault; nil for the Headroom move.
+    var file: String?
+    /// No settings loaded at all this launch, so no account can be checked.
+    var nothingLoaded: Bool
 }
 
 /// Single source of truth for every view. Views read it and call its actions; they never fetch on their own.
@@ -33,7 +66,11 @@ final class AppModel {
     /// The one banner the popover and Settings show: a config problem first, else a history database problem.
     var configError: String? { configProblem ?? historyProblem }
     private var configProblem: String?
+    private var configProblemFile: String?
     private var historyProblem: String?
+    var settingsProblem: SettingsProblem? {
+        configProblem.map { SettingsProblem(message: $0, file: configProblemFile, nothingLoaded: !hasLoadedConfig) }
+    }
 
     /// False while the last load of config.json or config.local.json failed: an edit is then neither applied nor
     /// saved, so Settings should not offer one.
@@ -42,7 +79,11 @@ final class AppModel {
     /// Keyed by AccountConfig.id.
     var statuses: [String: AccountStatus] = [:]
     var isRefreshing = false
+    /// When the last batch of checks ended, failed or not. Only the popover-open rule reads it; every surface that says
+    /// "Updated" reads `lastUpdated`.
     var lastRefreshAt: Date?
+    /// Settable so previews can show each cause; the app recomputes it after every path report, settle and fetch.
+    var connectivity: Connectivity = .online
     /// Ticks every 30 s so countdowns and "updated 2m ago" stay current.
     var now: Date
     /// `now` for the popover's views. It moves only while the popover is shown, so the popover's long-lived content
@@ -67,6 +108,11 @@ final class AppModel {
     @ObservationIgnored let paths: AppPaths
     @ObservationIgnored private let fetcher: (ProviderID) -> any UsageFetcher
     @ObservationIgnored private let clock: () -> Date
+    @ObservationIgnored private let network: any NetworkStatus
+    @ObservationIgnored private var networkWatch = NetworkWatch()
+    @ObservationIgnored private var settleTask: Task<Void, Never>?
+    @ObservationIgnored private var lastBackOnlineRefresh: Date?
+    @ObservationIgnored private var firstPathWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored var store: (any UsageStore)?
     @ObservationIgnored var priceTable = PriceTable()
     @ObservationIgnored var notifications: NotificationManager?
@@ -92,6 +138,9 @@ final class AppModel {
     @ObservationIgnored private var ticker: Timer?
     @ObservationIgnored private var workspaceObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var sleeping = false
+    /// From the sleep notification to the wake notification, a shorter span than `sleeping`, which lasts until the
+    /// wake refresh. A settle that comes due in it would count the hours asleep, so it waits for the restart at wake.
+    @ObservationIgnored private var systemAsleep = false
     @ObservationIgnored private var alertState = AlertState()
     @ObservationIgnored private var scheduler = RefreshScheduler()
     @ObservationIgnored private var probeLatch = ProbeLatch()
@@ -101,16 +150,21 @@ final class AppModel {
     /// config.json or config.local.json did not load. Saving would overwrite whatever is in the file, which may be a
     /// merge conflict or a hand edit in progress, so nothing is saved until a load succeeds.
     private var configLoadFailed = false
-    @ObservationIgnored private var hasLoadedConfig = false
+    private var hasLoadedConfig = false
     /// Headroom's data is still under its old names. Nothing loads for the rest of this launch: a config, database or
     /// alert state written under Tokenjar's names would take them, and the move never runs onto a taken name.
     @ObservationIgnored private var waitingForLegacyMove = false
 
-    /// `paths`, `fetcher` and `clock` are seams for tests; the app uses the defaults.
-    init(paths: AppPaths = AppPaths(), fetcher: @escaping (ProviderID) -> any UsageFetcher = FetcherRegistry.fetcher(for:), clock: @escaping () -> Date = { Date() }) {
+    /// `paths`, `fetcher`, `clock` and `network` are seams for tests; the app uses the defaults. Only `start` starts the
+    /// network monitor, so previews, renders, developer flags and tests never run one.
+    init(
+        paths: AppPaths = AppPaths(), fetcher: @escaping (ProviderID) -> any UsageFetcher = FetcherRegistry.fetcher(for:),
+        clock: @escaping () -> Date = { Date() }, network: any NetworkStatus = PathMonitorNetworkStatus()
+    ) {
         self.paths = paths
         self.fetcher = fetcher
         self.clock = clock
+        self.network = network
         let start = clock()
         now = start
         popoverNow = start
@@ -125,7 +179,10 @@ final class AppModel {
 
     private func refreshAccounts() {
         let visible = config.accounts.filter { $0.enabled && (previewMode || isAvailable($0)) }
-        if visible != accounts { accounts = visible }
+        if visible != accounts {
+            accounts = visible
+            updateConnectivity()
+        }
     }
 
     func status(for account: AccountConfig) -> AccountStatus {
@@ -135,8 +192,23 @@ final class AppModel {
     /// Nothing leaves the model: no save, fetch, scan, state file or permission request.
     private var isInert: Bool { previewMode || readOnly }
 
+    /// The newest successful check among the accounts that report windows, else among every account shown. A saved
+    /// copy counts with its own date, which is the honest age of what is on screen.
+    var lastUpdated: Date? {
+        func newest(_ accounts: [AccountConfig]) -> Date? { accounts.compactMap { statuses[$0.id]?.snapshot?.fetchedAt }.max() }
+        return newest(accounts.filter(\.provider.reportsWindows)) ?? newest(accounts)
+    }
+
+    /// The soonest an automatic check of an account that needs the network can run.
+    var nextNetworkCheck: Date? {
+        scheduler.nextCheck(accounts.filter(\.provider.checkUsesNetwork).map(\.id))
+    }
+
     var menuBarState: MenuBarState {
-        MenuBarState.make(accounts: accounts.filter(\.showInMenuBar), statuses: statuses, config: config, now: now)
+        MenuBarState.make(
+            accounts: accounts.filter(\.showInMenuBar), statuses: statuses, config: config, now: now,
+            connectivity: connectivity, settingsProblem: settingsProblem
+        )
     }
 
     // MARK: Lifecycle
@@ -157,8 +229,91 @@ final class AppModel {
                 Task { @MainActor in await self?.systemDidWake() }
             },
         ]
-        refresh(force: true)
+        network.start { [weak self] path in self?.networkPathChanged(path) }
+        Task { await launchRefresh() }
         scanHistory()
+    }
+
+    /// The launch refresh waits for the monitor's first report, or `firstPathWait` without one, so a launch while
+    /// offline spawns nothing that needs the network.
+    @discardableResult
+    func launchRefresh(firstPathWait: Duration = .seconds(1)) async -> Task<Void, Never>? {
+        if networkWatch.path == nil {
+            await withCheckedContinuation { continuation in
+                firstPathWaiters.append(continuation)
+                Task { [weak self] in
+                    try? await Task.sleep(for: firstPathWait)
+                    self?.resumeFirstPathWaiters()
+                }
+            }
+        }
+        return refresh(force: true)
+    }
+
+    private func resumeFirstPathWaiters() {
+        let waiters = firstPathWaiters
+        firstPathWaiters = []
+        waiters.forEach { $0.resume() }
+    }
+
+    // MARK: Network
+
+    /// Each report from the path monitor. Tests call it directly, so no test touches the Mac's network.
+    @discardableResult
+    func networkPathChanged(_ path: NetworkPath) -> Task<Void, Never>? {
+        let event = networkWatch.report(path, at: clock())
+        resumeFirstPathWaiters()
+        return networkStateChanged(event)
+    }
+
+    /// Runs when `NetworkWatch` said a settle was due. Tests move their clock and call it themselves.
+    @discardableResult
+    func settleNetwork() -> Task<Void, Never>? {
+        guard !systemAsleep else { return nil }
+        return networkStateChanged(networkWatch.settle(at: clock()))
+    }
+
+    private func networkStateChanged(_ event: NetworkWatch.Event?) -> Task<Void, Never>? {
+        scheduleSettle()
+        updateConnectivity()
+        // Between sleep and the delayed wake refresh, that refresh does the work.
+        guard let event, !sleeping else { return nil }
+        switch event {
+        case .wentOffline:
+            return nil
+        case .blipEnded:
+            return refresh(force: false)
+        case .cameBackOnline:
+            // Accounts that failed in the seconds before offline was declared were pushed a full interval out, so the
+            // first return checks every account. A network that drops and returns every few seconds must not respawn
+            // every CLI each time.
+            let now = clock()
+            if let last = lastBackOnlineRefresh, now.timeIntervalSince(last) < RefreshScheduler.popoverRefreshAge {
+                return refresh(force: false)
+            }
+            lastBackOnlineRefresh = now
+            return refresh(force: true)
+        }
+    }
+
+    private func scheduleSettle() {
+        settleTask?.cancel()
+        guard let due = networkWatch.nextSettle else { return }
+        let delay = max(0, due.timeIntervalSince(clock()))
+        settleTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            self?.settleNetwork()
+        }
+    }
+
+    /// Previews set `connectivity` themselves.
+    private func updateConnectivity() {
+        guard !isInert else { return }
+        let current = Connectivity.make(
+            watch: networkWatch, accounts: accounts, statuses: statuses, isLatched: probeLatch.isLatched, previous: connectivity
+        )
+        if current != connectivity { connectivity = current }
     }
 
     /// Everything `start` reads from disk, without timers or observers. The Headroom move comes first, so the config and
@@ -167,7 +322,7 @@ final class AppModel {
         if let banner = moveLegacyData() {
             waitingForLegacyMove = true
             configLoadFailed = true
-            configProblem = banner
+            setConfigProblem(banner, file: nil)
             return
         }
         loadConfig(firstRunAllowed: true)
@@ -223,12 +378,19 @@ final class AppModel {
     /// every overdue account before the network is back, and that failure would hold for a full interval.
     func systemWillSleep() {
         sleeping = true
+        systemAsleep = true
     }
 
     @discardableResult
     func systemDidWake(networkDelay: Duration = .seconds(8)) async -> Task<Void, Never>? {
+        systemAsleep = false
+        networkWatch.restart(at: clock())
+        scheduleSettle()
         try? await Task.sleep(for: networkDelay)
         sleeping = false
+        // This refresh checks every account, so it pays the return an outage still owes; checking them all again a
+        // few seconds later, when the path settles, would only respawn every CLI.
+        if networkWatch.returnPending, !networkWatch.holdsChecks { lastBackOnlineRefresh = clock() }
         return refresh(force: true)
     }
 
@@ -271,28 +433,40 @@ final class AppModel {
                 config = fresh
                 baseConfig = fresh
                 configLoaded()
-                do { try configStore.write(fresh) } catch { configProblem = "Could not create config.json." }
+                do { try configStore.write(fresh) } catch { setConfigProblem("Could not create config.json.") }
             } else {
                 configLoadFailed = true
-                configProblem = "config.json is missing or its link is broken. Keeping the current settings and saving nothing until it is back."
+                setConfigProblem("config.json is missing or its link is broken. Keeping the current settings and saving nothing until it is back.")
             }
         } catch {
             configLoadFailed = true
-            configProblem = loadFailureMessage(error)
+            setConfigProblem(loadFailureMessage(error), file: Self.fileAtFault(error))
         }
     }
 
-    /// What the app shows after a reload of `file` fails, for window renders: nothing is read, and edits stop.
-    func showFailedReload(of file: String) {
-        hasLoadedConfig = true
+    /// What the app shows after a load of `file` fails, for window renders: nothing is read, and edits stop.
+    /// `nothingLoaded` is the launch failure, with no settings from before to keep.
+    func showFailedLoad(of file: String, nothingLoaded: Bool) {
+        hasLoadedConfig = !nothingLoaded
         configLoadFailed = true
-        configProblem = loadFailureMessage(ConfigError.invalidJSON(file: file, detail: "render"))
+        setConfigProblem(loadFailureMessage(ConfigError.invalidJSON(file: file, detail: "render")), file: file)
+    }
+
+    private func setConfigProblem(_ message: String?, file: String? = "config.json") {
+        configProblem = message
+        configProblemFile = message == nil ? nil : file
     }
 
     private func configLoaded() {
         configLoadFailed = false
         hasLoadedConfig = true
-        configProblem = nil
+        setConfigProblem(nil)
+    }
+
+    /// An error that names no file is shown against config.json, whose folder also holds config.local.json.
+    private static func fileAtFault(_ error: Error) -> String {
+        if case ConfigError.invalidJSON(let name, _) = error { return name }
+        return "config.json"
     }
 
     private func loadFailureMessage(_ error: Error) -> String {
@@ -336,10 +510,10 @@ final class AppModel {
         guard !isInert else { return }
         do {
             baseConfig = try ConfigStore(paths: paths).save(old: old, new: new, base: baseConfig)
-            configProblem = nil
+            setConfigProblem(nil)
         } catch {
             config = old
-            configProblem = "Could not save config.json."
+            setConfigProblem("Could not save config.json.")
         }
         configStamp = currentConfigStamp()
         refreshEditedAccounts(from: old.accounts)
@@ -356,11 +530,14 @@ final class AppModel {
     // MARK: Refresh
 
     /// `force` skips the refresh interval (popover open, wake, the header button) but not a rate-limit backoff.
+    /// `userInitiated` is what the user asked for, which macOS's path status never holds back.
     @discardableResult
-    func refresh(force: Bool) -> Task<Void, Never>? {
+    func refresh(force: Bool, userInitiated: Bool = false) -> Task<Void, Never>? {
         // Read once: a later reading for the start would push every next check back by the time this one took to begin.
         let current = clock()
-        let due = Set(scheduler.due(accounts.map(\.id), now: current, force: force))
+        // Removed before `due`, so a held account is never begun, keeps its next due time, and stays due.
+        let candidates = !userInitiated && networkWatch.holdsChecks ? accounts.filter { !$0.provider.checkUsesNetwork } : accounts
+        let due = Set(scheduler.due(candidates.map(\.id), now: current, force: force))
         return fetch(accounts.filter { due.contains($0.id) }, startedAt: current)
     }
 
@@ -390,6 +567,7 @@ final class AppModel {
             statuses[account.id, default: AccountStatus()].isRefreshing = true
         }
         isRefreshing = true
+        let startedUnusable = networkWatch.path == .unusable
         let context = FetchContext(secrets: secrets, cli: cliLocator(for: config), paths: paths)
         let jobs = targets.map { ($0, fetcher($0.provider)) }
         return Task {
@@ -412,6 +590,13 @@ final class AppModel {
                     case .dropped: dropped = true
                     case .applied(let sampled): stored = stored || sampled
                     }
+                    if startedUnusable, account.provider.checkUsesNetwork, case .success(let snapshot) = result, snapshot.liveCheckFailure == nil {
+                        // macOS called the path unusable, yet a provider answered: a VPN or tunnel it misreads. Trusting
+                        // the report would stop every automatic check for good.
+                        networkWatch.trustAnswers()
+                        scheduleSettle()
+                    }
+                    updateConnectivity()
                     isRefreshing = !scheduler.inFlight.isEmpty
                 }
             }
@@ -583,6 +768,13 @@ final class AppModel {
 
     func openProviderDashboard(_ account: AccountConfig) {
         NSWorkspace.shared.open(account.resolvedDashboardURL)
+    }
+
+    /// Selects `file` (config.json or config.local.json) in the Finder through its link, or its folder when it is gone.
+    func revealConfigFile(_ file: String) {
+        let url = (file == "config.local.json" ? paths.localConfigFile : paths.configFile).resolvingSymlinksInPath()
+        let exists = FileManager.default.fileExists(atPath: url.path)
+        NSWorkspace.shared.activateFileViewerSelecting([exists ? url : url.deletingLastPathComponent()])
     }
 
     func openStatusPage(_ account: AccountConfig) {

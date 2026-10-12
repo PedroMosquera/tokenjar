@@ -27,8 +27,66 @@ struct AccountStatusTextTests {
     private let zen = AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen")
     private let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
 
-    private func text(_ account: AccountConfig, _ status: AccountStatus, missingPath: String? = nil) -> AccountStatusText {
-        AccountStatusText.make(account: account, status: status, missingPath: missingPath, now: now)
+    private func text(_ account: AccountConfig, _ status: AccountStatus, missingPath: String? = nil, connectivity: Connectivity = .online) -> AccountStatusText {
+        AccountStatusText.make(account: account, status: status, missingPath: missingPath, now: now, connectivity: connectivity)
+    }
+
+    @Test func offlineStatusSaysTheMacIsOffline() {
+        let old = text(claude, AccountStatus(snapshot: snapshot(claude, windows: ["5-hour"], ago: 25 * 60), error: .network("offline")), connectivity: .offline)
+        #expect(old.symbol == "wifi.slash")
+        #expect(old.tone == .neutral)
+        #expect(old.text == "This Mac is offline. Tokenjar checks this account again when it is back online.")
+        #expect(old.detail == "Showing data from \(age(25 * 60)).")
+        #expect(old.caption == nil)
+        let never = text(claude, AccountStatus(), connectivity: .offline)
+        #expect(never.text == old.text)
+        #expect(never.detail == nil)
+        // Zen reads a local database, and a failure the user can fix is still the account's own.
+        #expect(text(zen, AccountStatus(snapshot: snapshot(zen)), connectivity: .offline).text.hasPrefix("Local spend only"))
+        #expect(text(codex, AccountStatus(error: .notSignedIn), connectivity: .offline).text == "Signed out of codex.")
+        #expect(text(claude, AccountStatus(isRefreshing: true), connectivity: .offline).text == "Checking\u{2026}")
+    }
+
+    @Test func noAnswerStatusSaysSo() {
+        let line = text(codex, AccountStatus(snapshot: snapshot(codex, windows: ["Week"], ago: 3 * 3_600), error: .timeout), connectivity: .noAnswer)
+        #expect(line.symbol == "wifi.exclamationmark")
+        #expect(line.text == "Can't reach any provider. Tokenjar tries again at the next refresh.")
+        #expect(line.detail == "Showing data from \(age(3 * 3_600)).")
+        // Codex's logged copy stands in for a failed check without an error, and must not read as a fresh update.
+        var logged = snapshot(codex, windows: ["Week"], ago: 2 * 86_400)
+        logged.liveCheckFailure = .network
+        let saved = text(codex, AccountStatus(snapshot: logged, lastAttempt: now), connectivity: .noAnswer)
+        #expect(saved.text == line.text)
+        #expect(saved.detail == "Showing data from \(age(2 * 86_400)).")
+    }
+
+    /// The same failure gets the card's icon, and a saved copy shown because of one says so rather than "Updated".
+    @Test func aTransientFailureNamesTheProvider() {
+        let reach = text(claude, AccountStatus(snapshot: snapshot(claude, windows: ["5-hour"], ago: 50 * 60), error: .network("offline")))
+        #expect(reach.text == "Can't reach Claude. Tokenjar tries again at the next refresh.")
+        #expect(reach.symbol == "wifi.exclamationmark")
+        let late = text(codex, AccountStatus(error: .timeout))
+        #expect(late.text == "No answer from Codex in time. Tokenjar tries again at the next refresh.")
+        #expect(late.symbol == "clock.arrow.circlepath")
+        var cached = snapshot(claude, windows: ["5-hour"], ago: 3 * 3_600)
+        cached.liveCheckFailure = .timeout
+        let saved = text(claude, AccountStatus(snapshot: cached, lastAttempt: now))
+        #expect(saved.text == "No answer from Claude in time. Tokenjar tries again at the next refresh.")
+        #expect(saved.detail == "Showing data from \(age(3 * 3_600)).")
+    }
+
+    /// Offline, every account that needs the network is held, so one whose last check passed is not current either.
+    @Test func aHeldAccountWithDataSaysTheCauseToo() {
+        let passed = AccountStatus(snapshot: snapshot(claude, windows: ["5-hour"], ago: 25 * 60), lastAttempt: now.addingTimeInterval(-25 * 60))
+        let offline = text(claude, passed, connectivity: .offline)
+        #expect(offline.symbol == "wifi.slash")
+        #expect(offline.text == "This Mac is offline. Tokenjar checks this account again when it is back online.")
+        #expect(offline.detail == "Showing data from \(age(25 * 60)).")
+        #expect(text(claude, passed, connectivity: .noAnswer).text == "Can't reach any provider. Tokenjar tries again at the next refresh.")
+        // A copy saved because the CLI is missing is the account's own problem, whatever the network does.
+        var missing = snapshot(claude, windows: ["5-hour"], ago: 25 * 60)
+        missing.liveCheckFailure = .other
+        #expect(text(claude, AccountStatus(snapshot: missing, lastAttempt: now), connectivity: .offline).symbol != "wifi.slash")
     }
 
     @Test func noSubscriptionIsCalmNotAWarning() {
@@ -117,7 +175,7 @@ struct AccountStatusTextTests {
 
     @Test func aTransientErrorKeepsTheLastDataAndSaysHowOld() {
         let line = text(claude, AccountStatus(snapshot: snapshot(claude, windows: ["5-hour"], ago: 50 * 60), error: .network("offline")))
-        #expect(line.text == FetchError.network("offline").userMessage)
+        #expect(line.text == FetchError.network("offline").userMessage(provider: .claude))
         #expect(line.detail == "Showing data from \(age(50 * 60)).")
         #expect(line.tone == .neutral)
         #expect(line.caption == nil)

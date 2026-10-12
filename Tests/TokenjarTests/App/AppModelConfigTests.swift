@@ -82,6 +82,55 @@ struct AppModelConfigTests {
         #expect(model.configError != nil)
     }
 
+    /// A config that failed at launch leaves no accounts, which must not read as a fresh install that has none.
+    @Test func aLaunchFailureIsNotAnEmptyInstall() throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.write(".config/tokenjar/config.json", #"{"refreshMinutes": "soon"}"#)
+        let model = model(home)
+        model.loadState()
+
+        #expect(model.settingsProblem == SettingsProblem(
+            message: "Could not read config.json. No settings are loaded, and nothing is saved until it is fixed and reloaded.",
+            file: "config.json", nothingLoaded: true
+        ))
+
+        try home.write(".config/tokenjar/config.json", #"{"refreshMinutes": 5}"#)
+        model.loadConfig()
+        #expect(model.settingsProblem == nil)
+        try home.write(".config/tokenjar/config.local.json", #"{"refreshMinutes": "soon"}"#)
+        model.loadConfig()
+        #expect(model.settingsProblem?.file == "config.local.json")
+        #expect(model.settingsProblem?.nothingLoaded == false)
+    }
+
+    /// Settings that failed to load used to show only in the popover and Settings, never in the menu bar.
+    @Test func aBrokenConfigReachesTheMenuBar() throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".claude")
+        try home.writeConfig(AppConfig(accounts: [AccountConfig(id: "work", provider: .claude, label: "Work")]))
+        let model = model(home)
+        model.loadState()
+        #expect(model.menuBarState.settingsProblem == nil)
+
+        try home.write(".config/tokenjar/config.local.json", #"{"refreshMinutes": "soon"}"#)
+        model.loadConfig()
+
+        #expect(model.menuBarState.settingsProblem?.file == "config.local.json")
+        #expect(model.menuBarState.showsDot)
+    }
+
+    /// The Headroom move names no file Tokenjar could reveal, and the history database is not a setting.
+    @Test func onlyAConfigFileProblemNamesAFile() throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        let model = model(home)
+        model.showFailedLoad(of: "config.json", nothingLoaded: false)
+        #expect(model.settingsProblem?.file == "config.json")
+        #expect(model.settingsProblem?.message == model.configError)
+    }
+
     @Test func aBrokenLocalOverrideNeverOverwritesTheSharedFile() throws {
         let home = try ModelHome()
         defer { home.remove() }
@@ -174,7 +223,7 @@ struct AppModelConfigTests {
     /// `--render-windows` captures Settings in this state, so it must read as the app's own after a failed reload.
     @Test func aRenderedReloadFailureMatchesTheAppsOwn() {
         let model = AppModel.preview()
-        model.showFailedReload(of: "config.json")
+        model.showFailedLoad(of: "config.json", nothingLoaded: false)
         #expect(model.configError == "Could not read config.json. Using the last good settings, and nothing is saved until it is fixed and reloaded.")
         #expect(!model.canEditConfig)
     }

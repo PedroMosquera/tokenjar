@@ -338,7 +338,7 @@ private struct DashboardDetail: View {
 }
 
 /// Reads `model.now` itself, so a tick redraws this line and not the page around it.
-private struct HeaderSubtitle: View {
+struct HeaderSubtitle: View {
     @Environment(AppModel.self) private var model
     var account: AccountConfig?
     var accountCount: Int
@@ -352,16 +352,40 @@ private struct HeaderSubtitle: View {
 
     private var text: String {
         guard let account else {
-            return "\(accountCount) account\(accountCount == 1 ? "" : "s") · updated \(Format.age(of: model.lastRefreshAt, now: model.now))"
+            return Self.allText(accountCount: accountCount, lastUpdated: model.lastUpdated, connectivity: model.connectivity, now: model.now)
         }
-        let status = model.status(for: account)
+        return Self.accountText(account: account, status: model.status(for: account), connectivity: model.connectivity, now: model.now)
+    }
+
+    /// All's subtitle: how many accounts and the newest successful check.
+    static func allText(accountCount: Int, lastUpdated: Date?, connectivity: Connectivity, now: Date) -> String {
+        let text = "\(accountCount) account\(accountCount == 1 ? "" : "s") · updated \(Format.age(of: lastUpdated, now: now))"
+        return causeWords(connectivity).map { "\(text) · \($0)" } ?? text
+    }
+
+    private static func causeWords(_ connectivity: Connectivity) -> String? {
+        switch connectivity {
+        case .online: nil
+        case .offline: "offline"
+        case .noAnswer: "can't reach any provider"
+        }
+    }
+
+    static func accountText(account: AccountConfig, status: AccountStatus, connectivity: Connectivity, now: Date) -> String {
         var parts: [String] = []
         if let snapshot = status.snapshot {
             parts.append(snapshot.source)
             // A link-only snapshot is built locally and says nothing new when it was made.
-            if !account.provider.isLinkOnly { parts.append("updated \(Format.age(of: snapshot.fetchedAt, now: model.now))") }
+            if !account.provider.isLinkOnly { parts.append("updated \(Format.age(of: snapshot.fetchedAt, now: now))") }
         }
-        if let error = status.error { parts.append(error.userMessage) }
+        if let error = status.error {
+            // A connection error under a Mac-wide cause is that cause, said in the words All's subtitle uses.
+            if !ErrorRow.isShown(error: error, provider: account.provider, connectivity: connectivity), let words = causeWords(connectivity) {
+                parts.append(words)
+            } else {
+                parts.append(error.userMessage(provider: account.provider))
+            }
+        }
         if parts.isEmpty { parts.append("Not checked yet") }
         return parts.joined(separator: " · ")
     }

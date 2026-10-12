@@ -17,6 +17,14 @@ enum SnapshotRenderer {
             let states = AppModel.previewStates()
             render(PopoverView(maxCardsHeight: 4000).environment(states), size: nil, width: 360, appearance: appearance, to: outputDirectory.appending(path: "popover-states-\(suffix).png"))
             renderStatusIcon(states.menuBarState, appearance: appearance, to: outputDirectory.appending(path: "menubar-states-\(suffix).png"))
+            let outages = [
+                ("offline", AppModel.previewOffline()), ("no-answer", AppModel.previewNoAnswer()),
+                ("partial-outage", AppModel.previewPartialOutage()), ("settings-unloaded", AppModel.previewSettingsUnloaded()),
+            ]
+            for (name, outage) in outages {
+                outage.secrets = SessionSecretStore(InMemorySecretStore())
+                render(PopoverView(maxCardsHeight: 4000).environment(outage), size: nil, width: 360, appearance: appearance, to: outputDirectory.appending(path: "popover-\(name)-\(suffix).png"))
+            }
 
             model.dashboardSelection = nil
             render(DashboardView().environment(model), size: NSSize(width: 980, height: 660), appearance: appearance, to: outputDirectory.appending(path: "dashboard-all-\(suffix).png"))
@@ -71,7 +79,7 @@ enum SnapshotRenderer {
                 renderStatusIcon(states[0], appearance: appearance, to: outputDirectory.appending(path: "menubar-choice-\(slug)-\(suffix).png"))
                 choices.append((icon.title, states.map(StatusIconRenderer.render)))
             }
-            render(StatusItemSheet(rows: choices), size: nil, width: 680, appearance: appearance, to: outputDirectory.appending(path: "menubar-choices-\(suffix).png"))
+            render(StatusItemSheet(rows: choices), size: nil, width: 780, appearance: appearance, to: outputDirectory.appending(path: "menubar-choices-\(suffix).png"))
             render(MenuBarIconMenuSheet(), size: nil, width: 240, appearance: appearance, to: outputDirectory.appending(path: "menubar-picker-items-\(suffix).png"))
         }
         print("Rendered snapshots to \(outputDirectory.path)")
@@ -132,15 +140,32 @@ enum SnapshotRenderer {
         window.close()
     }
 
-    /// Every look of the app mark: fill levels, severity tints, stale, the error dot and the neutral state.
+    /// Every look of the app mark: fill levels, severity tints, stale, the error dot, the neutral state, the offline
+    /// slash, settings problems and Bars.
     static func slotStates(now: Date) -> [(name: String, label: String, state: MenuBarState)] {
-        func entry(_ used: Double?, _ severity: Severity = .ok, stale: Bool = false, error: Bool = false) -> MenuBarState.Entry {
+        func entry(_ used: Double?, _ severity: Severity = .ok, stale: Bool = false, error: Bool = false, id: String = "preview") -> MenuBarState.Entry {
             let window = used.map { UsageWindow(id: "session", label: "5-hour", usedPercent: $0, windowMinutes: 300, resetsAt: now.addingTimeInterval(47 * 60)) }
-            return MenuBarState.Entry(accountID: "preview", provider: .claude, label: "Preview", tightest: window, severity: severity, isStale: stale, attention: error ? .actionable : nil, failureNeedsAttention: error)
+            return MenuBarState.Entry(
+                accountID: id, provider: .claude, label: id == "preview" ? "Preview" : id, tightest: window, severity: severity, isStale: stale,
+                attention: error ? .actionable : nil, failureNeedsAttention: error, fetchedAt: used.map { _ in now.addingTimeInterval(stale ? -25 * 60 : -60) }
+            )
         }
-        func state(_ entry: MenuBarState.Entry, mode: MenuBarMode = .worst) -> MenuBarState {
-            MenuBarState(mode: mode, entries: [entry], showResetCountdownWhenFull: true, now: now)
+        func state(_ entry: MenuBarState.Entry, mode: MenuBarMode = .worst, connectivity: Connectivity = .online, settings: SettingsProblem? = nil) -> MenuBarState {
+            MenuBarState(mode: mode, entries: [entry], showResetCountdownWhenFull: true, now: now, connectivity: connectivity, settingsProblem: settings)
         }
+        func bars(_ count: Int, connectivity: Connectivity = .online, error: Bool = false, data: Bool = true) -> MenuBarState {
+            let levels: [Double] = [75, 12, 40, 60, 25, 50]
+            let entries = (0..<count).map { entry(data ? levels[$0] : nil, stale: connectivity != .online, error: error && $0 == 1, id: "account-\($0)") }
+            return MenuBarState(mode: .bars, entries: entries, showResetCountdownWhenFull: true, now: now, connectivity: connectivity)
+        }
+        let kept = SettingsProblem(
+            message: "Could not read config.local.json. Using the last good settings, and nothing is saved until it is fixed and reloaded.",
+            file: "config.local.json", nothingLoaded: false
+        )
+        let unloaded = SettingsProblem(
+            message: "Could not read config.json. No settings are loaded, and nothing is saved until it is fixed and reloaded.",
+            file: "config.json", nothingLoaded: true
+        )
         return [
             ("000", "0 %", state(entry(0))),
             ("030", "30 %", state(entry(30))),
@@ -157,17 +182,37 @@ enum SnapshotRenderer {
             ("critical-error", "97 %, red, check failed", state(entry(97, .critical, error: true))),
             ("icon-030", "Icon only, 30 %", state(entry(30), mode: .icon)),
             ("icon-critical", "Icon only, 97 %, red", state(entry(97, .critical), mode: .icon)),
+            ("offline", "Offline, 16 %, last checked 25m ago", state(entry(16, stale: true), connectivity: .offline)),
+            ("offline-fresh", "Offline, 16 %, last checked 1m ago", state(entry(16), connectivity: .offline)),
+            ("offline-warn", "Offline, 85 %, amber", state(entry(85, .warning, stale: true), connectivity: .offline)),
+            ("offline-critical", "Offline, 97 %, red", state(entry(97, .critical, stale: true), connectivity: .offline)),
+            ("offline-full", "Offline, full (countdown)", state(entry(100, .critical, stale: true), connectivity: .offline)),
+            ("offline-neutral", "Offline before any data", state(entry(nil), connectivity: .offline)),
+            ("offline-error", "Offline and a check failed", state(entry(16, stale: true, error: true), connectivity: .offline)),
+            ("no-answer", "No provider answers, 16 %", state(entry(16, stale: true), connectivity: .noAnswer)),
+            ("settings-kept", "Settings unreadable, last good kept", state(entry(16), settings: kept)),
+            ("settings-unloaded", "Settings unreadable, none loaded", MenuBarState(mode: .worst, entries: [], showResetCountdownWhenFull: true, now: now, settingsProblem: unloaded)),
+            ("offline-icon", "Offline, Icon only", state(entry(16, stale: true), mode: .icon, connectivity: .offline)),
+            ("bars-3", "Bars, 3 accounts", bars(3)),
+            ("bars-3-error", "Bars, 3 accounts, a check failed", bars(3, error: true)),
+            ("offline-bars-1", "Offline, Bars, 1 account", bars(1, connectivity: .offline)),
+            ("offline-bars-3", "Offline, Bars, 3 accounts", bars(3, connectivity: .offline)),
+            ("bars-6", "Bars, 6 accounts", bars(6)),
+            ("bars-6-neutral", "Bars, 6 accounts, no data yet", bars(6, data: false)),
         ]
     }
 
-    /// One picker choice at 42 %, amber, full, with no data, out of date and after a failed check.
+    /// One picker choice at 42 %, amber, full, with no data, out of date, after a failed check and offline.
     private static func choiceStates(_ icon: MenuBarIcon, now: Date) -> [MenuBarState] {
-        func state(_ used: Double?, _ severity: Severity = .ok, stale: Bool = false, error: Bool = false) -> MenuBarState {
+        func state(_ used: Double?, _ severity: Severity = .ok, stale: Bool = false, error: Bool = false, connectivity: Connectivity = .online) -> MenuBarState {
             let window = used.map { UsageWindow(id: "session", label: "5-hour", usedPercent: $0, windowMinutes: 300, resetsAt: now.addingTimeInterval(47 * 60)) }
             let entry = MenuBarState.Entry(accountID: "preview", provider: .claude, label: "Preview", tightest: window, severity: severity, isStale: stale, attention: error ? .actionable : nil, failureNeedsAttention: error)
-            return MenuBarState(mode: .worst, icon: icon, entries: [entry], showResetCountdownWhenFull: true, now: now)
+            return MenuBarState(mode: .worst, icon: icon, entries: [entry], showResetCountdownWhenFull: true, now: now, connectivity: connectivity)
         }
-        return [state(42), state(85, .warning), state(100, .critical), state(nil), state(42, stale: true), state(42, error: true)]
+        return [
+            state(42), state(85, .warning), state(100, .critical), state(nil), state(42, stale: true), state(42, error: true),
+            state(42, stale: true, connectivity: .offline),
+        ]
     }
 }
 

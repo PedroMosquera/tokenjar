@@ -51,11 +51,11 @@ struct SidebarBadgeTests {
 @MainActor
 struct SidebarErrorIconTests {
     @Test func aFailureToFixIsOrangeAsInThePopover() {
-        for error in [FetchError.notSignedIn, .unauthorized, .cliNotFound("claude"), .timeout] {
+        for error in [FetchError.notSignedIn, .unauthorized, .cliNotFound("claude")] {
             let failed = AccountStatus(error: error)
             #expect(failed.failureNeedsAttention(now: now, refreshMinutes: 10))
             #expect(
-                SidebarErrorIcon.make(status: failed, now: now, refreshMinutes: 10)
+                SidebarErrorIcon.make(status: failed, provider: .claude, now: now, refreshMinutes: 10, connectivity: .online)
                     == SidebarErrorIcon(symbol: ErrorRow.symbol(for: error, needsAttention: true), isWarning: true)
             )
         }
@@ -65,11 +65,27 @@ struct SidebarErrorIconTests {
     @Test func aBlipOverFreshDataStaysGrayWithThePopoversSymbol() {
         let snapshot = UsageSnapshot(accountID: "zen", provider: .opencodeZen, fetchedAt: now.addingTimeInterval(-60), source: "opencode.db")
         let blip = AccountStatus(snapshot: snapshot, error: .network("offline"))
-        #expect(SidebarErrorIcon.make(status: blip, now: now, refreshMinutes: 10) == SidebarErrorIcon(symbol: "wifi.exclamationmark", isWarning: false))
+        #expect(SidebarErrorIcon.make(status: blip, provider: .claude, now: now, refreshMinutes: 10, connectivity: .online) == SidebarErrorIcon(symbol: "wifi.exclamationmark", isWarning: false))
+    }
+
+    /// A connection failure with nothing fresh to show is not the user's to fix, so it stays gray there too.
+    @Test func aConnectionFailureWithoutDataStaysGray() {
+        #expect(SidebarErrorIcon.make(status: AccountStatus(error: .timeout), provider: .claude, now: now, refreshMinutes: 10, connectivity: .online) == SidebarErrorIcon(symbol: "clock.arrow.circlepath", isWarning: false))
+        #expect(SidebarErrorIcon.make(status: AccountStatus(error: .network("offline")), provider: .claude, now: now, refreshMinutes: 10, connectivity: .online) == SidebarErrorIcon(symbol: "wifi.exclamationmark", isWarning: false))
+    }
+
+    /// The header says a Mac-wide cause once, as the popover's cards drop their connection row.
+    @Test func aMacWideCauseHidesTheSidebarIcon() {
+        for connectivity in [Connectivity.offline, .noAnswer] {
+            #expect(SidebarErrorIcon.make(status: AccountStatus(error: .timeout), provider: .copilot, now: now, refreshMinutes: 10, connectivity: connectivity) == nil)
+            #expect(SidebarErrorIcon.make(status: AccountStatus(error: .network("x")), provider: .claude, now: now, refreshMinutes: 10, connectivity: connectivity) == nil)
+        }
+        #expect(SidebarErrorIcon.make(status: AccountStatus(error: .notSignedIn), provider: .codex, now: now, refreshMinutes: 10, connectivity: .offline)?.isWarning == true)
+        #expect(SidebarErrorIcon.make(status: AccountStatus(error: .network("locked")), provider: .opencodeZen, now: now, refreshMinutes: 10, connectivity: .offline) != nil)
     }
 
     @Test func notSubscribedHasNoMark() {
-        #expect(SidebarErrorIcon.make(status: AccountStatus(error: .noSubscription("none")), now: now, refreshMinutes: 10) == nil)
+        #expect(SidebarErrorIcon.make(status: AccountStatus(error: .noSubscription("none")), provider: .claude, now: now, refreshMinutes: 10, connectivity: .online) == nil)
     }
 }
 
@@ -213,5 +229,30 @@ struct LimitsThresholdLabelTests {
     @Test func voiceOverHearsWhatEachRuleMeans() {
         #expect(LimitsChart.thresholdAccessibilityLabel(80, severity: .warning) == "Turns amber at 80%")
         #expect(LimitsChart.thresholdAccessibilityLabel(95, severity: .critical) == "Turns red at 95%")
+    }
+}
+
+@MainActor
+struct HeaderSubtitleTests {
+    /// "Updated" is the newest success, and a Mac-wide cause is said once, in the subtitle.
+    @Test func allSubtitleShowsTheLastSuccessAndTheState() {
+        let updated = now.addingTimeInterval(-25 * 60)
+        #expect(HeaderSubtitle.allText(accountCount: 3, lastUpdated: updated, connectivity: .online, now: now) == "3 accounts · updated 25m ago")
+        #expect(HeaderSubtitle.allText(accountCount: 3, lastUpdated: updated, connectivity: .offline, now: now) == "3 accounts · updated 25m ago · offline")
+        #expect(HeaderSubtitle.allText(accountCount: 1, lastUpdated: updated, connectivity: .noAnswer, now: now) == "1 account · updated 25m ago · can't reach any provider")
+    }
+
+    @Test func anAccountSubtitleSaysTheCauseOnce() {
+        let claude = AccountConfig(id: "claude", provider: .claude, label: "Personal")
+        let stale = AccountStatus(
+            snapshot: UsageSnapshot(accountID: "claude", provider: .claude, fetchedAt: now.addingTimeInterval(-25 * 60), source: "claude CLI"),
+            error: .network("offline")
+        )
+        #expect(HeaderSubtitle.accountText(account: claude, status: stale, connectivity: .offline, now: now) == "claude CLI · updated 25m ago · offline")
+        #expect(HeaderSubtitle.accountText(account: claude, status: stale, connectivity: .noAnswer, now: now) == "claude CLI · updated 25m ago · can't reach any provider")
+        #expect(HeaderSubtitle.accountText(account: claude, status: stale, connectivity: .online, now: now)
+            == "claude CLI · updated 25m ago · Can't reach Claude. Tokenjar tries again at the next refresh.")
+        #expect(HeaderSubtitle.accountText(account: claude, status: AccountStatus(error: .notSignedIn), connectivity: .offline, now: now)
+            == FetchError.notSignedIn.userMessage(provider: .claude))
     }
 }

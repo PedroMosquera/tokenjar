@@ -161,6 +161,16 @@ struct ModelsTests {
         #expect(message.hasSuffix("."))
     }
 
+    /// "The server" told the user nothing about which of several providers was down.
+    @Test func connectionMessagesNameTheProvider() {
+        #expect(FetchError.network("dial tcp").userMessage(provider: .copilot) == "Can't reach GitHub Copilot. Tokenjar tries again at the next refresh.")
+        #expect(FetchError.timeout.userMessage(provider: .copilot) == "No answer from GitHub Copilot in time. Tokenjar tries again at the next refresh.")
+        #expect(FetchError.network("HTTP 503").userMessage(provider: .opencodeGo) == "Can't reach OpenCode Go. Tokenjar tries again at the next refresh.")
+        #expect(FetchError.timeout.userMessage(provider: .opencodeGo) == "No answer from OpenCode Go in time. Tokenjar tries again at the next refresh.")
+        // Notifications read the provider-free copy, which stays as it was.
+        #expect(FetchError.timeout.userMessage == "No answer in time. Tokenjar tries again at the next refresh.")
+    }
+
     @Test func otherProvidersKeepTheSignedOutCopy() {
         for provider in ProviderID.allCases where provider != .claude {
             #expect(FetchError.notSignedIn.userMessage(provider: provider) == FetchError.notSignedIn.userMessage, "\(provider)")
@@ -201,6 +211,36 @@ struct ModelsTests {
         #expect(snapshot.billing == nil)
         #expect(snapshot.windows.map(\.limitStyle) == [nil])
         #expect(snapshot.plan == "Max 20x")
+    }
+
+    /// An offline Mac holds only checks that contact a server: Zen reads opencode.db and Devin is a link.
+    @Test func providersThatNeedTheNetworkAreTheOnesThatContactOne() {
+        let expected: [ProviderID: Bool] = [
+            .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
+        ]
+        for provider in ProviderID.allCases {
+            #expect(provider.checkUsesNetwork == expected[provider], "\(provider)")
+        }
+    }
+
+    /// A row from a newer build may carry a reason this one does not know. `latestSnapshots` drops a row that fails to
+    /// decode, which would blank the account's card until its next check.
+    @Test func anUnknownLiveCheckFailureReadsAsOther() throws {
+        let json = #"{"accountID":"a","provider":"claude","windows":[],"money":[],"fetchedAt":799990000,"source":"Claude Code cache","notes":[],"liveCheckFailure":"captivePortal"}"#
+        let decoded = try? JSONDecoder().decode(UsageSnapshot.self, from: Data(json.utf8))
+        #expect(decoded?.liveCheckFailure == .other)
+        // Stored rows hold the raw values, so renaming a case would misread every saved copy written before.
+        #expect([LiveCheckFailure.network, .timeout, .other].map(\.rawValue) == ["network", "timeout", "other"])
+    }
+
+    /// Every row stored before the field existed must still decode, as a live answer.
+    @Test func aSnapshotWithoutTheFieldStillDecodes() throws {
+        let json = #"{"accountID":"a","provider":"claude","windows":[],"money":[],"fetchedAt":799990000,"source":"claude CLI","notes":[]}"#
+        let decoded = try? JSONDecoder().decode(UsageSnapshot.self, from: Data(json.utf8))
+        let snapshot = try #require(decoded)
+        #expect(snapshot.liveCheckFailure == nil)
+        let saved = UsageSnapshot(accountID: "a", provider: .codex, fetchedAt: Date(timeIntervalSince1970: 0), source: "Codex session log", liveCheckFailure: .timeout)
+        #expect(try JSONDecoder().decode(UsageSnapshot.self, from: JSONEncoder().encode(saved)).liveCheckFailure == .timeout)
     }
 
     @Test func limitStyleRoundTripsAndDefaultsToHard() throws {
