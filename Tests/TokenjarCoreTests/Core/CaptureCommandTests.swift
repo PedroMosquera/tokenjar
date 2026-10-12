@@ -201,8 +201,8 @@ final class CaptureCommandTests {
         #expect(message.contains("1.1.11"))
     }
 
-    /// The fetcher keeps agy's arguments and timeouts inline, with no constant the capture could reuse, so this is what
-    /// stops the two from drifting apart.
+    /// The capture reads the fetcher's agy commands; this catches it going back to its own arguments, timeouts or limits,
+    /// or sending a different environment or directory.
     @Test func agyCaptureRunsWhatTheFetcherRuns() async throws {
         let answers = [output("agy 1.3.0\n"), output(#"{"command":{"data":{"groups":[]}}}"#)]
         runner.answers = answers
