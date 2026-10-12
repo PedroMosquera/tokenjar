@@ -31,7 +31,8 @@ private func scrollViews(in view: NSView) -> [NSScrollView] {
 
 @MainActor
 struct PopoverSizingTests {
-    /// NSPopover can only follow the content's size through the preferred size; the default options keep it at 0x0.
+    /// NSPopover follows the content's size only through the preferred size, which the default options keep at 0x0.
+    /// NSPopover itself is not checked: it follows only once it has a window, and no public call but show makes one.
     @Test func theContentReportsItsSizeAsItChanges() {
         let model = previewModel()
         let controller = AppDelegate.popoverContent(model)
@@ -45,9 +46,9 @@ struct PopoverSizingTests {
         #expect(controller.preferredContentSize.height > before)
     }
 
-    /// On a screen too short for the popover the cards give up the difference and scroll, so the popover still fits
-    /// under the menu bar with its header and footer.
-    @Test func aShortScreenScrollsTheCardsInsteadOfGrowingThePopover() {
+    /// On a screen too short for the popover it asks for no more than the room under the menu bar. Which part gives
+    /// up the difference is pinned by `aShortScreenKeepsTheHeaderAndFooterInside`.
+    @Test func aShortScreenCapsThePopoverAtTheRoomUnderTheMenuBar() {
         let model = previewModel()
         #expect(idealSize(of: model).height > 400)
 
