@@ -55,7 +55,7 @@ extension CopilotUsageFetcher {
         if text.contains("http 401") { return .unauthorized }
         if text.contains("http 403") || text.contains("http 404") { return .noSubscription(noAccessMessage) }
         if text.contains(/http 5\d\d/) { return .network("GitHub API unavailable") }
-        // Offline, or behind a proxy gh cannot see (the minimal environment drops HTTPS_PROXY): Retry, not an alert.
+        // Offline, or a proxy that is down or exported only in a shell profile Tokenjar never sees: Retry, not an alert.
         if ["error connecting to", "dial tcp", "i/o timeout", "timeout exceeded", "connection reset"].contains(where: text.contains) {
             return .network("gh could not reach GitHub")
         }

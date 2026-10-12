@@ -10,7 +10,7 @@ struct CodexUsageFetcherTests {
         let fixedNow = now ?? self.now
         return FetchContext(
             secrets: InMemorySecretStore(),
-            cli: CLILocator(home: temp.url, overrides: ["codex": binary?.path ?? missing]),
+            cli: CLILocator(home: temp.url, overrides: ["codex": binary?.path ?? missing], searchDirectories: []),
             paths: AppPaths(home: temp.url),
             now: { fixedNow }
         )

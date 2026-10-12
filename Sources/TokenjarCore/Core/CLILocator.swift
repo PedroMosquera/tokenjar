@@ -3,16 +3,23 @@ import Foundation
 /// Finds the CLIs Tokenjar runs (claude, codex, agy, gh) without a login shell. A menu bar app launched by launchd
 /// does not inherit the user's shell PATH, and sourcing their shell rc files would run arbitrary user code on every refresh.
 public struct CLILocator: Sendable {
-    public var home: URL
+    public let home: URL
     /// Per-CLI overrides from config (`cliPaths`), checked first.
     public var overrides: [String: String]
+    /// Where a CLI is looked for, in order. Also the head of every spawned CLI's PATH.
+    public var searchDirectories: [URL]
 
-    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser, overrides: [String: String] = [:]) {
+    /// `searchDirectories` defaults to `standardSearchDirectories(home:)`. Tests pass their own, so a CLI installed on
+    /// the Mac running them is never found.
+    public init(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser, overrides: [String: String] = [:], searchDirectories: [URL]? = nil
+    ) {
         self.home = home
         self.overrides = overrides
+        self.searchDirectories = searchDirectories ?? Self.standardSearchDirectories(home: home)
     }
 
-    public var searchDirectories: [URL] {
+    public static func standardSearchDirectories(home: URL) -> [URL] {
         [
             home.appending(path: ".local/bin"),
             URL(fileURLWithPath: "/opt/homebrew/bin"),
@@ -25,11 +32,13 @@ public struct CLILocator: Sendable {
         ]
     }
 
+    /// An override wins only when it is an executable on this Mac. config.json syncs between Macs, so an entry set on
+    /// another one must not make the CLI read as missing here when the search would find it.
     public func locate(_ name: String) -> URL? {
         let fm = FileManager.default
         if let override = overrides[name] {
             let url = URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
-            return fm.isExecutableFile(atPath: url.path) ? url : nil
+            if fm.isExecutableFile(atPath: url.path) { return url }
         }
         return searchDirectories
             .map { $0.appending(path: name) }
