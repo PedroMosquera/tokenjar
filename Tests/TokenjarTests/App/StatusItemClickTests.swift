@@ -37,6 +37,46 @@ struct StatusItemClickTests {
         #expect(StatusItemClick.route(.otherMouseUp, modifiers: .control) == .popover)
     }
 
+    private final class Target: NSObject {
+        @objc func clicked(_ sender: Any?) {}
+    }
+
+    private final class Opens {
+        var count = 0
+    }
+
+    /// Never put in a window or a status item.
+    private func configuredButton(target: Target, opens: Opens) -> NSStatusBarButton {
+        let button = NSStatusBarButton(frame: NSRect(x: 0, y: 0, width: 30, height: 22))
+        StatusItemClick.configure(button, target: target, action: #selector(Target.clicked(_:))) { opens.count += 1 }
+        return button
+    }
+
+    /// A button acts on a left mouse-up only unless told otherwise, which is why a right-click did nothing.
+    @Test func theButtonActsOnLeftAndRightMouseUp() {
+        let target = Target()
+        let button = configuredButton(target: target, opens: Opens())
+        // sendAction(on:) returns the mask it replaces, so setting the same mask again reads back what configure set.
+        let mask = button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        #expect(mask == Int(NSEvent.EventTypeMask([.leftMouseUp, .rightMouseUp]).rawValue))
+        #expect(button.target === target)
+        #expect(button.action == #selector(Target.clicked(_:)))
+    }
+
+    /// A status bar button with no menu of its own offers VoiceOver no show-menu action, so it gets a custom one. The
+    /// menu opens on a later main-queue turn, once the accessibility request has had its answer.
+    @Test func voiceOverCanOpenTheMenu() async throws {
+        let opens = Opens()
+        let button = configuredButton(target: Target(), opens: opens)
+        let actions = button.accessibilityCustomActions() ?? []
+        #expect(actions.map(\.name) == ["Show Menu"])
+        let handler = try #require(actions.first?.handler)
+        #expect(handler())
+        #expect(opens.count == 0)
+        await withCheckedContinuation { done in DispatchQueue.main.async { done.resume() } }
+        #expect(opens.count == 1)
+    }
+
     /// Built only, never posted.
     private func mouseUp(_ type: NSEvent.EventType, _ modifiers: NSEvent.ModifierFlags = [], at timestamp: TimeInterval) throws -> NSEvent {
         try #require(NSEvent.mouseEvent(

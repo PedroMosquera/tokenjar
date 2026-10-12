@@ -91,6 +91,19 @@ struct StatusItemMenuTests {
         #expect(items.allSatisfy { $0.keyEquivalent.isEmpty && $0.image == nil })
     }
 
+    /// A status item with a menu opens it on every click, so a menu left attached would make the popover unreachable.
+    @Test func openingClosesThePopoverAndAttachesTheMenuOnlyForItsClick() {
+        let menu = StatusItemMenu.make(hasAccounts: true, target: delegate)
+        var steps: [String] = []
+        StatusItemMenu.open(
+            menu,
+            closePopover: { steps.append("close popover") },
+            attach: { steps.append($0 === menu ? "attach" : $0 == nil ? "detach" : "attach another menu") },
+            click: { steps.append("click") }
+        )
+        #expect(steps == ["close popover", "attach", "click", "detach"])
+    }
+
     /// An item aimed anywhere but the test's delegate is recorded, not sent, since a terminate: that got through would
     /// end the run with exit code 0.
     @Test func eachItemReachesItsTarget() {

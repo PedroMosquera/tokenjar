@@ -32,6 +32,15 @@ enum StatusItemMenu {
         return menu
     }
 
+    /// Shows `menu` from the status item. It is attached only while `click` runs, because a status item with a menu
+    /// opens that menu on every click, left included.
+    static func open(_ menu: NSMenu, closePopover: () -> Void, attach: (NSMenu?) -> Void, click: () -> Void) {
+        closePopover()
+        attach(menu)
+        click()
+        attach(nil)
+    }
+
     private static func item(_ title: String, _ action: Selector, _ target: AnyObject) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = target

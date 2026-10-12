@@ -51,10 +51,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
         )
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.target = self
-        item.button?.action = #selector(statusItemClicked(_:))
-        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        item.button?.imagePosition = .imageLeading
+        if let button = item.button {
+            StatusItemClick.configure(button, target: self, action: #selector(statusItemClicked(_:))) { [weak self] in
+                self?.showMenu()
+            }
+            button.imagePosition = .imageLeading
+        }
         statusItem = item
 
         popover.behavior = .transient
@@ -86,17 +88,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
         switch clicks.route(NSApp.currentEvent) {
         case .popover: togglePopover(sender)
-        case .menu: showMenu(from: sender)
+        case .menu: showMenu()
         }
     }
 
-    /// The menu is set on the status item only while it is open: with a menu set, a left click would open it too.
-    private func showMenu(from button: NSStatusBarButton) {
-        guard let statusItem else { return }
-        if popover.isShown { popover.performClose(nil) }
-        statusItem.menu = StatusItemMenu.make(hasAccounts: !model.accounts.isEmpty, target: self)
-        defer { statusItem.menu = nil }
-        button.performClick(nil)
+    private func showMenu() {
+        guard let statusItem, let button = statusItem.button else { return }
+        StatusItemMenu.open(
+            StatusItemMenu.make(hasAccounts: !model.accounts.isEmpty, target: self),
+            closePopover: { if popover.isShown { popover.performClose(nil) } },
+            attach: { statusItem.menu = $0 },
+            click: { button.performClick(nil) }
+        )
     }
 
     private func togglePopover(_ sender: NSStatusBarButton) {

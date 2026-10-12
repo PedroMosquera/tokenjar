@@ -15,6 +15,19 @@ enum StatusItemClick: Equatable {
         }
     }
 
+    /// Points the status item's button at `action` for left and right mouse-up, and gives VoiceOver a Show Menu
+    /// action: a status bar button with no menu of its own offers no show-menu command.
+    static func configure(_ button: NSButton, target: AnyObject, action: Selector, showMenu: @escaping @MainActor @Sendable () -> Void) {
+        button.target = target
+        button.action = action
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        button.setAccessibilityCustomActions([NSAccessibilityCustomAction(name: "Show Menu") {
+            // The menu's tracking loop would hold up the accessibility request until the menu closed.
+            DispatchQueue.main.async { showMenu() }
+            return true
+        }])
+    }
+
     /// AppKit keeps the last event it dispatched while the app idles, so an accessibility press after a right-click
     /// finds that same right mouse-up. An event already routed once counts as no event.
     struct Router {
