@@ -3,11 +3,13 @@ import os
 import SwiftUI
 import TokenjarCore
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, StatusItemMenuTarget {
     let model = AppModel()
     private let windows = WindowPresenter()
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
+    private var quitConfirmation = QuitConfirmation()
+    private var clicks = StatusItemClick.Router()
     var popoverFrameObservers: [NSObjectProtocol] = [] {
         didSet { oldValue.forEach(NotificationCenter.default.removeObserver) }
     }
@@ -44,13 +46,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         model.presenter = .init(
             showDashboard: { [weak self] accountID in self?.showDashboard(accountID: accountID) },
             showSettings: { [weak self] accountID in self?.showSettings(accountID: accountID) },
-            closePopover: { [weak self] in self?.popover.performClose(nil) }
+            closePopover: { [weak self] in self?.popover.performClose(nil) },
+            requestQuit: { [weak self] in self?.requestQuit(nil) }
         )
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.target = self
-        item.button?.action = #selector(togglePopover(_:))
-        item.button?.imagePosition = .imageLeading
+        if let button = item.button {
+            StatusItemClick.configure(button, target: self, action: #selector(statusItemClicked(_:))) { [weak self] in
+                self?.showMenu()
+            }
+            button.imagePosition = .imageLeading
+        }
         statusItem = item
 
         popover.behavior = .transient
@@ -79,7 +85,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSTimeZone.resetSystemTimeZone()
     }
 
-    @objc private func togglePopover(_ sender: NSStatusBarButton) {
+    @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
+        switch clicks.route(NSApp.currentEvent) {
+        case .popover: togglePopover(sender)
+        case .menu: showMenu()
+        }
+    }
+
+    private func showMenu() {
+        guard let statusItem, let button = statusItem.button else { return }
+        StatusItemMenu.open(
+            StatusItemMenu.make(hasAccounts: !model.accounts.isEmpty, target: self),
+            closePopover: { if popover.isShown { popover.performClose(nil) } },
+            attach: { statusItem.menu = $0 },
+            click: { button.performClick(nil) }
+        )
+    }
+
+    private func togglePopover(_ sender: NSStatusBarButton) {
         if popover.isShown {
             popover.performClose(sender)
         } else {
@@ -133,8 +156,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         return (window.convertToScreen(button.convert(button.bounds, to: nil)), screen.visibleFrame)
     }
 
+    @objc func refreshNow(_ sender: Any?) {
+        PopoverHeader.refreshNow(model)
+    }
+
+    @objc func openDashboard(_ sender: Any?) {
+        model.showDashboard()
+    }
+
     @objc func openSettings(_ sender: Any?) {
         model.showSettings()
+    }
+
+    /// The alert waits for the run loop's default mode, which menu tracking never runs in, so a request from a menu
+    /// shows it only after that menu has closed and the status item has let go of it.
+    @objc func requestQuit(_ sender: Any?) {
+        guard quitConfirmation.shouldAsk(frontmost: NSWorkspace.shared.frontmostApplication) else { return }
+        if popover.isShown { popover.performClose(nil) }
+        RunLoop.main.perform(inModes: [.default]) {
+            MainActor.assumeIsolated { self.askToQuit() }
+        }
+    }
+
+    @objc func quitWithoutAsking(_ sender: Any?) {
+        NSApp.terminate(sender)
+    }
+
+    private func askToQuit() {
+        // An accessory app's alert would otherwise open behind the frontmost app.
+        NSApp.activate()
+        switch quitConfirmation.outcome(of: QuitConfirmation.makeAlert().runModal()) {
+        case .quit: NSApp.terminate(nil)
+        case .stay(let refocus): refocus.map(Self.handFocusBack)
+        }
+    }
+
+    /// Without this, Tokenjar stays active with no window after Cancel, and typing goes nowhere until the person
+    /// clicks back into their app.
+    private static func handFocusBack(to app: NSRunningApplication) {
+        NSApp.yieldActivation(to: app)
+        app.activate(from: .current, options: [])
     }
 
     func popoverWillShow(_ notification: Notification) {

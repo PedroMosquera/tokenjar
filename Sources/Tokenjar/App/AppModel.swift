@@ -56,6 +56,7 @@ final class AppModel {
         var showDashboard: (String?) -> Void = { _ in }
         var showSettings: (String?) -> Void = { _ in }
         var closePopover: () -> Void = {}
+        var requestQuit: () -> Void = {}
     }
 
     var config = AppConfig() {
@@ -793,5 +794,6 @@ final class AppModel {
     func showSettings(accountID: String? = nil) { presenter.showSettings(accountID) }
     func closePopover() { presenter.closePopover() }
 
-    func quit() { NSApp.terminate(nil) }
+    /// The popover's Quit button and its Command-Q. The app asks first; see `QuitConfirmation`.
+    func quit() { presenter.requestQuit() }
 }
