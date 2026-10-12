@@ -5,7 +5,7 @@
 
 Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot. Devin gets a card that opens its usage page.
 
-I built it for myself because I did not want a third-party app handling my AI logins, so Tokenjar asks each provider's own CLI for the numbers and keeps its history on your Mac. There is no prebuilt download. You build it from source with the Command Line Tools.
+I built it because I did not want a third-party app handling my AI logins. Tokenjar asks each provider's own CLI for the numbers, except for OpenCode, where it reads opencode's key and local database. History stays on your Mac. There is no prebuilt download: you build it from source with the Command Line Tools.
 
 <p align="center">
   <picture>
@@ -28,9 +28,9 @@ I built it for myself because I did not want a third-party app handling my AI lo
 
 The Antigravity reader has never run against a live install. Copilot's endpoint is undocumented, and most Copilot plans have not been checked against a real account.
 
-## A quick look
+## Using it
 
-The menu bar item shows the account with the least room left. It turns amber at 80% used, or earlier when a half-used window is on pace to run out before it resets, and red at 95%. When a window is full it counts down to the reset instead. Settings > General switches it to one thin bar per account, or to the icon alone.
+The menu bar item shows the used percent of the account with the least room left. By default it turns red at 95% and amber at 80%, or sooner when a window that is at least half used is on pace to run out before it resets. When a window is full it counts down to the reset instead. Faded numbers are out of date, and a dot means a check failed and needs you. Devin and OpenCode Zen never show up there. Settings > General changes both levels and can switch the item to one thin bar per account, or to the icon alone.
 
 <p align="center">
   <picture>
@@ -39,9 +39,9 @@ The menu bar item shows the account with the least room left. It turns amber at 
   </picture>
 </p>
 
-Clicking it opens the popover above. Each limit window gets a bar, with a tick where an even pace would be, and the time until it resets. Under the bars, a short verdict says whether you are on pace or, say, "Runs out ~40m before reset". A failed check says what went wrong and offers the fix. Command-R refreshes.
+Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. Command-R refreshes.
 
-The dashboard (Command-D) lists every account with its tightest limit. It shows what your usage would have cost at API prices today, over 7 days and this month, and charts each limit over time with its resets. Below that sit daily spend, split by model, harness, project or account, and your top projects. Ranges are 24 hours, 7 days and 30 days. Cost comes from local logs, so Antigravity and Copilot, which keep none, show limits only.
+The dashboard (Command-D) charts each limit over time with its resets and estimates what your usage would have cost at API prices, split by model, harness, project or account. Antigravity and Copilot keep no local logs, so they show limits only.
 
 <p align="center">
   <picture>
@@ -50,7 +50,7 @@ The dashboard (Command-D) lists every account with its tightest limit. It shows 
   </picture>
 </p>
 
-Settings has four panes. General covers launch at login, how often to check and how the menu bar item looks. Accounts has a page per account with its status, the fix when a check fails, Check Now and Sign In in Terminal. Alerts holds the notification settings, and About lists what the app runs, reads, contacts and writes.
+Each account gets its own page in Settings with its status, the fix when a check fails, and buttons to check it now or sign in from Terminal.
 
 <p align="center">
   <picture>
@@ -59,13 +59,13 @@ Settings has four panes. General covers launch at login, how often to check and 
   </picture>
 </p>
 
-Alerts are local notifications. You get one when a window crosses 80% or 95%, when the pace says you will run out before the reset, and when a source stops working. A reset alert is there too, off by default. They land quietly in Notification Center until you click Allow Banners in Settings > Alerts.
+Alerts are local notifications. By default you get one when a window crosses 80% or 95%, when the pace says you will run out before the reset, and when a source stops working. Settings > Alerts changes the levels and has a reset alert, which is off by default. Until you click Allow Banners there, alerts go to Notification Center without a banner.
 
 ## Privacy
 
-Tokenjar never reads or refreshes an OAuth token; each CLI keeps and renews its own login. The one request the app sends itself is `GET https://opencode.ai/zen/go/v1/usage`, and a test fails if another endpoint is added. The Copilot request is gh's own, with gh's telemetry turned off. It sends no telemetry, never checks for updates and never imports browser cookies.
+Tokenjar never reads or refreshes an OAuth token; each CLI keeps and renews its own login. The one request the app sends itself is `GET https://opencode.ai/zen/go/v1/usage`, and a test fails if another endpoint is added. The Copilot request is gh's own, with gh's telemetry turned off. Tokenjar itself has no telemetry and no update check, and it never imports browser cookies.
 
-On disk it keeps token counts, model ids, timestamps and project folder names. Log paths and response ids are stored only as SHA-256 digests. Prompts, outputs, emails and account ids are never stored. [docs/privacy.md](docs/privacy.md) has the full list, and Settings > About shows the short version.
+On disk it keeps token counts, model ids, timestamps and project folder names, plus each account's plan name, limit percentages and reset times. Log paths and response ids are stored only as SHA-256 digests. Prompts, outputs, emails and provider account ids are never stored. Settings > About lists what the app runs, reads, contacts and writes, and [docs/privacy.md](docs/privacy.md) has the full list.
 
 ## Requirements
 
@@ -85,7 +85,7 @@ That builds a release binary, wraps it in `Tokenjar.app`, signs it ad-hoc, copie
 
 To update, pull and run `make install` again. It replaces the running app and opens the new build. If you pasted an API key in Settings, macOS asks once more for Keychain access after each update, because every build gets a new ad-hoc signature.
 
-To remove it, turn off Launch at login, quit Tokenjar and delete `~/Applications/Tokenjar.app`. If you want its data gone too, delete `~/Library/Application Support/Tokenjar` (history) and `~/.config/tokenjar` (settings), plus any "Tokenjar API key" item in Keychain Access. I put this list together from what the app writes ([docs/privacy.md](docs/privacy.md#what-it-writes)) and have not tried it on a clean Mac.
+To remove it, turn off Launch at login, quit Tokenjar and delete `~/Applications/Tokenjar.app`. To clear its data as well, delete `~/Library/Application Support/Tokenjar` (history) and `~/.config/tokenjar` (settings), run `defaults delete com.pedromosquera.tokenjar` (window sizes and positions), and remove any "Tokenjar API key" item in Keychain Access. [docs/privacy.md](docs/privacy.md#what-it-writes) lists everything it writes. These steps have not been tested on a clean Mac.
 
 ## First run
 
@@ -93,28 +93,28 @@ If there is no config file yet, Tokenjar writes one with default settings and th
 
 ## Configuration
 
-Settings writes everything to `~/.config/tokenjar/config.json`, and you can edit it by hand too: the app picks up changes within 30 seconds. The file holds no secrets, only where keys live. Two Claude logins look like this:
+Settings writes everything to `~/.config/tokenjar/config.json`, and you can edit it by hand too: the app picks up changes within 30 seconds. Two Claude logins look like this:
 
 ```json
 {
   "accounts": [
     { "id": "claude", "provider": "claude", "label": "Personal" },
-    { "id": "claude-2", "provider": "claude", "label": "Second login", "profileDir": "~/.claude-2" }
+    { "id": "claude-work", "provider": "claude", "label": "Work", "profileDir": "~/.claude-work" }
   ]
 }
 ```
 
 Pick an `id` once and keep it. History and alerts are stored under it.
 
-Because there are no secrets in it, the file can live in a dotfiles repo and be symlinked into place on each Mac (`stow --no-folding` works). Anything that should differ on one Mac, such as a label, goes in `config.local.json` next to it. History, alert state and pasted keys stay on each Mac. [docs/configuration.md](docs/configuration.md) has every field and the details of the shared setup.
+The file holds no secrets, only where keys live, so it can sit in a dotfiles repo and be symlinked into place on each Mac (`stow --no-folding` works). Anything that should differ on one Mac, such as a label, goes in `config.local.json` next to it. History, alert state and pasted keys stay on each Mac. [docs/configuration.md](docs/configuration.md) has every field and the details of the shared setup.
 
 ## Troubleshooting
 
 "Can't find the claude command on this Mac" (or codex, agy, gh): Tokenjar does not read your shell's `PATH`. It searches a fixed list of folders, and the account's page in Settings shows which ones. If the CLI lives somewhere else, put its full path under `cliPaths` in the config.
 
-No notifications: alerts only come from the installed app, not from `swift run` or a `.build` binary. If they show up only in Notification Center, click Allow Banners in Settings > Alerts.
+No notifications: alerts only come from the installed app, not from `swift run` or a `.build` binary.
 
-[docs/troubleshooting.md](docs/troubleshooting.md) covers sign-in, Copilot access, proxies, paused checks, a broken config file and the Keychain prompt.
+[docs/troubleshooting.md](docs/troubleshooting.md) covers sign-in, Copilot access, proxies, paused checks, a broken config file, the Keychain prompt and Macs that only run approved software.
 
 ## Development
 
@@ -124,7 +124,7 @@ make test    # Swift Testing; run it with XDG_CONFIG_HOME unset
 make app     # release build, bundled and signed as build/Tokenjar.app
 ```
 
-`.build/debug/Tokenjar --render-snapshots <dir>` and `--render-windows <dir>` draw the app to PNG from built-in preview data, without putting a window on screen. That is how the images in this README were made. [docs/development.md](docs/development.md) has the other targets and flags, and [docs/design.md](docs/design.md) explains how the pieces fit.
+`.build/debug/Tokenjar --render-snapshots <dir>` and `--render-windows <dir>` draw the app to PNG from built-in preview data, without putting a window on screen. The screenshots in this README come from those two flags, so the accounts, numbers and dates in them are made up. [docs/development.md](docs/development.md) has the other targets and flags, and [docs/design.md](docs/design.md) is the full design.
 
 ## License
 

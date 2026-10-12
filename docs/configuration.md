@@ -2,8 +2,6 @@
 
 Tokenjar reads `~/.config/tokenjar/config.json` (`$XDG_CONFIG_HOME/tokenjar/config.json` when that variable is set in the app's own environment). It holds no secrets, only references to where API keys live. Settings saves every change to it. You can also edit it by hand; the app picks the change up within 30 seconds, or right away when you click Reload in Settings > General.
 
-[design.md](design.md#config-and-sync) is the full reference, with every default and edge case.
-
 ## Example
 
 ```json
@@ -11,7 +9,7 @@ Tokenjar reads `~/.config/tokenjar/config.json` (`$XDG_CONFIG_HOME/tokenjar/conf
   "refreshMinutes": 10,
   "accounts": [
     { "id": "claude", "provider": "claude", "label": "Personal" },
-    { "id": "claude-2", "provider": "claude", "label": "Second login", "profileDir": "~/.claude-2" },
+    { "id": "claude-work", "provider": "claude", "label": "Work", "profileDir": "~/.claude-work" },
     { "id": "codex", "provider": "codex", "label": "ChatGPT" },
     { "id": "opencode-go", "provider": "opencode-go", "label": "Go",
       "credential": { "file": { "path": "~/.local/share/opencode/auth.json", "key": "opencode-go" } } }
@@ -50,7 +48,7 @@ Stow before Tokenjar's first launch on a new Mac. If Tokenjar already wrote a `c
 
 Machine-only values go in `~/.config/tokenjar/config.local.json`, next to the link. It is not stowed, Tokenjar never writes it, and it wins on merge: objects merge key by key, and `accounts` merge by `id`, field by field.
 
-The default `~/.claude` (or `~/.codex`) can hold a different login on each Mac, such as a personal Mac and a work Mac. Keep one account for it in the shared file and give it another label on one Mac with a `config.local.json` like this:
+The default `~/.claude` (or `~/.codex`) may hold a different login on each Mac, say a personal account on one and a work account on the other. Keep one account for it in the shared file and give it another label on one Mac with a `config.local.json` like this:
 
 ```json
 {
@@ -60,7 +58,9 @@ The default `~/.claude` (or `~/.codex`) can hold a different login on each Mac, 
 }
 ```
 
-The plan pill comes from the login itself, so each Mac shows the plan it is signed in to. A local entry whose `id` is not in `config.json` adds an account, and then needs `provider` too. Such an account stays on that Mac. It is listed after the accounts in `config.json`, and Settings never writes it to `config.json`. A Settings edit to it lasts only until the next reload, so change it in `config.local.json`.
+The plan pill comes from the login itself, so each Mac shows the plan it is signed in to.
+
+A local entry whose `id` is not in `config.json` adds an account that exists only on that Mac, and it needs `provider` too. It is listed after the shared accounts and never copied into `config.json`, so edit it in `config.local.json`: a change made in Settings lasts only until the next reload.
 
 ### Accounts missing on a Mac
 

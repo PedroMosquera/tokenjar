@@ -40,11 +40,11 @@ The binary takes five flags that do one job and exit:
 - `--render-snapshots` renders the popover, the menu bar item (every slot state and every icon choice), the dashboard and the General and account Settings pages to PNG, light and dark, from built-in preview data.
 - `--render-windows` captures the app's real windows (Settings panes and account pages, the dashboard at three sizes, the popover, menu bar strips) to `<screen>-<light|dark>.png` at 2x, built by the same code the app uses. Each window is parked off every display and the app never activates, so nothing shows on screen and the frontmost app keeps focus; `StrayWindowSweeper` hides any window that lands on a display anyway and prints "stray window hidden" on stderr. Preview data by default; `--real-data` shows this Mac's config and a read-only copy of its history, and `--only` (repeatable) limits the screens by name prefix.
 
-`<provider>` is one of `claude`, `codex`, `opencode-go`, `opencode-zen`, `antigravity`, `copilot`, `devin`. None of the five writes `tokenjar.sqlite` or `config.json`, and none moves Headroom's folders. [privacy.md](privacy.md#what-it-writes) lists what each reads and writes.
+`<provider>` is one of `claude`, `codex`, `opencode-go`, `opencode-zen`, `antigravity`, `copilot`, `devin`. None of the five writes `tokenjar.sqlite` or `config.json`, and none moves the folders left by Headroom, Tokenjar's old name. [privacy.md](privacy.md#what-it-writes) lists what each reads and writes.
 
 ## Preview renders and the README images
 
-Preview renders read no path, region or time zone from your Mac. The preview models use a stand-in home folder, `/Users/you`, and the process switches to US English and UTC before it draws, so a render looks the same on any Mac. A render with `--real-data` shows your own config and history, so keep those images to yourself.
+Preview renders read no path, region or time zone from your Mac. The accounts, numbers and the fixed date in the preview data are made up. The preview models use a stand-in home folder, `/Users/you`, and the process switches to US English and UTC before it draws, so a render looks the same on any Mac. A render with `--real-data` shows your own config and history, so keep those images to yourself.
 
 The images in `docs/images/` came from these two commands, then a pass through ImageMagick:
 
@@ -59,4 +59,4 @@ make build
 - `settings-account-*.png` is `settings-account-claude-work-<theme>.png`, resized to 1360 px wide.
 - `menubar-*.png` joins six items from `--render-snapshots` into one strip: `menubar-slot-030`, `menubar-worst`, `menubar-slot-critical` and `menubar-slot-100`, then `menubar-bars` and `menubar-icon`. Those files are Display P3, so they are converted to sRGB first.
 
-Each image is twice the width the README shows it at, has rounded corners and a hairline edge, and is saved with no metadata. The banner, `banner-<theme>.svg`, is a plain SVG built from `Resources/AppIcon.svg` and the shape of the menu bar slot. Its numbers are made up, and it has no provider logos.
+The window captures get rounded corners and a hairline edge, and the menu bar strip gets rounded corners only. Each image is saved with no metadata, at about twice the width the README shows it at. The banner, `banner-<theme>.svg`, is a plain SVG built from `Resources/AppIcon.svg` and the shape of the menu bar slot. Its numbers are made up, and it has no provider logos.

@@ -2,7 +2,7 @@
 
 Tokenjar is a personal macOS menu bar app that answers one question at a glance: how much room is left on each AI subscription before the next limit, and will the current pace run out before the window resets.
 
-It is an alternative to CodexBar that you build from source, so no third-party binary handles your AI credentials.
+It replaces CodexBar for one user, so that no third-party binary handles their AI credentials.
 
 This is the design of record. Each section describes the code on `main`, and a change that alters one of these rules updates this page in the same commit. [privacy.md](privacy.md) is the exact list of what the app reads, runs, contacts and writes.
 
@@ -11,7 +11,7 @@ This is the design of record. Each section describes the code on `main`, and a c
 - Show every limit window each account reports (5-hour, weekly, weekly per model, monthly), as used %, with a reset countdown and a pace marker.
 - Show money only where it exists: Claude extra usage and OpenCode Zen's local spend this month. Codex credits are not dollars, so they appear as a note ("Credits: 125.5" or "Credits: unlimited").
 - Keep a local history so charts show utilization over time and API-equivalent cost per day, model, harness, project and account.
-- Several accounts per provider (for example a personal plan and a company seat on the same Mac).
+- Several accounts per provider, such as two Claude logins on one Mac.
 - Open each provider's own usage page in one click, including for a provider that shares no usage yet.
 - Per-account settings, alerts, and a secret-free config file that syncs through the dotfiles repo.
 
@@ -221,13 +221,13 @@ Constraints found while packaging:
 - Command Line Tools ship no SwiftUIMacros plugin, so views avoid the `@State` macro: they use explicit `State` storage, the `SettingsState` alias or an `ObservableObject`.
 - Notifications and launch at login work only from an app bundle; use the installed copy in `~/Applications`.
 - Ad-hoc signatures change on every build, so Keychain grants for the app's own item re-prompt after a rebuild, and a Deny is not remembered. Only pasted API keys live there, and each is read once per launch (see [Scheduling](#scheduling)).
-- On a Mac that only runs approved software, an allowlisting tool blocks every new ad-hoc build until it is allowlisted.
+- On a Mac that only runs allowlisted binaries, every new ad-hoc build needs allowlisting before it launches.
 
 A GitHub Actions release zip and a Homebrew cask are deferred. Homebrew 6 removed `--no-quarantine`, so a cask adds a Gatekeeper prompt without adding anything for a single user.
 
 ## Phases
 
 1. Claude, Codex and OpenCode Go/Zen fetchers and scanners; the Antigravity fetcher (unverified live); GitHub Copilot through gh; the Devin link card; menu bar, popover, dashboard, settings; alerts; config; packaging.
-2. Antigravity live check: the fetcher is on `main`, but the `/usage` JSON shape stays unverified until agy can be installed. Most Copilot plans need the same check.
+2. Antigravity live check: the fetcher is on `main`, but the `/usage` JSON shape stays unverified until it is checked against a live install. Most Copilot plans need the same check.
 3. Devin numbers, once a source fits the hard rules: `devin -p /usage` would need a check that it answers without a model turn, hooks and MCP servers kept off, and the probe latch.
 4. Optional: OpenCode Zen balance through a console web session, Codex workspace switching, Anthropic and OpenAI admin cost APIs, GitHub Enterprise hosts for Copilot.
