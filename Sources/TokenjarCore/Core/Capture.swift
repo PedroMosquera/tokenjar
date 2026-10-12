@@ -247,10 +247,12 @@ public enum Capture {
         _ = try? context.paths.createProbeDirectory()
         let probe = context.paths.probeDirectory
 
+        let check = AntigravityUsageFetcher.versionCommand
         let versionRun: ProcessResult
         do {
             versionRun = try await context.process.run(
-                agy, arguments: ["--version"], environment: environment, currentDirectory: probe, stdin: nil, timeout: 15, outputLimit: 64 * 1024
+                agy, arguments: check.arguments, environment: environment, currentDirectory: probe, stdin: nil,
+                timeout: check.timeout, outputLimit: check.outputLimit
             )
         } catch {
             return .stopped("agy could not be started.")
@@ -263,11 +265,12 @@ public enum Capture {
             return .stopped("agy \(version.map(String.init).joined(separator: ".")) is older than 1.1.11, which can send /usage to the model as a prompt. Nothing else was run.")
         }
 
+        let usage = AntigravityUsageFetcher.usageCommand
         let usageRun: ProcessResult
         do {
             usageRun = try await context.process.run(
-                agy, arguments: ["-p", "/usage", "--output-format", "json"], environment: environment, currentDirectory: probe,
-                stdin: nil, timeout: 100, outputLimit: 1 << 20
+                agy, arguments: usage.arguments, environment: environment, currentDirectory: probe, stdin: nil,
+                timeout: usage.timeout, outputLimit: usage.outputLimit
             )
         } catch {
             return .stopped("agy could not be started.")

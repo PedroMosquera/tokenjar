@@ -4,6 +4,9 @@ import Foundation
 /// this never reads its token files or Keychain items and never talks to the Antigravity app.
 public struct AntigravityUsageFetcher: UsageFetcher {
     static let minimumVersion = [1, 1, 11]
+    /// What a check runs, shared with `--capture antigravity` so a capture sends agy exactly what the app sends.
+    static let versionCommand = (arguments: ["--version"], timeout: TimeInterval(15), outputLimit: 64 * 1024)
+    static let usageCommand = (arguments: ["-p", "/usage", "--output-format", "json"], timeout: TimeInterval(100), outputLimit: 1 << 20)
     public static let modelTurnMessage = "Antigravity ran /usage as a prompt, which spends quota. Checks for this account are paused until agy updates or you click Try Once More."
 
     public init() {}
@@ -15,8 +18,8 @@ public struct AntigravityUsageFetcher: UsageFetcher {
         _ = try? context.paths.createProbeDirectory()
 
         let versionRun = try await context.process.run(
-            agy, arguments: ["--version"], environment: environment, currentDirectory: probe,
-            stdin: nil, timeout: 15, outputLimit: 64 * 1024
+            agy, arguments: Self.versionCommand.arguments, environment: environment, currentDirectory: probe,
+            stdin: nil, timeout: Self.versionCommand.timeout, outputLimit: Self.versionCommand.outputLimit
         )
         if versionRun.timedOut { throw FetchError.timeout }
         // agy before 1.1.11 has no non-interactive slash commands and can send "/usage" to the model as a
@@ -27,8 +30,8 @@ public struct AntigravityUsageFetcher: UsageFetcher {
         guard Self.isSupported(version) else { throw FetchError.unsupported("Update agy to 1.1.11 or later") }
 
         let usageRun = try await context.process.run(
-            agy, arguments: ["-p", "/usage", "--output-format", "json"], environment: environment,
-            currentDirectory: probe, stdin: nil, timeout: 100, outputLimit: 1 << 20
+            agy, arguments: Self.usageCommand.arguments, environment: environment,
+            currentDirectory: probe, stdin: nil, timeout: Self.usageCommand.timeout, outputLimit: Self.usageCommand.outputLimit
         )
         if usageRun.timedOut { throw FetchError.timeout }
         guard usageRun.exitCode == 0 else {
