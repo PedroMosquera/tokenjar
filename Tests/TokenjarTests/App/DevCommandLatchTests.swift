@@ -63,6 +63,7 @@ struct DevCommandLatchTests {
 
         #expect(status == 1)
         #expect(run.cli.calls.isEmpty)
+        #expect(run.errors.joined().contains("Could not read probe-latch.json"))
     }
 
     @Test func aStoppedCaptureExitsWithAnError() async throws {

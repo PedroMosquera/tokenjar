@@ -145,6 +145,25 @@ final class CaptureCommandTests {
         }
     }
 
+    /// gh skips `--jq` when an HTTP error body carries a message and prints that body as it came, so for an error the
+    /// redaction here is the only one it passes through.
+    @Test func aGhErrorBodyIsRedactedBeforeItIsPrinted() async throws {
+        runner.answers = [output(
+            #"{"message":"Not Found for placeholder-login","documentation_url":"https://docs.github.com/rest","status":"404","user_id":4321}"#,
+            stderr: "gh: Not Found for placeholder-login (HTTP 404)\n", exitCode: 1
+        )]
+
+        let text = try document(await capture(.copilot))
+
+        let json = try object(text)
+        #expect(json["exitCode"] as? Int == 1)
+        #expect((json["response"] as? [String: Any])?.keys.sorted() == ["documentation_url", "message", "status", "user_id"])
+        #expect((json["stderr"] as? [String: Any])?["phrases"] as? [String] == ["http 404"])
+        for leaked in ["placeholder", "4321", "docs.github.com", "Not Found"] {
+            #expect(!text.contains(leaked), "\(leaked)")
+        }
+    }
+
     // MARK: Antigravity
 
     @Test func agyCaptureStopsBelowTheMinimumVersion() async throws {
