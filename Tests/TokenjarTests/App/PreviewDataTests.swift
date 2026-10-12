@@ -22,4 +22,12 @@ struct PreviewDataTests {
         #expect(caption.path == "~/.config/tokenjar/config.json")
         #expect(!caption.isLink)
     }
+
+    @Test func theKeyFileRowIgnoresThisMacsDataFolderInPreview() {
+        let go = AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go")
+        let paths = AppModel.preview().paths
+        let environment = ["XDG_DATA_HOME": "/Users/someone/.data"]
+        #expect(AccountCredentialSection.keyFile(for: go, paths: paths, previewMode: true, environment: environment).path == "~/.local/share/opencode/auth.json")
+        #expect(AccountCredentialSection.keyFile(for: go, paths: paths, previewMode: false, environment: environment).path == "/Users/someone/.data/opencode/auth.json")
+    }
 }

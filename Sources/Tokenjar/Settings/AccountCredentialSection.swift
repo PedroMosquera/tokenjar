@@ -102,12 +102,16 @@ struct AccountCredentialSection: View {
     }
 
     private var keyFile: (path: String, entry: String) {
+        Self.keyFile(for: account, paths: model.paths, previewMode: model.previewMode, environment: ProcessInfo.processInfo.environment)
+    }
+
+    /// A preview render ignores `environment`, so this Mac's `XDG_DATA_HOME` never reaches a README image.
+    static func keyFile(for account: AccountConfig, paths: AppPaths, previewMode: Bool, environment: [String: String]) -> (path: String, entry: String) {
         if case .file(let path, let key) = account.credential {
             return (path, "entry \(key)")
         }
-        let environment = model.previewMode ? [:] : ProcessInfo.processInfo.environment
-        let file = SettingsLogic.tildePath(AccountDiscovery.openCodeAuthFile(paths: model.paths, environment: environment).path, home: model.paths.home.path)
-        return (file, "entry opencode-go, else opencode")
+        let file = AccountDiscovery.openCodeAuthFile(paths: paths, environment: previewMode ? [:] : environment)
+        return (SettingsLogic.tildePath(file.path, home: paths.home.path), "entry opencode-go, else opencode")
     }
 
     private func saveKey() {

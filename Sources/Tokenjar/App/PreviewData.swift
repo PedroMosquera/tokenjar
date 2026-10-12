@@ -44,7 +44,7 @@ extension AppModel {
                 fetchedAt: now.addingTimeInterval(-90), source: "claude CLI"
             ),
             UsageSnapshot(
-                accountID: "claude-work", provider: .claude, plan: "Enterprise",
+                accountID: "claude-work", provider: .claude, plan: "Team",
                 windows: [
                     window("session", "5-hour", 88, 300, resetIn: 50 * 60),
                     window("weekly", "Week", 71, 10_080, resetIn: 3 * 86_400 + 6 * 3600),
@@ -85,10 +85,10 @@ extension AppModel {
             ],
             fetchedAt: now.addingTimeInterval(-300), source: "agy CLI"
         )
-        // An Enterprise seat at 2 of 5,000 AI credits; the cycle ends 2026-11-01 00:00 UTC.
+        // A Pro plan includes 1,500 AI credits a month; this cycle ends 2026-11-01 00:00 UTC.
         let copilot = UsageSnapshot(
-            accountID: "copilot", provider: .copilot, plan: "Enterprise",
-            windows: [window("monthly", "AI credits", 2.0 / 5_000 * 100, 44_640, resetIn: 1_793_491_200 - now.timeIntervalSince1970)],
+            accountID: "copilot", provider: .copilot, plan: "Pro",
+            windows: [window("monthly", "AI credits", 300.0 / 1_500 * 100, 44_640, resetIn: 1_793_491_200 - now.timeIntervalSince1970)],
             fetchedAt: now.addingTimeInterval(-100), source: "gh CLI"
         )
         for snapshot in snapshots + [antigravity, copilot, devinLink(now: now)] {
