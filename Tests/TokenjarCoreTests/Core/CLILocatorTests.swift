@@ -70,17 +70,40 @@ struct CLILocatorTests {
 
     /// A `cliPaths` entry is how a user picks one install over another found earlier in the search folders.
     @Test func anExistingOverrideStillWins() throws {
-        let home = FileManager.default.temporaryDirectory.appending(path: "tokenjar-locator-\(UUID().uuidString)")
+        let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
-        for path in [".local/bin/claude", "tools/claude"] {
-            let binary = home.appending(path: path)
-            try FileManager.default.createDirectory(at: binary.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data().write(to: binary)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
-        }
+        try makeExecutable(home.appending(path: ".local/bin/claude"))
+        try makeExecutable(home.appending(path: "tools/claude"))
 
-        let locator = CLILocator(home: home, overrides: ["claude": home.appending(path: "tools/claude").path])
+        let locator = CLILocator(
+            home: home, overrides: ["claude": home.appending(path: "tools/claude").path], searchDirectories: [home.appending(path: ".local/bin")]
+        )
 
         #expect(locator.locate("claude")?.path == home.appending(path: "tools/claude").path)
+    }
+
+    /// Every test that means "not installed" relies on this: /usr/bin/env exists on every Mac and /usr/bin is a
+    /// standard folder, so only an honored list keeps it out.
+    @Test func aFakeSearchFolderIsHonored() throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let fake = home.appending(path: "fake-bin")
+        try makeExecutable(fake.appending(path: "gh"))
+
+        #expect(CLILocator(home: home, searchDirectories: [fake]).locate("gh")?.path == fake.appending(path: "gh").path)
+        #expect(CLILocator(home: home, searchDirectories: [fake]).locate("env") == nil)
+        #expect(CLILocator(home: home, searchDirectories: []).locate("env") == nil)
+    }
+
+    private func temporaryHome() throws -> URL {
+        let home = FileManager.default.temporaryDirectory.appending(path: "tokenjar-locator-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        return home
+    }
+
+    private func makeExecutable(_ file: URL) throws {
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
     }
 }

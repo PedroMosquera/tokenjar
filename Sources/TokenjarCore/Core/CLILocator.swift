@@ -6,13 +6,20 @@ public struct CLILocator: Sendable {
     public var home: URL
     /// Per-CLI overrides from config (`cliPaths`), checked first.
     public var overrides: [String: String]
+    /// Where a CLI is looked for, in order. Also the head of every spawned CLI's PATH.
+    public var searchDirectories: [URL]
 
-    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser, overrides: [String: String] = [:]) {
+    /// `searchDirectories` defaults to `standardSearchDirectories(home:)`. Tests pass their own, so a CLI installed on
+    /// the Mac running them is never found.
+    public init(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser, overrides: [String: String] = [:], searchDirectories: [URL]? = nil
+    ) {
         self.home = home
         self.overrides = overrides
+        self.searchDirectories = searchDirectories ?? Self.standardSearchDirectories(home: home)
     }
 
-    public var searchDirectories: [URL] {
+    public static func standardSearchDirectories(home: URL) -> [URL] {
         [
             home.appending(path: ".local/bin"),
             URL(fileURLWithPath: "/opt/homebrew/bin"),

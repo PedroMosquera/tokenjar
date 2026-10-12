@@ -266,7 +266,7 @@ final class AntigravityUsageFetcherTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: agy.path)
         let now = self.now
         return FetchContext(
-            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: ["agy": agyPath ?? agy.path]),
+            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: ["agy": agyPath ?? agy.path], searchDirectories: []),
             paths: AppPaths(home: home), now: { now }
         )
     }

@@ -3,11 +3,11 @@ import Testing
 @testable import TokenjarCore
 
 struct AccountDiscoveryTests {
-    /// A locator that only looks at the overrides, so the real /opt/homebrew/bin never leaks into a test.
+    /// A locator that searches only the temp home's bin, so a CLI installed on the Mac running the tests never leaks in.
     func locator(_ home: TempHome, agy: Bool, gh: Bool) throws -> CLILocator {
         if agy { try home.write("bin/agy", "#!/bin/sh\n", permissions: 0o755) }
         if gh { try home.write("bin/gh", "#!/bin/sh\n", permissions: 0o755) }
-        return CLILocator(home: home.url, overrides: ["agy": home.url.appending(path: "bin/agy").path, "gh": home.url.appending(path: "bin/gh").path])
+        return CLILocator(home: home.url, searchDirectories: [home.url.appending(path: "bin")])
     }
 
     /// Stands in for /Applications, so an app installed on the machine running the tests is never seen.

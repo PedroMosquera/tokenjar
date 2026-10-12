@@ -268,7 +268,7 @@ final class CaptureCommandTests {
         }
         return FetchContext(
             process: runner, http: HTTPClient(transport: transport), secrets: InMemorySecretStore(),
-            cli: CLILocator(home: home, overrides: overrides), paths: AppPaths(home: home, environment: [:], systemRoot: systemRoot)
+            cli: CLILocator(home: home, overrides: overrides, searchDirectories: []), paths: AppPaths(home: home, environment: [:], systemRoot: systemRoot)
         )
     }
 

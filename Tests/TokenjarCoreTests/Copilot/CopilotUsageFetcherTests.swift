@@ -311,7 +311,7 @@ final class CopilotUsageFetcherTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: gh.path)
         let now = self.now
         return FetchContext(
-            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: ["gh": ghPath ?? gh.path]),
+            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: ["gh": ghPath ?? gh.path], searchDirectories: []),
             paths: AppPaths(home: home), now: { now }
         )
     }

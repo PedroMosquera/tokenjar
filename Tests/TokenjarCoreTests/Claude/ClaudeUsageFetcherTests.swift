@@ -66,7 +66,7 @@ private struct Sandbox {
 
     func context(_ runner: FakeClaude, cli: String = "/bin/sh", now: Date) -> FetchContext {
         FetchContext(
-            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: ["claude": cli]),
+            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: ["claude": cli], searchDirectories: []),
             paths: AppPaths(home: home), now: { now }
         )
     }

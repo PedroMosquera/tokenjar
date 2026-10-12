@@ -114,7 +114,9 @@ private final class DevRun {
         var environment = DevCommands.Environment()
         environment.paths = AppPaths(home: home.url, environment: [:], systemRoot: home.url.appending(path: "root"))
         let bin = home.url.appending(path: "bin")
-        environment.cli = CLILocator(home: home.url, overrides: ["claude": bin.appending(path: "claude").path, "agy": bin.appending(path: "agy").path])
+        environment.cli = CLILocator(
+            home: home.url, overrides: ["claude": bin.appending(path: "claude").path, "agy": bin.appending(path: "agy").path], searchDirectories: []
+        )
         environment.process = cli
         environment.secrets = InMemorySecretStore()
         environment.output = { [unowned self] in output.append($0) }
