@@ -26,6 +26,12 @@ enum LaunchMode: Equatable {
             return .renderWindows(WindowRenderOptions(directory: URL(fileURLWithPath: directory), realData: args.contains("--real-data"), only: only))
         }
         if args.contains("--real-data") || args.contains("--only") { return .invalid(renderWindowsUsage) }
+        if let flag = args.firstIndex(of: "--capture") {
+            guard value(after: flag, in: args) != nil else {
+                return .invalid("usage: Tokenjar --capture <provider> [--profile-dir DIR] [--credential-file FILE --credential-key KEY]")
+            }
+            return .devCommand
+        }
         if args.contains("--probe") || args.contains("--scan") { return .devCommand }
         return .app
     }
