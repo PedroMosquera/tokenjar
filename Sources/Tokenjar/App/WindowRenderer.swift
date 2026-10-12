@@ -34,10 +34,12 @@ private final class RenderSession {
 
     private struct RenderData {
         var model: AppModel
-        /// Edge states, no accounts at all, and a config that failed to reload: preview data only.
+        /// Edge states, no accounts at all, a config that failed to reload, and a screen too short for the popover:
+        /// preview data only.
         var states: AppModel?
         var empty: AppModel?
         var configError: AppModel?
+        var short: AppModel?
         var menuBar: [(name: String, state: MenuBarState)]
     }
 
@@ -55,6 +57,9 @@ private final class RenderSession {
             renderSettingsAccounts(data.model, prefix: "settings-narrow", size: WindowPresenter.Spec.settings.minSize, appearance: appearance, suffix: suffix)
             renderDashboard(data.model, appearance: appearance, suffix: suffix)
             renderPopover(data.model, screen: "popover", appearance: appearance, suffix: suffix)
+            if let short = data.short {
+                renderPopover(short, screen: "popover-short", appearance: appearance, suffix: suffix)
+            }
             if let states = data.states {
                 renderPopover(states, screen: "popover-states", appearance: appearance, suffix: suffix)
                 renderSettingsAccounts(states, prefix: "settings-states", appearance: appearance, suffix: suffix)
@@ -87,10 +92,12 @@ private final class RenderSession {
         let empty = AppModel.previewEmpty()
         let configError = AppModel.preview()
         configError.showFailedReload(of: "config.json")
-        for preview in [model, states, empty, configError] { preview.secrets = SessionSecretStore(InMemorySecretStore()) }
+        let short = AppModel.preview()
+        short.popoverMaxHeight = 400
+        for preview in [model, states, empty, configError, short] { preview.secrets = SessionSecretStore(InMemorySecretStore()) }
         let slots = SnapshotRenderer.slotStates(now: model.now).map { (name: "slot-\($0.name)", state: $0.state) }
         return RenderData(
-            model: model, states: states, empty: empty, configError: configError,
+            model: model, states: states, empty: empty, configError: configError, short: short,
             menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + slots
         )
     }
@@ -158,9 +165,10 @@ private final class RenderSession {
         }
     }
 
-    /// The popover's controller in a borderless window of the size NSPopover gives it: the content's fitting size.
-    /// The window background stands in for the popover material, which cacheDisplay cannot blend. AppDelegate's
-    /// `popoverWillOpen` is left out: it moves `now` to the wall clock, which would shift every preview countdown.
+    /// The popover's controller in a borderless window of the size `AppDelegate.open` gives the popover: the content's
+    /// settled size. The window background stands in for the popover material, which cacheDisplay cannot blend.
+    /// AppDelegate's `popoverWillOpen` is left out: it moves `now` to the wall clock, which would shift every preview
+    /// countdown.
     private func renderPopover(_ model: AppModel, screen: String, appearance: NSAppearance, suffix: String) {
         let steps = [Step(screen: screen) {}]
         walk(steps, appearance: appearance, suffix: suffix) {
@@ -168,7 +176,7 @@ private final class RenderSession {
             let window = CaptureWindow(contentViewController: controller)
             window.styleMask = [.borderless]
             window.isReleasedWhenClosed = false
-            window.setContentSize(controller.view.fittingSize)
+            if let size = AppDelegate.settledSize(of: controller) { window.setContentSize(size) }
             return window
         }
     }

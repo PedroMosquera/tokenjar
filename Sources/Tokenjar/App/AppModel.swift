@@ -48,6 +48,8 @@ final class AppModel {
     /// `now` for the popover's views. It moves only while the popover is shown, so the popover's long-lived content
     /// does not redraw every 30 seconds while closed; opening it brings the clock up to date first.
     var popoverNow: Date
+    /// The tallest the popover may be under its status item, set as it opens. nil leaves only the cards' own cap.
+    var popoverMaxHeight: CGFloat?
     /// Set by the popover's delegate.
     @ObservationIgnored var isPopoverShown = false
     /// Bumped whenever stored samples or usage rows change, and when the local day turns over, so history views reload.
