@@ -1,8 +1,9 @@
 import AppKit
 
-/// Whether a quit request asks first, and the alert it shows. The popover's Quit and its Command-Q, and the app menu's
-/// Quit, come here. Dock > Quit, AppleScript, logout and restart call `terminate` directly, and the app implements no
-/// `applicationShouldTerminate`, so none of them is ever held up.
+/// Whether a quit request asks first, and the alert it shows. The popover's Quit and its Command-Q, the status item
+/// menu's "Quit Tokenjar..." and the app menu's Quit come here. Dock > Quit, AppleScript, logout, restart and the status
+/// item menu's Option alternate call `terminate` directly, and the app implements no `applicationShouldTerminate`, so
+/// none of them is ever held up.
 struct QuitConfirmation {
     private(set) var isAsking = false
 

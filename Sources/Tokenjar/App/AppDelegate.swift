@@ -3,7 +3,7 @@ import os
 import SwiftUI
 import TokenjarCore
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, StatusItemMenuTarget {
     let model = AppModel()
     private let windows = WindowPresenter()
     private var statusItem: NSStatusItem?
@@ -51,7 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.target = self
-        item.button?.action = #selector(togglePopover(_:))
+        item.button?.action = #selector(statusItemClicked(_:))
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         item.button?.imagePosition = .imageLeading
         statusItem = item
 
@@ -81,7 +82,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSTimeZone.resetSystemTimeZone()
     }
 
-    @objc private func togglePopover(_ sender: NSStatusBarButton) {
+    @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
+        let event = NSApp.currentEvent
+        switch StatusItemClick.route(event?.type, modifiers: event?.modifierFlags ?? []) {
+        case .popover: togglePopover(sender)
+        case .menu: showMenu(from: sender)
+        }
+    }
+
+    /// The menu is set on the status item only while it is open: with a menu set, a left click would open it too.
+    private func showMenu(from button: NSStatusBarButton) {
+        guard let statusItem else { return }
+        if popover.isShown { popover.performClose(nil) }
+        statusItem.menu = StatusItemMenu.make(hasAccounts: !model.accounts.isEmpty, target: self)
+        defer { statusItem.menu = nil }
+        button.performClick(nil)
+    }
+
+    private func togglePopover(_ sender: NSStatusBarButton) {
         if popover.isShown {
             popover.performClose(sender)
         } else {
@@ -133,6 +151,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private static func anchorGeometry(of button: NSView) -> (anchor: NSRect, visibleFrame: NSRect)? {
         guard let window = button.window, let screen = window.screen else { return nil }
         return (window.convertToScreen(button.convert(button.bounds, to: nil)), screen.visibleFrame)
+    }
+
+    @objc func refreshNow(_ sender: Any?) {
+        PopoverHeader.refreshNow(model)
+    }
+
+    @objc func openDashboard(_ sender: Any?) {
+        model.showDashboard()
     }
 
     @objc func openSettings(_ sender: Any?) {
