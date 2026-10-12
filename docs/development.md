@@ -42,6 +42,13 @@ The binary takes five flags that do one job and exit:
 
 `<provider>` is one of `claude`, `codex`, `opencode-go`, `opencode-zen`, `antigravity`, `copilot`, `devin`. None of the five writes `tokenjar.sqlite` or `config.json`, and none moves the folders left by Headroom, Tokenjar's old name. [privacy.md](privacy.md#what-it-writes) lists what each reads and writes.
 
+`renders/` and `captures/` at the repository root are for real-data renders and captures: they hold your own data, and `.gitignore` keeps them out of git.
+
+```sh
+.build/debug/Tokenjar --render-windows renders --real-data
+mkdir -p captures && .build/debug/Tokenjar --capture codex > captures/codex.json
+```
+
 ## Preview renders and the README images
 
 Preview renders read no path, region or time zone from your Mac. The accounts, numbers and the fixed date in the preview data are made up. The preview models use a stand-in home folder, `/Users/you`, and the process switches to US English and UTC before it draws, so a render looks the same on any Mac. A render with `--real-data` shows your own config and history, so keep those images to yourself.
