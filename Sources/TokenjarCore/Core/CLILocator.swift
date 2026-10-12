@@ -3,7 +3,7 @@ import Foundation
 /// Finds the CLIs Tokenjar runs (claude, codex, agy, gh) without a login shell. A menu bar app launched by launchd
 /// does not inherit the user's shell PATH, and sourcing their shell rc files would run arbitrary user code on every refresh.
 public struct CLILocator: Sendable {
-    public var home: URL
+    public let home: URL
     /// Per-CLI overrides from config (`cliPaths`), checked first.
     public var overrides: [String: String]
     /// Where a CLI is looked for, in order. Also the head of every spawned CLI's PATH.
