@@ -36,13 +36,16 @@ public struct CLILocator: Sendable {
             .first { fm.isExecutableFile(atPath: $0.path) }
     }
 
-    /// Environment for spawned CLIs: only HOME, USER, LOGNAME, LANG, TMPDIR and SHELL from `inherited`, a PATH covering
-    /// the search directories, and NO_COLOR. Nothing else passes through, so a launch environment's API keys or config
-    /// dirs cannot change which login a CLI reports. Callers add their own on top (CLAUDE_CONFIG_DIR, CODEX_HOME, and
-    /// for gh its GH_* variables and DO_NOT_TRACK).
+    static let inheritedVariables = ["HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL"]
+    static let proxyVariables = ["HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy"]
+
+    /// Environment for spawned CLIs: only `inheritedVariables` and `proxyVariables` that are set in `inherited`, a PATH
+    /// covering the search directories, and NO_COLOR. Nothing else passes through, so a launch environment's API keys or
+    /// config dirs cannot change which login a CLI reports. Proxy values can hold credentials, so never log the result.
+    /// Callers add their own on top (CLAUDE_CONFIG_DIR, CODEX_HOME, and for gh its GH_* variables and DO_NOT_TRACK).
     public func baseEnvironment(inherited: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
         var env: [String: String] = [:]
-        for key in ["HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL"] {
+        for key in Self.inheritedVariables + Self.proxyVariables {
             if let value = inherited[key] { env[key] = value }
         }
         env["HOME"] = home.path
