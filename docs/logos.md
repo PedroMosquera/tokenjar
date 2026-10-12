@@ -42,8 +42,9 @@ curl -sSf https://cdn.jsdelivr.net/npm/simple-icons@16.32.0/icons/claude.svg | s
 
 - The simple-icons collection is released under **CC0 1.0** (`LICENSE.md` in the package). Its `DISCLAIMER.md` notes that CC0 for the collection does not mean every icon is CC0.
 - `copilot.svg` is one of those exceptions: simple-icons takes it from Primer Octicons' `copilot-24` icon and lists it under the MIT License, so the Octicons notice ships in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
-- The marks are **trademarks of their owners**: Claude (Anthropic), OpenAI, OpenCode, Google Gemini (Google), GitHub Copilot (GitHub) and Windsurf. CC0 covers the SVG drawing, not the trademark.
-- The repository is published with these logos, used only to identify each provider. [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) holds the licenses and the trademark notice, and the repository's own MIT License does not cover the logos.
+- `opencode.svg` has no license of its own in simple-icons, but the source simple-icons names is `packages/identity/mark.svg` in opencode's MIT-licensed repository, so opencode's MIT notice also ships in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
+- The marks are **trademarks of their owners**: Claude (Anthropic), OpenAI, OpenCode, Google Gemini (Google), GitHub Copilot (GitHub) and Windsurf (Cognition). CC0 covers the SVG drawing, not the trademark.
+- The repository is published with these logos. They mark each provider's accounts in the app, and one appears in the menu bar only when the user picks it as the menu bar icon. [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) holds the licenses and the trademark notice, and the repository's own MIT License does not cover the logos.
 - Brand guidelines: simple-icons lists OpenAI's at https://openai.com/brand and Windsurf's at https://windsurf.com/brand, and GitHub's logo page is https://github.com/logos. simple-icons lists no guidelines URL for Claude, OpenCode or Google Gemini.
 
 ## Marks
