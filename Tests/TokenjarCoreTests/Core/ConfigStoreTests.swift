@@ -63,7 +63,8 @@ struct ConfigStoreTests {
              "alerts": {"enabled": false, "thresholds": [50], "projectedExhaustion": false, "windowResets": true, "sourceProblems": false},
              "accounts": [{"id": "claude", "label": "Work", "enabled": false, "profileDir": "~/.claude-alt",
                            "credential": {"keychain": {"account": "x"}}, "showInMenuBar": false, "refreshMinutes": 1,
-                           "alertThresholds": [50], "dashboardURL": "https://x.example"}]}
+                           "alertThresholds": [50], "shortAlertThresholds": [60], "creditAllowance": 1500,
+                           "dashboardURL": "https://x.example"}]}
             """#, to: paths.localConfigFile)
         let store = ConfigStore(paths: paths)
         let loaded = try #require(try store.load())
@@ -238,13 +239,15 @@ struct ConfigStoreTests {
     }
 
     enum NewLeaf: String, CaseIterable, Sendable {
-        case shortThresholds, paceDays, hotkey
+        case shortThresholds, paceDays, hotkey, accountShortThresholds, creditAllowance
 
         func edit(_ config: inout AppConfig) {
             switch self {
             case .shortThresholds: config.alerts.shortThresholds = [90]
             case .paceDays: config.paceDays = .workingDays
             case .hotkey: config.hotkey = "control+option+command+U"
+            case .accountShortThresholds: config.accounts[0].shortAlertThresholds = [90]
+            case .creditAllowance: config.accounts[0].creditAllowance = 300
             }
         }
 
@@ -255,6 +258,8 @@ struct ConfigStoreTests {
             case .shortThresholds: ["alerts": ["shortThresholds": [50]]]
             case .paceDays: ["paceDays": "workingDays"]
             case .hotkey: ["hotkey": "control+U"]
+            case .accountShortThresholds: ["accounts": [["id": "claude", "shortAlertThresholds": [50]]]]
+            case .creditAllowance: ["accounts": [["id": "claude", "creditAllowance": 1500]]]
             }
         }
     }
@@ -370,11 +375,14 @@ struct ConfigStoreTests {
     }
 
     @Test func aConfigWithoutTheNewKeysLoadsTheDefaults() throws {
-        let config = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"alerts": {"thresholds": [70]}, "accounts": []}"#.utf8))
+        let json = #"{"alerts": {"thresholds": [70]}, "accounts": [{"id": "copilot", "provider": "copilot"}]}"#
+        let config = try JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
         #expect(config.alerts.thresholds == [70])
         #expect(config.alerts.shortThresholds == [95])
         #expect(config.paceDays == .everyDay)
         #expect(config.hotkey == nil)
+        #expect(config.accounts[0].shortAlertThresholds == nil)
+        #expect(config.accounts[0].creditAllowance == nil)
     }
 
     /// Like the menu bar icon: a choice from a newer build must not fail the whole load on an older one.

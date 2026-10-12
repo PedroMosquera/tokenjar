@@ -55,8 +55,8 @@ extension PaceTests {
 
     var saturdaySunday: WorkWeek { WorkWeek(weekend: [7, 1], calendar: Self.utc) }
 
-    private func date(_ day: Int, _ hour: Int = 0) -> Date {
-        Self.utc.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour))!
+    private func date(_ day: Int, _ hour: Int = 0, _ minute: Int = 0) -> Date {
+        Self.utc.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour, minute: minute))!
     }
 
     private func window(used: Double, from start: Date, days: Int) -> UsageWindow {
@@ -94,11 +94,48 @@ extension PaceTests {
         #expect(try #require(Pace.compute(week, now: date(15, 12))).runsOutBeforeReset)
     }
 
-    /// Saturday in a week that resets on Monday has no working time left, so the even pace would sit at 100 %.
-    @Test func aWindowWithNoWorkingTimeLeftFallsBackToLinear() throws {
+    /// Two minutes of clock time apart, across the start of the weekend in a week that resets on Monday.
+    @Test func noJumpWhenTheWeekendStarts() throws {
+        let week = window(used: 50, from: date(12), days: 7)
+        let friday = try #require(Pace.compute(week, now: date(16, 23, 59), workWeek: saturdaySunday))
+        let saturday = try #require(Pace.compute(week, now: date(17, 0, 1), workWeek: saturdaySunday))
+        #expect(abs(saturday.expectedPercent - friday.expectedPercent) < 1)
+    }
+
+    /// Every working hour of a week that resets on Monday has passed by Saturday 00:00.
+    @Test(arguments: [(17, 0), (17, 12), (18, 23)])
+    func expectedStaysFullThroughATrailingWeekend(day: Int, hour: Int) throws {
+        let week = window(used: 50, from: date(12), days: 7)
+        let pace = try #require(Pace.compute(week, now: date(day, hour), workWeek: saturdaySunday))
+        #expect(pace.expectedPercent == 100)
+        #expect(pace.fractionElapsed == 1)
+    }
+
+    /// A week from Saturday has used none of its working time until Monday, so its pace stays hidden that long.
+    @Test(arguments: [(10, 12), (11, 23)])
+    func expectedStaysAtZeroThroughALeadingWeekend(day: Int, hour: Int) throws {
+        let week = window(used: 0, from: date(10), days: 7)
+        let pace = try #require(Pace.compute(week, now: date(day, hour), minimumElapsedFraction: 0, workWeek: saturdaySunday))
+        #expect(pace.expectedPercent == 0)
+        #expect(Pace.compute(week, now: date(day, hour), workWeek: saturdaySunday) == nil)
+    }
+
+    /// Saturday 00:00 to Monday 00:00 is longer than a day and holds no working time, so only the clock can pace it.
+    @Test func aWindowWithNoWorkingTimeAtAllIsLinear() throws {
+        let weekend = window(used: 30, from: date(17), days: 2)
+        let linear = try #require(Pace.compute(weekend, now: date(18, 12)))
+        #expect(abs(linear.expectedPercent - 75) < 0.001)
+        #expect(Pace.compute(weekend, now: date(18, 12), workWeek: saturdaySunday) == linear)
+    }
+
+    /// 80 % used by Friday 23:00 needs about 30 more working hours at that rate, and the weekend before Monday's reset
+    /// has none, so the weekend starting must not turn the projection into a run-out.
+    @Test func runOutDoesNotFlipAtTheWeekend() throws {
         let week = window(used: 80, from: date(12), days: 7)
-        let linear = try #require(Pace.compute(week, now: date(17, 12)))
-        #expect(Pace.compute(week, now: date(17, 12), workWeek: saturdaySunday) == linear)
+        for now in [date(16, 23), date(17, 0, 1), date(18, 12)] {
+            let pace = try #require(Pace.compute(week, now: now, workWeek: saturdaySunday))
+            #expect(!pace.runsOutBeforeReset, "at \(now)")
+        }
     }
 
     /// Sunday 22:00 to Monday 03:00: with the work week it would count only Monday's hours.
