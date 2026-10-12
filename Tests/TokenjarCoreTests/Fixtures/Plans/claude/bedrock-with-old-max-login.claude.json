@@ -1,0 +1,36 @@
+{
+  "oauthAccount": {
+    "accountUuid": "ACCOUNT_UUID_FAKE",
+    "emailAddress": "EMAIL_PLACEHOLDER",
+    "organizationType": "claude_max",
+    "organizationRateLimitTier": "default_claude_max_20x",
+    "billingType": "stripe_subscription",
+    "seatTier": null
+  },
+  "cachedUsageUtilization": {
+    "fetchedAtMs": 1791661279383,
+    "accountUuid": "ACCOUNT_UUID_FAKE",
+    "utilization": {
+      "limits": [
+        {
+          "kind": "session",
+          "group": "session",
+          "percent": 17,
+          "severity": "normal",
+          "resets_at": "2026-10-10T22:20:00+00:00",
+          "scope": null,
+          "is_active": true
+        },
+        {
+          "kind": "weekly_all",
+          "group": "weekly",
+          "percent": 14,
+          "severity": "normal",
+          "resets_at": "2026-10-12T09:00:00+00:00",
+          "scope": null,
+          "is_active": false
+        }
+      ]
+    }
+  }
+}

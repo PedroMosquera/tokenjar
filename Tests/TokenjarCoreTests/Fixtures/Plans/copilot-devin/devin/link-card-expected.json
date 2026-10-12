@@ -1,0 +1,32 @@
+{
+  "_about": "DevinUsageFetcher takes no plan input: every Devin plan produces the same snapshot. Each case is an AccountConfig a user on that plan could have and the snapshot Tokenjar must return. The test must refuse every process, HTTP request and secret read.",
+  "fetchedAt": "2026-10-11T12:00:00Z",
+  "expected": {
+    "main": {
+      "provider": "devin", "plan": null, "windows": [], "money": [], "source": "plan page",
+      "notes_without_usage_page": [
+        "Devin doesn't share your quota with local apps yet. Open the plan page to see it.",
+        "On a grandfathered Windsurf plan? Set this account's usage page to windsurf.com/subscription/manage-plan."
+      ],
+      "notes_with_usage_page": ["Devin doesn't share your quota with local apps yet. Open the plan page to see it."]
+    },
+    "polish/core-app": {
+      "provider": "devin", "plan": null, "windows": [], "money": [], "source": "usage page",
+      "notes_without_usage_page": [
+        "Devin doesn't share your quota with local apps yet. Open the usage page to see it.",
+        "On a grandfathered Windsurf plan? Set this account's usage page to windsurf.com/subscription/manage-plan."
+      ],
+      "notes_with_usage_page": ["Devin doesn't share your quota with local apps yet. Open the usage page to see it."]
+    }
+  },
+  "forbidden": {"processRuns": 0, "httpRequests": 0, "secretReads": 0, "fileReads": 0},
+  "cases": [
+    {"plan": "Free", "account": {"id": "devin", "provider": "devin", "label": "Devin", "showInMenuBar": false}},
+    {"plan": "Pro", "account": {"id": "devin", "provider": "devin", "label": "Devin", "showInMenuBar": false}},
+    {"plan": "Max", "account": {"id": "devin-max", "provider": "devin", "label": "Max", "showInMenuBar": false}},
+    {"plan": "Teams (shared on-demand credits)", "account": {"id": "devin-team", "provider": "devin", "label": "Example Team", "showInMenuBar": true}},
+    {"plan": "Enterprise (ACUs at an order-form rate)", "account": {"id": "devin-enterprise", "provider": "devin", "label": "Work", "dashboardURL": "https://app.devin.ai/settings/usage"}},
+    {"plan": "Grandfathered Windsurf / Devin Desktop", "account": {"id": "windsurf", "provider": "devin", "label": "Windsurf", "dashboardURL": "https://windsurf.com/subscription/manage-plan"}},
+    {"plan": "Any plan, unsafe usage page override", "account": {"id": "devin-odd", "provider": "devin", "label": "Devin", "dashboardURL": "file:///etc/hosts"}, "resolvedDashboardURL": "https://app.devin.ai/settings/plans"}
+  ]
+}
