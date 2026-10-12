@@ -90,16 +90,21 @@ struct StatusItemMenuTests {
         #expect(items.allSatisfy { $0.keyEquivalent.isEmpty && $0.image == nil })
     }
 
-    /// The alternate is left out: it would quit the test run.
+    /// The alternate is left out: it would quit the test run. An item aimed anywhere but the test's delegate is
+    /// recorded, not sent, since a terminate: that got through would end the run with exit code 0.
     @Test func eachItemReachesItsTarget() {
         let menu = StatusItemMenu.make(hasAccounts: true, target: delegate)
-        for item in menu.items where !item.isSeparatorItem && !item.isAlternate {
-            guard let action = item.action else {
-                Issue.record("\(item.title) has no action")
-                continue
+        let refusal = RefusesToQuit()
+        refusal.whileInstalled {
+            for item in menu.items where !item.isSeparatorItem && !item.isAlternate {
+                guard item.target === delegate, let action = item.action else {
+                    Issue.record("\(item.title) sends \(String(describing: item.action)) to \(String(describing: item.target))")
+                    continue
+                }
+                NSApplication.shared.sendAction(action, to: item.target, from: item)
             }
-            NSApplication.shared.sendAction(action, to: item.target, from: item)
         }
+        #expect(!refusal.wasAsked)
         #expect(delegate.calls == ["refresh", "dashboard", "settings", "quit"])
     }
 }

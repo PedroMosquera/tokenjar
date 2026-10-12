@@ -57,9 +57,36 @@ struct QuitConfirmationTests {
         let model = AppModel(paths: home.paths, fetcher: { _ in FakeFetcher(log: FetchLog()) { .success(usageSnapshot($0)) } })
         var requests = 0
         model.presenter.requestQuit = { requests += 1 }
+        let refusal = RefusesToQuit()
 
-        model.quit()
+        refusal.whileInstalled { model.quit() }
 
+        #expect(!refusal.wasAsked)
         #expect(requests == 1)
+    }
+
+    /// Logout, restart and Dock > Quit go straight to terminate and never see the alert. An
+    /// `applicationShouldTerminate` would sit in their path, where a mistake could hold up a logout.
+    @Test func theAppLeavesQuitsItDidNotStartToAppKit() {
+        #expect(!AppDelegate.instancesRespond(to: #selector(NSApplicationDelegate.applicationShouldTerminate(_:))))
+    }
+}
+
+/// Stands in as the app's delegate while a test runs code that must not quit. A terminate call then asks this
+/// delegate, which refuses, so the test fails on `wasAsked` instead of ending the test run with exit code 0.
+final class RefusesToQuit: NSObject, NSApplicationDelegate {
+    private(set) var wasAsked = false
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        wasAsked = true
+        return .terminateCancel
+    }
+
+    func whileInstalled(_ body: () -> Void) {
+        let app = NSApplication.shared
+        let previous = app.delegate
+        app.delegate = self
+        defer { app.delegate = previous }
+        body()
     }
 }
