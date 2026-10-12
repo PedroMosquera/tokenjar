@@ -2,8 +2,10 @@ Redacted fixtures. Every string that could identify a person or account (emails,
 prompts) is replaced with a placeholder before it lands here. Numbers and field names are real, except where no live
 answer could be captured, so the fixture is written by hand:
 
-- `Antigravity/`: agy is not installed on the build machine, so both files follow the field names of CodexBar's agy
-  test fixture.
+- `Antigravity/`: agy is not installed on the build machine, so all five files are written by hand. `usage-camel.json`
+  and `usage-snake.json` follow the field names of CodexBar's agy test fixture. `enterprise-no-quota.stdout.json`,
+  `renamed-groups-envelope.stdout.json` and `model-turn.stdout.json` are copies of the plan matrix's synthetic
+  envelopes in `Plans/antigravity/`.
 - `Copilot/`: the fixtures follow the shape of gh's filtered answer. Most Copilot plans have
   not been probed, so their fixtures follow the shapes VS Code's Copilot extension and CodexBar read.
 - `Plans/`: fixtures for the plan matrix, all mocked. A `recorded` case reads its live captures from the folders above.
