@@ -1,22 +1,29 @@
 import AppKit
 
-/// Whether a quit request asks first, and the alert it shows. The popover's Quit and its Command-Q, the status item
-/// menu's "Quit Tokenjar..." and the app menu's Quit come here. Dock > Quit, AppleScript, logout, restart and the status
-/// item menu's Option alternate call `terminate` directly, and the app implements no `applicationShouldTerminate`, so
-/// none of them is ever held up.
+/// Whether a quit request from Tokenjar's own controls asks first, what the answer does, and the alert it shows.
 struct QuitConfirmation {
-    private(set) var isAsking = false
-
-    /// False while the alert from an earlier request is still up, so two quick requests never stack two alerts.
-    mutating func shouldAsk() -> Bool {
-        defer { isAsking = true }
-        return !isAsking
+    enum Outcome: Equatable {
+        case quit
+        /// Cancel. `refocus` is the app that was in front when the request came, unless that was Tokenjar.
+        case stay(refocus: NSRunningApplication?)
     }
 
-    /// Whether the answer quits. Either answer lets the next request ask again.
-    mutating func quits(after response: NSApplication.ModalResponse) -> Bool {
-        isAsking = false
-        return response == .alertFirstButtonReturn
+    private(set) var isAsking = false
+    private var appInFront: NSRunningApplication?
+
+    /// False while the alert from an earlier request is still up, so two quick requests never stack two alerts.
+    /// `frontmost` must be read before Tokenjar activates to show the alert.
+    mutating func shouldAsk(frontmost: NSRunningApplication?) -> Bool {
+        guard !isAsking else { return false }
+        isAsking = true
+        appInFront = frontmost?.processIdentifier == NSRunningApplication.current.processIdentifier ? nil : frontmost
+        return true
+    }
+
+    /// Either answer lets the next request ask again.
+    mutating func outcome(of response: NSApplication.ModalResponse) -> Outcome {
+        defer { isAsking = false }
+        return response == .alertFirstButtonReturn ? .quit : .stay(refocus: appInFront)
     }
 
     /// NSAlert gives Return to the first button and Escape to a button titled Cancel.

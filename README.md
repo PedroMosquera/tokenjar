@@ -41,7 +41,7 @@ The menu bar item shows the used percent of the account with the least room left
 
 Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. When the Mac is offline or no provider answers, the header says so once and the cards keep their last numbers with their age. Command-R refreshes.
 
-Right-click the menu bar item, or Control-click it, for Refresh Now, Open Dashboard, Settings and Quit Tokenjar. Quitting asks first, from that menu and from the popover. Hold Option in the menu to quit without being asked.
+Right-click the menu bar item, or Control-click it, for Refresh Now, Open Dashboard, Settings and Quit Tokenjar. Quitting from that menu, the popover or Command-Q asks first. Hold Option in the menu to quit without being asked.
 
 The dashboard (Command-D) charts each limit over time with its resets and estimates what your usage would have cost at API prices, split by model, harness, project or account. Antigravity and Copilot keep no local logs, so they show limits only.
 

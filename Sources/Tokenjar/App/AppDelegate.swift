@@ -168,7 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     /// The alert waits for the run loop's default mode, which menu tracking never runs in, so a request from a menu
     /// shows it only after that menu has closed and the status item has let go of it.
     @objc func requestQuit(_ sender: Any?) {
-        guard quitConfirmation.shouldAsk() else { return }
+        guard quitConfirmation.shouldAsk(frontmost: NSWorkspace.shared.frontmostApplication) else { return }
         if popover.isShown { popover.performClose(nil) }
         RunLoop.main.perform(inModes: [.default]) {
             MainActor.assumeIsolated { self.askToQuit() }
@@ -178,8 +178,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     private func askToQuit() {
         // An accessory app's alert would otherwise open behind the frontmost app.
         NSApp.activate()
-        let response = QuitConfirmation.makeAlert().runModal()
-        if quitConfirmation.quits(after: response) { NSApp.terminate(nil) }
+        switch quitConfirmation.outcome(of: QuitConfirmation.makeAlert().runModal()) {
+        case .quit: NSApp.terminate(nil)
+        case .stay(let refocus): refocus.map(Self.handFocusBack)
+        }
+    }
+
+    /// Without this, Tokenjar stays active with no window after Cancel, and typing goes nowhere until the person
+    /// clicks back into their app.
+    private static func handFocusBack(to app: NSRunningApplication) {
+        NSApp.yieldActivation(to: app)
+        app.activate(from: .current, options: [])
     }
 
     func popoverWillShow(_ notification: Notification) {

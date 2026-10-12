@@ -4,39 +4,77 @@ import Testing
 
 @MainActor
 struct QuitConfirmationTests {
+    private let tokenjar = NSRunningApplication.current
+
+    /// Any running app but the test runner, standing in for the app the person was typing in. Only read, never activated.
+    private func otherApp() throws -> NSRunningApplication {
+        try #require(NSWorkspace.shared.runningApplications.first { $0.processIdentifier != tokenjar.processIdentifier })
+    }
+
     @Test func theFirstRequestAsks() {
         var confirmation = QuitConfirmation()
-        let asks = confirmation.shouldAsk()
+        let asks = confirmation.shouldAsk(frontmost: nil)
         #expect(asks)
     }
 
     /// Two quick clicks on Quit would otherwise queue a second alert behind the first.
     @Test func aRequestWhileTheAlertIsUpDoesNotAskAgain() {
         var confirmation = QuitConfirmation()
-        _ = confirmation.shouldAsk()
-        let asksAgain = confirmation.shouldAsk()
+        _ = confirmation.shouldAsk(frontmost: nil)
+        let asksAgain = confirmation.shouldAsk(frontmost: nil)
         #expect(!asksAgain)
     }
 
     @Test func quitQuitsAndCancelDoesNot() {
         var confirmation = QuitConfirmation()
-        _ = confirmation.shouldAsk()
-        let quitQuits = confirmation.quits(after: .alertFirstButtonReturn)
-        _ = confirmation.shouldAsk()
-        let cancelQuits = confirmation.quits(after: .alertSecondButtonReturn)
-        #expect(quitQuits)
-        #expect(!cancelQuits)
+        _ = confirmation.shouldAsk(frontmost: nil)
+        let afterQuit = confirmation.outcome(of: .alertFirstButtonReturn)
+        _ = confirmation.shouldAsk(frontmost: nil)
+        let afterCancel = confirmation.outcome(of: .alertSecondButtonReturn)
+        #expect(afterQuit == .quit)
+        #expect(afterCancel == .stay(refocus: nil))
     }
 
     @Test func eitherAnswerLetsTheNextRequestAsk() {
         var confirmation = QuitConfirmation()
-        _ = confirmation.shouldAsk()
-        _ = confirmation.quits(after: .alertSecondButtonReturn)
-        let asksAfterCancel = confirmation.shouldAsk()
-        _ = confirmation.quits(after: .alertFirstButtonReturn)
-        let asksAfterQuit = confirmation.shouldAsk()
+        _ = confirmation.shouldAsk(frontmost: nil)
+        _ = confirmation.outcome(of: .alertSecondButtonReturn)
+        let asksAfterCancel = confirmation.shouldAsk(frontmost: nil)
+        _ = confirmation.outcome(of: .alertFirstButtonReturn)
+        let asksAfterQuit = confirmation.shouldAsk(frontmost: nil)
         #expect(asksAfterCancel)
         #expect(asksAfterQuit)
+    }
+
+    /// The menu is the misclick case: Tokenjar activates only to show the alert, so after Cancel typing would go
+    /// nowhere until the person clicked back into their app.
+    @Test func cancelHandsFocusBackToTheAppThatWasInFront() throws {
+        let other = try otherApp()
+        var confirmation = QuitConfirmation()
+        _ = confirmation.shouldAsk(frontmost: other)
+        let outcome = confirmation.outcome(of: .alertSecondButtonReturn)
+        #expect(outcome == .stay(refocus: other))
+    }
+
+    /// Command-Q in the Dashboard: the person was already in Tokenjar, so Cancel leaves them there.
+    @Test func cancelLeavesFocusAloneWhenTokenjarWasInFront() {
+        var confirmation = QuitConfirmation()
+        _ = confirmation.shouldAsk(frontmost: tokenjar)
+        let outcome = confirmation.outcome(of: .alertSecondButtonReturn)
+        #expect(outcome == .stay(refocus: nil))
+    }
+
+    /// The app in front belongs to the request that asked, not to one dropped while its alert was up.
+    @Test func eachRequestRemembersItsOwnApp() throws {
+        let other = try otherApp()
+        var confirmation = QuitConfirmation()
+        _ = confirmation.shouldAsk(frontmost: other)
+        _ = confirmation.shouldAsk(frontmost: tokenjar)
+        let first = confirmation.outcome(of: .alertSecondButtonReturn)
+        _ = confirmation.shouldAsk(frontmost: tokenjar)
+        let second = confirmation.outcome(of: .alertSecondButtonReturn)
+        #expect(first == .stay(refocus: other))
+        #expect(second == .stay(refocus: nil))
     }
 
     /// Built only: running it would put an alert on screen.
