@@ -137,12 +137,36 @@ final class CaptureCommandTests {
         let (status, filtered) = try jq(program, raw)
 
         #expect(status == 0)
-        for leaked in ["placeholder", "Placeholder", "1234", "4321", "8765", "9753", "0123456789abcdef", "example", #""id":5"#, #""id":6"#, "2026-"] {
+        for leaked in ["placeholder", "Placeholder", "1234", "4321", "8765", "9753", "0123456789abcdef", "example", #""id":5"#, #""id":6"#, "2026-01-01", "2026-10-11"] {
             #expect(!filtered.contains(leaked), "\(leaked)")
         }
         for kept in [#""copilot_plan":"enterprise""#, #""access_type_sku":"copilot_enterprise_seat_quota""#, #""quota_id":"premium_interactions""#, #""entitlement":5000"#, #""credits_used":2"#, #""unlimited":false"#, #""login":"<redacted>""#] {
             #expect(filtered.contains(kept), "\(kept)")
         }
+    }
+
+    /// The Swift redactor's date rule, run as gh would run it: the reset dates survive in date form only.
+    @Test(.enabled(if: FileManager.default.isExecutableFile(atPath: "/usr/bin/jq")))
+    func copilotCaptureKeepsTheResetDatesInsideGh() async throws {
+        runner.answers = [output("{}")]
+        _ = try document(await capture(.copilot))
+        let program = try #require(runner.calls.first?.arguments.last)
+
+        let (status, filtered) = try jq(program, #"""
+        {"login":"placeholder-login","quota_reset_date_utc":"2026-11-01T00:00:00.000Z","quota_reset_date":"2026-11-01",
+         "assigned_date":"2026-01-02T03:04:05Z","quota_snapshots":{"premium_interactions":{"timestamp_utc":"2026-10-11T12:00:00Z","quota_reset_date":"2026-10-13"}}}
+        """#)
+
+        #expect(status == 0)
+        #expect(filtered.contains(#""quota_reset_date_utc":"2026-11-01T00:00:00.000Z""#))
+        #expect(filtered.contains(#""quota_reset_date":"2026-11-01""#))
+        for leaked in ["placeholder", "2026-01-02", "2026-10-11", "2026-10-13"] {
+            #expect(!filtered.contains(leaked), "\(leaked)")
+        }
+
+        let (_, freeText) = try jq(program, #"{"quota_reset_date_utc":"2026-11-01T00:00:00Z for placeholder-login","quota_reset_date":"2026-11-01\n"}"#)
+        #expect(freeText.contains(#""quota_reset_date_utc":"<redacted>""#))
+        #expect(freeText.contains(#""quota_reset_date":"<redacted>""#))
     }
 
     /// gh skips `--jq` when an HTTP error body carries a message and prints that body as it came, so for an error the
