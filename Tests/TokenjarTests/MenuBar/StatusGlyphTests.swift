@@ -132,21 +132,24 @@ struct StatusGlyphTests {
     /// The status item, and every item to its left, stays put whatever the state.
     @Test(arguments: MenuBarIcon.allCases)
     func theItemNeverChangesWidth(_ icon: MenuBarIcon) {
-        func entry(_ id: String, stale: Bool = false, failed: Bool = false) -> MenuBarState.Entry {
+        func entry(_ id: String, stale: Bool = false, failed: Bool = false, data: Bool = true) -> MenuBarState.Entry {
             MenuBarState.Entry(
-                accountID: id, provider: .claude, label: id, tightest: UsageWindow(id: "session", label: "5-hour", usedPercent: 42),
+                accountID: id, provider: .claude, label: id, tightest: data ? UsageWindow(id: "session", label: "5-hour", usedPercent: 42) : nil,
                 severity: .ok, isStale: stale, attention: failed ? .actionable : nil, failureNeedsAttention: failed
             )
         }
         for mode in MenuBarMode.allCases {
             for count in [1, 3, 6] {
                 let ids = (0..<count).map { "a\($0)" }
-                func width(stale: Bool = false, failed: Bool = false, connectivity: Connectivity = .online) -> CGFloat? {
-                    let entries = ids.enumerated().map { entry($1, stale: stale, failed: failed && $0 == 0) }
+                func width(stale: Bool = false, failed: Bool = false, connectivity: Connectivity = .online, data: Bool = true) -> CGFloat? {
+                    let entries = ids.enumerated().map { entry($1, stale: stale, failed: failed && $0 == 0, data: data) }
                     let state = MenuBarState(mode: mode, icon: icon, entries: entries, showResetCountdownWhenFull: true, now: Date(), connectivity: connectivity)
                     return StatusIconRenderer.render(state).image?.size.width
                 }
-                let widths = [width(), width(stale: true), width(failed: true), width(connectivity: .offline), width(failed: true, connectivity: .noAnswer)]
+                let widths = [
+                    width(), width(stale: true), width(failed: true), width(connectivity: .offline), width(failed: true, connectivity: .noAnswer),
+                    width(data: false), width(connectivity: .offline, data: false),
+                ]
                 #expect(Set(widths).count == 1, "\(icon.rawValue) \(mode) \(count): \(widths)")
                 if mode == .bars {
                     let group = CGFloat(count) * StatusGlyph.barWidth + CGFloat(count - 1) * StatusGlyph.barGap

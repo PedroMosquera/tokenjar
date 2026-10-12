@@ -153,9 +153,9 @@ enum SnapshotRenderer {
         func state(_ entry: MenuBarState.Entry, mode: MenuBarMode = .worst, connectivity: Connectivity = .online, settings: SettingsProblem? = nil) -> MenuBarState {
             MenuBarState(mode: mode, entries: [entry], showResetCountdownWhenFull: true, now: now, connectivity: connectivity, settingsProblem: settings)
         }
-        func bars(_ count: Int, connectivity: Connectivity = .online, error: Bool = false) -> MenuBarState {
-            let levels: [Double] = [75, 12, 40]
-            let entries = (0..<count).map { entry(levels[$0], stale: connectivity != .online, error: error && $0 == 1, id: "account-\($0)") }
+        func bars(_ count: Int, connectivity: Connectivity = .online, error: Bool = false, data: Bool = true) -> MenuBarState {
+            let levels: [Double] = [75, 12, 40, 60, 25, 50]
+            let entries = (0..<count).map { entry(data ? levels[$0] : nil, stale: connectivity != .online, error: error && $0 == 1, id: "account-\($0)") }
             return MenuBarState(mode: .bars, entries: entries, showResetCountdownWhenFull: true, now: now, connectivity: connectivity)
         }
         let kept = SettingsProblem(
@@ -197,6 +197,8 @@ enum SnapshotRenderer {
             ("bars-3-error", "Bars, 3 accounts, a check failed", bars(3, error: true)),
             ("offline-bars-1", "Offline, Bars, 1 account", bars(1, connectivity: .offline)),
             ("offline-bars-3", "Offline, Bars, 3 accounts", bars(3, connectivity: .offline)),
+            ("bars-6", "Bars, 6 accounts", bars(6)),
+            ("bars-6-neutral", "Bars, 6 accounts, no data yet", bars(6, data: false)),
         ]
     }
 

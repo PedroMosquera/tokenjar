@@ -36,10 +36,19 @@ enum StatusGlyph {
     }
 
     /// Shown when nothing is configured or no account has reported yet. The slot shows its base pose faint, so it
-    /// never reads as a real level.
-    static func neutral(_ icon: MenuBarIcon, dot: Bool, slash: Bool = false, description: String = "Tokenjar") -> NSImage {
+    /// never reads as a real level. `width` centers the glyph in a wider box, so Bars keeps its width before any data.
+    static func neutral(_ icon: MenuBarIcon, dot: Bool, slash: Bool = false, width: CGFloat = 0, description: String = "Tokenjar") -> NSImage {
         let base = glyph(icon) ?? neutralSlot
-        return compose(base, glyph: fitted(base.size), description: description, tint: nil, alpha: 1, dot: dot, slash: slash)
+        let size = fitted(base.size)
+        guard width > size.width else {
+            return compose(base, glyph: size, description: description, tint: nil, alpha: 1, dot: dot, slash: slash)
+        }
+        let boxed = NSImage(size: NSSize(width: width, height: size.height), flipped: false) { rect in
+            base.draw(in: NSRect(x: ((rect.width - size.width) / 2).rounded(), y: 0, width: size.width, height: size.height))
+            return true
+        }
+        boxed.isTemplate = base.isTemplate
+        return compose(boxed, glyph: boxed.size, description: description, tint: nil, alpha: 1, dot: dot, slash: slash)
     }
 
     /// The template glyph of a choice other than the app mark; nil for the app mark or a file that did not load, so
@@ -134,7 +143,7 @@ enum StatusGlyph {
     static func bars(_ bars: [Bar], dot: Bool = false, slash: Bool = false, description: String) -> NSImage {
         let count = CGFloat(max(bars.count, 1))
         let group = count * barWidth + (count - 1) * barGap
-        let box = NSSize(width: max(glyphSide, group), height: barsHeight)
+        let box = NSSize(width: barsBoxWidth(count: bars.count), height: barsHeight)
         let colored = bars.contains { $0.severity > .ok }
         let boxed = NSImage(size: box, flipped: false) { _ in
             let left = (box.width - group) / 2
@@ -157,6 +166,11 @@ enum StatusGlyph {
         }
         boxed.isTemplate = !colored
         return compose(boxed, glyph: box, description: description, tint: nil, alpha: 1, dot: dot, slash: slash)
+    }
+
+    static func barsBoxWidth(count: Int) -> CGFloat {
+        let count = CGFloat(max(count, 1))
+        return max(glyphSide, count * barWidth + (count - 1) * barGap)
     }
 
     /// Draws `base` at `glyph` size, optionally tinted and faded, then the slash and the dot at full alpha. Each knocks

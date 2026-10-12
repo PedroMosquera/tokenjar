@@ -14,8 +14,11 @@ enum StatusIconRenderer {
         let failing = state.failing
         let dot = state.showsDot, slash = state.isSlashed
         guard let worst = state.worst, let tightest = worst.tightest else {
-            let description = "Tokenjar" + stateClause(state) + failedClause(failing, in: state)
-            return RenderedStatusIcon(image: StatusGlyph.neutral(state.icon, dot: dot, slash: slash, description: description), toolTip: toolTip)
+            let description = "Tokenjar" + stateClause(state) + unreachableClauses(state.entries, in: state) + failedClause(failing, in: state)
+            let width = state.mode == .bars ? StatusGlyph.barsBoxWidth(count: state.entries.count) : 0
+            return RenderedStatusIcon(
+                image: StatusGlyph.neutral(state.icon, dot: dot, slash: slash, width: width, description: description), toolTip: toolTip
+            )
         }
         // A faded slash would vanish on a tinted menu bar, and the slash already says the numbers are old.
         let alpha: CGFloat = worst.isStale && !slash ? 0.5 : 1
@@ -63,11 +66,18 @@ enum StatusIconRenderer {
             text += "\(Format.percent(window.usedPercent)) used"
         }
         if let cause = entry.cause { text += ", " + causeClause(cause, tightest: window, spoken: true) }
-        if !state.isSlashed, let failure = entry.connectionFailure {
-            text += failure == .timeout ? ", no answer from \(spokenName(entry, in: state))" : ", can't reach \(spokenName(entry, in: state))"
-        }
+        text += unreachableClauses([entry], in: state)
         if entry.isStale, failing?.accountID != entry.accountID { text += ", out of date" }
-        return text + failedClause(failing, in: state)
+        return text + unreachableClauses(state.entries.filter { $0.accountID != entry.accountID }, in: state) + failedClause(failing, in: state)
+    }
+
+    /// ", can't reach GitHub Copilot" for each account whose check could not connect, as the tooltip names them. Under
+    /// the slash the lead already says why.
+    private static func unreachableClauses(_ entries: [MenuBarState.Entry], in state: MenuBarState) -> String {
+        guard !state.isSlashed else { return "" }
+        return entries.compactMap { entry in
+            entry.connectionFailure.map { $0 == .timeout ? ", no answer from \(spokenName(entry, in: state))" : ", can't reach \(spokenName(entry, in: state))" }
+        }.joined()
     }
 
     /// What VoiceOver hears first, as the tooltip's first lines say it: why Tokenjar can't refresh, and settings that
@@ -94,7 +104,8 @@ enum StatusIconRenderer {
             entry.cause.map { "\(spokenName(entry, in: state)) \(causeClause($0, tightest: entry.tightest, spoken: true))" }
         } + state.entries.filter { $0.isStale && !$0.failureNeedsAttention }.map { "\(spokenName($0, in: state)) out of date" }
             + state.entries.filter(\.failureNeedsAttention).map { "\(spokenName($0, in: state)) check failed" }
-        return (["Tokenjar" + stateClause(state)] + levels + notes).joined(separator: ", ")
+        return (["Tokenjar" + stateClause(state)] + levels).joined(separator: ", ") + unreachableClauses(state.entries, in: state)
+            + notes.map { ", " + $0 }.joined()
     }
 
     /// "5-hour runs out ~50m before reset", without the window's name when it is the one whose number is shown.
@@ -140,16 +151,17 @@ enum StatusIconRenderer {
 
     /// Why the menu bar is slashed, with the age of what it shows and what happens next.
     private static func connectivityLine(_ state: MenuBarState) -> String? {
-        let shown = state.lastUpdated.map { " Showing usage last checked \(Format.age(of: $0, now: state.now))." } ?? ""
+        let age = state.lastUpdated.map { Format.age(of: $0, now: state.now) }
         switch state.connectivity {
         case .online:
             return nil
         case .offline:
-            return shown.isEmpty
-                ? "Offline. Tokenjar checks when the Mac is back online."
-                : "Offline.\(shown) Tokenjar checks again when the Mac is back online."
+            return age.map { "This Mac is offline. The usage shown was last updated \($0), and Tokenjar checks again when the Mac is back online." }
+                ?? "This Mac is offline. Tokenjar checks usage when the Mac is back online."
         case .noAnswer:
-            return "Can't reach any provider.\(shown) A VPN, a proxy or a Wi-Fi sign-in page can cause this."
+            let cause = "Tokenjar can't reach any provider, which a VPN, a proxy or a Wi-Fi sign-in page can cause."
+            return age.map { "\(cause) The usage shown was last updated \($0), and Tokenjar tries again at the next refresh." }
+                ?? "\(cause) Tokenjar tries again at the next refresh."
         }
     }
 

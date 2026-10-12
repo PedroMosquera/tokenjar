@@ -802,16 +802,17 @@ struct StatusIconRendererTests {
     @Test func tooltipLeadsWithTheState() {
         let old = entry("Personal", used: 16, stale: true, fetchedAgo: 25 * 60, connection: .network("offline"))
         let account = "Claude · Personal: 5-hour 16%, resets in 50m"
-        #expect(StatusIconRenderer.toolTip(for: state([old], connectivity: .offline))
-            == "Offline. Showing usage last checked 25m ago. Tokenjar checks again when the Mac is back online.\n\(account) (out of date)")
+        let offline = "This Mac is offline. The usage shown was last updated 25m ago, and Tokenjar checks again when the Mac is back online."
+        #expect(StatusIconRenderer.toolTip(for: state([old], connectivity: .offline)) == "\(offline)\n\(account) (out of date)")
         #expect(StatusIconRenderer.toolTip(for: state([entry("Personal", used: nil)], connectivity: .offline))
-            == "Offline. Tokenjar checks when the Mac is back online.\nClaude · Personal: no data")
+            == "This Mac is offline. Tokenjar checks usage when the Mac is back online.\nClaude · Personal: no data")
+        let cause = "Tokenjar can't reach any provider, which a VPN, a proxy or a Wi-Fi sign-in page can cause."
         #expect(StatusIconRenderer.toolTip(for: state([old], connectivity: .noAnswer))
-            == "Can't reach any provider. Showing usage last checked 25m ago. A VPN, a proxy or a Wi-Fi sign-in page can cause this.\n\(account) (out of date)")
+            == "\(cause) The usage shown was last updated 25m ago, and Tokenjar tries again at the next refresh.\n\(account) (out of date)")
         #expect(StatusIconRenderer.toolTip(for: state([entry("Personal", used: nil, connection: .timeout)], connectivity: .noAnswer))
-            == "Can't reach any provider. A VPN, a proxy or a Wi-Fi sign-in page can cause this.\nClaude · Personal: no data")
+            == "\(cause) Tokenjar tries again at the next refresh.\nClaude · Personal: no data")
         #expect(StatusIconRenderer.toolTip(for: state([old], connectivity: .offline, settings: keptSettings))
-            == "Offline. Showing usage last checked 25m ago. Tokenjar checks again when the Mac is back online.\n\(keptSettings.message)\n\(account) (out of date)")
+            == "\(offline)\n\(keptSettings.message)\n\(account) (out of date)")
         #expect(StatusIconRenderer.toolTip(for: state([], settings: keptSettings)) == "\(keptSettings.message)\nTokenjar: no accounts in the menu bar")
         #expect(StatusIconRenderer.toolTip(for: state([], settings: noSettings)) == noSettings.message)
     }
@@ -848,12 +849,20 @@ struct StatusIconRendererTests {
         #expect(described([entry("a", used: nil)], connectivity: .offline) == "Tokenjar, offline")
         #expect(described([entry("a", used: 16, stale: true, connection: .network("dial tcp"))]) == "Tokenjar, Claude 5-hour 16% used, can't reach Claude, out of date")
         #expect(described([entry("a", used: 16, connection: .timeout)]) == "Tokenjar, Claude 5-hour 16% used, no answer from Claude")
+        // A provider that can't be reached is named even when another account sets the number, as the tooltip does.
+        let copilotDown = entry("c", used: 1, stale: true, provider: .copilot, connection: .network("dial tcp"))
+        #expect(described([entry("a", used: 41), copilotDown]) == "Tokenjar, Claude 5-hour 41% used, can't reach GitHub Copilot")
+        #expect(described([entry("a", used: 41), copilotDown], connectivity: .noAnswer) == "Tokenjar, can't reach any provider, Claude 5-hour 41% used")
+        #expect(described([entry("c", used: nil, provider: .copilot, connection: .timeout)]) == "Tokenjar, no answer from GitHub Copilot")
     }
 
     @Test func barsLeadWithTheStateToo() {
         let entries = [entry("Personal", used: 75), entry("b", used: 12, provider: .codex), entry("Work", used: 30)]
         #expect(StatusIconRenderer.render(state(entries, mode: .bars, connectivity: .offline)).image?.accessibilityDescription
             == "Tokenjar, offline, Claude Personal 75%, Codex 12%, Claude Work 30%")
+        let down = [entry("a", used: 75), entry("c", used: 1, stale: true, provider: .copilot, connection: .network("dial tcp"))]
+        #expect(StatusIconRenderer.render(state(down, mode: .bars)).image?.accessibilityDescription
+            == "Tokenjar, Claude 75%, GitHub Copilot 1%, can't reach GitHub Copilot, GitHub Copilot out of date")
     }
 
     @Test func toolTipListsEveryAccount() {

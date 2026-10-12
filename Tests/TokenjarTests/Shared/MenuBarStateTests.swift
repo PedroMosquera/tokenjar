@@ -127,7 +127,8 @@ struct MenuBarStateTests {
         #expect(blip.dot == nil)
         #expect(blip.tone == .clear)
         let bars = MenuBarState.make(accounts: [personal, work], statuses: blipStatuses, config: AppConfig(menuBar: MenuBarConfig(mode: .bars)), now: now)
-        #expect(StatusIconRenderer.render(bars).image?.accessibilityDescription == "Tokenjar, Claude Personal 75%, Claude Work 75%")
+        // Named as the tooltip names it, but never as a failed check.
+        #expect(StatusIconRenderer.render(bars).image?.accessibilityDescription == "Tokenjar, Claude Personal 75%, Claude Work 75%, can't reach Claude Personal")
 
         // A connection failure is nothing for the user to fix: the header names it in gray and the dot stays off.
         let gone = judged(["personal": status([weeklyOnPace], fetchedAgo: 3_600, error: .network("offline")), "work": status([weeklyOnPace])])
