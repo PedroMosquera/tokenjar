@@ -347,7 +347,7 @@ enum PopoverSpeech {
         case .warning: "Warning"
         case .critical: "Critical"
         case .problem: "Needs attention"
-        case .empty: nil
+        case .empty, .unreachable: nil
         }
     }
 

@@ -92,6 +92,7 @@ struct PopoverHeader: View {
         case .warning: "exclamationmark.triangle.fill"
         case .critical: "exclamationmark.octagon.fill"
         case .problem: "exclamationmark.circle.fill"
+        case .unreachable(let onlyTimeouts): onlyTimeouts ? "clock.arrow.circlepath" : "wifi.exclamationmark"
         case .empty: nil
         }
     }
@@ -101,7 +102,7 @@ struct PopoverHeader: View {
         case .clear: AnyShapeStyle(Severity.ok.color)
         case .warning: AnyShapeStyle(Severity.warning.color)
         case .critical: AnyShapeStyle(Severity.critical.color)
-        case .problem, .empty: AnyShapeStyle(.secondary)
+        case .problem, .empty, .unreachable: AnyShapeStyle(.secondary)
         }
     }
 }

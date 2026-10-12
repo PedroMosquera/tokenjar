@@ -202,7 +202,10 @@ final class AppModel {
     }
 
     var menuBarState: MenuBarState {
-        MenuBarState.make(accounts: accounts.filter(\.showInMenuBar), statuses: statuses, config: config, now: now)
+        MenuBarState.make(
+            accounts: accounts.filter(\.showInMenuBar), statuses: statuses, config: config, now: now,
+            connectivity: connectivity, settingsProblem: settingsProblem
+        )
     }
 
     // MARK: Lifecycle

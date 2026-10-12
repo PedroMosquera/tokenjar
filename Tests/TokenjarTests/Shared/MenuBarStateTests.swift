@@ -126,17 +126,52 @@ struct MenuBarStateTests {
         let blip = judged(blipStatuses)
         #expect(blip.dot == nil)
         #expect(blip.tone == .clear)
-        // Bars have no dot; a dimmed bar is how they say a check failed.
         let bars = MenuBarState.make(accounts: [personal, work], statuses: blipStatuses, config: AppConfig(menuBar: MenuBarConfig(mode: .bars)), now: now)
         #expect(StatusIconRenderer.render(bars).image?.accessibilityDescription == "Tokenjar, Claude Personal 75%, Claude Work 75%")
 
+        // A connection failure is nothing for the user to fix: the header names it in gray and the dot stays off.
         let gone = judged(["personal": status([weeklyOnPace], fetchedAgo: 3_600, error: .network("offline")), "work": status([weeklyOnPace])])
-        #expect(gone.dot == "personal")
-        #expect(gone.tone == .problem)
+        #expect(gone.dot == nil)
+        #expect(gone.tone == .unreachable(onlyTimeouts: false))
 
         let elsewhere = judged(["personal": status([weeklyOnPace]), "work": AccountStatus(error: .timeout)])
-        #expect(elsewhere.dot == "work")
-        #expect(elsewhere.tone == .problem)
+        #expect(elsewhere.dot == nil)
+        #expect(elsewhere.tone == .unreachable(onlyTimeouts: true))
+    }
+
+    @Test func offlineSlashesTheIcon() {
+        let statuses = ["personal": status([weeklyOnPace], fetchedAgo: 3_600)]
+        for connectivity in [Connectivity.offline, .noAnswer] {
+            let state = MenuBarState.make(accounts: [personal], statuses: statuses, config: AppConfig(), now: now, connectivity: connectivity)
+            #expect(state.isSlashed, "\(connectivity)")
+            #expect(pixels(StatusIconRenderer.render(state).image) != pixels(StatusIconRenderer.render(MenuBarState.make(accounts: [personal], statuses: statuses, config: AppConfig(), now: now)).image))
+        }
+        #expect(!MenuBarState.make(accounts: [personal], statuses: statuses, config: AppConfig(), now: now).isSlashed)
+        #expect(MenuBarState.make(accounts: [personal], statuses: statuses, config: AppConfig(), now: now).lastUpdated == now.addingTimeInterval(-3_600))
+    }
+
+    /// Settings that can't be read stop edits and may hold the wrong accounts: the user has to look.
+    @Test func aSettingsProblemDrawsTheDot() {
+        let problem = SettingsProblem(message: "Could not read config.json.", file: "config.json", nothingLoaded: false)
+        let state = MenuBarState.make(accounts: [personal], statuses: ["personal": status([weeklyOnPace])], config: AppConfig(), now: now, settingsProblem: problem)
+        #expect(state.showsDot)
+        #expect(state.failing == nil)
+        #expect(pixels(StatusIconRenderer.render(state).image) == pixels(StatusGlyph.image(.app, fraction: 0.75, tint: nil, alpha: 1, dot: true)))
+        let unloaded = MenuBarState.make(accounts: [], statuses: [:], config: AppConfig(), now: now, settingsProblem: SettingsProblem(message: "x", file: "config.json", nothingLoaded: true))
+        #expect(pixels(StatusIconRenderer.render(unloaded).image) == pixels(StatusGlyph.neutral(.app, dot: true)))
+    }
+
+    @Test func aConnectionFailureNeverDrawsTheDot() {
+        let saved = UsageSnapshot(accountID: "work", provider: .claude, windows: [weeklyOnPace], fetchedAt: now.addingTimeInterval(-3 * 3_600), source: ClaudeUsageFetcher.cacheSource, liveCheckFailure: .timeout)
+        for statuses in [
+            ["personal": status([weeklyOnPace], fetchedAgo: 3_600, error: .network("offline"))],
+            ["personal": AccountStatus(error: .timeout)],
+            ["personal": AccountStatus(snapshot: saved, lastAttempt: now)],
+        ] {
+            let state = MenuBarState.make(accounts: [personal], statuses: statuses, config: AppConfig(), now: now)
+            #expect(!state.showsDot)
+            #expect(state.entries.first?.connectionFailure != nil)
+        }
     }
 
     /// Zen only has spend and a Go key without a subscription has nothing at all: either would be an empty bar and a

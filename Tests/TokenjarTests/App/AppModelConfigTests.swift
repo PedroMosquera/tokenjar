@@ -104,6 +104,23 @@ struct AppModelConfigTests {
         #expect(model.settingsProblem?.nothingLoaded == false)
     }
 
+    /// Settings that failed to load used to show only in the popover and Settings, never in the menu bar.
+    @Test func aBrokenConfigReachesTheMenuBar() throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.makeDirectory(".claude")
+        try home.writeConfig(AppConfig(accounts: [AccountConfig(id: "work", provider: .claude, label: "Work")]))
+        let model = model(home)
+        model.loadState()
+        #expect(model.menuBarState.settingsProblem == nil)
+
+        try home.write(".config/tokenjar/config.local.json", #"{"refreshMinutes": "soon"}"#)
+        model.loadConfig()
+
+        #expect(model.menuBarState.settingsProblem?.file == "config.local.json")
+        #expect(model.menuBarState.showsDot)
+    }
+
     /// The Headroom move names no file Tokenjar could reveal, and the history database is not a setting.
     @Test func onlyAConfigFileProblemNamesAFile() throws {
         let home = try ModelHome()

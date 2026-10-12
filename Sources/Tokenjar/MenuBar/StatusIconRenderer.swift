@@ -12,31 +12,35 @@ enum StatusIconRenderer {
     static func render(_ state: MenuBarState) -> RenderedStatusIcon {
         let toolTip = toolTip(for: state)
         let failing = state.failing
+        let dot = state.showsDot, slash = state.isSlashed
         guard let worst = state.worst, let tightest = worst.tightest else {
-            let description = "Tokenjar" + failedClause(failing, in: state)
-            return RenderedStatusIcon(image: StatusGlyph.neutral(state.icon, dot: failing != nil, description: description), toolTip: toolTip)
+            let description = "Tokenjar" + stateClause(state) + failedClause(failing, in: state)
+            return RenderedStatusIcon(image: StatusGlyph.neutral(state.icon, dot: dot, slash: slash, description: description), toolTip: toolTip)
         }
-        let alpha: CGFloat = worst.isStale ? 0.5 : 1
+        // A faded slash would vanish on a tinted menu bar, and the slash already says the numbers are old.
+        let alpha: CGFloat = worst.isStale && !slash ? 0.5 : 1
         let description = accessibilityDescription(worst, window: tightest, failing: failing, in: state)
+        let image = StatusGlyph.image(
+            state.icon, fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: dot, slash: slash, description: description
+        )
         switch state.mode {
         case .worst:
             let text = title(for: worst, showResetCountdownWhenFull: state.showResetCountdownWhenFull, now: state.now)
             return RenderedStatusIcon(
-                image: StatusGlyph.image(state.icon, fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: failing != nil, description: description),
-                title: text,
-                attributedTitle: attributedTitle(text, severity: worst.severity, isStale: worst.isStale),
+                image: image, title: text,
+                attributedTitle: attributedTitle(text, severity: worst.severity, isStale: worst.isStale, isSlashed: slash),
                 toolTip: toolTip
             )
         case .bars:
             let bars = state.entries.map { entry in
-                StatusGlyph.Bar(fraction: entry.tightest.map { $0.usedPercent / 100 }, severity: entry.severity, dimmed: entry.isStale || entry.failureNeedsAttention)
+                StatusGlyph.Bar(
+                    fraction: entry.tightest.map { $0.usedPercent / 100 }, severity: entry.severity,
+                    dimmed: (entry.isStale && !slash) || entry.failureNeedsAttention
+                )
             }
-            return RenderedStatusIcon(image: StatusGlyph.bars(bars, description: barsDescription(state)), toolTip: toolTip)
+            return RenderedStatusIcon(image: StatusGlyph.bars(bars, dot: dot, slash: slash, description: barsDescription(state)), toolTip: toolTip)
         case .icon:
-            return RenderedStatusIcon(
-                image: StatusGlyph.image(state.icon, fraction: tightest.usedPercent / 100, tint: tint(worst.severity), alpha: alpha, dot: failing != nil, description: description),
-                toolTip: toolTip
-            )
+            return RenderedStatusIcon(image: image, toolTip: toolTip)
         }
     }
 
@@ -52,15 +56,33 @@ enum StatusIconRenderer {
     /// What VoiceOver reads for the icon. Icon mode has no title and the tooltip is only delayed help, so the account,
     /// the level the slot shows and the state the tint, fade and dot show have to be spelled out here.
     private static func accessibilityDescription(_ entry: MenuBarState.Entry, window: UsageWindow, failing: MenuBarState.Entry?, in state: MenuBarState) -> String {
-        var text = "Tokenjar, \(spokenName(entry, in: state)) \(window.label) "
+        var text = "Tokenjar\(stateClause(state)), \(spokenName(entry, in: state)) \(window.label) "
         if window.usedPercent >= 100, let resetsAt = window.resetsAt {
             text += "full, resets in \(Format.spokenDuration(resetsAt.timeIntervalSince(state.now)))"
         } else {
             text += "\(Format.percent(window.usedPercent)) used"
         }
         if let cause = entry.cause { text += ", " + causeClause(cause, tightest: window, spoken: true) }
+        if !state.isSlashed, let failure = entry.connectionFailure {
+            text += failure == .timeout ? ", no answer from \(spokenName(entry, in: state))" : ", can't reach \(spokenName(entry, in: state))"
+        }
         if entry.isStale, failing?.accountID != entry.accountID { text += ", out of date" }
         return text + failedClause(failing, in: state)
+    }
+
+    /// What VoiceOver hears first, as the tooltip's first lines say it: why Tokenjar can't refresh, and settings that
+    /// need the user.
+    private static func stateClause(_ state: MenuBarState) -> String {
+        var clause = ""
+        switch state.connectivity {
+        case .online: break
+        case .offline: clause += ", offline"
+        case .noAnswer: clause += ", can't reach any provider"
+        }
+        if let problem = state.settingsProblem {
+            clause += problem.nothingLoaded ? ", settings not loaded" : ", settings need attention"
+        }
+        return clause
     }
 
     /// Bars shows no number, so every account's level is read out, then what the colors, fades and dims mean.
@@ -72,7 +94,7 @@ enum StatusIconRenderer {
             entry.cause.map { "\(spokenName(entry, in: state)) \(causeClause($0, tightest: entry.tightest, spoken: true))" }
         } + state.entries.filter { $0.isStale && !$0.failureNeedsAttention }.map { "\(spokenName($0, in: state)) out of date" }
             + state.entries.filter(\.failureNeedsAttention).map { "\(spokenName($0, in: state)) check failed" }
-        return (["Tokenjar"] + levels + notes).joined(separator: ", ")
+        return (["Tokenjar" + stateClause(state)] + levels + notes).joined(separator: ", ")
     }
 
     /// "5-hour runs out ~50m before reset", without the window's name when it is the one whose number is shown.
@@ -94,7 +116,9 @@ enum StatusIconRenderer {
     }
 
     static func toolTip(for state: MenuBarState) -> String {
-        guard !state.entries.isEmpty else { return "Tokenjar: no accounts in the menu bar" }
+        if let problem = state.settingsProblem, problem.nothingLoaded { return problem.message }
+        let lead = [connectivityLine(state), state.settingsProblem?.message].compactMap { $0 }
+        guard !state.entries.isEmpty else { return (lead + ["Tokenjar: no accounts in the menu bar"]).joined(separator: "\n") }
         let lines = state.entries.map { entry -> String in
             let name = AccountTitle(provider: entry.provider, label: entry.label).name
             var line: String
@@ -109,17 +133,49 @@ enum StatusIconRenderer {
             } else {
                 line = "\(name): no data"
             }
-            if entry.checkFailed { line += " (last check failed)" } else if entry.isStale { line += " (out of date)" }
-            return line
+            return line + suffix(entry, slashed: state.isSlashed)
         }
-        return lines.joined(separator: "\n")
+        return (lead + lines).joined(separator: "\n")
+    }
+
+    /// Why the menu bar is slashed, with the age of what it shows and what happens next.
+    private static func connectivityLine(_ state: MenuBarState) -> String? {
+        let shown = state.lastUpdated.map { " Showing usage last checked \(Format.age(of: $0, now: state.now))." } ?? ""
+        switch state.connectivity {
+        case .online:
+            return nil
+        case .offline:
+            return shown.isEmpty
+                ? "Offline. Tokenjar checks when the Mac is back online."
+                : "Offline.\(shown) Tokenjar checks again when the Mac is back online."
+        case .noAnswer:
+            return "Can't reach any provider.\(shown) A VPN, a proxy or a Wi-Fi sign-in page can cause this."
+        }
+    }
+
+    /// Why one account's line is not current. Under a slash the first line already says why a check failed.
+    private static func suffix(_ entry: MenuBarState.Entry, slashed: Bool) -> String {
+        let reason: String?
+        if entry.attention == .actionable {
+            return " (last check failed)"
+        } else if let failure = entry.connectionFailure {
+            reason = slashed ? nil : (failure == .timeout ? "no answer" : "can't reach")
+        } else if entry.attention == .transient {
+            reason = "waiting to check again"
+        } else {
+            reason = nil
+        }
+        let parts = [reason, entry.isStale ? "out of date" : nil].compactMap { $0 }
+        return parts.isEmpty ? "" : " (\(parts.joined(separator: ", ")))"
     }
 
     private static func tint(_ severity: Severity) -> NSColor? {
         severity == .ok ? nil : severity.nsColor
     }
 
-    private static func attributedTitle(_ text: String, severity: Severity, isStale: Bool) -> NSAttributedString {
+    /// Under a slash every number is old, so an ok one goes secondary while an amber or red one keeps its full color: a
+    /// near-limit warning is never hidden.
+    private static func attributedTitle(_ text: String, severity: Severity, isStale: Bool, isSlashed: Bool) -> NSAttributedString {
         let size = NSFont.menuBarFont(ofSize: 0).pointSize
         var attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: severity == .ok ? .regular : .semibold),
@@ -127,8 +183,8 @@ enum StatusIconRenderer {
         // No color when fresh and healthy, so the status item uses the menu bar's own vibrant text color. Not
         // labelColor.withAlphaComponent for stale: that resolves once and can stay white on a light menu bar.
         if let tint = tint(severity) {
-            attributes[.foregroundColor] = isStale ? tint.withAlphaComponent(0.5) : tint
-        } else if isStale {
+            attributes[.foregroundColor] = isStale && !isSlashed ? tint.withAlphaComponent(0.5) : tint
+        } else if isStale || isSlashed {
             attributes[.foregroundColor] = NSColor.secondaryLabelColor
         }
         return NSAttributedString(string: text, attributes: attributes)

@@ -84,6 +84,78 @@ struct StatusGlyphTests {
         #expect(StatusGlyph.neutral(icon, dot: false).size == StatusGlyph.neutral(icon, dot: true).size)
     }
 
+    /// The slash reads as crossing the glyph because a clear band separates it from what it crosses, in a one-color
+    /// template too.
+    @Test func theSlashKnocksOutTheGlyph() {
+        let full = StatusGlyph.image(.app, fraction: 1, tint: nil, alpha: 1, dot: false)
+        let slashed = StatusGlyph.image(.app, fraction: 1, tint: nil, alpha: 1, dot: false, slash: true)
+        // On the stroke, beside it inside the band, and outside the band, all inside the full square.
+        #expect(glyphAlpha(slashed, 9, 9) > 0.9)
+        #expect(glyphAlpha(full, 10.06, 7.94) > 0.9)
+        #expect(glyphAlpha(slashed, 10.06, 7.94) < 0.1)
+        #expect(glyphAlpha(slashed, 11.5, 6.5) > 0.9)
+        #expect(slashed.isTemplate)
+        let tinted = StatusGlyph.image(.app, fraction: 1, tint: .systemRed, alpha: 1, dot: false, slash: true)
+        #expect(glyphAlpha(tinted, 9, 9) > 0.9)
+        #expect(glyphAlpha(tinted, 10.06, 7.94) < 0.1)
+        let neutral = StatusGlyph.neutral(.app, dot: false, slash: true)
+        #expect(glyphAlpha(neutral, 9, 9) > 0.9)
+    }
+
+    /// A dot reports something current, so old numbers must not fade it.
+    @Test func theDotNeverFades() {
+        let state = MenuBarState(
+            mode: .worst, entries: [MenuBarState.Entry(
+                accountID: "a", provider: .claude, label: "a", tightest: UsageWindow(id: "session", label: "5-hour", usedPercent: 42),
+                severity: .ok, isStale: true, attention: .actionable, failureNeedsAttention: true
+            )], showResetCountdownWhenFull: true, now: Date()
+        )
+        let image = StatusIconRenderer.render(state).image
+        let dotX = (image?.size.width ?? 0) - StatusGlyph.dotDiameter / 2
+        #expect(glyphAlpha(image, dotX, StatusGlyph.dotDiameter / 2) > 0.95)
+        #expect(glyphAlpha(image, 9, 1.9) < 0.6)
+    }
+
+    /// The slash already says "not current", and a faded slash would vanish on a tinted menu bar.
+    @Test func aSlashedGlyphNeverFades() {
+        let state = MenuBarState(
+            mode: .worst, entries: [MenuBarState.Entry(
+                accountID: "a", provider: .claude, label: "a", tightest: UsageWindow(id: "session", label: "5-hour", usedPercent: 42),
+                severity: .ok, isStale: true, failureNeedsAttention: false
+            )], showResetCountdownWhenFull: true, now: Date(), connectivity: .offline
+        )
+        let image = StatusIconRenderer.render(state).image
+        #expect(glyphAlpha(image, 9, 1.9) > 0.95)
+        #expect(glyphAlpha(image, 9, 9) > 0.95)
+    }
+
+    /// The status item, and every item to its left, stays put whatever the state.
+    @Test(arguments: MenuBarIcon.allCases)
+    func theItemNeverChangesWidth(_ icon: MenuBarIcon) {
+        func entry(_ id: String, stale: Bool = false, failed: Bool = false) -> MenuBarState.Entry {
+            MenuBarState.Entry(
+                accountID: id, provider: .claude, label: id, tightest: UsageWindow(id: "session", label: "5-hour", usedPercent: 42),
+                severity: .ok, isStale: stale, attention: failed ? .actionable : nil, failureNeedsAttention: failed
+            )
+        }
+        for mode in MenuBarMode.allCases {
+            for count in [1, 3, 6] {
+                let ids = (0..<count).map { "a\($0)" }
+                func width(stale: Bool = false, failed: Bool = false, connectivity: Connectivity = .online) -> CGFloat? {
+                    let entries = ids.enumerated().map { entry($1, stale: stale, failed: failed && $0 == 0) }
+                    let state = MenuBarState(mode: mode, icon: icon, entries: entries, showResetCountdownWhenFull: true, now: Date(), connectivity: connectivity)
+                    return StatusIconRenderer.render(state).image?.size.width
+                }
+                let widths = [width(), width(stale: true), width(failed: true), width(connectivity: .offline), width(failed: true, connectivity: .noAnswer)]
+                #expect(Set(widths).count == 1, "\(icon.rawValue) \(mode) \(count): \(widths)")
+                if mode == .bars {
+                    let group = CGFloat(count) * StatusGlyph.barWidth + CGFloat(count - 1) * StatusGlyph.barGap
+                    #expect(widths.first == max(StatusGlyph.glyphSide, group) + StatusGlyph.dotOverhang, "\(count)")
+                }
+            }
+        }
+    }
+
     /// Alpha of each device pixel along the slot's middle row, drawn at `scale`, from the left edge.
     private func rowAlphas(_ image: NSImage, scale: CGFloat) -> [CGFloat] {
         let side = Int(StatusGlyph.glyphSide * scale)

@@ -21,16 +21,25 @@ enum StatusGlyph {
         var dimmed: Bool
     }
 
+    /// The slash runs corner to corner of the glyph, this far in from each corner.
+    static let slashInset: CGFloat = 2
+    static let slashWidth: CGFloat = 1.5
+    /// Clear on each side of the stroke, knocked out of the glyph so the slash reads as crossing it in one color.
+    static let slashClear: CGFloat = 1.5
+
     /// The image for worst and icon modes. The default, the cooldown slot, is filled to `fraction` (0...1) of the
-    /// tightest window. Every other choice is a static glyph that still takes the tint, fade and dot, so warnings show.
-    static func image(_ icon: MenuBarIcon, fraction: Double, tint: NSColor?, alpha: CGFloat, dot: Bool, description: String = "Tokenjar") -> NSImage {
-        compose(glyph(icon) ?? slot(fraction), description: description, tint: tint, alpha: alpha, dot: dot)
+    /// tightest window. Every other choice is a static glyph that still takes the tint, fade, slash and dot, so
+    /// warnings show. `alpha` fades the glyph only: the slash and the dot report something current.
+    static func image(_ icon: MenuBarIcon, fraction: Double, tint: NSColor?, alpha: CGFloat, dot: Bool, slash: Bool = false, description: String = "Tokenjar") -> NSImage {
+        let base = glyph(icon) ?? slot(fraction)
+        return compose(base, glyph: fitted(base.size), description: description, tint: tint, alpha: alpha, dot: dot, slash: slash)
     }
 
     /// Shown when nothing is configured or no account has reported yet. The slot shows its base pose faint, so it
     /// never reads as a real level.
-    static func neutral(_ icon: MenuBarIcon, dot: Bool, description: String = "Tokenjar") -> NSImage {
-        compose(glyph(icon) ?? neutralSlot, description: description, tint: nil, alpha: 1, dot: dot)
+    static func neutral(_ icon: MenuBarIcon, dot: Bool, slash: Bool = false, description: String = "Tokenjar") -> NSImage {
+        let base = glyph(icon) ?? neutralSlot
+        return compose(base, glyph: fitted(base.size), description: description, tint: nil, alpha: 1, dot: dot, slash: slash)
     }
 
     /// The template glyph of a choice other than the app mark; nil for the app mark or a file that did not load, so
@@ -119,13 +128,18 @@ enum StatusGlyph {
 
     private static let neutralSlot = slot(basePose, wedgeAlpha: 0.35)
 
-    static func bars(_ bars: [Bar], description: String) -> NSImage {
+    /// The bars centered in a box at least as wide as the slot, plus the dot's room, in every state: a slash across a
+    /// bare group of three bars reads as the letter N, and the width never changes when a check fails or the Mac goes
+    /// offline.
+    static func bars(_ bars: [Bar], dot: Bool = false, slash: Bool = false, description: String) -> NSImage {
         let count = CGFloat(max(bars.count, 1))
-        let size = NSSize(width: count * barWidth + (count - 1) * barGap, height: barsHeight)
+        let group = count * barWidth + (count - 1) * barGap
+        let box = NSSize(width: max(glyphSide, group), height: barsHeight)
         let colored = bars.contains { $0.severity > .ok }
-        let image = NSImage(size: size, flipped: false) { _ in
+        let boxed = NSImage(size: box, flipped: false) { _ in
+            let left = (box.width - group) / 2
             for (index, bar) in bars.enumerated() {
-                let track = NSRect(x: CGFloat(index) * (barWidth + barGap), y: 0, width: barWidth, height: barsHeight)
+                let track = NSRect(x: left + CGFloat(index) * (barWidth + barGap), y: 0, width: barWidth, height: barsHeight)
                 let shape = NSBezierPath(roundedRect: track, xRadius: barWidth / 2, yRadius: barWidth / 2)
                 let ink: NSColor = colored && bar.severity > .ok ? bar.severity.nsColor : (colored ? .labelColor : .black)
                 let alpha: CGFloat = bar.dimmed ? 0.5 : 1
@@ -141,22 +155,25 @@ enum StatusGlyph {
             }
             return true
         }
-        image.isTemplate = !colored
-        // Non-template colors resolve against the menu bar's appearance at draw time, so never cache a rendering.
-        if colored { image.cacheMode = .never }
-        image.accessibilityDescription = description
-        return image
+        boxed.isTemplate = !colored
+        return compose(boxed, glyph: box, description: description, tint: nil, alpha: 1, dot: dot, slash: slash)
     }
 
-    /// Fits `base` into a `glyphSide` box, optionally tinted, faded, and badged with a dot that knocks a ring
-    /// out of the glyph so it reads as separate even in a one-color template image. The dot's room is kept with or
-    /// without it, so the status item, and every item to its left, stays put when a check fails or recovers.
-    private static func compose(_ base: NSImage, description: String, tint: NSColor?, alpha: CGFloat, dot: Bool) -> NSImage {
-        let glyph = fitted(base.size)
+    /// Draws `base` at `glyph` size, optionally tinted and faded, then the slash and the dot at full alpha. Each knocks
+    /// a band or ring out of the glyph so it reads as separate even in a one-color template image. The dot's room is
+    /// kept with or without it, so the status item, and every item to its left, stays put when a check fails or
+    /// recovers.
+    private static func compose(_ base: NSImage, glyph: NSSize, description: String, tint: NSColor?, alpha: CGFloat, dot: Bool, slash: Bool) -> NSImage {
         let size = NSSize(width: glyph.width + dotOverhang, height: max(glyphSide, glyph.height))
         let glyphRect = NSRect(x: 0, y: (size.height - glyph.height) / 2, width: glyph.width, height: glyph.height)
+        let template = base.isTemplate && tint == nil
+        // The bars' gray goes with the menu bar's appearance; a template's black is recolored by the menu bar itself.
+        let ink = tint ?? (template ? .black : .labelColor)
         let image = NSImage(size: size, flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            // The outer layer keeps the knockouts inside this image; the inner one fades the glyph alone.
+            context.beginTransparencyLayer(auxiliaryInfo: nil)
+            context.saveGState()
             context.setAlpha(alpha)
             context.beginTransparencyLayer(auxiliaryInfo: nil)
             base.draw(in: glyphRect, from: .zero, operation: .sourceOver, fraction: 1)
@@ -164,20 +181,43 @@ enum StatusGlyph {
                 tint.setFill()
                 glyphRect.fill(using: .sourceAtop)
             }
+            context.endTransparencyLayer()
+            context.restoreGState()
+            if slash { drawSlash(across: glyphRect, ink: ink) }
             if dot {
                 let dotRect = NSRect(x: size.width - dotDiameter, y: size.height - dotDiameter, width: dotDiameter, height: dotDiameter)
-                NSGraphicsContext.current?.compositingOperation = .destinationOut
-                NSBezierPath(ovalIn: dotRect.insetBy(dx: -1.5, dy: -1.5)).fill()
-                NSGraphicsContext.current?.compositingOperation = .sourceOver
-                (tint ?? .black).setFill()
+                knockOut { NSBezierPath(ovalIn: dotRect.insetBy(dx: -1.5, dy: -1.5)).fill() }
+                ink.setFill()
                 NSBezierPath(ovalIn: dotRect).fill()
             }
             context.endTransparencyLayer()
             return true
         }
-        image.isTemplate = tint == nil
+        image.isTemplate = template
+        // Non-template colors resolve against the menu bar's appearance at draw time, so never cache a rendering.
+        if !template { image.cacheMode = .never }
         image.accessibilityDescription = description
         return image
+    }
+
+    private static func drawSlash(across rect: NSRect, ink: NSColor) {
+        let line = NSBezierPath()
+        line.move(to: NSPoint(x: rect.minX + slashInset, y: rect.maxY - slashInset))
+        line.line(to: NSPoint(x: rect.maxX - slashInset, y: rect.minY + slashInset))
+        line.lineCapStyle = .round
+        line.lineWidth = slashWidth + 2 * slashClear
+        knockOut { line.stroke() }
+        line.lineWidth = slashWidth
+        ink.setStroke()
+        line.stroke()
+    }
+
+    private static func knockOut(_ draw: () -> Void) {
+        NSGraphicsContext.current?.compositingOperation = .destinationOut
+        NSColor.black.setFill()
+        NSColor.black.setStroke()
+        draw()
+        NSGraphicsContext.current?.compositingOperation = .sourceOver
     }
 
     /// Glyphs keep their own size, so a full-bleed 16 pt logo is not blown up past the slot; only larger ones shrink.

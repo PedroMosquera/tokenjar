@@ -51,7 +51,7 @@ struct SidebarBadgeTests {
 @MainActor
 struct SidebarErrorIconTests {
     @Test func aFailureToFixIsOrangeAsInThePopover() {
-        for error in [FetchError.notSignedIn, .unauthorized, .cliNotFound("claude"), .timeout] {
+        for error in [FetchError.notSignedIn, .unauthorized, .cliNotFound("claude")] {
             let failed = AccountStatus(error: error)
             #expect(failed.failureNeedsAttention(now: now, refreshMinutes: 10))
             #expect(
@@ -66,6 +66,12 @@ struct SidebarErrorIconTests {
         let snapshot = UsageSnapshot(accountID: "zen", provider: .opencodeZen, fetchedAt: now.addingTimeInterval(-60), source: "opencode.db")
         let blip = AccountStatus(snapshot: snapshot, error: .network("offline"))
         #expect(SidebarErrorIcon.make(status: blip, now: now, refreshMinutes: 10) == SidebarErrorIcon(symbol: "wifi.exclamationmark", isWarning: false))
+    }
+
+    /// A connection failure with nothing fresh to show is not the user's to fix, so it stays gray there too.
+    @Test func aConnectionFailureWithoutDataStaysGray() {
+        #expect(SidebarErrorIcon.make(status: AccountStatus(error: .timeout), now: now, refreshMinutes: 10) == SidebarErrorIcon(symbol: "clock.arrow.circlepath", isWarning: false))
+        #expect(SidebarErrorIcon.make(status: AccountStatus(error: .network("offline")), now: now, refreshMinutes: 10) == SidebarErrorIcon(symbol: "wifi.exclamationmark", isWarning: false))
     }
 
     @Test func notSubscribedHasNoMark() {

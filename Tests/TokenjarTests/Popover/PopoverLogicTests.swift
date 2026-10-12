@@ -332,12 +332,49 @@ struct PopoverSummaryTests {
         #expect(summary.tone == .clear)
     }
 
-    @Test func aNetworkErrorWithoutFreshDataNeedsAttention() {
-        let stale = snapshot("personal", [window("session", "5-hour", used: 10, resetIn: 130 * 60)], fetchedAgo: 50 * 60)
-        let old = PopoverSummary.make(accounts: [accounts[0]], statuses: ["personal": AccountStatus(snapshot: stale, error: .network("offline"))], config: AppConfig(), now: now)
-        #expect(old == PopoverSummary(tone: .problem, text: "1 account needs attention"))
-        let none = PopoverSummary.make(accounts: [accounts[0]], statuses: ["personal": AccountStatus(error: .timeout)], config: AppConfig(), now: now)
-        #expect(none == PopoverSummary(tone: .problem, text: "1 account needs attention"))
+    /// Nothing for the user to fix, so not "needs attention": the header names the provider in gray instead.
+    @Test func aConnectionFailureOverStaleDataNamesTheProvider() {
+        let claude = AccountConfig(id: "claude", provider: .claude, label: "Personal")
+        let stale = snapshot("claude", [window("session", "5-hour", used: 10, resetIn: 130 * 60)], fetchedAgo: 50 * 60)
+        let old = PopoverSummary.make(accounts: [claude], statuses: ["claude": AccountStatus(snapshot: stale, error: .network("offline"))], config: AppConfig(), now: now)
+        #expect(old == PopoverSummary(tone: .unreachable(onlyTimeouts: false), text: "Can't reach Claude"))
+        let saved = UsageSnapshot(accountID: "claude", provider: .claude, fetchedAt: now.addingTimeInterval(-3 * 3_600), source: ClaudeUsageFetcher.cacheSource, liveCheckFailure: .network)
+        let copy = PopoverSummary.make(accounts: [claude], statuses: ["claude": AccountStatus(snapshot: saved, lastAttempt: now)], config: AppConfig(), now: now)
+        #expect(copy == PopoverSummary(tone: .unreachable(onlyTimeouts: false), text: "Can't reach Claude"))
+    }
+
+    @Test func aTimeoutSaysTheProviderIsNotAnswering() {
+        let copilot = AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")
+        let none = PopoverSummary.make(accounts: [copilot], statuses: ["copilot": AccountStatus(error: .timeout)], config: AppConfig(), now: now)
+        #expect(none == PopoverSummary(tone: .unreachable(onlyTimeouts: true), text: "No answer from GitHub Copilot"))
+        // Two accounts of one provider need the label to tell them apart.
+        let both = PopoverSummary.make(accounts: accounts, statuses: ["work": AccountStatus(error: .timeout)], config: AppConfig(), now: now)
+        #expect(both.text == "No answer from Claude · Work")
+    }
+
+    @Test func severalAccountsThatCannotRefreshAreCounted() {
+        let copilot = AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")
+        let statuses = ["personal": AccountStatus(error: .timeout), "copilot": AccountStatus(error: .network("dial tcp"))]
+        let summary = PopoverSummary.make(accounts: [accounts[0], copilot], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary == PopoverSummary(tone: .unreachable(onlyTimeouts: false), text: "2 accounts can't refresh"))
+        let timeouts = PopoverSummary.make(accounts: accounts, statuses: ["personal": AccountStatus(error: .timeout), "work": AccountStatus(error: .timeout)], config: AppConfig(), now: now)
+        #expect(timeouts.tone == .unreachable(onlyTimeouts: true))
+        // Beside a warning it joins the others, as a failed check did.
+        let warned = PopoverSummary.make(accounts: [accounts[1], copilot], statuses: [
+            "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
+            "copilot": AccountStatus(error: .timeout),
+        ], config: AppConfig(), now: now)
+        #expect(warned.tone == .warning)
+        #expect(warned.others == ["GitHub Copilot"])
+    }
+
+    /// Every failed-check icon in the popover, the menu bar and the sidebar reads this rule.
+    @Test func onlyAnActionableFailureNeedsAttention() {
+        for error in [FetchError.network("offline"), .timeout, .rateLimited(retryAfter: 60)] {
+            #expect(!AccountStatus(error: error).failureNeedsAttention(now: now, refreshMinutes: 10), "\(error)")
+        }
+        #expect(AccountStatus(error: .notSignedIn).failureNeedsAttention(now: now, refreshMinutes: 10))
+        #expect(!AccountStatus(error: .noSubscription("none")).failureNeedsAttention(now: now, refreshMinutes: 10))
     }
 }
 
@@ -457,18 +494,33 @@ struct StatusIconRendererTests {
     /// An actionable failure always needs attention; a transient one only without fresh data, so a test says which.
     private func entry(
         _ id: String, used: Double?, severity: Severity = .ok, resetIn: TimeInterval? = 50 * 60, stale: Bool = false,
-        attention: FetchError.Attention? = nil, needsAttention: Bool? = nil, provider: ProviderID = .claude
+        attention: FetchError.Attention? = nil, needsAttention: Bool? = nil, provider: ProviderID = .claude,
+        fetchedAgo: TimeInterval? = nil, connection: FetchError? = nil
     ) -> MenuBarState.Entry {
         MenuBarState.Entry(
             accountID: id, provider: provider, label: id,
             tightest: used.map { window("session", "5-hour", used: $0, resetIn: resetIn) },
-            severity: severity, isStale: stale, attention: attention, failureNeedsAttention: needsAttention ?? (attention == .actionable)
+            severity: severity, isStale: stale, attention: attention ?? connection.map { _ in .transient },
+            failureNeedsAttention: needsAttention ?? (attention == .actionable),
+            fetchedAt: fetchedAgo.map { now.addingTimeInterval(-$0) }, connectionFailure: connection
         )
     }
 
-    private func state(_ entries: [MenuBarState.Entry], mode: MenuBarMode = .worst, icon: MenuBarIcon = .app, countdown: Bool = true) -> MenuBarState {
-        MenuBarState(mode: mode, icon: icon, entries: entries, showResetCountdownWhenFull: countdown, now: now)
+    private func state(
+        _ entries: [MenuBarState.Entry], mode: MenuBarMode = .worst, icon: MenuBarIcon = .app, countdown: Bool = true,
+        connectivity: Connectivity = .online, settings: SettingsProblem? = nil
+    ) -> MenuBarState {
+        MenuBarState(mode: mode, icon: icon, entries: entries, showResetCountdownWhenFull: countdown, now: now, connectivity: connectivity, settingsProblem: settings)
     }
+
+    private let keptSettings = SettingsProblem(
+        message: "Could not read config.local.json. Using the last good settings, and nothing is saved until it is fixed and reloaded.",
+        file: "config.local.json", nothingLoaded: false
+    )
+    private let noSettings = SettingsProblem(
+        message: "Could not read config.json. No settings are loaded, and nothing is saved until it is fixed and reloaded.",
+        file: "config.json", nothingLoaded: true
+    )
 
     private func color(_ rendered: RenderedStatusIcon) -> NSColor? {
         guard rendered.attributedTitle.length > 0 else { return nil }
@@ -625,12 +677,14 @@ struct StatusIconRendererTests {
     }
 
     /// A timeout over fresh data is likely gone by the next check, and a missing subscription is nothing to fix. A
-    /// timeout with nothing fresh to show needs attention on any account, as it does in the popover header.
+    /// timeout with nothing fresh to show is not the user's to fix either: the header names it, the dot stays off.
     @Test func onlyAFailureThatNeedsAttentionShowsTheDot() {
         let blip = StatusIconRenderer.render(state([entry("a", used: 42, attention: .transient, needsAttention: false), entry("b", used: 12)]))
         #expect(pixels(blip.image) == pixels(undotted))
-        let elsewhere = StatusIconRenderer.render(state([entry("a", used: 42), entry("b", used: nil, attention: .transient, needsAttention: true)]))
-        #expect(pixels(elsewhere.image) == pixels(dotted))
+        let accounts = [AccountConfig(id: "a", provider: .claude, label: "a"), AccountConfig(id: "b", provider: .codex, label: "b")]
+        let statuses = ["a": AccountStatus(snapshot: snapshot("a", [window("session", "5-hour", used: 42, resetIn: 50 * 60)])), "b": AccountStatus(error: .timeout)]
+        let elsewhere = StatusIconRenderer.render(MenuBarState.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now))
+        #expect(pixels(elsewhere.image) == pixels(undotted))
         let calm = StatusIconRenderer.render(state([entry("a", used: 42, attention: .calm)]))
         #expect(pixels(calm.image) == pixels(undotted))
         #expect(calm.toolTip?.contains("failed") == false)
@@ -647,7 +701,8 @@ struct StatusIconRendererTests {
     @Test func barsModeDrawsOneBarPerEntry() {
         let ok = StatusIconRenderer.render(state([entry("a", used: 10), entry("b", used: 20), entry("c", used: 30)], mode: .bars))
         #expect(ok.title.isEmpty)
-        #expect(ok.image?.size == NSSize(width: 3 * 3 + 2 * 2, height: 18))
+        // Centered in the slot's 18 pt with the dot's room, so the slash has room to read as crossed out.
+        #expect(ok.image?.size == NSSize(width: 18 + 3, height: 18))
         #expect(ok.image?.isTemplate == true)
         let colored = StatusIconRenderer.render(state([entry("a", used: 10), entry("b", used: 90, severity: .warning)], mode: .bars))
         #expect(colored.image?.isTemplate == false)
@@ -657,6 +712,75 @@ struct StatusIconRendererTests {
         let rendered = StatusIconRenderer.render(state([entry("a", used: 97, severity: .critical)], mode: .icon))
         #expect(rendered.title.isEmpty)
         #expect(rendered.image?.isTemplate == false)
+    }
+
+    /// Under a slash every number is old: an ok number goes secondary, and an amber or red one keeps its full color so a
+    /// near-limit warning is never hidden.
+    @Test func slashedNumbersFollowTheStaleRule() {
+        let ok = StatusIconRenderer.render(state([entry("a", used: 16)], connectivity: .offline))
+        #expect(color(ok) == .secondaryLabelColor)
+        let amber = StatusIconRenderer.render(state([entry("a", used: 85, severity: .warning, stale: true)], connectivity: .offline))
+        #expect(color(amber) == .systemOrange)
+        let red = StatusIconRenderer.render(state([entry("a", used: 97, severity: .critical)], connectivity: .noAnswer))
+        #expect(color(red) == .systemRed)
+        #expect(color(StatusIconRenderer.render(state([entry("a", used: 16)]))) == nil)
+    }
+
+    @Test func tooltipLeadsWithTheState() {
+        let old = entry("Personal", used: 16, stale: true, fetchedAgo: 25 * 60, connection: .network("offline"))
+        let account = "Claude · Personal: 5-hour 16%, resets in 50m"
+        #expect(StatusIconRenderer.toolTip(for: state([old], connectivity: .offline))
+            == "Offline. Showing usage last checked 25m ago. Tokenjar checks again when the Mac is back online.\n\(account) (out of date)")
+        #expect(StatusIconRenderer.toolTip(for: state([entry("Personal", used: nil)], connectivity: .offline))
+            == "Offline. Tokenjar checks when the Mac is back online.\nClaude · Personal: no data")
+        #expect(StatusIconRenderer.toolTip(for: state([old], connectivity: .noAnswer))
+            == "Can't reach any provider. Showing usage last checked 25m ago. A VPN, a proxy or a Wi-Fi sign-in page can cause this.\n\(account) (out of date)")
+        #expect(StatusIconRenderer.toolTip(for: state([entry("Personal", used: nil, connection: .timeout)], connectivity: .noAnswer))
+            == "Can't reach any provider. A VPN, a proxy or a Wi-Fi sign-in page can cause this.\nClaude · Personal: no data")
+        #expect(StatusIconRenderer.toolTip(for: state([old], connectivity: .offline, settings: keptSettings))
+            == "Offline. Showing usage last checked 25m ago. Tokenjar checks again when the Mac is back online.\n\(keptSettings.message)\n\(account) (out of date)")
+        #expect(StatusIconRenderer.toolTip(for: state([], settings: keptSettings)) == "\(keptSettings.message)\nTokenjar: no accounts in the menu bar")
+        #expect(StatusIconRenderer.toolTip(for: state([], settings: noSettings)) == noSettings.message)
+    }
+
+    /// Without a slash each account says why it is not current, so one unreachable provider is named in the tooltip.
+    @Test func eachAccountSaysWhyItIsNotCurrent() {
+        let lines = StatusIconRenderer.toolTip(for: state([
+            entry("A", used: 10, stale: true, connection: .network("dial tcp")),
+            entry("B", used: 10, connection: .timeout),
+            entry("C", used: 10, attention: .transient),
+            entry("D", used: 10, stale: true, attention: .transient),
+            entry("E", used: 10, attention: .actionable),
+            entry("F", used: 10, stale: true),
+        ])).components(separatedBy: "\n").map { $0.components(separatedBy: "50m").last ?? "" }
+        #expect(lines == [
+            " (can't reach, out of date)", " (no answer)", " (waiting to check again)", " (waiting to check again, out of date)",
+            " (last check failed)", " (out of date)",
+        ])
+        let slashed = StatusIconRenderer.toolTip(for: state([entry("A", used: 10, connection: .timeout), entry("B", used: 10, stale: true, connection: .timeout)], connectivity: .noAnswer))
+        #expect(slashed.hasSuffix("Claude · A: 5-hour 10%, resets in 50m\nClaude · B: 5-hour 10%, resets in 50m (out of date)"))
+    }
+
+    @Test(arguments: [MenuBarMode.worst, .icon])
+    func voiceOverLeadsWithTheState(_ mode: MenuBarMode) {
+        func described(_ entries: [MenuBarState.Entry], connectivity: Connectivity = .online, settings: SettingsProblem? = nil) -> String? {
+            StatusIconRenderer.render(state(entries, mode: mode, connectivity: connectivity, settings: settings)).image?.accessibilityDescription
+        }
+        let old = entry("a", used: 16, stale: true, fetchedAgo: 25 * 60)
+        #expect(described([old], connectivity: .offline) == "Tokenjar, offline, Claude 5-hour 16% used, out of date")
+        let copilot = entry("c", used: nil, attention: .actionable, provider: .copilot)
+        #expect(described([entry("a", used: 16), copilot], connectivity: .noAnswer) == "Tokenjar, can't reach any provider, Claude 5-hour 16% used, GitHub Copilot check failed")
+        #expect(described([entry("a", used: 16)], settings: keptSettings) == "Tokenjar, settings need attention, Claude 5-hour 16% used")
+        #expect(described([], settings: noSettings) == "Tokenjar, settings not loaded")
+        #expect(described([entry("a", used: nil)], connectivity: .offline) == "Tokenjar, offline")
+        #expect(described([entry("a", used: 16, stale: true, connection: .network("dial tcp"))]) == "Tokenjar, Claude 5-hour 16% used, can't reach Claude, out of date")
+        #expect(described([entry("a", used: 16, connection: .timeout)]) == "Tokenjar, Claude 5-hour 16% used, no answer from Claude")
+    }
+
+    @Test func barsLeadWithTheStateToo() {
+        let entries = [entry("Personal", used: 75), entry("b", used: 12, provider: .codex), entry("Work", used: 30)]
+        #expect(StatusIconRenderer.render(state(entries, mode: .bars, connectivity: .offline)).image?.accessibilityDescription
+            == "Tokenjar, offline, Claude Personal 75%, Codex 12%, Claude Work 30%")
     }
 
     @Test func toolTipListsEveryAccount() {
