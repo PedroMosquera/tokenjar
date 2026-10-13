@@ -242,15 +242,17 @@ private struct SnapshotBody: View {
                             pace: Pace.compute(window, now: now),
                             now: now,
                             isDimmed: isStale,
-                            caption: window.id == UsageWindow.spendCapID ? spend.flatMap { line in
-                                line.limit.map { Format.moneySpent(line.amount, of: $0, currency: line.currency) }
-                            } : nil
+                            amounts: window.id == UsageWindow.spendCapID ? spend.flatMap { line in
+                                line.limit.map { Format.moneyOf(line.amount, of: $0, currency: line.currency) }
+                            } : nil,
+                            caption: window.id == UsageWindow.spendCapID && spend != nil ? Format.spendLimitDetail(window, now: now) : nil
                         )
                     }
                     if let daily = model.dailySpend(for: account, snapshot: snapshot, now: now) {
                         WindowRow(
                             window: daily.window, severity: Severity.of(daily.window, config: model.config.menuBar, now: now),
-                            pace: Pace.compute(daily.window, now: now), now: now, isDimmed: isStale, caption: Format.dailySpend(daily)
+                            pace: Pace.compute(daily.window, now: now), now: now, isDimmed: isStale,
+                            amounts: Format.dailyAmounts(daily), caption: Format.dailyDetail(daily, now: now)
                         )
                     }
                 }
@@ -295,9 +297,10 @@ private struct SnapshotBody: View {
 
     @ViewBuilder
     private func chart(now: Date, verdictWindowID: String?, namesWindow: Bool) -> some View {
-        // A window past its reset would chart the cycle that just ended.
+        // A window past its reset would chart the cycle that just ended. A spend limit's bar, pace mark and verdict
+        // already say what its month line would, and the dashboard charts its spend.
         let live = snapshot.windows.filter { !$0.hasReset(now: now) }
-        if let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
+        if snapshot.spendLimitMoney == nil, let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
             let samples = burnUps.samples(accountID: account.id, windowID: window.id, start: start, end: window.resetsAt ?? now, revision: model.historyRevision) {
                 model.samples(accountID: account.id, windowID: window.id, since: start)
             }

@@ -35,26 +35,35 @@ struct FormattingTests {
         #expect(Format.moneyUsed(20, of: 100, locale: us) == "$20 used of $100")
     }
 
-    @Test func aSpendLimitReadsAsSpentOfTheLimit() {
-        #expect(Format.moneySpent(477.15, of: 3000, locale: us) == "$477 of $3,000 spent")
-        #expect(Format.moneySpent(12.4, of: 50, locale: us) == "$12.40 of $50.00 spent")
+    /// A spend limit is money, so its amounts lead and the share and the reset go under the bar.
+    @Test func aSpendLimitLeadsWithItsAmounts() {
+        #expect(Format.moneyOf(477.15, of: 3000, locale: us) == "$477 of $3,000")
+        #expect(Format.moneyOf(12.4, of: 50, locale: us) == "$12.40 of $50.00")
+        let now = Date(timeIntervalSince1970: 1_791_660_000)
+        let limit = UsageWindow(id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: 35.2, resetsAt: now.addingTimeInterval(21 * 86_400 + 4 * 3600))
+        #expect(Format.spendLimitDetail(limit, now: now) == "35% used · resets in 21d 4h")
+        #expect(Format.spendLimitDetail(UsageWindow(id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: 35.2), now: now) == "35% used")
     }
 
-    @Test func todaysSpendNamesItsBudget() {
+    /// The detail line says what kind of budget it is and how far through the day, so no duration reads as an amount.
+    @Test func todayLeadsWithItsAmountsAndSaysTheRestUnderTheBar() {
         let utc = TimeZone(identifier: "UTC")!
-        func line(_ spent: Double, _ budget: Double, recommended: Bool = false, from: Date? = nil) -> String {
-            let day = DailySpend(
-                spent: spent, budget: budget, isRecommended: recommended, currency: "USD", dayStart: .distantPast, dayEnd: .distantFuture, countedFrom: from
+        let now = Date(timeIntervalSince1970: 1_791_660_000)
+        func day(_ spent: Double, _ budget: Double, recommended: Bool = false, from: Date? = nil) -> DailySpend {
+            DailySpend(
+                spent: spent, budget: budget, isRecommended: recommended, currency: "USD", dayStart: now.addingTimeInterval(-19 * 3600),
+                dayEnd: now.addingTimeInterval(4 * 3600 + 40 * 60), countedFrom: from
             )
-            return Format.dailySpend(day, locale: us, timeZone: utc)
         }
-        #expect(line(79, 100) == "$79 of $100 daily budget")
-        #expect(line(79.4, 133.2, recommended: true) == "$79 of $133 recommended for today")
-        #expect(line(175, 133) == "$175 of $133 daily budget · $42 over")
+        func detail(_ spend: DailySpend) -> String { Format.dailyDetail(spend, now: now, locale: us, timeZone: utc) }
+        #expect(Format.dailyAmounts(day(79, 133), locale: us) == "$79 of $133")
         // Under $100 a day the cents carry the information, as with a $200 monthly limit.
-        #expect(line(4.27, 6.14, recommended: true) == "$4.27 of $6.14 recommended for today")
-        #expect(line(7.5, 6.14) == "$7.50 of $6.14 daily budget · $1.36 over")
-        #expect(line(12, 100, from: DateParsing.iso8601("2026-10-13T09:14:00Z")) == "$12 of $100 daily budget · since 9:14\u{202F}AM")
+        #expect(Format.dailyAmounts(day(4.27, 6.14, recommended: true), locale: us) == "$4.27 of $6.14")
+        #expect(detail(day(4.27, 6.14, recommended: true)) == "70% of the recommended budget · 4h 40m left today")
+        #expect(detail(day(79, 100)) == "79% of the daily budget · 4h 40m left today")
+        #expect(detail(day(175, 133)) == "$42 over the daily budget · 4h 40m left today")
+        #expect(detail(day(7.5, 6.14)) == "$1.36 over the daily budget · 4h 40m left today")
+        #expect(detail(day(12, 100, from: DateParsing.iso8601("2026-10-13T09:14:00Z"))) == "12% of the daily budget · since 9:14\u{202F}AM · 4h 40m left today")
     }
 
     /// Rounding must never call a window empty while it has use, or full while it has room.

@@ -7,7 +7,9 @@ struct WindowRow: View {
     var pace: Pace?
     var now: Date
     var isDimmed = false
-    /// A line under the bar, such as the money a spend limit measures.
+    /// Replaces the used % and countdown on the right, for a bar measured in money: "$70 of $200".
+    var amounts: String? = nil
+    /// A line under the bar; with `amounts`, where the share and the time go.
     var caption: String? = nil
 
     var body: some View {
@@ -24,6 +26,10 @@ struct WindowRow: View {
                 } else if hasReset {
                     Text("reset, updating")
                         .foregroundStyle(.secondary)
+                } else if let amounts {
+                    Text(amounts)
+                        .fontWeight(.semibold)
+                        .monospacedDigit()
                 } else {
                     HStack(spacing: 0) {
                         Text(Format.percent(window.usedPercent))
@@ -69,6 +75,7 @@ struct WindowRow: View {
         guard !window.notStarted else { return "not started" }
         if window.hasReset(now: now) { return "reset, updating" }
         let countdown = window.resetsAt.map { ", resets in \(Format.spokenDuration($0.timeIntervalSince(now)))" } ?? ""
+        if let amounts { return [amounts, caption].compactMap { $0 }.joined(separator: ", ") }
         return "\(Format.percent(window.usedPercent)) used\(countdown)" + (caption.map { ", \($0)" } ?? "")
     }
 }
