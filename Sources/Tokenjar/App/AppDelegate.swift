@@ -10,6 +10,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     private let popover = NSPopover()
     private var quitConfirmation = QuitConfirmation()
     private var clicks = StatusItemClick.Router()
+    private var popoverFocus = PopoverFocus()
+    /// Set when a press on the status item closed the transient popover, so that click's mouse-up does not reopen it.
+    private var popoverClosedByItemPress = false
     var popoverFrameObservers: [NSObjectProtocol] = [] {
         didSet { oldValue.forEach(NotificationCenter.default.removeObserver) }
     }
@@ -86,26 +89,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
+        let alreadyClosed = popoverClosedByItemPress
+        popoverClosedByItemPress = false
         switch clicks.route(NSApp.currentEvent) {
-        case .popover: togglePopover(sender)
+        case .popover: if !alreadyClosed { togglePopover(sender) }
         case .menu: showMenu()
         }
     }
 
     private func showMenu() {
         guard let statusItem, let button = statusItem.button else { return }
+        // Taken before the popover closes, so its close leaves focus alone while the menu is up.
+        let refocus = popover.isShown ? popoverFocus.closing(tokenjarIsActive: true, keepsFocus: false) : nil
         StatusItemMenu.open(
             StatusItemMenu.make(hasAccounts: !model.accounts.isEmpty, target: self),
             closePopover: { if popover.isShown { popover.performClose(nil) } },
             attach: { statusItem.menu = $0 },
             click: { button.performClick(nil) }
         )
+        if let refocus, NSApp.isActive, !tokenjarNeedsFocus { Self.handFocusBack(to: refocus) }
     }
+
+    /// A Tokenjar window or the quit alert is up, so the keyboard stays with Tokenjar.
+    private var tokenjarNeedsFocus: Bool { windows.hasOpenWindows || quitConfirmation.isAsking }
 
     private func togglePopover(_ sender: NSStatusBarButton) {
         if popover.isShown {
             popover.performClose(sender)
         } else {
+            popoverFocus.opening(frontmost: NSWorkspace.shared.frontmostApplication)
+            NSApp.activate()
             Self.open(popover, willOpen: {
                 model.popoverMaxHeight = Self.anchorGeometry(of: sender).map {
                     PopoverPlacement.maxContentHeight(anchor: $0.anchor, visibleFrame: $0.visibleFrame)
@@ -171,7 +184,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     /// The alert waits for the run loop's default mode, which menu tracking never runs in, so a request from a menu
     /// shows it only after that menu has closed and the status item has let go of it.
     @objc func requestQuit(_ sender: Any?) {
-        guard quitConfirmation.shouldAsk(frontmost: NSWorkspace.shared.frontmostApplication) else { return }
+        // With the popover open Tokenjar is in front, so the app to return to after Cancel is the one before it.
+        let frontmost = popover.isShown ? popoverFocus.appBefore : NSWorkspace.shared.frontmostApplication
+        guard quitConfirmation.shouldAsk(frontmost: frontmost) else { return }
         if popover.isShown { popover.performClose(nil) }
         RunLoop.main.perform(inModes: [.default]) {
             MainActor.assumeIsolated { self.askToQuit() }
@@ -212,9 +227,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
         }
     }
 
+    func popoverWillClose(_ notification: Notification) {
+        if let event = NSApp.currentEvent, [.leftMouseDown, .rightMouseDown].contains(event.type), event.window === statusItem?.button?.window {
+            popoverClosedByItemPress = true
+        }
+    }
+
     func popoverDidClose(_ notification: Notification) {
         model.isPopoverShown = false
         popoverFrameObservers = []
+        if let app = popoverFocus.closing(tokenjarIsActive: NSApp.isActive, keepsFocus: tokenjarNeedsFocus) { Self.handFocusBack(to: app) }
     }
 
     /// Where the popover went, so an open that ends up over the menu bar leaves a trace in the unified log. Frames only.

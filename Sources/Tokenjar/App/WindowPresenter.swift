@@ -40,6 +40,7 @@ final class WindowPresenter: NSObject, NSWindowDelegate {
     }
 
     private var windows: [String: NSWindow] = [:]
+    var hasOpenWindows: Bool { !windows.isEmpty }
     /// Ids of the open windows that have become key since `show` opened them.
     private var keyed: Set<String> = []
 
