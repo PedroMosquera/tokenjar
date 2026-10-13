@@ -47,10 +47,13 @@ struct PopoverSummary: Equatable {
     /// data and nothing amber, red or failed. "Codex has room: 5-hour 2% used".
     var room: String?
 
+    /// How account names are written: `AccountTitle.name` on screen, `spokenName` for VoiceOver.
+    enum Voice { case written, spoken }
+
     /// `majorOutages` are providers whose status page reports a major outage; the room hint never points at one.
     static func make(
         accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date,
-        connectivity: Connectivity = .online, settings: SettingsProblem? = nil, majorOutages: Set<ProviderID> = []
+        connectivity: Connectivity = .online, settings: SettingsProblem? = nil, majorOutages: Set<ProviderID> = [], voice: Voice = .written
     ) -> PopoverSummary {
         // In priority order: what stops every check, then what makes every number old, then one account at a time.
         guard !accounts.isEmpty else {
@@ -100,13 +103,14 @@ struct PopoverSummary: Equatable {
         // The title outranks the limit summary, so the near-limit account and the one to fix, which the menu bar's color
         // and dot point at, are named here instead.
         switch connectivity {
-        case .offline: return PopoverSummary(tone: .offline, text: "Offline", others: needsYou.map { shortName($0, among: accounts) } + settingsName)
+        case .offline: return PopoverSummary(tone: .offline, text: "Offline", others: needsYou.map { shortName($0, among: accounts, voice: voice) } + settingsName)
         case .noAnswer:
-            return PopoverSummary(tone: .noAnswer, text: "Can't reach any provider", others: needsYou.map { shortName($0, among: accounts) } + settingsName)
+            return PopoverSummary(tone: .noAnswer, text: "Can't reach any provider", others: needsYou.map { shortName($0, among: accounts, voice: voice) } + settingsName)
         case .online: break
         }
         if let worst, worst.severity > .ok {
-            let name = AccountTitle(provider: worst.account.provider, label: worst.account.label).name
+            let title = AccountTitle(provider: worst.account.provider, label: worst.account.label)
+            let name = voice == .spoken ? title.spokenName : title.name
             let window = worst.window
             let detail: String
             if window.usedPercent >= 100, let countdown = Format.countdown(to: window.resetsAt, now: now) {
@@ -114,12 +118,12 @@ struct PopoverSummary: Equatable {
             } else {
                 detail = "\(window.label) at \(Format.percent(window.usedPercent))"
             }
-            let others = needsALook.filter { $0.id != worst.account.id }.map { shortName($0, among: accounts) } + settingsName
+            let others = needsALook.filter { $0.id != worst.account.id }.map { shortName($0, among: accounts, voice: voice) } + settingsName
             // Only once the named window stops the work: under amber there is still room on that account. Full also
             // counts below Red at, which a hand-edited config can set above 100.
             let blocked = worst.severity == .critical || window.usedPercent >= 100
             let room = blocked ? roomiest.map {
-                "\(shortName($0.account, among: accounts)) has room: \($0.window.label) \(Format.percent($0.window.usedPercent)) used"
+                "\(shortName($0.account, among: accounts, voice: voice)) has room: \($0.window.label) \(Format.percent($0.window.usedPercent)) used"
             } : nil
             return PopoverSummary(tone: worst.severity == .critical ? .critical : .warning, text: "\(name): \(detail)", others: others, room: room)
         }
@@ -132,7 +136,7 @@ struct PopoverSummary: Equatable {
             guard unreachable.count == 1, let only = unreachable.first else {
                 return PopoverSummary(tone: .unreachable(onlyTimeouts: onlyTimeouts), text: "\(unreachable.count) accounts can't refresh")
             }
-            let name = shortName(only.account, among: accounts)
+            let name = shortName(only.account, among: accounts, voice: voice)
             return PopoverSummary(tone: .unreachable(onlyTimeouts: onlyTimeouts), text: onlyTimeouts ? "No answer from \(name)" : "Can't reach \(name)")
         }
         if withData == 0 {
@@ -144,9 +148,11 @@ struct PopoverSummary: Equatable {
     }
 
     /// The header has room for a few words: the provider alone names an account unless another account shares it.
-    private static func shortName(_ account: AccountConfig, among accounts: [AccountConfig]) -> String {
+    private static func shortName(_ account: AccountConfig, among accounts: [AccountConfig], voice: Voice) -> String {
         let shared = accounts.contains { $0.id != account.id && $0.provider == account.provider }
-        return shared ? AccountTitle(provider: account.provider, label: account.label).name : account.provider.displayName
+        guard shared else { return account.provider.displayName }
+        let title = AccountTitle(provider: account.provider, label: account.label)
+        return voice == .spoken ? title.spokenName : title.name
     }
 }
 

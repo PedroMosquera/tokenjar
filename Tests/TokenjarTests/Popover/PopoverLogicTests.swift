@@ -348,6 +348,23 @@ struct PopoverSummaryTests {
         #expect(PopoverHeader.help(for: clear) == "All clear · next reset in 2h 10m")
     }
 
+    @Test func voiceOverHearsNamesWithoutTheMiddleDot() {
+        let team = AccountConfig(id: "team", provider: .claude, label: "Team")
+        let statuses = [
+            "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 100, resetIn: 87 * 60)])),
+            "work": AccountStatus(snapshot: snapshot("work", [window("weekly", "Week", used: 30, minutes: 10_080, resetIn: 2 * 3_600)])),
+            "team": AccountStatus(error: .notSignedIn),
+        ]
+        let spoken = PopoverSummary.make(accounts: accounts + [team], statuses: statuses, config: AppConfig(), now: now, voice: .spoken)
+        #expect(spoken == PopoverSummary(
+            tone: .critical, text: "Claude Personal: 5-hour full, resets in 1h 27m", others: ["Claude Team"], room: "Claude Work has room: Week 30% used"
+        ))
+        let written = PopoverSummary.make(accounts: accounts + [team], statuses: statuses, config: AppConfig(), now: now)
+        #expect(written.text == "Claude · Personal: 5-hour full, resets in 1h 27m")
+        let silent = PopoverSummary.make(accounts: accounts, statuses: ["work": AccountStatus(error: .timeout)], config: AppConfig(), now: now, voice: .spoken)
+        #expect(silent.text == "No answer from Claude Work")
+    }
+
     /// A config that failed at launch leaves no accounts; "No accounts yet" would say the install is fresh.
     @Test func settingsNotLoadedIsNotAnEmptyInstall() {
         let unloaded = SettingsProblem(message: "Could not read config.json.", file: "config.json", nothingLoaded: true)

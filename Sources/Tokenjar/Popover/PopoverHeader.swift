@@ -5,10 +5,9 @@ struct PopoverHeader: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let summary = PopoverSummary.make(
-            accounts: model.accounts, statuses: model.statuses, config: model.config, now: model.popoverNow,
-            connectivity: model.connectivity, settings: model.settingsProblem
-        )
+        let summary = makeSummary(.written)
+        // VoiceOver can read the middle dot in "Claude · Work" out loud.
+        let spoken = makeSummary(.spoken)
         HStack(spacing: 10) {
             toneIcon(summary.tone)
                 .padding(.leading, -PopoverView.symbolBearing)
@@ -20,6 +19,7 @@ struct PopoverHeader: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(Self.help(for: summary))
+                    .accessibilityLabel(spoken.text)
                 if let room = summary.room {
                     Text(room)
                         .font(.caption)
@@ -27,12 +27,13 @@ struct PopoverHeader: View {
                         .monospacedDigit()
                         .fixedSize(horizontal: false, vertical: true)
                         .help("The account with the most room left among those with fresh data and nothing amber or red.")
+                        .accessibilityLabel(spoken.room ?? room)
                 }
                 if let updated = Self.updateLine(
                     hasAccounts: !model.accounts.isEmpty, isRefreshing: model.isRefreshing, lastUpdated: model.lastUpdated,
                     connectivity: model.connectivity, nextCheck: model.nextNetworkCheck, now: model.popoverNow
                 ) {
-                    caption(others: summary.others, updated: updated)
+                    caption(others: summary.others, spokenOthers: spoken.others, updated: updated)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -43,23 +44,33 @@ struct PopoverHeader: View {
         }
     }
 
+    private func makeSummary(_ voice: PopoverSummary.Voice) -> PopoverSummary {
+        PopoverSummary.make(
+            accounts: model.accounts, statuses: model.statuses, config: model.config, now: model.popoverNow,
+            connectivity: model.connectivity, settings: model.settingsProblem, voice: voice
+        )
+    }
+
     /// The other accounts share the update line when both fit, else get a line of their own above it, so the
     /// names are not cut short just to keep the header one line shorter.
     @ViewBuilder
-    private func caption(others: [String], updated: String) -> some View {
+    private func caption(others: [String], spokenOthers: [String], updated: String) -> some View {
         if others.isEmpty {
             // Offline and no-answer lines say what happens next and may take two lines.
             Text(updated)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
             let list = "Also: \(others.joined(separator: ", "))"
+            let spokenList = "Also: \(spokenOthers.joined(separator: ", "))"
             ViewThatFits(in: .horizontal) {
                 Text("\(list) · \(updated)")
                     .lineLimit(1)
+                    .accessibilityLabel("\(spokenList). \(updated)")
                 VStack(alignment: .leading, spacing: 1) {
                     Text(list)
                         .lineLimit(1)
                         .truncationMode(.tail)
+                        .accessibilityLabel(spokenList)
                     Text(updated)
                         .fixedSize(horizontal: false, vertical: true)
                 }
