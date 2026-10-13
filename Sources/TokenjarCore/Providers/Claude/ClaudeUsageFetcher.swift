@@ -69,7 +69,10 @@ public struct ClaudeUsageFetcher: UsageFetcher {
         case .report(let limits):
             let windows = limits?.windows ?? []
             if windows.isEmpty, !output.usesAPIKey, config?.planHasLimits == true { return try fallback(.parse("usage report has no limits")) }
-            return snapshot(windows: windows + [limits?.spendCapWindow].compactMap { $0 }, money: limits?.money ?? [], notes: windows.isEmpty ? [Self.noLimitsNote] : [])
+            let spendCap = limits?.spendCapWindow(now: now)
+            return snapshot(
+                windows: windows + [spendCap].compactMap { $0 }, money: limits?.money ?? [], notes: windows.isEmpty && spendCap == nil ? [Self.noLimitsNote] : []
+            )
         case .noReport:
             if output.usesAPIKey { return snapshot(windows: [], money: [], notes: [Self.noLimitsNote]) }
             if config?.isSignedIn != true,
@@ -77,6 +80,13 @@ public struct ClaudeUsageFetcher: UsageFetcher {
                 throw FetchError.notSignedIn
             }
             if config?.planHasLimits == true { return try fallback(.parse("usage report missing")) }
+            // Runs seconds apart can print only the cost summary while the cache holds the spend fetched just before.
+            if let cached = config?.cachedSpendLimit(now: now) {
+                return UsageSnapshot(
+                    accountID: account.id, provider: .claude, plan: plan, windows: [cached.window], money: cached.money,
+                    fetchedAt: cached.fetchedAt, source: Self.cacheSource
+                )
+            }
             return snapshot(windows: [], money: [], notes: [Self.noLimitsNote])
         case .modelTurn:
             // No cache fallback: it would hide that every refresh now spends tokens.

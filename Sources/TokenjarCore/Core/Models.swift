@@ -320,6 +320,12 @@ public struct UsageSnapshot: Codable, Hashable, Sendable {
         self.liveCheckFailure = liveCheckFailure
     }
 
+    /// The capped money a spend-limit window measures, shown with that bar rather than as a row of its own.
+    public var spendLimitMoney: MoneyLine? {
+        guard windows.contains(where: { $0.id == UsageWindow.spendCapID }) else { return nil }
+        return money.first { $0.limit != nil }
+    }
+
     /// The window with the highest used %, ties broken by the sooner reset.
     public var tightestWindow: UsageWindow? {
         Self.tightest(windows)

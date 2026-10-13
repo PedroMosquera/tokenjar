@@ -34,6 +34,11 @@ struct FormattingTests {
         #expect(Format.moneyUsed(20, of: 100, locale: us) == "$20 used of $100")
     }
 
+    @Test func aSpendLimitReadsAsSpentOfTheLimit() {
+        #expect(Format.moneySpent(477.15, of: 3000, locale: us) == "$477 of $3,000 spent")
+        #expect(Format.moneySpent(12.4, of: 50, locale: us) == "$12.40 of $50.00 spent")
+    }
+
     /// Rounding must never call a window empty while it has use, or full while it has room.
     @Test func percentNeverRoundsToAnEdgeItHasNotReached() {
         #expect(Format.percent(0) == "0%")

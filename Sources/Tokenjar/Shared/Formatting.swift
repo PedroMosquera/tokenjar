@@ -59,6 +59,12 @@ enum Format {
         return "\(money(amount, currency: currency, fractionDigits: digits, locale: locale)) used of \(money(limit, currency: currency, fractionDigits: digits, locale: locale))"
     }
 
+    /// "$477 of $3,000 spent", with `moneyUsed`'s shared precision.
+    static func moneySpent(_ amount: Double, of limit: Double, currency: String = "USD", locale: Locale = .autoupdatingCurrent) -> String {
+        let digits = max(centsDigits(amount), centsDigits(limit))
+        return "\(money(amount, currency: currency, fractionDigits: digits, locale: locale)) of \(money(limit, currency: currency, fractionDigits: digits, locale: locale)) spent"
+    }
+
     private static func centsDigits(_ amount: Double) -> Int {
         amount >= 100 || amount == amount.rounded() ? 0 : 2
     }

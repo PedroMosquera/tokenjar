@@ -7,6 +7,8 @@ struct WindowRow: View {
     var pace: Pace?
     var now: Date
     var isDimmed = false
+    /// A line under the bar, such as the money a spend limit measures.
+    var caption: String? = nil
 
     var body: some View {
         // Past its reset the snapshot still holds the old cycle's use, which the next check replaces.
@@ -41,6 +43,12 @@ struct WindowRow: View {
                 tint: severity.color
             )
             .opacity(isDimmed ? 0.5 : 1)
+            if let caption {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
         }
         .help(helpText)
         .accessibilityElement(children: .ignore)
@@ -61,7 +69,7 @@ struct WindowRow: View {
         guard !window.notStarted else { return "not started" }
         if window.hasReset(now: now) { return "reset, updating" }
         let countdown = window.resetsAt.map { ", resets in \(Format.spokenDuration($0.timeIntervalSince(now)))" } ?? ""
-        return "\(Format.percent(window.usedPercent)) used\(countdown)"
+        return "\(Format.percent(window.usedPercent)) used\(countdown)" + (caption.map { ", \($0)" } ?? "")
     }
 }
 

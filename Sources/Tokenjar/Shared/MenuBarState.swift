@@ -83,7 +83,7 @@ struct MenuBarState: Equatable {
                 cause: cause(of: severity, windows: windows, tightest: tightest, config: config.menuBar, now: now),
                 fetchedAt: status.snapshot?.fetchedAt,
                 connectionFailure: status.connectionFailure,
-                spend: tightest?.id == UsageWindow.spendCapID ? status.snapshot?.money.first { $0.limit != nil } : nil
+                spend: tightest?.id == UsageWindow.spendCapID ? status.snapshot?.spendLimitMoney : nil
             )
         }
         return MenuBarState(

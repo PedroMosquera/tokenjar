@@ -230,6 +230,8 @@ private struct SnapshotBody: View {
 
     var body: some View {
         let now = model.popoverNow
+        let spend = snapshot.spendLimitMoney
+        let moneyRows = snapshot.money.filter { $0 != spend }
         VStack(alignment: .leading, spacing: 10) {
             if !snapshot.windows.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -239,7 +241,10 @@ private struct SnapshotBody: View {
                             severity: Severity.of(window, config: model.config.menuBar, now: now),
                             pace: Pace.compute(window, now: now),
                             now: now,
-                            isDimmed: isStale
+                            isDimmed: isStale,
+                            caption: window.id == UsageWindow.spendCapID ? spend.flatMap { line in
+                                line.limit.map { Format.moneySpent(line.amount, of: $0, currency: line.currency) }
+                            } : nil
                         )
                     }
                 }
@@ -251,9 +256,9 @@ private struct SnapshotBody: View {
                     .font(.callout)
             }
             chart(now: now, verdictWindowID: verdict?.window.id, namesWindow: namesWindow)
-            if !snapshot.money.isEmpty {
+            if !moneyRows.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(snapshot.money.enumerated()), id: \.offset) { _, line in
+                    ForEach(Array(moneyRows.enumerated()), id: \.offset) { _, line in
                         MoneyRow(line: line)
                     }
                 }

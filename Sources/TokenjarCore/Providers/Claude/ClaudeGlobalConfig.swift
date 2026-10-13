@@ -51,12 +51,26 @@ struct ClaudeGlobalConfig: Decodable, Sendable {
     /// The last limits Claude Code itself fetched, when they belong to the signed-in account. Windows whose reset
     /// has already passed are dropped: their percentage describes a window that no longer exists.
     func cachedLimits(now: Date) -> (windows: [UsageWindow], money: [MoneyLine], fetchedAt: Date)? {
+        guard let (utilization, fetchedAt) = ownCache else { return nil }
+        let windows = utilization.windows.filter { ($0.resetsAt ?? .distantFuture) > now }
+        guard !windows.isEmpty else { return nil }
+        return (windows, utilization.rateLimits.money, fetchedAt)
+    }
+
+    /// The spend limit of a seat without plan limits, as Claude Code last fetched it, while that fetch is still in
+    /// the current month: spend from an earlier month says nothing about this month's cap.
+    func cachedSpendLimit(now: Date) -> (window: UsageWindow, money: [MoneyLine], fetchedAt: Date)? {
+        guard let (utilization, fetchedAt) = ownCache, let window = utilization.rateLimits.spendCapWindow(now: fetchedAt),
+              !window.hasReset(now: now)
+        else { return nil }
+        return (window, utilization.rateLimits.money, fetchedAt)
+    }
+
+    private var ownCache: (Utilization, Date)? {
         guard let cache = cachedUsageUtilization, let accountID = oauthAccount?.accountUuid,
               cache.accountUuid == accountID, let fetchedAtMs = cache.fetchedAtMs, let utilization = cache.utilization
         else { return nil }
-        let windows = utilization.windows.filter { ($0.resetsAt ?? .distantFuture) > now }
-        guard !windows.isEmpty else { return nil }
-        return (windows, utilization.rateLimits.money, Date(timeIntervalSince1970: fetchedAtMs / 1000))
+        return (utilization, Date(timeIntervalSince1970: fetchedAtMs / 1000))
     }
 
     static func planLabel(_ account: OAuthAccount) -> String? {

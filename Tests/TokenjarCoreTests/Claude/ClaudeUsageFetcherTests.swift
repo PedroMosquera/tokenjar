@@ -299,9 +299,87 @@ struct ClaudeUsageFetcherTests {
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
-        #expect(snapshot.windows.map(\.id) == ["spend-cap"])
-        #expect(abs((snapshot.windows.first?.usedPercent ?? 0) - 4.132) < 0.0001)
+        let window = try #require(snapshot.windows.first)
+        #expect(snapshot.windows.count == 1)
+        #expect(window.id == "spend-cap")
+        #expect(window.label == "Spend limit")
+        #expect(abs(window.usedPercent - 4.132) < 0.0001)
         #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 41.32, limit: 1000, currency: "USD")])
+        // The bar says what the note would: there are no plan limits, only this one.
+        #expect(snapshot.notes.isEmpty)
+    }
+
+    /// A usage-based seat as `.claude.json` holds it after Claude Code fetched its usage: no plan limits, a spend cap.
+    private func usageBasedSeat(cacheFetchedAt: String, cacheAccount: String = "ACCOUNT_UUID_C") -> String {
+        let ms = Int(DateParsing.iso8601(cacheFetchedAt)!.timeIntervalSince1970 * 1000)
+        return #"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"},"#
+            + #""cachedUsageUtilization":{"fetchedAtMs":\#(ms),"accountUuid":"\#(cacheAccount)","utilization":{"five_hour":null,"seven_day":null,"#
+            + #""extra_usage":{"is_enabled":true,"monthly_limit":300000,"used_credits":47856,"utilization":15.952,"currency":"USD","decimal_places":2},"#
+            + #""limits":[]}}}"#
+    }
+
+    /// Runs seconds apart can answer with only the local cost summary, while Claude Code's cache holds the spend it
+    /// fetched moments before. Without the cache the bar would come and go between refreshes.
+    @Test func aSeatWithoutPlanLimitsReadsItsSpendLimitFromTheCacheWhenTheReportIsMissing() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.write(usageBasedSeat(cacheFetchedAt: "2026-10-10T19:59:30Z"), to: ".claude.json")
+        let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(snapshot.windows.map(\.id) == ["spend-cap"])
+        #expect(abs((snapshot.windows.first?.usedPercent ?? 0) - 15.952) < 0.0001)
+        #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 478.56, limit: 3000, currency: "USD")])
+        #expect(snapshot.source == ClaudeUsageFetcher.cacheSource)
+        #expect(snapshot.fetchedAt == DateParsing.iso8601("2026-10-10T19:59:30Z"))
+        #expect(snapshot.notes.isEmpty)
+        #expect(snapshot.liveCheckFailure == nil)
+    }
+
+    /// Last month's spend says nothing about this month's cap.
+    @Test func aCachedSpendLimitFromAnEarlierMonthIsNotShown() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.write(usageBasedSeat(cacheFetchedAt: "2026-09-30T23:00:00Z"), to: ".claude.json")
+        let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(snapshot.windows.isEmpty)
+        #expect(snapshot.money.isEmpty)
+        #expect(snapshot.notes == ["No plan limits for this login"])
+    }
+
+    @Test func anotherAccountsCachedSpendIsNotShown() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.write(usageBasedSeat(cacheFetchedAt: "2026-10-10T19:59:30Z", cacheAccount: "ACCOUNT_UUID_OTHER"), to: ".claude.json")
+        let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(snapshot.windows.isEmpty)
+        #expect(snapshot.money.isEmpty)
+    }
+
+    /// Claude's /usage gives no reset for the cap. Claude's own usage page shows it resetting at midnight UTC on the
+    /// 1st, so the window is the UTC calendar month, which gives the bar its countdown and pace.
+    @Test(arguments: [
+        ("2026-10-10T20:00:00Z", "2026-11-01T00:00:00Z", 31 * 1440),
+        ("2026-12-31T23:59:00Z", "2027-01-01T00:00:00Z", 31 * 1440),
+        ("2027-02-01T00:00:00Z", "2027-03-01T00:00:00Z", 28 * 1440),
+    ])
+    func aSpendLimitResetsAtTheStartOfTheNextUTCMonth(_ at: String, _ resets: String, _ minutes: Int) async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"}}"#, to: ".claude.json")
+        let runner = FakeClaude(stdout: try fixture("../Plans/claude/enterprise-usage-based-spend-cap.stream.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: DateParsing.iso8601(at)!))
+
+        #expect(snapshot.windows.first?.resetsAt == DateParsing.iso8601(resets))
+        #expect(snapshot.windows.first?.windowMinutes == minutes)
     }
 
     @Test func spendWithNoCapHasNoWindow() async throws {
