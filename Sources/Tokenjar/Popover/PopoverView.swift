@@ -10,6 +10,7 @@ struct PopoverView: View {
 
     /// Cards sit this far in and pad their content by `cardPadding`, so the header icon, the card content and the
     /// footer's first icon share one leading edge.
+    static let width: CGFloat = 360
     static let cardMargin: CGFloat = 10
     static let cardPadding: CGFloat = 12
     private static let contentEdge = cardMargin + cardPadding
@@ -55,7 +56,7 @@ struct PopoverView: View {
                 .padding(.trailing, Self.contentEdge - 8)
                 .padding(.vertical, 6)
         }
-        .frame(width: 360)
+        .frame(width: Self.width)
         .frame(maxHeight: model.popoverMaxHeight)
     }
 }

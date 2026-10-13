@@ -1,4 +1,5 @@
-import Foundation
+import AppKit
+import SwiftUI
 import Testing
 @testable import Tokenjar
 import TokenjarCore
@@ -24,6 +25,28 @@ private func health(_ items: [ProviderHealthItem], ago: TimeInterval = 60, failu
 private let opusErrors = ProviderHealthItem(level: .partialOutage, names: ["Claude Code"], title: "Elevated errors for Claude Opus 5.5")
 private let claudeMaintenance = ProviderHealthItem(level: .maintenance, names: ["claude.ai"], title: "Scheduled maintenance of claude.ai")
 private let codexDown = ProviderHealthItem(level: .partialOutage, names: ["Codex CLI", "Codex Web", "Codex API", "Codex VS Code extension"])
+private let desktopMaintenance = ProviderHealthItem(level: .maintenance, names: ["Codex in ChatGPT Desktop"])
+
+/// Sizes as SwiftUI lays them out on a card, in the row's font.
+@MainActor
+private enum RowMeasure {
+    static func size(_ view: some View) -> CGSize {
+        NSHostingView(rootView: view.font(.callout)).fittingSize
+    }
+
+    static func height(_ text: String, width: CGFloat) -> CGFloat {
+        size(Text(text).fixedSize(horizontal: false, vertical: true).frame(width: width, alignment: .leading)).height
+    }
+
+    /// A card's content width at the popover's width.
+    static let card = PopoverView.width - 2 * (PopoverView.cardMargin + PopoverView.cardPadding)
+    static var button: CGSize { size(Button("Status Page") {}.controlSize(.small)) }
+
+    /// The card's content width less the row's icon, its gaps and the Status Page button.
+    static var textBesideTheButton: CGFloat {
+        card - size(Image(systemName: "megaphone")).width - HealthRow.iconGap - HealthRow.buttonGap - button.width
+    }
+}
 
 @MainActor
 struct HealthRowTests {
@@ -69,23 +92,86 @@ struct HealthRowTests {
 
     @Test func voiceOverHearsTheProviderTheLevelAndTheAge() throws {
         let text = try #require(HealthRowText(provider: .claude, answer: answer([opusErrors, claudeMaintenance], ago: 40 * 60), now: now))
-        #expect(text.spoken == "Claude status page: partial outage on Claude Code. Elevated errors for Claude Opus 5.5. And 1 more. As of 40 minutes ago")
+        #expect(text.spoken == "Claude status page: partial outage on Claude Code. Elevated errors for Claude Opus 5.5. It also reports maintenance on claude.ai: Scheduled maintenance of claude.ai. As of 40 minutes ago")
     }
 
-    /// When the row runs out of room the title gives up words, never the count or the age.
-    @Test func shorterFormsCutTheTitleAndKeepTheCountAndTheAge() throws {
+    /// VoiceOver has no width to save: it hears every product, and a further item as what it is rather than a count
+    /// that could pass for more products.
+    @Test func voiceOverHearsEveryProductAndEveryItem() throws {
+        let text = try #require(HealthRowText(provider: .codex, answer: answer([codexDown, desktopMaintenance], ago: 40 * 60), now: now))
+        #expect(text.spoken == "Codex status page: partial outage on Codex CLI, Codex Web, Codex API and Codex VS Code extension. It also reports maintenance on Codex in ChatGPT Desktop. As of 40 minutes ago")
+    }
+
+    /// When the row runs out of room the title gives up words, then the title goes, then the products; never the count
+    /// or the age.
+    @Test func shorterFormsKeepTheCountAndTheAge() throws {
         let text = try #require(HealthRowText(provider: .claude, answer: answer([opusErrors, claudeMaintenance], ago: 40 * 60), now: now))
         #expect(text.candidates.first == "Partial outage on Claude Code: Elevated errors for Claude Opus 5.5 and 1 more · as of 40m ago")
         #expect(text.candidates.dropFirst().first == "Partial outage on Claude Code: Elevated errors for Claude Opus… and 1 more · as of 40m ago")
-        #expect(text.candidates.last == "Partial outage on Claude Code: … and 1 more · as of 40m ago")
+        #expect(Array(text.candidates.suffix(2)) == ["Partial outage on Claude Code and 1 more · as of 40m ago", "Partial outage and 1 more · as of 40m ago"])
         #expect(text.candidates.allSatisfy { $0.hasSuffix(" and 1 more · as of 40m ago") })
         #expect(zip(text.candidates, text.candidates.dropFirst()).allSatisfy { $0.count > $1.count })
         let codex = try #require(HealthRowText(provider: .codex, answer: answer([codexDown], ago: 40 * 60), now: now))
         #expect(codex.candidates == [
             "Partial outage on Codex CLI, Codex Web and 2 more · as of 40m ago",
             "Partial outage on Codex CLI and 3 more · as of 40m ago",
-            "Partial outage on Codex CLI… · as of 40m ago",
+            "Partial outage · as of 40m ago",
         ])
+    }
+
+    /// Most Claude incidents cover Claude Code, claude.ai and the Claude API, so the product list gives way before the
+    /// title does.
+    @Test func severalProductsShortenBeforeTheTitle() throws {
+        let opus = ProviderHealthItem(level: .partialOutage, names: ["Claude Code", "claude.ai", "Claude API"], title: "Elevated errors for Claude Opus 5.5")
+        let alone = try #require(HealthRowText(provider: .claude, answer: answer([opus]), now: now))
+        #expect(Array(alone.candidates.prefix(2)) == [
+            "Partial outage on Claude Code, claude.ai and Claude API: Elevated errors for Claude Opus 5.5",
+            "Partial outage on Claude Code and 2 more: Elevated errors for Claude Opus 5.5",
+        ])
+        let withMore = try #require(HealthRowText(provider: .claude, answer: answer([opus, claudeMaintenance]), now: now))
+        #expect(withMore.candidates.dropFirst().first == "Partial outage on Claude Code and others: Elevated errors for Claude Opus 5.5 and 1 more")
+    }
+
+    /// "Codex CLI, Codex Web and 2 more and 1 more" would count twice. With a further item the product list ends in an
+    /// ellipsis instead; the tooltip names every product.
+    @Test func aProductCountNeverMeetsTheItemCount() throws {
+        let text = try #require(HealthRowText(provider: .codex, answer: answer([codexDown, desktopMaintenance], ago: 40 * 60), now: now))
+        #expect(text.lead + text.trailing == "Partial outage on Codex CLI, Codex Web… and 1 more · as of 40m ago")
+        #expect(text.candidates.allSatisfy { !$0.contains("more and") })
+    }
+
+    /// Beside the Status Page button, where the text is narrowest at the popover's width, some form of each of the
+    /// longest rows fits in two lines, so the row never has to cut the count or the age.
+    @Test func theLongestRowsFitInTwoLinesWithTheirCountAndAge() throws {
+        let rows: [(ProviderID, ProviderHealthItem, TimeInterval)] = [
+            (.codex, ProviderHealthItem(level: .degradedPerformance, names: ["Codex in ChatGPT Desktop"]), 65 * 60),
+            (.codex, ProviderHealthItem(level: .degradedPerformance, names: ["Codex VS Code extension", "Codex in ChatGPT Desktop", "Codex CLI", "Codex Web"]), 6 * 86_400 + 23 * 3_600),
+            (.claude, ProviderHealthItem(level: .degradedPerformance, names: ["Claude Code", "claude.ai", "Claude API"], title: "Elevated errors for Claude Opus 5.5"), 14 * 3_600 + 5 * 60),
+            (.copilot, ProviderHealthItem(level: .degradedPerformance, names: ["Copilot"], title: "Copilot Code Review is unable to complete reviews on pull requests in some large repositories"), 2 * 86_400),
+        ]
+        let width = RowMeasure.textBesideTheButton, twoLines = RowMeasure.height("X\nX", width: width)
+        for (provider, item, age) in rows {
+            let text = try #require(HealthRowText(provider: provider, answer: answer([item, claudeMaintenance], ago: age), now: now))
+            let shown = text.candidates.first { RowMeasure.height($0, width: width) <= twoLines }
+            #expect(shown?.hasSuffix(text.trailing) == true, "\(text.lead)")
+        }
+        let first = try #require(HealthRowText(provider: .codex, answer: answer([rows[0].1, claudeMaintenance], ago: rows[0].2), now: now))
+        #expect(first.trailingLine == "and 1 more · as of 1h 5m ago")
+    }
+
+    /// A row that fits beside the Status Page button keeps it there; a longer one moves the button to a line of its own
+    /// rather than cut the title, which made the row a button-height taller.
+    @Test func theButtonMovesUnderTheTextOnlyWhenTheTextDoesNotFitBesideIt() throws {
+        let model = AppModel(paths: .preview)
+        let account = AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")
+        func height(_ title: String) throws -> CGFloat {
+            let item = ProviderHealthItem(level: .majorOutage, names: ["Copilot"], title: title)
+            let text = try #require(HealthRowText(provider: .copilot, answer: answer([item]), now: now))
+            return RowMeasure.size(HealthRow(account: account, text: text).environment(model).frame(width: RowMeasure.card)).height
+        }
+        let beside = try height("Incident with GitHub.com")
+        let below = try height("Copilot Code Review is unable to complete reviews on pull requests in some large repositories")
+        #expect(below - beside >= RowMeasure.button.height)
     }
 
     /// Two Claude accounts both show Claude's row; a Codex card shows nothing from Claude's page.

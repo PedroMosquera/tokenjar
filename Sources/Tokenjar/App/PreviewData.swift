@@ -298,9 +298,10 @@ extension AppModel {
 
 extension AppModel {
     /// Status pages report a problem for each provider with a feed, one kind of row each, under "All clear": a titled
-    /// outage with one more item on both Claude cards, an untitled outage of four Codex products answered 40 minutes ago,
-    /// and two Copilot incidents matched by name with a long title, answered over an hour ago. The last Codex check could
-    /// not read its answer and the last Copilot check timed out, which only Settings shows.
+    /// outage of the three Claude products the feed names in most incidents, with one more item, on both Claude cards; an
+    /// untitled outage of four Codex products plus maintenance, answered 40 minutes ago; and two Copilot incidents matched
+    /// by name with a long title, answered over an hour ago. The last Codex check could not read its answer and the last
+    /// Copilot check timed out, which only Settings shows.
     static func previewIncident(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
         let model = healthPreview(now: now, accounts: [
             AccountConfig(id: "claude-personal", provider: .claude, label: "Personal"),
@@ -310,11 +311,12 @@ extension AppModel {
         ])
         model.providerHealth = [
             .claude: health(now: now, answeredAgo: 60, askedAgo: 120, [
-                ProviderHealthItem(level: .partialOutage, names: ["Claude Code"], title: "Elevated errors for Claude Opus 5.5"),
+                ProviderHealthItem(level: .partialOutage, names: ["Claude Code", "claude.ai", "Claude API"], title: "Elevated errors for Claude Opus 5.5"),
                 ProviderHealthItem(level: .maintenance, names: ["claude.ai"], title: "Scheduled maintenance of claude.ai"),
             ]),
             .codex: health(now: now, answeredAgo: 40 * 60, askedAgo: 41 * 60, failure: .parse("page data has no group"), [
                 ProviderHealthItem(level: .partialOutage, names: ["Codex CLI", "Codex Web", "Codex API", "Codex VS Code extension"]),
+                ProviderHealthItem(level: .maintenance, names: ["Codex in ChatGPT Desktop"]),
             ]),
             .copilot: health(now: now, answeredAgo: 65 * 60, askedAgo: 66 * 60, failure: .timeout, [
                 ProviderHealthItem(level: .incident, names: ["Copilot"], title: "Copilot Code Review is unable to complete reviews on pull requests in some large repositories"),
@@ -325,7 +327,8 @@ extension AppModel {
     }
 
     /// Everything calm, and only GitHub Copilot, the last card, in a major outage: the header's caption says so. Claude's
-    /// maintenance and Codex's degraded performance stay on their cards.
+    /// maintenance and Codex's degraded performance stay on their cards; Codex's row, the longest watched name with one
+    /// more item and an answer over an hour old, must keep its count and age.
     static func previewAllClearOutage(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
         let model = healthPreview(now: now, accounts: [
             AccountConfig(id: "claude-personal", provider: .claude, label: "Personal"),
@@ -338,7 +341,10 @@ extension AppModel {
             .claude: health(now: now, answeredAgo: 60, askedAgo: 60, [
                 ProviderHealthItem(level: .maintenance, names: ["Claude Code"], title: "Planned database maintenance"),
             ]),
-            .codex: health(now: now, answeredAgo: 60, askedAgo: 60, [ProviderHealthItem(level: .degradedPerformance, names: ["Codex API"])]),
+            .codex: health(now: now, answeredAgo: 65 * 60, askedAgo: 66 * 60, [
+                ProviderHealthItem(level: .degradedPerformance, names: ["Codex in ChatGPT Desktop"]),
+                ProviderHealthItem(level: .maintenance, names: ["Codex VS Code extension"]),
+            ]),
             .copilot: health(now: now, answeredAgo: 60, askedAgo: 60, [
                 ProviderHealthItem(level: .majorOutage, names: ["Copilot"], title: "Incident with GitHub.com"),
             ]),
