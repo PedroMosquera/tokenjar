@@ -1,0 +1,507 @@
+{
+ "summary": {
+  "id": "01JMDK9XYNY6RXSED6SDWW50WY",
+  "name": "OpenAI",
+  "public_url": "https://status.openai.com/",
+  "components": [
+   {
+    "id": "01JMXBRMFE6N2NNT7DG6XZQ6PW",
+    "name": "Chat Completions",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JP8CD9JR3HR6Y7G4Q75N4DVW",
+    "name": "Responses",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01M3Q6W0264T1RJS1YEM47CAQJ",
+    "name": "Agents",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01M3Q6W0262E8VW5DE1MJMMN0T",
+    "name": "Decisions",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBRMFEMZK0HPK19RYET250",
+    "name": "Fine-tuning",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBRMFEV0AJ0VVS68N9CD6R",
+    "name": "Embeddings",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBRMFE4MAP2BHSJNZ787WX",
+    "name": "Images",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBRMFE5ESNNV8JDHVCGSRD",
+    "name": "Batch",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBRMFEKVBWKK82B44QFMCE",
+    "name": "Audio",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBRMFEVZ7E0X9GD9FWR9WX",
+    "name": "Moderations",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBRMFEQW613TFE89F45035",
+    "name": "Realtime",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBRMFESJCBGJR10PDD3WCQ",
+    "name": "Files",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JSM5RTJWHRWDTS6Q604VEW3B",
+    "name": "Login",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBNJXGV1T5GT2M9XA83XNG",
+    "name": "Conversations",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBNJXG1S2D9V65P1ZZTD94",
+    "name": "Login",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01KX45G1SH21AX5DT93D4HMF0P",
+    "name": "ChatGPT Work",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01KMKFAMWKQ81YWSE1Z18R6VHR",
+    "name": "Codex in ChatGPT Desktop",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JNKS9D9S72PMP1938PVFFQN4",
+    "name": "Compliance API",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBNJXGKKP51D4DEJ2HZJ8Q",
+    "name": "Search",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBNJXG1YMQPPCPCQX3MPA2",
+    "name": "File uploads",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JMXBNJXGGT5SR5DB9J7GYY48",
+    "name": "Voice mode",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JSFK5QX36ZRW0TW0ZV0ZYFXQ",
+    "name": "GPTs",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JQ7EKW990MSPSWVXC7VPV2ZJ",
+    "name": "Image Generation",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JSYVYQSWMJ9QG35XHP08BHA7",
+    "name": "Deep Research",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JSG1XMJ9RVJJQ0E85NVSJ2AZ",
+    "name": "Agent",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01M3Q6NERHVE2WPPAQRHBAC6XB",
+    "name": "dots",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01K8C008QVXHA6JX98PAS42VPD",
+    "name": "ChatGPT Atlas",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01M3Q6NERHS4BG0HQ85VAR1SRH",
+    "name": "Space",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01KX45G1SHQQ9DTAX9S4W7FV8G",
+    "name": "Sites",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01K6TVGGGDCP0PPGCHXAG3AQX8",
+    "name": "Connectors/Apps",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01JVCV8YSWZFRSM1G5CVP253SK",
+    "name": "Codex Web",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01KMP3KP5MGE23B80K1EK4S8PV",
+    "name": "Codex API",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01KMKFAMWKNQ84Z1766MV08ZDE",
+    "name": "CLI",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01KMP3KP5M8X0EBTVW6KN327EE",
+    "name": "VS Code extension",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01KKAD7C71MCCH3FTREMJH4AAS",
+    "name": "FedRAMP",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01KTQBYVARFJ5KMCSECM06VKCF",
+    "name": "Ads Manager",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   },
+   {
+    "id": "01KVR95C58GGWHV7RYBT32NP11",
+    "name": "Ads API",
+    "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY"
+   }
+  ],
+  "affected_components": [],
+  "ongoing_incidents": [],
+  "scheduled_maintenances": [],
+  "structure": {
+   "id": "01M3Q6W026TZN77NH3QNNEPJPH",
+   "status_page_id": "01JMDK9XYNY6RXSED6SDWW50WY",
+   "items": [
+    {
+     "group": {
+      "id": "01K5H8S53SY1KMS4GQMNMQM1K5",
+      "name": "APIs",
+      "description": "All OpenAI API services at api.openai.com",
+      "display_aggregated_uptime": true,
+      "hidden": false,
+      "components": [
+       {
+        "component_id": "01JMXBRMFE6N2NNT7DG6XZQ6PW",
+        "display_uptime": true,
+        "name": "Chat Completions",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JP8CD9JR3HR6Y7G4Q75N4DVW",
+        "display_uptime": true,
+        "name": "Responses",
+        "hidden": false,
+        "data_available_since": "2025-03-12T23:30:00Z"
+       },
+       {
+        "component_id": "01M3Q6W0264T1RJS1YEM47CAQJ",
+        "display_uptime": true,
+        "name": "Agents",
+        "hidden": false,
+        "data_available_since": "2026-09-29T17:52:52.793Z"
+       },
+       {
+        "component_id": "01M3Q6W0262E8VW5DE1MJMMN0T",
+        "display_uptime": true,
+        "name": "Decisions",
+        "hidden": false,
+        "data_available_since": "2026-09-29T18:29:41.573Z"
+       },
+       {
+        "component_id": "01JMXBRMFEMZK0HPK19RYET250",
+        "display_uptime": true,
+        "name": "Fine-tuning",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JMXBRMFEV0AJ0VVS68N9CD6R",
+        "display_uptime": true,
+        "name": "Embeddings",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JMXBRMFE4MAP2BHSJNZ787WX",
+        "display_uptime": true,
+        "name": "Images",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JMXBRMFE5ESNNV8JDHVCGSRD",
+        "display_uptime": true,
+        "name": "Batch",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JMXBRMFEKVBWKK82B44QFMCE",
+        "display_uptime": true,
+        "name": "Audio",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JMXBRMFEVZ7E0X9GD9FWR9WX",
+        "display_uptime": true,
+        "name": "Moderations",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JMXBRMFEQW613TFE89F45035",
+        "display_uptime": true,
+        "name": "Realtime",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JMXBRMFESJCBGJR10PDD3WCQ",
+        "display_uptime": true,
+        "name": "Files",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JSM5RTJWHRWDTS6Q604VEW3B",
+        "display_uptime": true,
+        "name": "Login",
+        "hidden": false,
+        "data_available_since": "2025-04-24T15:13:29.179Z"
+       }
+      ]
+     }
+    },
+    {
+     "group": {
+      "id": "01K5H8S53SY1KMS4GQMNMZXTR1",
+      "name": "ChatGPT",
+      "description": "https://chat.openai.com",
+      "display_aggregated_uptime": true,
+      "hidden": false,
+      "components": [
+       {
+        "component_id": "01JMXBNJXGV1T5GT2M9XA83XNG",
+        "display_uptime": true,
+        "name": "Conversations",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JMXBNJXG1S2D9V65P1ZZTD94",
+        "display_uptime": true,
+        "name": "Login",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01KX45G1SH21AX5DT93D4HMF0P",
+        "display_uptime": true,
+        "name": "ChatGPT Work",
+        "hidden": false,
+        "data_available_since": "2026-07-09T19:25:56.401Z"
+       },
+       {
+        "component_id": "01KMKFAMWKQ81YWSE1Z18R6VHR",
+        "display_uptime": true,
+        "name": "Codex in ChatGPT Desktop",
+        "hidden": false,
+        "data_available_since": "2026-03-25T21:45:05.171Z"
+       },
+       {
+        "component_id": "01JNKS9D9S72PMP1938PVFFQN4",
+        "display_uptime": true,
+        "name": "Compliance API",
+        "hidden": false,
+        "data_available_since": "2025-03-05T18:32:33.849Z"
+       },
+       {
+        "component_id": "01JMXBNJXGKKP51D4DEJ2HZJ8Q",
+        "display_uptime": true,
+        "name": "Search",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JMXBNJXG1YMQPPCPCQX3MPA2",
+        "display_uptime": true,
+        "name": "File uploads",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JMXBNJXGGT5SR5DB9J7GYY48",
+        "display_uptime": true,
+        "name": "Voice mode",
+        "hidden": false,
+        "data_available_since": "2021-03-02T02:07:24.886Z"
+       },
+       {
+        "component_id": "01JSFK5QX36ZRW0TW0ZV0ZYFXQ",
+        "display_uptime": true,
+        "name": "GPTs",
+        "hidden": false,
+        "data_available_since": "2025-04-22T18:45:00Z"
+       },
+       {
+        "component_id": "01JQ7EKW990MSPSWVXC7VPV2ZJ",
+        "display_uptime": true,
+        "name": "Image Generation",
+        "hidden": false,
+        "data_available_since": "2025-03-25T20:06:33Z"
+       },
+       {
+        "component_id": "01JSYVYQSWMJ9QG35XHP08BHA7",
+        "display_uptime": true,
+        "name": "Deep Research",
+        "hidden": false,
+        "data_available_since": "2025-04-28T18:53:35.932Z"
+       },
+       {
+        "component_id": "01JSG1XMJ9RVJJQ0E85NVSJ2AZ",
+        "display_uptime": true,
+        "name": "Agent",
+        "hidden": false,
+        "data_available_since": "2025-04-23T00:34:00Z"
+       },
+       {
+        "component_id": "01M3Q6NERHVE2WPPAQRHBAC6XB",
+        "display_uptime": true,
+        "name": "dots",
+        "hidden": false,
+        "data_available_since": "2026-09-29T18:26:07.249Z"
+       },
+       {
+        "component_id": "01M3Q6NERHS4BG0HQ85VAR1SRH",
+        "display_uptime": true,
+        "name": "Space",
+        "hidden": false,
+        "data_available_since": "2026-09-29T18:26:07.249Z"
+       },
+       {
+        "component_id": "01KX45G1SHQQ9DTAX9S4W7FV8G",
+        "display_uptime": true,
+        "name": "Sites",
+        "hidden": false,
+        "data_available_since": "2026-07-09T19:25:56.401Z"
+       },
+       {
+        "component_id": "01K6TVGGGDCP0PPGCHXAG3AQX8",
+        "display_uptime": true,
+        "name": "Connectors/Apps",
+        "hidden": false,
+        "data_available_since": "2025-07-16T02:26:00Z"
+       }
+      ]
+     }
+    },
+    {
+     "group": {
+      "id": "01KMKF9EBTCD8BN9PG8DJZXRSQ",
+      "name": "Codex",
+      "display_aggregated_uptime": true,
+      "hidden": false,
+      "components": [
+       {
+        "component_id": "01JVCV8YSWZFRSM1G5CVP253SK",
+        "display_uptime": true,
+        "name": "Codex Web",
+        "hidden": false,
+        "data_available_since": "2025-05-16T15:26:46.075Z"
+       },
+       {
+        "component_id": "01KMP3KP5MGE23B80K1EK4S8PV",
+        "display_uptime": true,
+        "name": "Codex API",
+        "hidden": false,
+        "data_available_since": "2026-03-26T22:18:01.779Z"
+       },
+       {
+        "component_id": "01KMKFAMWKNQ84Z1766MV08ZDE",
+        "display_uptime": true,
+        "name": "CLI",
+        "hidden": false,
+        "data_available_since": "2026-03-25T21:45:05.171Z"
+       },
+       {
+        "component_id": "01KMP3KP5M8X0EBTVW6KN327EE",
+        "display_uptime": true,
+        "name": "VS Code extension",
+        "hidden": false,
+        "data_available_since": "2026-03-26T22:18:01.779Z"
+       }
+      ]
+     }
+    },
+    {
+     "group": {
+      "id": "01KKACDSZF5G5JTBJY83GF176Z",
+      "name": "FedRAMP",
+      "display_aggregated_uptime": true,
+      "hidden": false,
+      "components": [
+       {
+        "component_id": "01KKAD7C71MCCH3FTREMJH4AAS",
+        "display_uptime": true,
+        "name": "FedRAMP",
+        "hidden": false,
+        "data_available_since": "2026-03-09T22:59:29.121Z"
+       }
+      ]
+     }
+    },
+    {
+     "group": {
+      "id": "01KTQBYDGR2AKA7D6HW6RVAGZC",
+      "name": "Ads Platform",
+      "display_aggregated_uptime": false,
+      "hidden": false,
+      "components": [
+       {
+        "component_id": "01KTQBYVARFJ5KMCSECM06VKCF",
+        "display_uptime": false,
+        "name": "Ads Manager",
+        "hidden": false,
+        "data_available_since": "2026-06-09T23:37:21.496Z"
+       },
+       {
+        "component_id": "01KVR95C58GGWHV7RYBT32NP11",
+        "display_uptime": true,
+        "name": "Ads API",
+        "hidden": false,
+        "data_available_since": "2026-06-22T18:23:25.864Z"
+       }
+      ]
+     }
+    }
+   ]
+  }
+ }
+}

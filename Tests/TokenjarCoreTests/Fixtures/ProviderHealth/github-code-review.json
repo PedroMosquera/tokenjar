@@ -1,0 +1,160 @@
+{
+ "page": {
+  "id": "kctbh9vrtdwd",
+  "name": "GitHub",
+  "url": "https://www.githubstatus.com",
+  "time_zone": "Etc/UTC",
+  "updated_at": "2026-10-12T20:34:28.316Z"
+ },
+ "components": [
+  {
+   "id": "8l4ygp009s5s",
+   "name": "Git Operations",
+   "status": "operational",
+   "created_at": "2017-01-31T20:05:05.370Z",
+   "updated_at": "2026-10-07T15:49:53.270Z",
+   "position": 1,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "4230lsnqdsld",
+   "name": "Webhooks",
+   "status": "operational",
+   "created_at": "2019-11-13T18:00:24.256Z",
+   "updated_at": "2026-10-07T15:49:53.296Z",
+   "position": 2,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "0l2p9nhqnxpd",
+   "name": "Visit www.githubstatus.com for more information",
+   "status": "operational",
+   "created_at": "2018-12-05T19:39:40.838Z",
+   "updated_at": "2025-03-19T05:00:21.309Z",
+   "position": 3,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "brv1bkgrwx7q",
+   "name": "API Requests",
+   "status": "operational",
+   "created_at": "2017-01-31T20:01:46.621Z",
+   "updated_at": "2026-09-23T10:58:27.066Z",
+   "position": 4,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "kr09ddfgbfsf",
+   "name": "Issues",
+   "status": "operational",
+   "created_at": "2017-01-31T20:01:46.638Z",
+   "updated_at": "2026-10-12T14:35:49.205Z",
+   "position": 5,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "hhtssxt0f5v2",
+   "name": "Pull Requests",
+   "status": "operational",
+   "created_at": "2020-09-02T15:39:06.329Z",
+   "updated_at": "2026-10-12T13:02:17.328Z",
+   "position": 6,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "br0l2tvcx85d",
+   "name": "Actions",
+   "status": "operational",
+   "created_at": "2019-11-13T18:02:19.432Z",
+   "updated_at": "2026-10-12T14:36:09.389Z",
+   "position": 7,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "st3j38cctv9l",
+   "name": "Packages",
+   "status": "operational",
+   "created_at": "2019-11-13T18:02:40.064Z",
+   "updated_at": "2026-08-13T15:33:02.208Z",
+   "position": 8,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "vg70hn9s2tyj",
+   "name": "Pages",
+   "status": "operational",
+   "created_at": "2017-01-31T20:04:33.923Z",
+   "updated_at": "2026-10-05T22:40:41.750Z",
+   "position": 9,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "pjmpxvq2cmr2",
+   "name": "Copilot",
+   "status": "operational",
+   "created_at": "2022-06-21T16:04:33.017Z",
+   "updated_at": "2026-08-17T21:15:46.595Z",
+   "position": 10,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "h2ftsgbw7kmk",
+   "name": "Codespaces",
+   "status": "operational",
+   "created_at": "2021-08-11T16:02:09.505Z",
+   "updated_at": "2026-07-14T09:51:08.862Z",
+   "position": 11,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "cnnb39dkkk82",
+   "name": "Copilot AI Model Providers",
+   "status": "operational",
+   "created_at": "2026-04-17T12:33:08.827Z",
+   "updated_at": "2026-09-16T11:45:34.336Z",
+   "position": 12,
+   "group_id": null,
+   "group": false
+  }
+ ],
+ "incidents": [
+  {
+   "id": "169pg72gg9jr",
+   "name": "Copilot Code Review is unable to complete reviews",
+   "status": "investigating",
+   "created_at": "2026-09-28T21:16:39.012Z",
+   "updated_at": "2026-09-28T21:16:39.060Z",
+   "monitoring_at": null,
+   "resolved_at": null,
+   "impact": "critical",
+   "shortlink": "https://stspg.io/phqvtmdm3y2m",
+   "started_at": "2026-09-28T21:16:39.006Z",
+   "incident_updates": [
+    {
+     "id": "9gt1s7x8nl12",
+     "status": "investigating",
+     "body": "We are investigating reports of impacted performance for some GitHub services.",
+     "created_at": "2026-09-28T21:16:39.060Z",
+     "affected_components": null
+    }
+   ],
+   "components": []
+  }
+ ],
+ "scheduled_maintenances": [],
+ "status": {
+  "indicator": "critical",
+  "description": "Major System Outage"
+ }
+}

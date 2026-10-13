@@ -56,6 +56,17 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         }
     }
 
+    /// The status JSON Tokenjar reads when provider status is on, nil for a provider whose status it never fetches.
+    /// Each is an exact entry in `HTTPClient.allowedEndpoints`.
+    public var statusFeedURL: URL? {
+        switch self {
+        case .claude: URL(string: "https://status.claude.com/api/v2/summary.json")
+        case .codex: URL(string: "https://status.openai.com/proxy/status.openai.com")
+        case .copilot: URL(string: "https://www.githubstatus.com/api/v2/summary.json")
+        case .opencodeGo, .opencodeZen, .antigravity, .devin: nil
+        }
+    }
+
     /// True when the provider shares no usage Tokenjar can read, so its account is a link to the provider's own page.
     public var isLinkOnly: Bool {
         switch self {
