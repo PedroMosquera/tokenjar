@@ -112,3 +112,43 @@ struct StatusItemClickTests {
         #expect(routes == [.menu, .popover, .menu, .popover, .menu])
     }
 }
+
+struct ClosingPressTests {
+    /// The usual click: its press closes the popover, and its release must not reopen it.
+    @Test func theReleaseOfThePressThatClosedThePopoverDoesNotReopenIt() {
+        var press = StatusItemClick.ClosingPress()
+        press.pressBegan(at: 10)
+        press.popoverClosed(byPressAt: 10)
+        let toggles1 = press.releaseToggles()
+        #expect(!toggles1)
+        press.pressBegan(at: 12)
+        let toggles2 = press.releaseToggles()
+        #expect(toggles2)
+    }
+
+    /// The popover can swallow the whole click while it closes, release included. The next click is a new one and
+    /// must open the popover at once, not need a second try.
+    @Test func aSwallowedReleaseDoesNotCostTheNextClick() {
+        var press = StatusItemClick.ClosingPress()
+        press.popoverClosed(byPressAt: 10)
+        press.pressBegan(at: 12)
+        let toggles3 = press.releaseToggles()
+        #expect(toggles3)
+    }
+
+    /// The press can reach the event monitor after the popover has already closed on it.
+    @Test func thePressThatClosedThePopoverSeenLateStillCounts() {
+        var press = StatusItemClick.ClosingPress()
+        press.popoverClosed(byPressAt: 10)
+        press.pressBegan(at: 10)
+        let toggles4 = press.releaseToggles()
+        #expect(!toggles4)
+    }
+
+    @Test func aClickThatClosedNothingToggles() {
+        var press = StatusItemClick.ClosingPress()
+        press.pressBegan(at: 10)
+        let toggles5 = press.releaseToggles()
+        #expect(toggles5)
+    }
+}

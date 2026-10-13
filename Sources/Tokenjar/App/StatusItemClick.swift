@@ -39,4 +39,26 @@ enum StatusItemClick: Equatable {
             return StatusItemClick.route(event.type, modifiers: event.modifierFlags)
         }
     }
+
+    /// A press on the item that closed the transient popover, so that press's release does not reopen it. The release
+    /// does not always come: the popover can swallow the whole click as it closes. Any later press is a new click, so
+    /// it clears what an earlier one left, and the next click never needs a second try.
+    struct ClosingPress {
+        private var pressTime: TimeInterval?
+
+        mutating func popoverClosed(byPressAt time: TimeInterval) {
+            pressTime = time
+        }
+
+        /// Every press on the item, in whichever order it reaches the monitor relative to the popover closing on it.
+        mutating func pressBegan(at time: TimeInterval) {
+            if pressTime != time { pressTime = nil }
+        }
+
+        /// Whether a release on the item should toggle the popover. Uses up the press either way.
+        mutating func releaseToggles() -> Bool {
+            defer { pressTime = nil }
+            return pressTime == nil
+        }
+    }
 }

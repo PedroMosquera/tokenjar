@@ -11,8 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     private var quitConfirmation = QuitConfirmation()
     private var clicks = StatusItemClick.Router()
     private var popoverFocus = PopoverFocus()
-    /// Set when a press on the status item closed the transient popover, so that click's mouse-up does not reopen it.
-    private var popoverClosedByItemPress = false
+    private var closingPress = StatusItemClick.ClosingPress()
+    private var pressMonitor: Any?
     var popoverFrameObservers: [NSObjectProtocol] = [] {
         didSet { oldValue.forEach(NotificationCenter.default.removeObserver) }
     }
@@ -61,6 +61,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
             button.imagePosition = .imageLeading
         }
         statusItem = item
+        pressMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            if let self, event.window === self.statusItem?.button?.window { self.closingPress.pressBegan(at: event.timestamp) }
+            return event
+        }
 
         popover.behavior = .transient
         popover.animates = true
@@ -89,10 +93,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
-        let alreadyClosed = popoverClosedByItemPress
-        popoverClosedByItemPress = false
+        let toggles = closingPress.releaseToggles()
         switch clicks.route(NSApp.currentEvent) {
-        case .popover: if !alreadyClosed { togglePopover(sender) }
+        case .popover: if toggles { togglePopover(sender) }
         case .menu: showMenu()
         }
     }
@@ -229,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
 
     func popoverWillClose(_ notification: Notification) {
         if let event = NSApp.currentEvent, [.leftMouseDown, .rightMouseDown].contains(event.type), event.window === statusItem?.button?.window {
-            popoverClosedByItemPress = true
+            closingPress.popoverClosed(byPressAt: event.timestamp)
         }
     }
 
