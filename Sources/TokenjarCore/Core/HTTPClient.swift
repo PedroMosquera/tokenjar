@@ -70,16 +70,17 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionTaskD
     /// fine once but leaks a session and its connection pool for every instance a caller creates and drops.
     public static let shared = URLSessionTransport()
 
-    private lazy var session = URLSession(configuration: Self.sessionConfiguration(), delegate: self, delegateQueue: nil)
-
-    /// Ephemeral, with no cookie store, no cookies sent and no URL cache. A function so a test can pin it without a request.
-    static func sessionConfiguration() -> URLSessionConfiguration {
+    /// Ephemeral, with no cookie store, no cookies sent and no URL cache.
+    private lazy var session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil
         config.httpShouldSetCookies = false
         config.urlCache = nil
-        return config
-    }
+        return URLSession(configuration: config, delegate: self, delegateQueue: nil)
+    }()
+
+    /// The configuration of the session requests go through, so a test can pin it without sending one.
+    var sessionConfiguration: URLSessionConfiguration { session.configuration }
 
     public override init() { super.init() }
 

@@ -48,9 +48,10 @@ struct HTTPClientTests {
         }
     }
 
-    /// The session sends and keeps no cookies and caches nothing. `.default` would also share the system credential store.
+    /// The session the app's requests go through sends and keeps no cookies and caches nothing. `.default` would also
+    /// share the system credential store.
     @Test func sessionIsCookieFree() {
-        let config = URLSessionTransport.sessionConfiguration()
+        let config = URLSessionTransport.shared.sessionConfiguration
         #expect(config.httpCookieStorage == nil)
         #expect(!config.httpShouldSetCookies)
         #expect(config.urlCache == nil)
