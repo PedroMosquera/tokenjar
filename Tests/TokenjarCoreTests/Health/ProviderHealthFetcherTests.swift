@@ -62,6 +62,17 @@ struct ProviderHealthFetcherTests {
         #expect(answer.answeredAt == arrival.addingTimeInterval(-2400))
     }
 
+    /// `Date` is read against this Mac's clock, so it counts only when `Age` is missing: a clock 6 minutes fast must not
+    /// give an answer that just arrived an age.
+    @Test func aMacClockAheadOfTheHostDoesNotAgeAnAnswerThatHasAge() async throws {
+        let sixMinutesBehind = "Mon, 12 Oct 2026 20:51:15 GMT"
+        #expect(arrival.timeIntervalSince(DateParsing.httpDate(sixMinutesBehind)!) == 360)
+        let headers = ["age": "0", "date": sixMinutesBehind]
+        let answer = try await fetch(.claude, HealthFakeTransport(try Self.ok("claude-console-only.json", headers: headers)))
+        #expect(answer.answeredAt == arrival)
+        #expect(!answer.showsAge(now: arrival))
+    }
+
     @Test func aFreshAnswerShowsNoAge() async throws {
         let headers = ["age": "17", "date": "Mon, 12 Oct 2026 20:57:00 GMT"]
         let answer = try await fetch(.claude, HealthFakeTransport(try Self.ok("claude-console-only.json", headers: headers)))

@@ -36,10 +36,11 @@ public struct ProviderHealthFetcher: Sendable {
     }
 
     /// When the page made this copy. Atlassian's CDN may serve a copy up to an hour old with a 200 when the origin fails
-    /// (`stale-if-error=3600`), so the age is the larger of `Age` and the time since `Date`, as RFC 9111 4.2.3 computes it.
+    /// (`stale-if-error=3600`), and `Age` says how old. `Date` counts only when `Age` is missing: it is read against this
+    /// Mac's clock, so a clock running fast would otherwise age every answer.
     static func answeredAt(headers: [String: String], arrival: Date) -> Date {
-        let age = headers["age"].flatMap { TimeInterval($0.trimmingCharacters(in: .whitespaces)) } ?? 0
-        let sinceDate = headers["date"].flatMap(DateParsing.httpDate).map { arrival.timeIntervalSince($0) } ?? 0
-        return arrival.addingTimeInterval(-max(0, age, sinceDate))
+        let age = headers["age"].flatMap { TimeInterval($0.trimmingCharacters(in: .whitespaces)) }
+            ?? headers["date"].flatMap(DateParsing.httpDate).map { arrival.timeIntervalSince($0) }
+        return arrival.addingTimeInterval(-max(0, age ?? 0))
     }
 }
