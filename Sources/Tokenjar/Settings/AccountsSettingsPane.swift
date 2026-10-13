@@ -7,6 +7,7 @@ struct AccountsSettingsPane: View {
     var onSelect: (String?) -> Void
 
     @SettingsState private var removing: AccountConfig?
+    @SettingsState private var naming: AccountNaming?
 
     var body: some View {
         Group {
@@ -43,6 +44,9 @@ struct AccountsSettingsPane: View {
             Button("Remove", role: .destructive) { remove(account) }
         } message: { account in
             Text(removeMessage(account))
+        }
+        .sheet(item: $naming) { naming in
+            AccountNameSheet(naming: naming) { name in commit(naming, name: name) }
         }
     }
 
@@ -130,10 +134,22 @@ struct AccountsSettingsPane: View {
         }
     }
 
+    /// Nothing is saved until the sheet's Add, so a cancelled add leaves no "Account 2" behind.
     private func add(_ provider: ProviderID) {
-        let account = SettingsLogic.newAccount(provider: provider, existing: model.config.accounts)
-        model.updateConfig { $0.accounts.append(account) }
-        onSelect(account.id)
+        naming = .add(SettingsLogic.newAccount(provider: provider, existing: model.config.accounts))
+    }
+
+    private func commit(_ naming: AccountNaming, name: String) {
+        switch naming {
+        case .add(var account):
+            account.label = name
+            model.updateConfig { $0.accounts.append(account) }
+        case .rename(let account):
+            model.updateConfig { config in
+                if let index = config.accounts.firstIndex(where: { $0.id == account.id }) { config.accounts[index].label = name }
+            }
+        }
+        onSelect(naming.account.id)
     }
 
     private func removeMessage(_ account: AccountConfig) -> String {
@@ -198,5 +214,78 @@ struct AccountListRowContent: Equatable {
     static func make(account: AccountConfig, status: AccountStatusText) -> AccountListRowContent {
         let title = AccountTitle(provider: account.provider, label: account.label)
         return AccountListRowContent(title: title.label ?? title.provider, caption: status.caption?.text, isActionable: status.caption?.isActionable ?? false)
+    }
+}
+
+enum AccountNaming: Identifiable {
+    case add(AccountConfig)
+    case rename(AccountConfig)
+
+    var account: AccountConfig {
+        switch self {
+        case .add(let account), .rename(let account): account
+        }
+    }
+
+    var id: String { account.id }
+}
+
+struct AccountNameSheet: View {
+    var naming: AccountNaming
+    var onCommit: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @SettingsState private var name: String
+    @FocusState private var nameFocused: Bool
+
+    init(naming: AccountNaming, onCommit: @escaping (String) -> Void) {
+        self.naming = naming
+        self.onCommit = onCommit
+        _name = SettingsState(initialValue: naming.account.label)
+    }
+
+    private var provider: ProviderID { naming.account.provider }
+
+    private var title: String {
+        switch naming {
+        case .add: "New \(provider.displayName) Account"
+        case .rename: "Rename \(provider.displayName) Account"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                ProviderLogoView(provider: provider, size: 20)
+                Text(title).font(.headline)
+            }
+            TextField("Name", text: $name, prompt: Text("Work, Personal\u{2026}"))
+                .focused($nameFocused)
+                .onSubmit(commit)
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(naming.isAdd ? "Add" : "Rename", action: commit)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(SettingsLogic.accountLabel(from: name) == nil)
+            }
+        }
+        .padding(20)
+        .frame(width: 340)
+        .onAppear { nameFocused = true }
+    }
+
+    private func commit() {
+        guard let label = SettingsLogic.accountLabel(from: name) else { return }
+        onCommit(label)
+        dismiss()
+    }
+}
+
+private extension AccountNaming {
+    var isAdd: Bool {
+        if case .add = self { return true }
+        return false
     }
 }

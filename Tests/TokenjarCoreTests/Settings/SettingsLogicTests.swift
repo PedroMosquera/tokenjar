@@ -30,6 +30,11 @@ struct SettingsLogicTests {
         #expect(account.provider == .claude)
     }
 
+    @Test(arguments: [("  Personal ", "Personal"), ("Work", "Work"), ("   ", nil), ("", nil)] as [(String, String?)])
+    func anAccountNameIsTrimmedAndCannotBeBlank(_ text: String, _ expected: String?) {
+        #expect(SettingsLogic.accountLabel(from: text) == expected)
+    }
+
     @Test func thresholdsAreUniqueInRangeAndAscending() {
         #expect(SettingsLogic.normalizedThresholds([95, 0, 80, 101, 80, -5, 100, 1]) == [1, 80, 95, 100])
     }

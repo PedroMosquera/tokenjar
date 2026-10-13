@@ -20,6 +20,12 @@ public enum SettingsLogic {
         )
     }
 
+    /// nil for a blank name, which the name sheet refuses.
+    public static func accountLabel(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     /// Unique, in 1...100, ascending.
     public static func normalizedThresholds(_ values: [Int]) -> [Int] {
         Array(Set(values.filter(thresholdRange.contains))).sorted()
