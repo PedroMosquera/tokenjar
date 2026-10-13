@@ -337,6 +337,34 @@ struct PopoverSummaryTests {
         #expect(PopoverHeader.help(for: offline) == "Offline")
     }
 
+    /// A title cut at two lines can only be read in full here, and the tooltip is where the rule can be explained.
+    @Test func aLimitTitlesTooltipKeepsTheTitleAndExplainsTheRule() {
+        let rule = "Tokenjar names the window closest to its limit across all accounts; others that need a look are listed after Also."
+        let full = PopoverSummary(tone: .critical, text: "Claude · Personal: 5-hour full, resets in 1h 27m")
+        #expect(PopoverHeader.help(for: full) == "Claude · Personal: 5-hour full, resets in 1h 27m. \(rule)")
+        let amber = PopoverSummary(tone: .warning, text: "Codex: 5-hour at 85%")
+        #expect(PopoverHeader.help(for: amber) == "Codex: 5-hour at 85%. \(rule)")
+        let clear = PopoverSummary(tone: .clear, text: "All clear · next reset in 2h 10m")
+        #expect(PopoverHeader.help(for: clear) == "All clear · next reset in 2h 10m")
+    }
+
+    @Test func voiceOverHearsNamesWithoutTheMiddleDot() {
+        let team = AccountConfig(id: "team", provider: .claude, label: "Team")
+        let statuses = [
+            "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 100, resetIn: 87 * 60)])),
+            "work": AccountStatus(snapshot: snapshot("work", [window("weekly", "Week", used: 30, minutes: 10_080, resetIn: 2 * 3_600)])),
+            "team": AccountStatus(error: .notSignedIn),
+        ]
+        let spoken = PopoverSummary.make(accounts: accounts + [team], statuses: statuses, config: AppConfig(), now: now, voice: .spoken)
+        #expect(spoken == PopoverSummary(
+            tone: .critical, text: "Claude Personal: 5-hour full, resets in 1h 27m", others: ["Claude Team"], room: "Claude Work has room: Week 30% used"
+        ))
+        let written = PopoverSummary.make(accounts: accounts + [team], statuses: statuses, config: AppConfig(), now: now)
+        #expect(written.text == "Claude · Personal: 5-hour full, resets in 1h 27m")
+        let silent = PopoverSummary.make(accounts: accounts, statuses: ["work": AccountStatus(error: .timeout)], config: AppConfig(), now: now, voice: .spoken)
+        #expect(silent.text == "No answer from Claude Work")
+    }
+
     /// A config that failed at launch leaves no accounts; "No accounts yet" would say the install is fresh.
     @Test func settingsNotLoadedIsNotAnEmptyInstall() {
         let unloaded = SettingsProblem(message: "Could not read config.json.", file: "config.json", nothingLoaded: true)
@@ -448,6 +476,158 @@ struct PopoverSummaryTests {
         }
         #expect(AccountStatus(error: .notSignedIn).failureNeedsAttention(now: now, refreshMinutes: 10))
         #expect(!AccountStatus(error: .noSubscription("none")).failureNeedsAttention(now: now, refreshMinutes: 10))
+    }
+}
+
+/// The caption under a red or full title that names the account with the most room left.
+@MainActor
+struct RoomHintTests {
+    private let claude = AccountConfig(id: "claude", provider: .claude, label: "Personal")
+    private let codex = AccountConfig(id: "codex", provider: .codex, label: "Plus")
+    private let go = AccountConfig(id: "go", provider: .opencodeGo, label: "Go")
+    private let zen = AccountConfig(id: "zen", provider: .opencodeZen, label: "Zen")
+    private let copilot = AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")
+    private let noSubscription = FetchError.noSubscription("No active OpenCode Go subscription for this key")
+
+    private var fullClaude: AccountStatus {
+        AccountStatus(snapshot: snapshot("claude", [
+            window("session", "5-hour", used: 100, resetIn: 87 * 60),
+            window("weekly", "Week", used: 40, minutes: 10_080, resetIn: 3 * 86_400),
+            window("weekly:fable", "Week · Fable", used: 56, minutes: 10_080, resetIn: 3 * 86_400),
+        ]))
+    }
+
+    private func using(_ id: String, _ used: Double, label: String = "5-hour", minutes: Int = 300, fetchedAgo: TimeInterval = 60, error: FetchError? = nil) -> AccountStatus {
+        AccountStatus(snapshot: snapshot(id, [window("main", label, used: used, minutes: minutes, resetIn: 2 * 3_600)], fetchedAgo: fetchedAgo), error: error, lastAttempt: now)
+    }
+
+    /// The owner's state: Claude's 5-hour window is full, Codex has barely started, Go has no subscription, Zen only
+    /// spends and Copilot has used some premium requests.
+    @Test func aFullWindowNamesTheAccountWithTheMostRoom() {
+        let statuses = [
+            "claude": fullClaude,
+            "codex": AccountStatus(snapshot: snapshot("codex", [
+                window("session", "5-hour", used: 2, resetIn: 4 * 3_600),
+                window("weekly", "Week", used: 0, minutes: 10_080, resetIn: 7 * 86_400, notStarted: true),
+            ], fetchedAgo: 60)),
+            "go": AccountStatus(error: noSubscription, lastAttempt: now),
+            "zen": AccountStatus(snapshot: UsageSnapshot(
+                accountID: "zen", provider: .opencodeZen, plan: "Pay as you go", money: [MoneyLine(label: "Spent this month (this Mac)", amount: 8.17)],
+                fetchedAt: now, source: "opencode.db"
+            )),
+            "copilot": using("copilot", 15, label: "Premium requests", minutes: 44_640),
+        ]
+        let summary = PopoverSummary.make(accounts: [claude, codex, go, zen, copilot], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary == PopoverSummary(tone: .critical, text: "Claude · Personal: 5-hour full, resets in 1h 27m", room: "Codex has room: 5-hour 2% used"))
+    }
+
+    /// At 85 % there is still room on the named account, so the header points nowhere else.
+    @Test func anAmberTitleNamesNoOtherAccount() {
+        let statuses = ["claude": using("claude", 85), "codex": using("codex", 2)]
+        let summary = PopoverSummary.make(accounts: [claude, codex], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.tone == .warning)
+        #expect(summary.room == nil)
+    }
+
+    /// Offline and with no provider answering every number is old, and all clear has nothing to work around.
+    @Test func onlyALimitTitleGetsTheHint() {
+        let calm = ["claude": using("claude", 10), "codex": using("codex", 2)]
+        let clear = PopoverSummary.make(accounts: [claude, codex], statuses: calm, config: AppConfig(), now: now)
+        #expect(clear.tone == .clear)
+        #expect(clear.room == nil)
+        let full = ["claude": fullClaude, "codex": using("codex", 2)]
+        for connectivity in [Connectivity.offline, .noAnswer] {
+            let summary = PopoverSummary.make(accounts: [claude, codex], statuses: full, config: AppConfig(), now: now, connectivity: connectivity)
+            #expect(summary.room == nil, "\(connectivity)")
+        }
+    }
+
+    /// Each of these has less used than Copilot, and none of them is somewhere the user can keep working right now.
+    @Test func onlyAnAccountWithFreshCalmLimitsIsNamed() {
+        let agy = AccountConfig(id: "agy", provider: .antigravity, label: "Google")
+        let devin = AccountConfig(id: "devin", provider: .devin, label: "Devin")
+        let statuses = [
+            "claude": fullClaude,
+            "codex": using("codex", 1, fetchedAgo: 3 * 3_600),
+            "agy": using("agy", 3, error: .notSignedIn),
+            "go": using("go", 2, error: noSubscription),
+            // Zen and Devin never report a window; one here would still not make either a place with room.
+            "zen": using("zen", 0),
+            "devin": using("devin", 0),
+            "copilot": using("copilot", 15, label: "Premium requests", minutes: 44_640),
+        ]
+        let summary = PopoverSummary.make(accounts: [claude, codex, agy, go, zen, devin, copilot], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.room == "GitHub Copilot has room: Premium requests 15% used")
+        #expect(summary.others == ["Antigravity"])
+    }
+
+    /// An amber account is already named after "Also:", and with nothing else left there is no hint at all.
+    @Test func noCandidateMeansNoHint() {
+        let statuses = [
+            "claude": fullClaude,
+            "codex": using("codex", 85),
+            "go": AccountStatus(error: noSubscription, lastAttempt: now),
+            "zen": AccountStatus(snapshot: UsageSnapshot(accountID: "zen", provider: .opencodeZen, fetchedAt: now, source: "opencode.db")),
+        ]
+        let summary = PopoverSummary.make(accounts: [claude, codex, go, zen], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.tone == .critical)
+        #expect(summary.others == ["Codex"])
+        #expect(summary.room == nil)
+    }
+
+    @Test func twoAccountsOfOneProviderAreToldApartByLabel() {
+        let work = AccountConfig(id: "work", provider: .claude, label: "Work")
+        let statuses = ["claude": fullClaude, "work": using("work", 30, label: "Week", minutes: 10_080), "codex": using("codex", 40)]
+        let summary = PopoverSummary.make(accounts: [claude, work, codex], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.room == "Claude · Work has room: Week 30% used")
+    }
+
+    /// Config order breaks ties only: an account with more room later in the list still wins.
+    @Test func theMostRoomWinsWhereverItSitsInConfigOrder() {
+        let statuses = ["claude": fullClaude, "copilot": using("copilot", 15, label: "Premium requests", minutes: 44_640), "codex": using("codex", 2)]
+        let summary = PopoverSummary.make(accounts: [claude, copilot, codex], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.room == "Codex has room: 5-hour 2% used")
+    }
+
+    /// Red, not only full: at the default Red at of 95 the named window is about to stop the work.
+    @Test func aRedWindowThatIsNotFullGetsTheHint() {
+        let statuses = ["claude": using("claude", 96), "codex": using("codex", 2)]
+        let summary = PopoverSummary.make(accounts: [claude, codex], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.tone == .critical)
+        #expect(summary.room == "Codex has room: 5-hour 2% used")
+    }
+
+    /// The user sets config order, so a tie never depends on anything they cannot see.
+    @Test func aTieGoesToConfigOrder() {
+        let statuses = ["claude": fullClaude, "codex": using("codex", 10), "copilot": using("copilot", 10, label: "Premium requests", minutes: 44_640)]
+        let first = PopoverSummary.make(accounts: [claude, codex, copilot], statuses: statuses, config: AppConfig(), now: now)
+        #expect(first.room == "Codex has room: 5-hour 10% used")
+        let swapped = PopoverSummary.make(accounts: [claude, copilot, codex], statuses: statuses, config: AppConfig(), now: now)
+        #expect(swapped.room == "GitHub Copilot has room: Premium requests 10% used")
+    }
+
+    /// A window past its reset still shows the cycle that ended, which says nothing about the room left now.
+    @Test func aWindowPastItsResetGivesNoRoom() {
+        let reset = AccountStatus(snapshot: snapshot("codex", [window("session", "5-hour", used: 5, resetIn: -60)]), lastAttempt: now)
+        let statuses = ["claude": fullClaude, "codex": reset, "copilot": using("copilot", 10, label: "Premium requests", minutes: 44_640)]
+        let summary = PopoverSummary.make(accounts: [claude, codex, copilot], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.room == "GitHub Copilot has room: Premium requests 10% used")
+    }
+
+    /// Red at can be hand-edited above 100, and a full window still stops the work.
+    @Test func aFullWindowBelowRedAtStillGetsTheHint() {
+        var config = AppConfig()
+        config.menuBar.criticalAt = 110
+        let summary = PopoverSummary.make(accounts: [claude, codex], statuses: ["claude": fullClaude, "codex": using("codex", 2)], config: config, now: now)
+        #expect(summary.tone == .warning)
+        #expect(summary.room == "Codex has room: 5-hour 2% used")
+    }
+
+    /// The seam provider status fills: a provider whose status page reports a major outage is not where to go.
+    @Test func aProviderInMajorOutageIsSkipped() {
+        let statuses = ["claude": fullClaude, "codex": using("codex", 2), "copilot": using("copilot", 15, label: "Premium requests", minutes: 44_640)]
+        let summary = PopoverSummary.make(accounts: [claude, codex, copilot], statuses: statuses, config: AppConfig(), now: now, majorOutages: [.codex])
+        #expect(summary.room == "GitHub Copilot has room: Premium requests 15% used")
     }
 }
 
