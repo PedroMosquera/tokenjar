@@ -66,9 +66,11 @@ struct AppModelHealthTests {
         let accountGate: AccountGate
     }
 
-    /// `switchOn` nil leaves the preference unset, as on a Mac where nobody touched it.
+    /// `switchOn` nil leaves the preference unset, as on a Mac where nobody touched it. `available` says which accounts
+    /// have their profile or credential on this Mac.
     private func rig(
         _ accounts: [AccountConfig], switchOn: Bool? = true, defaults: MemoryDefaults = MemoryDefaults(),
+        available: @escaping (AccountConfig) -> Bool = { _ in true },
         accountResult: @escaping @Sendable (AccountConfig) -> Result<UsageSnapshot, FetchError> = { .success(usageSnapshot($0)) },
         healthFetcher: (@Sendable (ProviderID) async throws -> ProviderHealthAnswer)? = nil,
         prepare: (ModelHome, [AccountConfig]) throws -> Void = { try $0.writeConfig(AppConfig(accounts: $1)) }
@@ -84,7 +86,7 @@ struct AppModelHealthTests {
             paths: home.paths, fetcher: { _ in FakeFetcher(log: log, gate: accountGate.gate, result: accountResult) }, clock: { clock.now },
             network: FakeNetworkStatus(), healthFetcher: fetchHealth, defaults: defaults
         )
-        model.isAvailable = { _ in true }
+        model.isAvailable = available
         model.loadState()
         return Rig(home: home, model: model, asks: asks, clock: clock, log: log, defaults: defaults, accountGate: accountGate)
     }
@@ -119,6 +121,21 @@ struct AppModelHealthTests {
         rig.clock.advance(1)
         await open(rig)
         #expect(rig.asks.counts(.claude, .codex, .copilot) == [2, 2, 2])
+    }
+
+    /// The status rule keeps its own clock: an account refresh just before an open, as a wake or a tick makes, must not
+    /// hold back a status page that is due.
+    @Test func anAccountRefreshJustBeforeAnOpenDoesNotHoldBackADueCheck() async throws {
+        let rig = try rig([claude])
+        defer { rig.home.remove() }
+        await open(rig)
+        try await waitUntil { rig.model.lastRefreshAt != nil }
+        rig.clock.advance(300)
+        await rig.model.refresh(force: true)?.value
+        rig.clock.advance(10)
+        await open(rig)
+        #expect(rig.log.count("claude") == 2)
+        #expect(rig.asks.counts(.claude) == [2])
     }
 
     /// The refresh button, Command-R and Refresh Now share this path, and the user asked: no two-minute wait.
@@ -160,6 +177,49 @@ struct AppModelHealthTests {
         await open(rig)
         await refreshNow(rig)
         #expect(rig.asks.total == 0)
+    }
+
+    /// Turning the switch on is not a look at the popover: the next open or refresh asks.
+    @Test func turningTheSwitchOnAsksNothing() async throws {
+        let rig = try rig([claude, codex, copilot], switchOn: nil)
+        defer { rig.home.remove() }
+        rig.model.setProviderStatus(true)
+        await rig.model.healthCheck?.value
+        #expect(rig.asks.total == 0)
+        #expect(rig.model.healthCheck == nil)
+        await open(rig)
+        #expect(rig.asks.counts(.claude, .codex, .copilot) == [1, 1, 1])
+    }
+
+    /// config.json can list accounts this Mac does not use, a disabled one or one whose profile is not here. Neither may
+    /// make this Mac contact its provider's status page.
+    @Test func disabledAndAbsentAccountsAreNotAskedFor() async throws {
+        let disabled = AccountConfig(id: "copilot", provider: .copilot, label: "GitHub", enabled: false)
+        let rig = try rig([claude, codex, disabled], available: { $0.id != "codex" })
+        defer { rig.home.remove() }
+        #expect(rig.model.accounts.map(\.id) == ["claude"])
+        await refreshNow(rig)
+        #expect(rig.asks.counts(.claude, .codex, .copilot) == [1, 0, 0])
+    }
+
+    /// One request per provider at a time: a second refresh, or an open, while a check still runs sends nothing more.
+    @Test func aProviderWhoseCheckIsStillRunningIsNotAskedAgain() async throws {
+        let rig = try rig([copilot])
+        defer { rig.home.remove() }
+        let gate = Gate()
+        rig.asks.hold(with: gate)
+        await PopoverHeader.refreshNow(rig.model)?.value
+        try await waitUntil { rig.asks.total == 1 }
+        let first = rig.model.healthCheck
+
+        rig.clock.advance(ProviderHealth.askAgainAfter)
+        await PopoverHeader.refreshNow(rig.model)?.value
+        rig.model.popoverWillOpen()
+        await gate.open()
+        await first?.value
+        await rig.model.healthCheck?.value
+        #expect(rig.asks.counts(.copilot) == [1])
+        #expect(rig.model.healthInFlight.isEmpty)
     }
 
     /// One request per provider, however many accounts share it, and none for a provider without a feed.
@@ -289,6 +349,12 @@ struct AppModelHealthTests {
         #expect(AppModel(paths: shared.home.paths, defaults: shared.defaults).providerStatusOn)
         #expect(try String(contentsOf: shared.home.configFile, encoding: .utf8).contains("providerStatus"))
         #expect(try shared.home.readConfig() == AppConfig(accounts: [claude, codex, copilot]))
+    }
+
+    /// Any store but the app's own preferences would turn the switch off again at every launch. In a test process
+    /// `UserDefaults.standard` is the test runner's domain, not Tokenjar's, and nothing here writes to it.
+    @Test func theAppKeepsTheSwitchInItsOwnPreferences() {
+        #expect(AppDelegate().model.preferences as? UserDefaults === UserDefaults.standard)
     }
 
     /// The real fetcher, given a body that is not a status summary: Settings is where that shows.

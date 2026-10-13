@@ -117,6 +117,8 @@ final class AppModel {
     @ObservationIgnored private let clock: () -> Date
     @ObservationIgnored private let network: any NetworkStatus
     @ObservationIgnored private let healthFetcher: @Sendable (ProviderID) async throws -> ProviderHealthAnswer
+    /// Where the provider status switch is kept: the app passes its own preferences, everything else an in-memory store.
+    @ObservationIgnored let preferences: any DefaultsStoring
     @ObservationIgnored private let healthSetting: ProviderHealthSetting
     /// Bumped when the switch goes off, so an answer still in flight is dropped instead of shown.
     @ObservationIgnored private var healthGeneration = 0
@@ -182,6 +184,7 @@ final class AppModel {
         self.clock = clock
         self.network = network
         self.healthFetcher = healthFetcher
+        preferences = defaults
         healthSetting = ProviderHealthSetting(defaults: defaults)
         providerStatusOn = healthSetting.isOn
         let start = clock()
