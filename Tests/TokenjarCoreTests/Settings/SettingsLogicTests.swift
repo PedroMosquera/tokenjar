@@ -36,6 +36,11 @@ struct SettingsLogicTests {
         #expect(SettingsLogic.moving(id, by: offset, in: accounts).map(\.id) == expected)
     }
 
+    @Test(arguments: [("120", "en_US", 120), ("120.5", "en_US", 120.5), ("120,5", "es_ES", 120.5), ("", "en_US", nil), ("abc", "en_US", nil), ("-5", "en_US", nil), ("0", "en_US", nil)] as [(String, String, Double?)])
+    func aDailyBudgetAmountIsAPositiveNumberOrNone(_ text: String, _ locale: String, _ expected: Double?) {
+        #expect(SettingsLogic.dailyBudgetAmount(from: text, locale: Locale(identifier: locale)) == expected)
+    }
+
     @Test(arguments: [("  Personal ", "Personal"), ("Work", "Work"), ("   ", nil), ("", nil)] as [(String, String?)])
     func anAccountNameIsTrimmedAndCannotBeBlank(_ text: String, _ expected: String?) {
         #expect(SettingsLogic.accountLabel(from: text) == expected)

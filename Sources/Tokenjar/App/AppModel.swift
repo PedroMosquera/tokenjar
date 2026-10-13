@@ -706,7 +706,8 @@ final class AppModel {
         }
 
         let previousAlertState = alertState
-        let outcome = AlertEngine.evaluate(account: live ?? account, result: result, config: config, state: &alertState, now: current)
+        let daily = (try? result.get()).flatMap { dailySpend(for: live ?? account, snapshot: $0, now: current) }
+        let outcome = AlertEngine.evaluate(account: live ?? account, result: result, config: config, state: &alertState, now: current, daily: daily)
         notifications?.handle(outcome)
         if alertState != previousAlertState { saveAlertState() }
         return .applied(sampled: sampled)
@@ -811,6 +812,15 @@ final class AppModel {
                 if changed { self.historyRevision += 1 }
             }
         }
+    }
+
+    /// Today against the account's daily budget; nil when the budget is off or the account has no spend limit.
+    /// `budget` replaces the account's own, so Settings can show the recommended amount while a fixed one is set.
+    func dailySpend(for account: AccountConfig, snapshot: UsageSnapshot, now: Date, budget: DailyBudget? = nil) -> DailySpend? {
+        guard let budget = budget ?? account.dailyBudget else { return nil }
+        // A month and a day back covers the cycle and the check before local midnight on its first day.
+        let samples = samples(accountID: account.id, windowID: UsageWindow.spendCapID, since: now.addingTimeInterval(-32 * 86_400))
+        return DailySpend.make(snapshot: snapshot, budget: budget, samples: samples, now: now, calendar: .current, workWeek: WorkWeek(config.paceDays))
     }
 
     func samples(accountID: String, windowID: String?, since: Date) -> [WindowSample] {

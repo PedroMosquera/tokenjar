@@ -1,4 +1,5 @@
 import Foundation
+import TokenjarCore
 
 enum Format {
     /// Whole percent, except that nothing above 0 reads "0%" and nothing below 100 reads "100%".
@@ -63,6 +64,18 @@ enum Format {
     static func moneySpent(_ amount: Double, of limit: Double, currency: String = "USD", locale: Locale = .autoupdatingCurrent) -> String {
         let digits = max(centsDigits(amount), centsDigits(limit))
         return "\(money(amount, currency: currency, fractionDigits: digits, locale: locale)) of \(money(limit, currency: currency, fractionDigits: digits, locale: locale)) spent"
+    }
+
+    /// "$79 of $133 recommended for today", "$175 of $133 daily budget · $42 over", with "· since 9:14 AM" when today
+    /// counts only from its first check. Whole units: a daily figure in cents is noise.
+    static func dailySpend(_ day: DailySpend, locale: Locale = .autoupdatingCurrent, timeZone: TimeZone = .autoupdatingCurrent) -> String {
+        let whole = { (amount: Double) in money(amount, currency: day.currency, fractionDigits: 0, locale: locale) }
+        var text = "\(whole(day.spent)) of \(whole(day.budget)) " + (day.isRecommended ? "recommended for today" : "daily budget")
+        if day.isOver { text += " · \(whole(day.spent - day.budget)) over" }
+        if let from = day.countedFrom {
+            text += " · since " + from.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, timeZone: timeZone))
+        }
+        return text
     }
 
     private static func centsDigits(_ amount: Double) -> Int {

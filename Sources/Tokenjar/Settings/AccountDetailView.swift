@@ -46,6 +46,10 @@ struct AccountDetailView: View {
                 if !account.provider.isLinkOnly, !account.provider.usesAPIKey {
                     signInSection
                 }
+                if let snapshot = model.status(for: account).snapshot, snapshot.spendLimitMoney != nil {
+                    dailyBudgetSection(snapshot)
+                        .disabled(!model.canEditConfig)
+                }
                 overridesSection
                     .disabled(!model.canEditConfig)
                 Section {
@@ -161,6 +165,33 @@ struct AccountDetailView: View {
                     .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+            }
+        }
+    }
+
+    /// Only for an account limited by what it spends, which is the only kind a Today bar can measure.
+    private func dailyBudgetSection(_ snapshot: UsageSnapshot) -> some View {
+        let isOn = Binding(
+            get: { account.dailyBudget != nil },
+            set: { on in model.updateAccount(account.id) { $0.dailyBudget = on ? DailyBudget() : nil } }
+        )
+        let recommended = model.dailySpend(for: account, snapshot: snapshot, now: model.now, budget: DailyBudget())
+        return Section {
+            Toggle(isOn: isOn) {
+                Text("Daily budget")
+                Text("A Today bar under the spend limit, and one notification a day when today's spend goes over.")
+            }
+            if account.dailyBudget != nil {
+                CommittingTextField(
+                    title: "Amount per day",
+                    prompt: recommended.map { Format.money($0.budget, currency: $0.currency, fractionDigits: 0, locale: .autoupdatingCurrent) },
+                    value: account.dailyBudget?.amount.map { $0.formatted(.number.precision(.fractionLength(0...2))) } ?? ""
+                ) { text in
+                    model.updateAccount(account.id) { $0.dailyBudget = DailyBudget(amount: SettingsLogic.dailyBudgetAmount(from: text)) }
+                }
+                Text("Leave it empty for the recommended amount: what is left this month spread over the days left, so a heavy day lowers the next.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

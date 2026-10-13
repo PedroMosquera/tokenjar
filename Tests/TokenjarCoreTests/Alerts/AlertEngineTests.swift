@@ -392,4 +392,48 @@ struct AlertEngineTests {
         #expect(AlertEngine.cycleID(Date(timeIntervalSince1970: 1_800_000_299)) == 1_800_000_000)
         #expect(AlertEngine.cycleID(Date(timeIntervalSince1970: 1_800_000_301)) == 1_800_000_600)
     }
+
+    // MARK: Daily budget
+
+    private func daily(_ spent: Double, budget: Double = 100, dayStart: Date? = nil) -> DailySpend {
+        let start = dayStart ?? now.addingTimeInterval(-8 * 3600)
+        return DailySpend(
+            spent: spent, budget: budget, isRecommended: false, currency: "USD", dayStart: start, dayEnd: start.addingTimeInterval(86_400), countedFrom: nil
+        )
+    }
+
+    private func runDaily(_ state: inout AlertState, _ spend: DailySpend, config: AppConfig? = nil) -> AlertOutcome {
+        AlertEngine.evaluate(account: account, result: ok(), config: config ?? thresholdsOnly, state: &state, now: now, clock: clock, daily: spend, locale: Locale(identifier: "en_US"))
+    }
+
+    /// One notification a day, the first time today's spend goes over the budget.
+    @Test func goingOverTheDailyBudgetNotifiesOnceADay() {
+        var state = AlertState()
+        #expect(runDaily(&state, daily(40)).events.isEmpty)
+        let over = runDaily(&state, daily(120))
+        #expect(over.events.map(\.kind) == [.dailyBudget])
+        #expect(over.events.first?.body == "Today's spend is over its daily budget: $120 of $100")
+        #expect(runDaily(&state, daily(150)).events.isEmpty)
+        let tomorrow = now.addingTimeInterval(16 * 3600)
+        #expect(runDaily(&state, daily(40, dayStart: tomorrow)).events.isEmpty)
+        #expect(runDaily(&state, daily(130, dayStart: tomorrow)).events.map(\.kind) == [.dailyBudget])
+    }
+
+    /// Only today's key is kept, so the state does not grow by one key a day.
+    @Test func earlierDaysAreForgotten() {
+        var state = AlertState()
+        _ = runDaily(&state, daily(40))
+        _ = runDaily(&state, daily(120))
+        _ = runDaily(&state, daily(130, dayStart: now.addingTimeInterval(16 * 3600)))
+        #expect(state.firedKeys.filter { $0.contains("|daily|") }.count == 1)
+    }
+
+    @Test func theDailyBudgetIsQuietWithAlertsOff() {
+        var state = AlertState()
+        var config = thresholdsOnly
+        config.alerts.enabled = false
+        _ = runDaily(&state, daily(40), config: config)
+        #expect(runDaily(&state, daily(120), config: config).events.isEmpty)
+    }
 }
+

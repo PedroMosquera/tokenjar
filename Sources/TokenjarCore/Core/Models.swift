@@ -138,12 +138,14 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
     /// AI credits the user's plan includes per billing cycle, entered by hand.
     public var creditAllowance: Int?
     public var dashboardURL: String?
+    /// nil is off; on, it draws a Today bar for an account limited by what it spends.
+    public var dailyBudget: DailyBudget?
 
     public init(
         id: String, provider: ProviderID, label: String, enabled: Bool = true,
         profileDir: String? = nil, credential: CredentialRef? = nil, showInMenuBar: Bool = true,
         refreshMinutes: Int? = nil, alertThresholds: [Int]? = nil, shortAlertThresholds: [Int]? = nil,
-        creditAllowance: Int? = nil, dashboardURL: String? = nil
+        creditAllowance: Int? = nil, dashboardURL: String? = nil, dailyBudget: DailyBudget? = nil
     ) {
         self.id = id
         self.provider = provider
@@ -157,6 +159,7 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         self.shortAlertThresholds = shortAlertThresholds
         self.creditAllowance = creditAllowance
         self.dashboardURL = dashboardURL
+        self.dailyBudget = dailyBudget
     }
 
     public init(from decoder: Decoder) throws {
@@ -173,6 +176,7 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         shortAlertThresholds = try c.decodeIfPresent([Int].self, forKey: .shortAlertThresholds)
         creditAllowance = try c.decodeIfPresent(Int.self, forKey: .creditAllowance)
         dashboardURL = try c.decodeIfPresent(String.self, forKey: .dashboardURL)
+        dailyBudget = try c.decodeIfPresent(DailyBudget.self, forKey: .dailyBudget)
     }
 
     public var displayName: String { "\(provider.displayName) · \(label)" }

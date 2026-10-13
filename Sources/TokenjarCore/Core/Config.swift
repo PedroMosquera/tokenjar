@@ -355,6 +355,7 @@ public struct ConfigStore: Sendable {
         if before.shortAlertThresholds != after.shortAlertThresholds { out.shortAlertThresholds = after.shortAlertThresholds }
         if before.creditAllowance != after.creditAllowance { out.creditAllowance = after.creditAllowance }
         if before.dashboardURL != after.dashboardURL { out.dashboardURL = after.dashboardURL }
+        if before.dailyBudget != after.dailyBudget { out.dailyBudget = after.dailyBudget }
         return out
     }
 

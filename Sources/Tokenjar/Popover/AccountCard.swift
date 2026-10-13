@@ -247,6 +247,12 @@ private struct SnapshotBody: View {
                             } : nil
                         )
                     }
+                    if let daily = model.dailySpend(for: account, snapshot: snapshot, now: now) {
+                        WindowRow(
+                            window: daily.window, severity: Severity.of(daily.window, config: model.config.menuBar, now: now),
+                            pace: Pace.compute(daily.window, now: now), now: now, isDimmed: isStale, caption: Format.dailySpend(daily)
+                        )
+                    }
                 }
             }
             let verdict = PaceVerdict.make(windows: snapshot.windows, config: model.config.menuBar, now: now)

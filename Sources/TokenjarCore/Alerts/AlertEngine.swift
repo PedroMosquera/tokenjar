@@ -5,6 +5,7 @@ public enum AlertKind: Codable, Hashable, Sendable {
     case projectedExhaustion
     case windowReset
     case sourceProblem
+    case dailyBudget
 }
 
 public struct AlertEvent: Hashable, Sendable {
@@ -102,7 +103,8 @@ public enum AlertEngine {
     /// `clock` formats the reset time in projection alerts; tests pass a fixed locale and time zone.
     public static func evaluate(
         account: AccountConfig, result: Result<UsageSnapshot, FetchError>, config: AppConfig,
-        state: inout AlertState, now: Date, clock: Date.FormatStyle = Date.FormatStyle(date: .omitted, time: .shortened)
+        state: inout AlertState, now: Date, clock: Date.FormatStyle = Date.FormatStyle(date: .omitted, time: .shortened),
+        daily: DailySpend? = nil, locale: Locale = .autoupdatingCurrent
     ) -> AlertOutcome {
         switch result {
         case .failure(let error):
@@ -117,6 +119,7 @@ public enum AlertEngine {
             for window in snapshot.windows {
                 evaluate(window, account: account, config: config, silent: silent, state: &state, now: now, clock: clock, into: &outcome)
             }
+            if let daily { evaluate(daily, account: account, silent: silent, state: &state, locale: locale, into: &outcome) }
             return outcome
         }
     }
@@ -192,6 +195,22 @@ public enum AlertEngine {
             let body = "\(window.label) will run out about \(margin) before it resets (\(resetsAt.formatted(clock)))"
             outcome.events.append(event(prefix + "projected", account, window, .projectedExhaustion, body))
         }
+    }
+
+    /// Once a day, the first time today's spend goes over the budget. Only today's key is kept.
+    private static func evaluate(
+        _ daily: DailySpend, account: AccountConfig, silent: Bool, state: inout AlertState, locale: Locale, into outcome: inout AlertOutcome
+    ) {
+        let prefix = "\(account.id)|daily|"
+        let key = prefix + "\(Int(daily.dayStart.timeIntervalSince1970))"
+        state.firedKeys = state.firedKeys.filter { !$0.hasPrefix(prefix) || $0 == key }
+        guard daily.isOver, state.firedKeys.insert(key).inserted, !silent else { return }
+        let money = { (amount: Double) in amount.formatted(.currency(code: daily.currency).precision(.fractionLength(0)).locale(locale)) }
+        outcome.events.append(AlertEvent(
+            id: key, threadID: account.id, title: account.displayName,
+            body: "Today's spend is over its daily budget: \(money(daily.spent)) of \(money(daily.budget))",
+            kind: .dailyBudget, accountID: account.id, windowID: DailySpend.windowID
+        ))
     }
 
     /// A reset moves the reset time forward by about a whole window; half a window leaves room for providers

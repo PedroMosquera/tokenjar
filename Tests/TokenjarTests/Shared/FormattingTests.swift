@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Tokenjar
+import TokenjarCore
 
 struct FormattingTests {
     private let us = Locale(identifier: "en_US")
@@ -37,6 +38,20 @@ struct FormattingTests {
     @Test func aSpendLimitReadsAsSpentOfTheLimit() {
         #expect(Format.moneySpent(477.15, of: 3000, locale: us) == "$477 of $3,000 spent")
         #expect(Format.moneySpent(12.4, of: 50, locale: us) == "$12.40 of $50.00 spent")
+    }
+
+    @Test func todaysSpendNamesItsBudget() {
+        let utc = TimeZone(identifier: "UTC")!
+        func line(_ spent: Double, _ budget: Double, recommended: Bool = false, from: Date? = nil) -> String {
+            let day = DailySpend(
+                spent: spent, budget: budget, isRecommended: recommended, currency: "USD", dayStart: .distantPast, dayEnd: .distantFuture, countedFrom: from
+            )
+            return Format.dailySpend(day, locale: us, timeZone: utc)
+        }
+        #expect(line(79, 100) == "$79 of $100 daily budget")
+        #expect(line(79.4, 133.2, recommended: true) == "$79 of $133 recommended for today")
+        #expect(line(175, 133) == "$175 of $133 daily budget · $42 over")
+        #expect(line(12, 100, from: DateParsing.iso8601("2026-10-13T09:14:00Z")) == "$12 of $100 daily budget · since 9:14\u{202F}AM")
     }
 
     /// Rounding must never call a window empty while it has use, or full while it has room.

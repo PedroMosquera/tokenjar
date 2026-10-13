@@ -28,6 +28,16 @@ public enum SettingsLogic {
         return out
     }
 
+    /// nil for blank or unreadable text, or an amount that is not positive: the recommended budget then applies.
+    public static func dailyBudgetAmount(from text: String, locale: Locale = .autoupdatingCurrent) -> Double? {
+        let formatter = NumberFormatter()
+        formatter.locale = locale
+        formatter.numberStyle = .decimal
+        formatter.isLenient = true
+        guard let amount = formatter.number(from: text.trimmingCharacters(in: .whitespacesAndNewlines))?.doubleValue, amount > 0 else { return nil }
+        return amount
+    }
+
     /// nil for a blank name, which the name sheet refuses.
     public static func accountLabel(from text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
