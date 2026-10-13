@@ -20,12 +20,12 @@ In the tables below, "account id" is the slug you chose in config (for example `
 
 ### How HTTPClient enforces it
 
-- `HTTPClient.allowedEndpoints` is exactly `["opencode.ai": ["/zen/go/v1/usage"]]`, and `HTTPClient.allowedHosts` is derived from it.
-- `HTTPClient.validate` runs before a request is built. It accepts only `https`, only the host `opencode.ai` (subdomains and look-alikes such as `opencode.ai.evil.example` are rejected), only the path `/zen/go/v1/usage`, only the default port (none, or 443), and no user info, query or fragment. Any other URL on that host is rejected too.
+- `HTTPClient.allowedEndpoints` is exactly `opencode.ai` `/zen/go/v1/usage`, `status.claude.com` `/api/v2/summary.json`, `status.openai.com` `/proxy/status.openai.com` and `www.githubstatus.com` `/api/v2/summary.json`, and `HTTPClient.allowedHosts` is derived from it. The three status feeds are listed for provider status; no code in this build requests them.
+- `HTTPClient.validate` runs before a request is built. It accepts only `https`, only those hosts (subdomains and look-alikes such as `opencode.ai.evil.example` are rejected), only the one path listed for each, only the default port (none, or 443), and no user info, query or fragment. Any other URL on those hosts is rejected too.
 - `URLSessionTransport.send` refuses every method but GET and validates the URL again, so code that uses the transport directly cannot reach another host or path either.
 - Redirects are never followed, so the `Authorization` header cannot be carried anywhere else.
 - The URL session is ephemeral: no cookie storage, no cookies sent, no URL cache.
-- Tests: `HTTPClientTests.allowlistIsExactlyOpenCode` pins `allowedHosts` and `allowedEndpoints`. `onlyTheGoUsageEndpointIsAllowedOnTheHost`, `getRejectsDisallowedURLsBeforeTheTransport`, `transportRejectsDisallowedHostsWithoutConnecting`, `transportRefusesAnythingButGET` and `transportNeverFollowsRedirects` cover URL validation, the transport's second check, the GET rule and the redirect refusal. No test pins the ephemeral, cookie-free session. Adding an endpoint is a privacy decision that needs this page updated in the same change.
+- Tests: `HTTPClientTests.allowlistIsPinned` pins `allowedHosts` and `allowedEndpoints`. `onlyTheGoUsageEndpointIsAllowedOnTheHost`, `statusHostsAllowOnlyTheirFeed`, `otherStatusHostsAreNotAllowed`, `getRejectsDisallowedURLsBeforeTheTransport`, `transportRejectsDisallowedHostsWithoutConnecting`, `transportRefusesAnythingButGET` and `transportNeverFollowsRedirects` cover URL validation, the transport's second check, the GET rule and the redirect refusal. `sessionIsCookieFree` pins the ephemeral, cookie-free session. Adding an endpoint is a privacy decision that needs this page updated in the same change.
 
 ### Network status
 
