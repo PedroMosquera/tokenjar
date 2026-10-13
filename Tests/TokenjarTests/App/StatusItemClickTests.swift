@@ -119,10 +119,10 @@ struct ClosingPressTests {
         var press = StatusItemClick.ClosingPress()
         press.pressBegan(at: 10)
         press.popoverClosed(byPressAt: 10)
-        let toggles1 = press.releaseToggles()
+        let toggles1 = press.releaseToggles(isMouseRelease: true)
         #expect(!toggles1)
         press.pressBegan(at: 12)
-        let toggles2 = press.releaseToggles()
+        let toggles2 = press.releaseToggles(isMouseRelease: true)
         #expect(toggles2)
     }
 
@@ -132,7 +132,7 @@ struct ClosingPressTests {
         var press = StatusItemClick.ClosingPress()
         press.popoverClosed(byPressAt: 10)
         press.pressBegan(at: 12)
-        let toggles3 = press.releaseToggles()
+        let toggles3 = press.releaseToggles(isMouseRelease: true)
         #expect(toggles3)
     }
 
@@ -141,14 +141,22 @@ struct ClosingPressTests {
         var press = StatusItemClick.ClosingPress()
         press.popoverClosed(byPressAt: 10)
         press.pressBegan(at: 10)
-        let toggles4 = press.releaseToggles()
+        let toggles4 = press.releaseToggles(isMouseRelease: true)
         #expect(!toggles4)
+    }
+
+    /// A VoiceOver press sends no mouse events, so a press record left by a swallowed click must not eat it.
+    @Test func aPressWithoutAMouseReleaseAlwaysToggles() {
+        var press = StatusItemClick.ClosingPress()
+        press.popoverClosed(byPressAt: 10)
+        let toggles = press.releaseToggles(isMouseRelease: false)
+        #expect(toggles)
     }
 
     @Test func aClickThatClosedNothingToggles() {
         var press = StatusItemClick.ClosingPress()
         press.pressBegan(at: 10)
-        let toggles5 = press.releaseToggles()
+        let toggles5 = press.releaseToggles(isMouseRelease: true)
         #expect(toggles5)
     }
 }

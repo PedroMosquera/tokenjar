@@ -55,10 +55,11 @@ enum StatusItemClick: Equatable {
             if pressTime != time { pressTime = nil }
         }
 
-        /// Whether a release on the item should toggle the popover. Uses up the press either way.
-        mutating func releaseToggles() -> Bool {
+        /// Whether an action on the item should toggle the popover. Uses up the press either way. Only a mouse release
+        /// can belong to the closing press; a VoiceOver or keyboard press always toggles.
+        mutating func releaseToggles(isMouseRelease: Bool) -> Bool {
             defer { pressTime = nil }
-            return pressTime == nil
+            return pressTime == nil || !isMouseRelease
         }
     }
 }

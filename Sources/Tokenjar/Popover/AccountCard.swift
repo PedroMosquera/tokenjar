@@ -244,6 +244,8 @@ private struct SnapshotBody: View {
             if !snapshot.windows.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(snapshot.windows) { window in
+                        // Past its reset the money is last month's; the row says "reset, updating" until the next check.
+                        let spend = window.hasReset(now: now) ? nil : spend
                         WindowRow(
                             window: window,
                             severity: Severity.of(window, config: model.config.menuBar, now: now),

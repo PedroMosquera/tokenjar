@@ -36,7 +36,13 @@ struct SettingsLogicTests {
         #expect(SettingsLogic.moving(id, by: offset, in: accounts).map(\.id) == expected)
     }
 
-    @Test(arguments: [("120", "en_US", 120), ("120.5", "en_US", 120.5), ("120,5", "es_ES", 120.5), ("", "en_US", nil), ("abc", "en_US", nil), ("-5", "en_US", nil), ("0", "en_US", nil)] as [(String, String, Double?)])
+    /// A dot before two digits is a decimal point even where the comma is, so "5.50" in German is not 550; a currency
+    /// symbol is ignored rather than clearing the field.
+    @Test(arguments: [
+        ("120", "en_US", 120), ("120.5", "en_US", 120.5), ("120,5", "es_ES", 120.5), ("5.50", "de_DE", 5.5), ("5,50", "de_DE", 5.5),
+        ("$5", "en_US", 5), ("€ 12,5", "de_DE", 12.5), ("1,000", "en_US", 1000), ("1.000", "de_DE", 1000), ("1,234.50", "en_US", 1234.5),
+        ("", "en_US", nil), ("abc", "en_US", nil), ("-5", "en_US", nil), ("0", "en_US", nil),
+    ] as [(String, String, Double?)])
     func aDailyBudgetAmountIsAPositiveNumberOrNone(_ text: String, _ locale: String, _ expected: Double?) {
         #expect(SettingsLogic.dailyBudgetAmount(from: text, locale: Locale(identifier: locale)) == expected)
     }

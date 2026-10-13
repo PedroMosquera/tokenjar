@@ -11,6 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     private var quitConfirmation = QuitConfirmation()
     private var clicks = StatusItemClick.Router()
     private var popoverFocus = PopoverFocus()
+    /// A Dashboard or Settings window opened from the open popover, which then keeps the keyboard.
+    private var popoverOpenedWindow = false
+    /// The app to give the keyboard back to while the status item menu is up, for a quit asked from it.
+    private var menuRefocus: NSRunningApplication?
     private var closingPress = StatusItemClick.ClosingPress()
     private var pressMonitor: Any?
     var popoverFrameObservers: [NSObjectProtocol] = [] {
@@ -93,7 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
-        let toggles = closingPress.releaseToggles()
+        let toggles = closingPress.releaseToggles(isMouseRelease: [.leftMouseUp, .rightMouseUp].contains(NSApp.currentEvent?.type))
         switch clicks.route(NSApp.currentEvent) {
         case .popover: if toggles { togglePopover(sender) }
         case .menu: showMenu()
@@ -104,6 +108,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
         guard let statusItem, let button = statusItem.button else { return }
         // Taken before the popover closes, so its close leaves focus alone while the menu is up.
         let refocus = popover.isShown ? popoverFocus.closing(tokenjarIsActive: true, keepsFocus: false) : nil
+        menuRefocus = refocus
+        defer { menuRefocus = nil }
         StatusItemMenu.open(
             StatusItemMenu.make(hasAccounts: !model.accounts.isEmpty, pinned: model.pinnedAccount?.displayName, target: self),
             closePopover: { if popover.isShown { popover.performClose(nil) } },
@@ -121,6 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
             popover.performClose(sender)
         } else {
             popoverFocus.opening(frontmost: NSWorkspace.shared.frontmostApplication)
+            popoverOpenedWindow = false
             NSApp.activate()
             Self.open(popover, willOpen: {
                 model.popoverMaxHeight = Self.anchorGeometry(of: sender).map {
@@ -188,7 +195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     /// shows it only after that menu has closed and the status item has let go of it.
     @objc func requestQuit(_ sender: Any?) {
         // With the popover open Tokenjar is in front, so the app to return to after Cancel is the one before it.
-        let frontmost = popover.isShown ? popoverFocus.appBefore : NSWorkspace.shared.frontmostApplication
+        let frontmost = popover.isShown ? popoverFocus.appBefore : menuRefocus ?? NSWorkspace.shared.frontmostApplication
         guard quitConfirmation.shouldAsk(frontmost: frontmost) else { return }
         if popover.isShown { popover.performClose(nil) }
         RunLoop.main.perform(inModes: [.default]) {
@@ -243,7 +250,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     func popoverDidClose(_ notification: Notification) {
         model.isPopoverShown = false
         popoverFrameObservers = []
-        if let app = popoverFocus.closing(tokenjarIsActive: NSApp.isActive, keepsFocus: tokenjarNeedsFocus) { Self.handFocusBack(to: app) }
+        // Only a window the popover opened keeps the keyboard; one already open behind the user's app does not.
+        let keepsFocus = popoverOpenedWindow || quitConfirmation.isAsking
+        if let app = popoverFocus.closing(tokenjarIsActive: NSApp.isActive, keepsFocus: keepsFocus) { Self.handFocusBack(to: app) }
     }
 
     /// Where the popover went, so an open that ends up over the menu bar leaves a trace in the unified log. Frames only.
@@ -261,6 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     }
 
     private func showDashboard(accountID: String?) {
+        if popover.isShown { popoverOpenedWindow = true }
         popover.performClose(nil)
         model.dashboardSelection = accountID
         windows.show(.dashboard) {
@@ -269,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
     }
 
     private func showSettings(accountID: String?) {
+        if popover.isShown { popoverOpenedWindow = true }
         popover.performClose(nil)
         model.settingsSelection = accountID
         windows.show(.settings) {

@@ -187,7 +187,10 @@ struct AccountDetailView: View {
                     prompt: recommended.map { Format.money($0.budget, currency: $0.currency, fractionDigits: 0, locale: .autoupdatingCurrent) },
                     value: account.dailyBudget?.amount.map { $0.formatted(.number.precision(.fractionLength(0...2))) } ?? ""
                 ) { text in
-                    model.updateAccount(account.id) { $0.dailyBudget = DailyBudget(amount: SettingsLogic.dailyBudgetAmount(from: text)) }
+                    // Empty means the recommended amount; text that is not an amount keeps what was there.
+                    let amount = SettingsLogic.dailyBudgetAmount(from: text)
+                    guard amount != nil || text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                    model.updateAccount(account.id) { $0.dailyBudget = DailyBudget(amount: amount) }
                 }
                 Text("Leave it empty for the recommended amount: what is left this month spread over the days left, so a heavy day lowers the next.")
                     .font(.caption)

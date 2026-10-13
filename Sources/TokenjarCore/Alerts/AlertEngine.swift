@@ -169,7 +169,7 @@ public enum AlertEngine {
             let key = prefix + "reset"
             state.firedKeys.insert(key)
             if !silent {
-                outcome.events.append(event(key, account, window, .windowReset, "\(window.label) limit reset · now at \(percent(window.usedPercent))"))
+                outcome.events.append(event(key, account, window, .windowReset, "\(limitName(window)) reset · now at \(percent(window.usedPercent))"))
             }
         }
 
@@ -180,7 +180,7 @@ public enum AlertEngine {
             let lowerKeys = crossed.filter { $0 != top }.map { prefix + "\($0)" }
             if !silent {
                 outcome.withdrawals += lowerKeys.filter(state.firedKeys.contains)
-                var body = "\(window.label) limit at \(percent(window.usedPercent))"
+                var body = "\(limitName(window)) at \(percent(window.usedPercent))"
                 if let resetsAt = window.resetsAt { body += " · resets in \(duration(resetsAt.timeIntervalSince(now)))" }
                 outcome.events.append(event(prefix + "\(top)", account, window, .threshold(top), body))
             }
@@ -220,7 +220,9 @@ public enum AlertEngine {
         let key = prefix + "\(Int(daily.dayStart.timeIntervalSince1970))"
         state.firedKeys = state.firedKeys.filter { !$0.hasPrefix(prefix) || $0 == key }
         guard daily.isOver, state.firedKeys.insert(key).inserted, !silent else { return }
-        let money = { (amount: Double) in amount.formatted(.currency(code: daily.currency).precision(.fractionLength(0)).locale(locale)) }
+        // Cents under a $100 budget, as the popover shows them, or $3.40 of $3.33 would read "$3 of $3".
+        let digits = daily.budget >= 100 ? 0 : 2
+        let money = { (amount: Double) in amount.formatted(.currency(code: daily.currency).precision(.fractionLength(digits)).locale(locale)) }
         outcome.events.append(AlertEvent(
             id: key, threadID: account.id, title: account.displayName,
             body: "Today's spend is over its daily budget: \(money(daily.spent)) of \(money(daily.budget))",
@@ -230,8 +232,11 @@ public enum AlertEngine {
 
     /// A reset moves the reset time forward by about a whole window; half a window leaves room for providers
     /// that start the next window at first use. The usage drop covers windows without a reset time or length.
+    /// A spend limit's share also drops when its limit is raised mid-month, so with reset times on both sides only the
+    /// reset time moving starts its new cycle.
     static func isNewCycle(_ window: UsageWindow, previousUsed: Double, previousReset: Date?) -> Bool {
-        if previousUsed - window.usedPercent >= resetDropPoints { return true }
+        let resetKnown = previousReset != nil && window.resetsAt != nil
+        if previousUsed - window.usedPercent >= resetDropPoints, !(window.limitStyle == .overage && resetKnown) { return true }
         guard let previousReset, let resetsAt = window.resetsAt, let minutes = window.windowMinutes else { return false }
         return resetsAt.timeIntervalSince(previousReset) > Double(minutes) * 60 / 2
     }
@@ -246,6 +251,11 @@ public enum AlertEngine {
 
     private static func event(_ id: String, _ account: AccountConfig, _ window: UsageWindow, _ kind: AlertKind, _ body: String) -> AlertEvent {
         AlertEvent(id: id, threadID: account.id, title: account.displayName, body: body, kind: kind, accountID: account.id, windowID: window.id)
+    }
+
+    /// "Week limit", but "Spend limit" as it is rather than "Spend limit limit".
+    private static func limitName(_ window: UsageWindow) -> String {
+        window.label.lowercased().hasSuffix("limit") ? window.label : "\(window.label) limit"
     }
 
     private static func money(_ amount: Double, _ currency: String, _ locale: Locale) -> String {

@@ -29,12 +29,25 @@ public enum SettingsLogic {
     }
 
     /// nil for blank or unreadable text, or an amount that is not positive: the recommended budget then applies.
+    /// A currency symbol or spaces are ignored. With both "." and "," the last one is the decimal point; with one kind,
+    /// it is the decimal point when it is the locale's, or when a group after it is not three digits ("5.50" in German).
     public static func dailyBudgetAmount(from text: String, locale: Locale = .autoupdatingCurrent) -> Double? {
-        let formatter = NumberFormatter()
-        formatter.locale = locale
-        formatter.numberStyle = .decimal
-        formatter.isLenient = true
-        guard let amount = formatter.number(from: text.trimmingCharacters(in: .whitespacesAndNewlines))?.doubleValue, amount > 0 else { return nil }
+        let kept = text.filter { $0.isASCII && ($0.isNumber || $0 == "." || $0 == ",") }
+        guard !kept.isEmpty, !text.contains("-") else { return nil }
+        let separators = kept.filter { $0 == "." || $0 == "," }
+        var decimal: Character?
+        if Set(separators).count > 1 {
+            decimal = separators.last
+        } else if let separator = separators.first {
+            let groups = kept.split(separator: separator, omittingEmptySubsequences: false).dropFirst()
+            let isGrouping = groups.allSatisfy { $0.count == 3 } && String(separator) != (locale.decimalSeparator ?? ".")
+            decimal = isGrouping ? nil : separator
+        }
+        let normalized = String(kept.compactMap { character -> Character? in
+            if character == decimal { return "." }
+            return character.isNumber ? character : nil
+        })
+        guard let amount = Double(normalized), amount > 0 else { return nil }
         return amount
     }
 

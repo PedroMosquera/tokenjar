@@ -46,7 +46,8 @@ struct MenuBarState: Equatable {
 
     /// The pinned entry, else the one with the least room left: highest severity, then highest used %.
     var worst: Entry? {
-        if let pinned = entries.first(where: { $0.accountID == pinnedAccountID }) { return pinned }
+        // A pinned account with no number yet would leave the menu bar blank.
+        if let pinned = entries.first(where: { $0.accountID == pinnedAccountID && $0.tightest != nil }) { return pinned }
         return entries.max { a, b in
             if a.severity != b.severity { return a.severity < b.severity }
             return (a.tightest?.usedPercent ?? -1) < (b.tightest?.usedPercent ?? -1)

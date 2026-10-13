@@ -303,6 +303,18 @@ struct DashboardMathTests {
         #expect(spend.map(\.amount) == [nil, 0, 60, 10, 30])
     }
 
+    /// A month that ended with less spent than the rounding tolerance still resets, because the reset date moved.
+    @Test func aMovedResetDateIsAResetEvenWithLittleSpent() {
+        let october = day(10), november = day(40)
+        let samples = [
+            WindowSample(accountID: "work", windowID: UsageWindow.spendCapID, timestamp: day(-1), usedPercent: 0.3, resetsAt: october),
+            WindowSample(accountID: "work", windowID: UsageWindow.spendCapID, timestamp: day(0).addingTimeInterval(3600), usedPercent: 0.1, resetsAt: november),
+            WindowSample(accountID: "work", windowID: UsageWindow.spendCapID, timestamp: day(0).addingTimeInterval(7200), usedPercent: 0.25, resetsAt: november),
+        ]
+        let spend = DashboardMath.recordedSpend(samples: samples, limit: 200, periods: [DateInterval(start: day(0), end: day(1))], now: now)
+        #expect(abs((spend.first?.amount ?? 0) - 0.5) < 0.0001)
+    }
+
     /// A rounding dip of a hundredth of a point is not a reset that would count the whole month again.
     @Test func aTinyDipIsNotAReset() {
         let samples = [spendSample(day(0).addingTimeInterval(3600), 30), spendSample(day(0).addingTimeInterval(7200), 29.99), spendSample(day(0).addingTimeInterval(9000), 31)]

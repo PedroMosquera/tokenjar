@@ -72,6 +72,15 @@ struct MenuBarStateTests {
         #expect(pinnedState(nil).worst?.accountID == "personal")
     }
 
+    /// A pinned account with nothing to show yet would leave the menu bar without a number.
+    @Test func aPinnedAccountWithoutANumberFallsBack() {
+        let full = window("weekly", used: 97, minutes: 10_080, resetIn: 5 * 86_400)
+        let state = MenuBarState.make(
+            accounts: [personal, work], statuses: ["personal": status([full]), "work": AccountStatus()], config: AppConfig(), now: now, pinned: "work"
+        )
+        #expect(state.worst?.accountID == "personal")
+    }
+
     /// Bars draw every account, so a pin changes nothing there.
     @Test func barsIgnoreThePin() {
         #expect(pinnedState("work", mode: .bars).entries.map(\.accountID) == ["personal", "work"])

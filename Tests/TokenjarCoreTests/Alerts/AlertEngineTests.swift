@@ -467,5 +467,29 @@ struct AlertEngineTests {
         _ = run(&state, ok(session(90, resetsAt: resetsAt)))
         #expect(!run(&state, ok(session(104, resetsAt: resetsAt))).events.contains { $0.kind == .overLimit })
     }
+
+    /// "Spend limit limit at 80%" doubled the word.
+    @Test func aLabelEndingInLimitIsNotDoubled() {
+        var state = AlertState()
+        _ = run(&state, spendLimit(50))
+        #expect(run(&state, spendLimit(81)).events.first?.body == "Spend limit at 81% · resets in 18d 0h")
+    }
+
+    /// Raising the limit mid-month drops the share without a new month: no reset notice, and crossed levels stay crossed.
+    @Test func aRaisedSpendLimitIsNotAReset() {
+        var state = AlertState()
+        _ = run(&state, spendLimit(50))
+        _ = run(&state, spendLimit(96))
+        let raised = run(&state, spendLimit(48))
+        #expect(!raised.events.contains { $0.kind == .windowReset })
+        #expect(raised.withdrawals.isEmpty)
+    }
+
+    /// Under $100 a day the cents are the difference between over and not.
+    @Test func aSmallDailyBudgetKeepsItsCents() {
+        var state = AlertState()
+        _ = runDaily(&state, daily(1, budget: 3.33))
+        #expect(runDaily(&state, daily(3.40, budget: 3.33)).events.first?.body == "Today's spend is over its daily budget: $3.40 of $3.33")
+    }
 }
 

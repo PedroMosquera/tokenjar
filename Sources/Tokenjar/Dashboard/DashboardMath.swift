@@ -383,20 +383,27 @@ nonisolated enum DashboardMath {
     }
 
     /// What each period added to a spend limit, from the window's samples: the month's total at the period's end
-    /// minus at its start. A drop of more than `resetDrop` points is the monthly reset, so the new total is all new
-    /// spend; a smaller one is rounding and adds nothing. A period holding the first sample counts from that sample.
+    /// minus at its start. A later reset date is the monthly reset, so the new total is all new spend; without reset
+    /// dates, a drop of more than `resetDrop` points is. Any other drop is rounding and adds nothing. A period holding
+    /// the first sample counts from that sample.
     static func recordedSpend(
         samples: [WindowSample], limit: Double, periods: [DateInterval], now: Date, resetDrop: Double = 0.5
     ) -> [SpendPeriod] {
         var total: [(date: Date, spent: Double)] = []
         var reference: Double?
+        var lastReset: Date?
         var spent = 0.0
         for sample in samples.sorted(by: { $0.timestamp < $1.timestamp }) {
-            if let level = reference {
+            let resetMoved = lastReset.flatMap { before in sample.resetsAt.map { $0.timeIntervalSince(before) > 3600 } } ?? false
+            if let reset = sample.resetsAt { lastReset = reset }
+            if reference != nil, resetMoved {
+                spent += sample.usedPercent
+                reference = sample.usedPercent
+            } else if let level = reference {
                 if sample.usedPercent >= level {
                     spent += sample.usedPercent - level
                     reference = sample.usedPercent
-                } else if level - sample.usedPercent > resetDrop {
+                } else if sample.resetsAt == nil, level - sample.usedPercent > resetDrop {
                     spent += sample.usedPercent
                     reference = sample.usedPercent
                 }
