@@ -43,6 +43,10 @@ struct FormattingTests {
         let limit = UsageWindow(id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: 35.2, resetsAt: now.addingTimeInterval(21 * 86_400 + 4 * 3600))
         #expect(Format.spendLimitDetail(limit, now: now) == "35% used · resets in 21d 4h")
         #expect(Format.spendLimitDetail(UsageWindow(id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: 35.2), now: now) == "35% used")
+        var over = limit
+        over.usedPercent = 108
+        let overMoney = MoneyLine(label: "Extra usage", amount: 3_240, limit: 3_000, currency: "USD")
+        #expect(Format.spendLimitDetail(over, money: overMoney, now: now, locale: us) == "108% used · $240 over · resets in 21d 4h")
     }
 
     /// The detail line says what kind of budget it is and how far through the day, so no duration reads as an amount.

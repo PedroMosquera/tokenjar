@@ -562,7 +562,8 @@ extension AppModel {
         let cycleStart = resetsAt.addingTimeInterval(-Double(minutes) * 60)
         let limit = 200.0, spent = 70.0, spentBeforeToday = 66.0
         let window = UsageWindow(
-            id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: spent / limit * 100, windowMinutes: minutes, resetsAt: resetsAt
+            id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: spent / limit * 100, windowMinutes: minutes, resetsAt: resetsAt,
+            limitStyle: .overage
         )
         let snapshot = UsageSnapshot(
             accountID: "claude-company", provider: .claude, plan: "Enterprise (usage-based)", windows: [window],

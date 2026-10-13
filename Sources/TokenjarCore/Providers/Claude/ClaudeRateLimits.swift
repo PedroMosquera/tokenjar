@@ -60,7 +60,7 @@ struct ClaudeRateLimits: Decodable, Sendable {
     }
 
     /// A seat with no plan limits, billed per use, can only run into its monthly cap on extra usage. Uncapped spend
-    /// has no share to show. The report gives no reset; Claude's own usage page resets the cap at midnight UTC on the
+    /// has no share to show. Spend past the cap is allowed, so the window is `.overage`. The report gives no reset; Claude's own usage page resets the cap at midnight UTC on the
     /// 1st, so the window is the UTC calendar month.
     func spendCapWindow(now: Date) -> UsageWindow? {
         guard limits.isEmpty, let line = money.first, let cap = line.limit, cap > 0 else { return nil }
@@ -69,7 +69,7 @@ struct ClaudeRateLimits: Decodable, Sendable {
         let resetsAt = calendar.nextDate(after: now, matching: DateComponents(day: 1, hour: 0, minute: 0, second: 0), matchingPolicy: .strict)
         return UsageWindow(
             id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: line.amount / cap * 100,
-            windowMinutes: UsageWindow.monthMinutes(endingAt: resetsAt), resetsAt: resetsAt
+            windowMinutes: UsageWindow.monthMinutes(endingAt: resetsAt), resetsAt: resetsAt, limitStyle: .overage
         )
     }
 

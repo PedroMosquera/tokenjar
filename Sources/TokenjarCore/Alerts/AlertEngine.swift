@@ -6,6 +6,7 @@ public enum AlertKind: Codable, Hashable, Sendable {
     case windowReset
     case sourceProblem
     case dailyBudget
+    case overLimit
 }
 
 public struct AlertEvent: Hashable, Sendable {
@@ -117,7 +118,10 @@ public enum AlertEngine {
             let silent = !config.alerts.enabled || !state.baselinedAccounts.contains(account.id)
             state.baselinedAccounts.insert(account.id)
             for window in snapshot.windows {
-                evaluate(window, account: account, config: config, silent: silent, state: &state, now: now, clock: clock, into: &outcome)
+                evaluate(
+                    window, account: account, config: config, silent: silent, state: &state, now: now, clock: clock,
+                    money: window.id == UsageWindow.spendCapID ? snapshot.spendLimitMoney : nil, locale: locale, into: &outcome
+                )
             }
             if let daily { evaluate(daily, account: account, silent: silent, state: &state, locale: locale, into: &outcome) }
             return outcome
@@ -143,7 +147,7 @@ public enum AlertEngine {
 
     private static func evaluate(
         _ window: UsageWindow, account: AccountConfig, config: AppConfig, silent: Bool,
-        state: inout AlertState, now: Date, clock: Date.FormatStyle, into outcome: inout AlertOutcome
+        state: inout AlertState, now: Date, clock: Date.FormatStyle, money: MoneyLine?, locale: Locale, into outcome: inout AlertOutcome
     ) {
         // A finished cycle's numbers, e.g. from a stale fallback snapshot, would fire into the current cycle.
         if let resetsAt = window.resetsAt, resetsAt <= now { return }
@@ -184,6 +188,16 @@ public enum AlertEngine {
             state.firedKeys.insert(prefix + "\(top)")
         }
 
+        // A limit billed past 100 % gets one notice when spend first passes it; nothing stops, so no threshold says so.
+        if window.limitStyle == .overage, window.usedPercent > 100, state.firedKeys.insert(prefix + "over").inserted, !silent {
+            let body = if let money, let limit = money.limit {
+                "\(window.label) passed: \(Self.money(money.amount, money.currency, locale)) of \(Self.money(limit, money.currency, locale))"
+            } else {
+                "\(window.label) passed at \(percent(window.usedPercent))"
+            }
+            outcome.events.append(event(prefix + "over", account, window, .overLimit, body))
+        }
+
         if config.alerts.projectedExhaustion,
            window.usedPercent >= projectionMinimumUsed, window.usedPercent < 100,
            let resetsAt = window.resetsAt,
@@ -192,7 +206,8 @@ public enum AlertEngine {
            pace.secondsToReset - eta >= projectionMinimumMargin,
            state.firedKeys.insert(prefix + "projected").inserted, !silent {
             let margin = duration(pace.secondsToReset - eta)
-            let body = "\(window.label) will run out about \(margin) before it resets (\(resetsAt.formatted(clock)))"
+            let verb = window.limitStyle == .overage ? "will pass its limit" : "will run out"
+            let body = "\(window.label) \(verb) about \(margin) before it resets (\(resetsAt.formatted(clock)))"
             outcome.events.append(event(prefix + "projected", account, window, .projectedExhaustion, body))
         }
     }
@@ -231,6 +246,10 @@ public enum AlertEngine {
 
     private static func event(_ id: String, _ account: AccountConfig, _ window: UsageWindow, _ kind: AlertKind, _ body: String) -> AlertEvent {
         AlertEvent(id: id, threadID: account.id, title: account.displayName, body: body, kind: kind, accountID: account.id, windowID: window.id)
+    }
+
+    private static func money(_ amount: Double, _ currency: String, _ locale: Locale) -> String {
+        amount.formatted(.currency(code: currency).precision(.fractionLength(0)).locale(locale))
     }
 
     private static func percent(_ value: Double) -> String {

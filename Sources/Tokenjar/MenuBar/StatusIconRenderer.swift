@@ -53,7 +53,7 @@ enum StatusIconRenderer {
         if spendDisplay == .amount, let spend = entry.spend {
             return Format.money(spend.amount, currency: spend.currency, fractionDigits: 0, locale: .autoupdatingCurrent)
         }
-        if showResetCountdownWhenFull, window.usedPercent >= 100, let countdown = Format.countdown(to: window.resetsAt, now: now) {
+        if showResetCountdownWhenFull, window.isFull, let countdown = Format.countdown(to: window.resetsAt, now: now) {
             return countdown
         }
         return Format.percent(window.usedPercent)
@@ -63,7 +63,7 @@ enum StatusIconRenderer {
     /// the level the slot shows and the state the tint, fade and dot show have to be spelled out here.
     private static func accessibilityDescription(_ entry: MenuBarState.Entry, window: UsageWindow, failing: MenuBarState.Entry?, in state: MenuBarState) -> String {
         var text = "Tokenjar\(stateClause(state)), \(spokenName(entry, in: state)) \(window.label) "
-        if window.usedPercent >= 100, let resetsAt = window.resetsAt {
+        if window.isFull, let resetsAt = window.resetsAt {
             text += "full, resets in \(Format.spokenDuration(resetsAt.timeIntervalSince(state.now)))"
         } else {
             text += "\(Format.percent(window.usedPercent)) used"

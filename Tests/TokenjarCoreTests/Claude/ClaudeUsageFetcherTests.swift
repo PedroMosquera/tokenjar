@@ -303,6 +303,8 @@ struct ClaudeUsageFetcherTests {
         #expect(snapshot.windows.count == 1)
         #expect(window.id == "spend-cap")
         #expect(window.label == "Spend limit")
+        // Spending past the limit is allowed, so 100 % is not a stop.
+        #expect(window.limitStyle == .overage)
         #expect(abs(window.usedPercent - 4.132) < 0.0001)
         #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 41.32, limit: 1000, currency: "USD")])
         // The bar says what the note would: there are no plan limits, only this one.

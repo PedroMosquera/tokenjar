@@ -118,7 +118,7 @@ struct PopoverSummary: Equatable {
             let name = voice == .spoken ? title.spokenName : title.name
             let window = worst.window
             let detail: String
-            if window.usedPercent >= 100, let countdown = Format.countdown(to: window.resetsAt, now: now) {
+            if window.isFull, let countdown = Format.countdown(to: window.resetsAt, now: now) {
                 detail = "\(window.label) full, resets in \(countdown)"
             } else {
                 detail = "\(window.label) at \(Format.percent(window.usedPercent))"
@@ -126,7 +126,7 @@ struct PopoverSummary: Equatable {
             let others = needsALook.filter { $0.id != worst.account.id }.map { shortName($0, among: accounts, voice: voice) } + settingsName
             // Only once the named window stops the work: under amber there is still room on that account. Full also
             // counts below Red at, which a hand-edited config can set above 100.
-            let blocked = worst.severity == .critical || window.usedPercent >= 100
+            let blocked = worst.severity == .critical || window.isFull
             let room = blocked ? roomiest.map {
                 "\(shortName($0.account, among: accounts, voice: voice)) has room: \($0.window.label) \(Format.percent($0.window.usedPercent)) used"
             } : nil
@@ -199,13 +199,15 @@ struct PaceVerdict: Equatable {
         case runsOut(TimeInterval)
         /// Already at 100 %; seconds until the reset.
         case exhausted(TimeInterval)
+        /// At or past 100 % of a limit that lets use go on (`.overage`); points over 100.
+        case overLimit(Double)
 
         fileprivate var urgency: Int {
             switch self {
             case .onPace, .under: 0
             case .ahead: 1
             case .runsOut: 2
-            case .exhausted: 3
+            case .exhausted, .overLimit: 3
             }
         }
 
@@ -238,7 +240,7 @@ struct PaceVerdict: Equatable {
     }
 
     private static func kind(of window: UsageWindow, pace: Pace) -> Kind {
-        if window.usedPercent >= 100 { return .exhausted(pace.secondsToReset) }
+        if window.usedPercent >= 100 { return window.isFull ? .exhausted(pace.secondsToReset) : .overLimit(window.usedPercent - 100) }
         if pace.runsOutBeforeReset, window.usedPercent >= 50, pace.fractionElapsed >= 0.1,
            let eta = pace.secondsToExhaustion, pace.secondsToReset - eta >= 15 * 60 {
             return .runsOut(pace.secondsToReset - eta)
@@ -252,7 +254,7 @@ struct PaceVerdict: Equatable {
     func severity(config: MenuBarConfig, now: Date) -> Severity {
         switch kind {
         case .onPace, .ahead, .under: .ok
-        case .runsOut, .exhausted: max(.warning, Severity.of(window, config: config, now: now))
+        case .runsOut, .exhausted, .overLimit: max(.warning, Severity.of(window, config: config, now: now))
         }
     }
 
@@ -268,6 +270,7 @@ struct PaceVerdict: Equatable {
         case .under(let points): "Under pace -\(Format.percent(points))"
         case .runsOut(let gap): "Runs out \(about)\(duration(gap)) before reset"
         case .exhausted(let untilReset): "Limit reached, resets in \(duration(untilReset))"
+        case .overLimit(let points): points < 0.5 ? "At the limit" : "Over the limit +\(Format.percent(points))"
         }
     }
 }

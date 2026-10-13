@@ -77,6 +77,16 @@ struct MenuBarStateTests {
         #expect(pinnedState("work", mode: .bars).entries.map(\.accountID) == ["personal", "work"])
     }
 
+    /// Past a spend limit the number is what matters; the reset countdown is for limits that stop the work.
+    @Test func aSpendLimitPastFullKeepsItsPercent() {
+        var status = spendStatus(3_240, of: 3000)
+        status.snapshot?.windows[0].limitStyle = .overage
+        status.snapshot?.windows[0].resetsAt = now.addingTimeInterval(18 * 86_400)
+        let state = MenuBarState.make(accounts: [work], statuses: ["work": status], config: AppConfig(), now: now)
+        #expect(StatusIconRenderer.render(state).title == "108%")
+        #expect(color(StatusIconRenderer.render(state)) == .systemRed)
+    }
+
     @Test func aSpendCapCompetesLikeAnyLimit() {
         let state = spendState(display: .percent)
         #expect(state.worst?.accountID == "work")

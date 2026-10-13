@@ -66,11 +66,15 @@ enum Format {
         return "\(money(amount, currency: currency, fractionDigits: digits, locale: locale)) of \(money(limit, currency: currency, fractionDigits: digits, locale: locale))"
     }
 
-    /// "35% used · resets in 21d 4h", under a spend limit's bar.
-    static func spendLimitDetail(_ window: UsageWindow, now: Date) -> String {
-        let used = "\(percent(window.usedPercent)) used"
-        guard let countdown = countdown(to: window.resetsAt, now: now) else { return used }
-        return "\(used) · resets in \(countdown)"
+    /// "35% used · resets in 21d 4h" under a spend limit's bar, with "$240 over" once spend has passed the limit.
+    static func spendLimitDetail(_ window: UsageWindow, money line: MoneyLine? = nil, now: Date, locale: Locale = .autoupdatingCurrent) -> String {
+        var parts = ["\(percent(window.usedPercent)) used"]
+        if let line, let limit = line.limit, line.amount > limit {
+            let digits = max(centsDigits(line.amount), centsDigits(limit))
+            parts.append("\(money(line.amount - limit, currency: line.currency, fractionDigits: digits, locale: locale)) over")
+        }
+        if let countdown = countdown(to: window.resetsAt, now: now) { parts.append("resets in \(countdown)") }
+        return parts.joined(separator: " · ")
     }
 
     /// "$4.31 of $6.10". Whole units from a $100 budget up, where cents are noise; below it, as with a $200 monthly

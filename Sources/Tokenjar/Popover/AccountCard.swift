@@ -253,7 +253,7 @@ private struct SnapshotBody: View {
                             amounts: window.id == UsageWindow.spendCapID ? spend.flatMap { line in
                                 line.limit.map { Format.moneyOf(line.amount, of: $0, currency: line.currency) }
                             } : nil,
-                            caption: window.id == UsageWindow.spendCapID && spend != nil ? Format.spendLimitDetail(window, now: now) : nil
+                            caption: window.id == UsageWindow.spendCapID && spend != nil ? Format.spendLimitDetail(window, money: spend, now: now) : nil
                         )
                     }
                     if let daily = model.dailySpend(for: account, snapshot: snapshot, now: now) {
@@ -363,7 +363,7 @@ struct VerdictLine: View {
         switch verdict.kind {
         case .onPace, .under: "checkmark.circle"
         case .ahead: "arrow.up.forward.circle"
-        case .runsOut: "exclamationmark.triangle.fill"
+        case .runsOut, .overLimit: "exclamationmark.triangle.fill"
         case .exhausted: "hourglass"
         }
     }

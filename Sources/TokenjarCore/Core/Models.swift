@@ -238,6 +238,10 @@ public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
         return Int((resetsAt.timeIntervalSince(start) / 60).rounded())
     }
 
+    /// At 100 % on a limit that stops the work there. A limit billed past 100 % (`.overage`) or a share of a pool is
+    /// never full: use goes on.
+    public var isFull: Bool { usedPercent >= 100 && limitStyle == nil }
+
     /// True once the reported reset time has passed: until the next check, the used % describes a cycle that is over.
     public func hasReset(now: Date) -> Bool {
         resetsAt.map { $0 <= now } ?? false

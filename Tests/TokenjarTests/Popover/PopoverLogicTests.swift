@@ -46,6 +46,20 @@ struct PaceVerdictTests {
         #expect(verdict.text == "Limit reached, resets in 25m")
     }
 
+    /// A spend limit can be passed: past 100 % it says how far over, not that the limit stops the work.
+    @Test func aLimitThatAllowsOverageSaysOverNotReached() throws {
+        let over = UsageWindow(
+            id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: 108, windowMinutes: 44_640, resetsAt: now.addingTimeInterval(18 * 86_400),
+            limitStyle: .overage
+        )
+        let verdict = try #require(PaceVerdict.make(windows: [over], config: MenuBarConfig(), now: now))
+        #expect(verdict.text == "Over the limit +8%")
+        #expect(verdict.severity(config: MenuBarConfig(), now: now) == .critical)
+        var atLimit = over
+        atLimit.usedPercent = 100
+        #expect(try #require(PaceVerdict.make(windows: [atLimit], config: MenuBarConfig(), now: now)).text == "At the limit")
+    }
+
     @Test func underuseIsUnderPace() throws {
         let verdict = try #require(PaceVerdict.make(windows: [window("session", "5-hour", used: 20, resetIn: 150 * 60)], config: MenuBarConfig(), now: now))
         #expect(verdict.text == "Under pace -30%")
@@ -192,6 +206,18 @@ struct PopoverSummaryTests {
         let statuses = ["work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 100, resetIn: 50 * 60)]))]
         let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
         #expect(summary.text == "Claude · Work: 5-hour full, resets in 50m")
+    }
+
+    /// Over a spend limit the work goes on, so the header gives the share and names no other account with room.
+    @Test func aLimitThatAllowsOverageIsNotCalledFull() {
+        let over = UsageWindow(
+            id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: 108, windowMinutes: 44_640, resetsAt: now.addingTimeInterval(18 * 86_400),
+            limitStyle: .overage
+        )
+        let statuses = ["work": AccountStatus(snapshot: snapshot("work", [over]))]
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.text == "Claude · Work: Spend limit at 108%")
+        #expect(summary.tone == .critical)
     }
 
     @Test func aWindowPastItsResetIsNotFull() {

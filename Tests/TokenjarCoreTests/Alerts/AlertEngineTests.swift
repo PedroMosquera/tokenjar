@@ -29,7 +29,10 @@ struct AlertEngineTests {
         _ state: inout AlertState, _ result: Result<UsageSnapshot, FetchError>, config: AppConfig? = nil,
         account: AccountConfig? = nil, at time: Date? = nil
     ) -> AlertOutcome {
-        AlertEngine.evaluate(account: account ?? self.account, result: result, config: config ?? thresholdsOnly, state: &state, now: time ?? now, clock: clock)
+        AlertEngine.evaluate(
+            account: account ?? self.account, result: result, config: config ?? thresholdsOnly, state: &state, now: time ?? now, clock: clock,
+            locale: Locale(identifier: "en_US")
+        )
     }
 
     // MARK: Baseline
@@ -434,6 +437,35 @@ struct AlertEngineTests {
         config.alerts.enabled = false
         _ = runDaily(&state, daily(40), config: config)
         #expect(runDaily(&state, daily(120), config: config).events.isEmpty)
+    }
+
+    // MARK: Over a spend limit
+
+    private func spendLimit(_ used: Double) -> Result<UsageSnapshot, FetchError> {
+        let window = UsageWindow(
+            id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: used, windowMinutes: 44_640, resetsAt: now.addingTimeInterval(18 * 86_400),
+            limitStyle: .overage
+        )
+        let money = MoneyLine(label: "Extra usage", amount: used * 30, limit: 3_000, currency: "USD")
+        return .success(UsageSnapshot(accountID: account.id, provider: .claude, windows: [window], money: [money], fetchedAt: now, source: "test"))
+    }
+
+    /// Once per cycle, the first time spend goes past the limit, with the money.
+    @Test func goingOverASpendLimitNotifiesOnce() {
+        var state = AlertState()
+        _ = run(&state, spendLimit(96))
+        let over = run(&state, spendLimit(104))
+        #expect(over.events.map(\.kind) == [.overLimit])
+        #expect(over.events.first?.body == "Spend limit passed: $3,120 of $3,000")
+        #expect(run(&state, spendLimit(110)).events.isEmpty)
+    }
+
+    /// A limit that stops the work at 100 % says so through its threshold alerts, never "passed".
+    @Test func aHardLimitAtFullIsNotPassed() {
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(3600)
+        _ = run(&state, ok(session(90, resetsAt: resetsAt)))
+        #expect(!run(&state, ok(session(104, resetsAt: resetsAt))).events.contains { $0.kind == .overLimit })
     }
 }
 
