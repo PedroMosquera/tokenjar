@@ -11,6 +11,7 @@ struct StatusItemMenuTests {
         func openSettings(_ sender: Any?) { calls.append("settings") }
         func requestQuit(_ sender: Any?) { calls.append("quit") }
         func quitWithoutAsking(_ sender: Any?) { calls.append("quit without asking") }
+        func unpinMenuBarAccount(_ sender: Any?) { calls.append("unpin") }
     }
 
     private struct Entry: Equatable, CustomStringConvertible {
@@ -62,6 +63,21 @@ struct StatusItemMenuTests {
             Entry("Refresh Now", "refreshNow:", .delegate),
             Entry("Open Dashboard", "openDashboard:", .delegate),
             Entry("Settings\u{2026}", "openSettings:", .delegate),
+            .separator,
+            Entry("Quit Tokenjar\u{2026}", "requestQuit:", .delegate),
+            Entry("Quit Tokenjar", "quitWithoutAsking:", .delegate, alternate: .option),
+        ])
+    }
+
+    /// Pinned from a card, an account can be let go from here without opening anything.
+    @Test func aPinnedAccountCanBeUnpinnedFromTheMenu() {
+        let pinned = StatusItemMenu.make(hasAccounts: true, pinned: "Claude · Work", target: delegate).items.map { Entry($0, delegate: delegate) }
+        #expect(pinned == [
+            Entry("Refresh Now", "refreshNow:", .delegate),
+            Entry("Open Dashboard", "openDashboard:", .delegate),
+            Entry("Settings\u{2026}", "openSettings:", .delegate),
+            .separator,
+            Entry("Unpin Claude · Work", "unpinMenuBarAccount:", .delegate),
             .separator,
             Entry("Quit Tokenjar\u{2026}", "requestQuit:", .delegate),
             Entry("Quit Tokenjar", "quitWithoutAsking:", .delegate, alternate: .option),

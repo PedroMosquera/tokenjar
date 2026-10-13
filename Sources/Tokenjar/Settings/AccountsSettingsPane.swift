@@ -98,6 +98,7 @@ struct AccountsSettingsPane: View {
             if account.provider.reportsWindows {
                 Toggle("Show in Menu Bar", isOn: model.accountBinding(account.id, \.showInMenuBar, fallback: account.showInMenuBar))
             }
+            PinToMenuBarToggle(account: account)
             Divider()
             Button("Move Up") { move(account, by: -1) }
                 .disabled(accounts.first?.id == account.id)

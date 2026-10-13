@@ -105,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
         // Taken before the popover closes, so its close leaves focus alone while the menu is up.
         let refocus = popover.isShown ? popoverFocus.closing(tokenjarIsActive: true, keepsFocus: false) : nil
         StatusItemMenu.open(
-            StatusItemMenu.make(hasAccounts: !model.accounts.isEmpty, target: self),
+            StatusItemMenu.make(hasAccounts: !model.accounts.isEmpty, pinned: model.pinnedAccount?.displayName, target: self),
             closePopover: { if popover.isShown { popover.performClose(nil) } },
             attach: { statusItem.menu = $0 },
             click: { button.performClick(nil) }
@@ -194,6 +194,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
         RunLoop.main.perform(inModes: [.default]) {
             MainActor.assumeIsolated { self.askToQuit() }
         }
+    }
+
+    @objc func unpinMenuBarAccount(_ sender: Any?) {
+        model.setPinnedAccount(nil)
     }
 
     @objc func quitWithoutAsking(_ sender: Any?) {

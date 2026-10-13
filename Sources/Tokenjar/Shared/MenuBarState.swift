@@ -32,6 +32,8 @@ struct MenuBarState: Equatable {
     var now: Date
     var connectivity: Connectivity = .online
     var settingsProblem: SettingsProblem? = nil
+    /// The account the person pinned on this Mac. It speaks for the menu bar while it is among `entries`.
+    var pinnedAccountID: String? = nil
 
     /// Tokenjar can't refresh right now: the Mac is offline, or no provider answers.
     var isSlashed: Bool { connectivity != .online }
@@ -42,9 +44,10 @@ struct MenuBarState: Equatable {
     /// The newest successful check among the menu bar's accounts.
     var lastUpdated: Date? { entries.compactMap(\.fetchedAt).max() }
 
-    /// The entry with the least room left: highest severity, then highest used %.
+    /// The pinned entry, else the one with the least room left: highest severity, then highest used %.
     var worst: Entry? {
-        entries.max { a, b in
+        if let pinned = entries.first(where: { $0.accountID == pinnedAccountID }) { return pinned }
+        return entries.max { a, b in
             if a.severity != b.severity { return a.severity < b.severity }
             return (a.tightest?.usedPercent ?? -1) < (b.tightest?.usedPercent ?? -1)
         }
@@ -59,7 +62,7 @@ struct MenuBarState: Equatable {
 
     static func make(
         accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date,
-        connectivity: Connectivity = .online, settingsProblem: SettingsProblem? = nil
+        connectivity: Connectivity = .online, settingsProblem: SettingsProblem? = nil, pinned: String? = nil
     ) -> MenuBarState {
         // An account with no window to show (a link, spend only, or no subscription) would draw an empty bar and a
         // "no data" line that reads as a failure.
@@ -88,7 +91,8 @@ struct MenuBarState: Equatable {
         }
         return MenuBarState(
             mode: config.menuBar.mode, icon: config.menuBar.icon, entries: entries, showResetCountdownWhenFull: config.menuBar.showResetCountdownWhenFull,
-            spendDisplay: config.menuBar.spendDisplay, now: now, connectivity: connectivity, settingsProblem: settingsProblem
+            spendDisplay: config.menuBar.spendDisplay, now: now, connectivity: connectivity, settingsProblem: settingsProblem,
+            pinnedAccountID: pinned
         )
     }
 

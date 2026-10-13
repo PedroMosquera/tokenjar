@@ -47,6 +47,36 @@ struct MenuBarStateTests {
         )
     }
 
+    private func pinnedState(_ pinned: String?, mode: MenuBarMode = .worst) -> MenuBarState {
+        var config = AppConfig()
+        config.menuBar.mode = mode
+        let full = window("weekly", used: 100, minutes: 10_080, resetIn: 5 * 86_400)
+        return MenuBarState.make(
+            accounts: [personal, work], statuses: ["personal": status([full]), "work": spendStatus(473.81, of: 3000)],
+            config: config, now: now, pinned: pinned
+        )
+    }
+
+    /// The pinned account is the one the person cares about on this Mac, even with another account full.
+    @Test func aPinnedAccountDrivesTheMenuBar() {
+        let state = pinnedState("work")
+        #expect(state.worst?.accountID == "work")
+        let rendered = StatusIconRenderer.render(state)
+        #expect(rendered.title == "16%")
+        #expect(color(rendered) != .systemRed)
+    }
+
+    /// A pin on an account removed, turned off or not on this Mac falls back to the tightest account.
+    @Test func aPinNotShownFallsBackToTheTightest() {
+        #expect(pinnedState("gone").worst?.accountID == "personal")
+        #expect(pinnedState(nil).worst?.accountID == "personal")
+    }
+
+    /// Bars draw every account, so a pin changes nothing there.
+    @Test func barsIgnoreThePin() {
+        #expect(pinnedState("work", mode: .bars).entries.map(\.accountID) == ["personal", "work"])
+    }
+
     @Test func aSpendCapCompetesLikeAnyLimit() {
         let state = spendState(display: .percent)
         #expect(state.worst?.accountID == "work")

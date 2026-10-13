@@ -187,6 +187,7 @@ final class AppModel {
         preferences = defaults
         healthSetting = ProviderHealthSetting(defaults: defaults)
         providerStatusOn = healthSetting.isOn
+        pinnedAccountID = defaults.object(forKey: Self.pinnedAccountKey) as? String
         let start = clock()
         now = start
         popoverNow = start
@@ -252,10 +253,27 @@ final class AppModel {
         return outages
     }
 
+    static let pinnedAccountKey = "menuBarPinnedAccount"
+
+    /// The account pinned to the menu bar on this Mac. A preference rather than config: config.json is shared between
+    /// Macs, and the account worth watching differs from one to the next.
+    private(set) var pinnedAccountID: String?
+
+    func setPinnedAccount(_ id: String?) {
+        pinnedAccountID = id
+        preferences.set(id, forKey: Self.pinnedAccountKey)
+    }
+
+    /// The pinned account while the menu bar shows it; a pin on an account that is off, missing or hidden from the
+    /// menu bar does nothing.
+    var pinnedAccount: AccountConfig? {
+        accounts.first { $0.id == pinnedAccountID && $0.showInMenuBar && $0.provider.reportsWindows }
+    }
+
     var menuBarState: MenuBarState {
         MenuBarState.make(
             accounts: accounts.filter(\.showInMenuBar), statuses: statuses, config: config, now: now,
-            connectivity: connectivity, settingsProblem: settingsProblem
+            connectivity: connectivity, settingsProblem: settingsProblem, pinned: pinnedAccountID
         )
     }
 

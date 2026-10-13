@@ -118,6 +118,13 @@ private struct AccountCardHeader: View {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(PopoverSpeech.staleBadge(age: seconds))
             }
+            if model.pinnedAccount?.id == account.id {
+                Image(systemName: "pin.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .help("Pinned to the menu bar")
+                    .accessibilityLabel("Pinned to the menu bar")
+            }
             AccountMenu(account: account)
         }
     }
@@ -140,6 +147,7 @@ private struct AccountMenu: View {
                 }
             }
             Divider()
+            PinToMenuBarToggle(account: account)
             // A link card has no usage of its own, so its dashboard page would be empty.
             if !account.provider.isLinkOnly {
                 Button("Show in Dashboard") { model.showDashboard(accountID: account.id) }
@@ -418,5 +426,20 @@ extension View {
     @ViewBuilder
     func spoken(_ label: String?) -> some View {
         if let label { accessibilityLabel(label) } else { accessibilityHidden(true) }
+    }
+}
+
+/// Pins the account to the menu bar on this Mac, for every account the menu bar can show. Pinning another moves the pin.
+struct PinToMenuBarToggle: View {
+    @Environment(AppModel.self) private var model
+    var account: AccountConfig
+
+    var body: some View {
+        if account.showInMenuBar, account.provider.reportsWindows {
+            Toggle("Pin to Menu Bar", isOn: Binding(
+                get: { model.pinnedAccountID == account.id },
+                set: { pinned in model.setPinnedAccount(pinned ? account.id : nil) }
+            ))
+        }
     }
 }

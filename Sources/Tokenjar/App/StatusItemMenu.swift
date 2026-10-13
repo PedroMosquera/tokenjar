@@ -7,6 +7,7 @@ import AppKit
     func openSettings(_ sender: Any?)
     func requestQuit(_ sender: Any?)
     func quitWithoutAsking(_ sender: Any?)
+    func unpinMenuBarAccount(_ sender: Any?)
 }
 
 /// The menu a right-click or Control-click on the status item opens.
@@ -15,7 +16,7 @@ import AppKit
 /// without accounts rather than dimmed, and every other item always works. Every item names its target, so nothing
 /// depends on which window happens to be key.
 enum StatusItemMenu {
-    static func make(hasAccounts: Bool, target: StatusItemMenuTarget) -> NSMenu {
+    static func make(hasAccounts: Bool, pinned: String? = nil, target: StatusItemMenuTarget) -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
         // Always enabled: a refresh skips the accounts already being checked, and runs offline like the header's button.
@@ -23,6 +24,10 @@ enum StatusItemMenu {
         menu.addItem(item("Open Dashboard", #selector(StatusItemMenuTarget.openDashboard(_:)), target))
         menu.addItem(item("Settings\u{2026}", #selector(StatusItemMenuTarget.openSettings(_:)), target))
         menu.addItem(.separator())
+        if let pinned {
+            menu.addItem(item("Unpin \(pinned)", #selector(StatusItemMenuTarget.unpinMenuBarAccount(_:)), target))
+            menu.addItem(.separator())
+        }
         menu.addItem(item("Quit Tokenjar\u{2026}", #selector(StatusItemMenuTarget.requestQuit(_:)), target))
         // Not terminate: on NSApp. macOS 26 gives that action the system quit symbol, which would show on this row alone.
         let quitNow = item("Quit Tokenjar", #selector(StatusItemMenuTarget.quitWithoutAsking(_:)), target)
