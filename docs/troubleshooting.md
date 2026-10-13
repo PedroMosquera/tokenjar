@@ -8,6 +8,21 @@ Tokenjar does not use your shell `PATH`; it searches a fixed list of folders, an
 
 The card's Sign In... button opens the account's Settings page. Sign In in Terminal there runs the provider's own login (`claude auth login`, `codex login`, `opencode auth login`, `gh auth login`) in Terminal, and Copy Command copies it instead. Tokenjar never sees your credentials. With an older claude that has no `auth` command, run `claude` and type `/login`.
 
+### Claude says Signed out, but Claude Code works in your terminal
+
+Your Claude Code probably uses an API key, a gateway such as LiteLLM, or a cloud provider such as Bedrock, set up with variables exported in your shell (`.zshrc` and the like). Tokenjar never reads your shell, so the `claude` it runs sees no login. Move those variables into the `env` block of Claude Code's own settings, `~/.claude/settings.json` (or `settings.json` in the account's profile folder). Claude Code then uses them everywhere, and Tokenjar sees that the login has no plan limits. For a LiteLLM gateway:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://litellm.example.com",
+    "ANTHROPIC_AUTH_TOKEN": "sk-your-litellm-key"
+  }
+}
+```
+
+To keep the key out of that file, leave `ANTHROPIC_AUTH_TOKEN` out and set `"apiKeyHelper"` to a script that prints the key, such as one that reads it from Keychain. Tokenjar only checks which of these are set, never their values. The card then says "No plan limits for this login", and the dashboard shows what your Claude Code usage would cost at API prices. Settings an administrator deploys in `/Library/Application Support/ClaudeCode/managed-settings.json` count too.
+
 ## "No Copilot access for this GitHub account"
 
 GitHub answered 403 or 404, so the gh login Tokenjar uses has no Copilot seat. The card stays gray and raises no warning. To track another GitHub login, give the account its own GitHub CLI folder in Settings and sign in to it with the command shown there.

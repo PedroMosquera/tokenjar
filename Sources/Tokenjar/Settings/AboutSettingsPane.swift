@@ -24,7 +24,8 @@ struct AboutSettingsPane: View {
     static let reads = [
         Item(what: "~/.claude/projects/**/*.jsonl", why: "Token counts, model ids, timestamps and project folder names. Also ~/.config/claude/projects, or the account's CLAUDE_CONFIG_DIR instead of both."),
         Item(what: "~/.claude.json", why: "Plan name, and Claude Code's cached limits when the CLI cannot report. Its account id is only compared with the one on the cached limits, so another login's limits are never shown. The one inside CLAUDE_CONFIG_DIR when the account sets one, or an older .config.json when present."),
-        Item(what: "~/.claude/settings.json", why: "Only whether Bedrock, Vertex or Foundry is turned on, to tell a cloud login from being signed out. Or the account's CLAUDE_CONFIG_DIR."),
+        Item(what: "~/.claude/settings.json", why: "Only whether a cloud provider, a gateway or an API key is set up, to tell such a login from being signed out. Never a key's value. Or the account's CLAUDE_CONFIG_DIR."),
+        Item(what: "/Library/Application Support/ClaudeCode/managed-settings.json", why: "The same, from the settings an administrator deploys to the whole Mac."),
         Item(what: "~/.codex/sessions/**/rollout-*.jsonl", why: "Token counts, model ids, timestamps and project folder names, from archived_sessions too. When the CLI cannot report, the last limits Codex logged. Or the account's CODEX_HOME."),
         Item(what: "~/.codex/auth.json", why: "Only whether it exists, at first run and when you click Import from CodexBar. Never opened."),
         Item(what: "Devin.app, Windsurf.app and their Application Support folders", why: "Only whether one exists, in /Applications or ~/Applications, at first run and when you click Import from CodexBar, to offer a Devin account. Never opened."),

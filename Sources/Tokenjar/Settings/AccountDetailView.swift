@@ -490,7 +490,10 @@ struct AccountStatusText: Equatable {
                     symbol: ErrorRow.symbol(for: error, needsAttention: false), tone: .neutral, text: error.userMessage(provider: provider), detail: shown ?? zenNote
                 )
             case .actionable:
-                return AccountStatusText(symbol: "exclamationmark.triangle.fill", tone: .warning, text: actionableText(error, account: account), caption: caption)
+                let hint = error == .notSignedIn && provider == .claude ? ClaudeUsageFetcher.shellOnlyLoginHint : nil
+                return AccountStatusText(
+                    symbol: "exclamationmark.triangle.fill", tone: .warning, text: actionableText(error, account: account), detail: hint, caption: caption
+                )
             }
         }
         if let snapshot = status.snapshot {

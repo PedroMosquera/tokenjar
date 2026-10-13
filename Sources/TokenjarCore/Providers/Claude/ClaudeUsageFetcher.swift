@@ -9,6 +9,8 @@ public struct ClaudeUsageFetcher: UsageFetcher {
     public static let cacheSource = "Claude Code cache"
     public static let noLimitsNote = "No plan limits for this login"
     public static let cacheNote = "Showing the last values Claude Code saved."
+    public static let shellOnlyLoginHint = "Using an API key, a gateway such as LiteLLM, or a cloud provider such as Bedrock or Vertex? "
+        + "Put its variables in the env block of Claude's settings.json: Tokenjar can't see ones set only in your shell."
     public static let modelTurnMessage = "Claude Code ran /usage as a prompt, which spends tokens. Checks for this account are paused until claude updates or you click Try Once More."
 
     static let arguments = [
@@ -21,11 +23,13 @@ public struct ClaudeUsageFetcher: UsageFetcher {
     public func fetch(_ account: AccountConfig, context: FetchContext) async throws -> UsageSnapshot {
         let configDir = account.profileDir.map(context.paths.expand)
         let config = ClaudeGlobalConfig.load(configDir: configDir, home: context.paths.home)
+        let billsOutsidePlan = ClaudeProviderSettings.billsOutsidePlan(configDir: configDir, paths: context.paths)
         let now = context.now()
 
         /// The CLI could not answer: use Claude Code's own cache if it is usable, else surface `error`.
         func fallback(_ error: FetchError) throws -> UsageSnapshot {
-            guard let cached = config?.cachedLimits(now: now) else { throw error }
+            // The cache belongs to the subscription login saved in .claude.json, which the settings no longer use.
+            guard !billsOutsidePlan, let cached = config?.cachedLimits(now: now) else { throw error }
             let failure = LiveCheckFailure(error)
             // The card words a network error or a timeout itself, for the provider and the network state, so only any
             // other reason goes in the note.
@@ -58,8 +62,9 @@ public struct ClaudeUsageFetcher: UsageFetcher {
             if case .modelTurn = output.kind { throw FetchError.unsupported(Self.modelTurnMessage) }
             return try fallback(.timeout)
         }
-        // API key usage is billed outside the subscription, so the plan saved in .claude.json does not describe this login.
-        let plan = output.usesAPIKey ? nil : config?.plan
+        // Usage billed outside the subscription is not described by the plan saved in .claude.json.
+        let outsidePlan = output.usesAPIKey || billsOutsidePlan
+        var plan = outsidePlan ? nil : config?.plan
 
         func snapshot(windows: [UsageWindow], money: [MoneyLine], notes: [String] = []) -> UsageSnapshot {
             UsageSnapshot(accountID: account.id, provider: .claude, plan: plan, windows: windows, money: money, fetchedAt: now, source: Self.source, notes: notes)
@@ -68,17 +73,16 @@ public struct ClaudeUsageFetcher: UsageFetcher {
         switch output.kind {
         case .report(let limits):
             let windows = limits?.windows ?? []
-            if windows.isEmpty, !output.usesAPIKey, config?.planHasLimits == true { return try fallback(.parse("usage report has no limits")) }
+            // Plan limits in the answer mean the subscription is in use, such as through a proxy set as the base URL.
+            if !windows.isEmpty, !output.usesAPIKey { plan = config?.plan }
+            if windows.isEmpty, !outsidePlan, config?.planHasLimits == true { return try fallback(.parse("usage report has no limits")) }
             let spendCap = limits?.spendCapWindow(now: now)
             return snapshot(
                 windows: windows + [spendCap].compactMap { $0 }, money: limits?.money ?? [], notes: windows.isEmpty && spendCap == nil ? [Self.noLimitsNote] : []
             )
         case .noReport:
-            if output.usesAPIKey { return snapshot(windows: [], money: [], notes: [Self.noLimitsNote]) }
-            if config?.isSignedIn != true,
-               ClaudeProviderSettings.load(configDir: configDir, home: context.paths.home)?.usesThirdPartyProvider != true {
-                throw FetchError.notSignedIn
-            }
+            if outsidePlan { return snapshot(windows: [], money: [], notes: [Self.noLimitsNote]) }
+            if config?.isSignedIn != true { throw FetchError.notSignedIn }
             if config?.planHasLimits == true { return try fallback(.parse("usage report missing")) }
             // Runs seconds apart can print only the cost summary while the cache holds the spend fetched just before.
             if let cached = config?.cachedSpendLimit(now: now) {

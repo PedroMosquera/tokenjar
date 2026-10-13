@@ -413,8 +413,7 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
         case .network: return "Can't reach \(provider.displayName). Tokenjar tries again at the next refresh."
         case .timeout: return "No answer from \(provider.displayName) in time. Tokenjar tries again at the next refresh."
         case .notSignedIn where provider == .claude:
-            return "Signed out of claude. Sign in again, or set up your API key or cloud provider (Bedrock, Vertex and others) in "
-                + "Claude's settings.json: Tokenjar can't see one set only in your shell."
+            return "Signed out of claude. Sign in again. \(ClaudeUsageFetcher.shellOnlyLoginHint)"
         default: return userMessage
         }
     }

@@ -47,6 +47,14 @@ struct AccountStatusTextTests {
         #expect(text(claude, AccountStatus(isRefreshing: true), connectivity: .offline).text == "Checking\u{2026}")
     }
 
+    @Test func signedOutClaudeSaysWhereAShellOnlyLoginMustGo() {
+        let line = text(claude, AccountStatus(error: .notSignedIn))
+        #expect(line.text == "Signed out of claude.")
+        #expect(line.detail == ClaudeUsageFetcher.shellOnlyLoginHint)
+        #expect(FetchError.notSignedIn.userMessage(provider: .claude) == "Signed out of claude. Sign in again. \(ClaudeUsageFetcher.shellOnlyLoginHint)")
+        #expect(text(codex, AccountStatus(error: .notSignedIn)).detail == nil)
+    }
+
     @Test func noAnswerStatusSaysSo() {
         let line = text(codex, AccountStatus(snapshot: snapshot(codex, windows: ["Week"], ago: 3 * 3_600), error: .timeout), connectivity: .noAnswer)
         #expect(line.symbol == "wifi.exclamationmark")

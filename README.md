@@ -20,7 +20,7 @@ I built it because I did not want a third-party app handling my AI logins. Token
 
 | Provider | Where the numbers come from | Plans it recognizes |
 |---|---|---|
-| Claude | `claude -p /usage`, with hooks and MCP servers off | Pro, Max, Max 5x, Max 20x, Team, Team Premium, Enterprise. An Enterprise seat billed per use has no plan limits, so it shows its monthly spend limit instead. API key, Bedrock, Vertex and Foundry logins have no plan limits, so they get cost history only. |
+| Claude | `claude -p /usage`, with hooks and MCP servers off | Pro, Max, Max 5x, Max 20x, Team, Team Premium, Enterprise. An Enterprise seat billed per use has no plan limits, so it shows its monthly spend limit instead. API key, gateway (such as LiteLLM), Bedrock, Vertex and Foundry logins have no plan limits, so they get cost history only. Tokenjar finds them in Claude's `settings.json`, not in your shell. |
 | Codex | `codex app-server`, read-only | Free, Go, Plus, Pro, Business, Edu, Enterprise |
 | OpenCode Go | One HTTPS GET to opencode.ai with your opencode key | Go |
 | OpenCode Zen | This month's spend, added up from the local `opencode.db` | Pay as you go |
@@ -148,6 +148,8 @@ The file holds no secrets, only where keys live, so it can sit in a dotfiles rep
 ## Troubleshooting
 
 "Can't find the claude command on this Mac" (or codex, agy, gh): Tokenjar does not read your shell's `PATH`. It searches a fixed list of folders, and the account's page in Settings shows which ones. If the CLI lives somewhere else, put its full path under `cliPaths` in the config. A Claude Code installed with npm under a Node version manager such as fnm or nvm is in none of those folders; `claude install` switches it to Anthropic's native build in `~/.local/bin`, which Tokenjar finds.
+
+"Signed out" while Claude Code works in your terminal: an API key, a gateway such as LiteLLM or a cloud provider exported only in your shell is invisible to Tokenjar. Put those variables in the `env` block of `~/.claude/settings.json` ([docs/troubleshooting.md](docs/troubleshooting.md#claude-says-signed-out-but-claude-code-works-in-your-terminal) has an example).
 
 No notifications: alerts only come from the installed app, not from `swift run` or a `.build` binary.
 

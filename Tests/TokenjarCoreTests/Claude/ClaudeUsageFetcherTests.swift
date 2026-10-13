@@ -82,7 +82,7 @@ private struct Sandbox {
     func context(_ runner: FakeClaude, cli: String = "/bin/sh", now: Date) -> FetchContext {
         FetchContext(
             process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: ["claude": cli], searchDirectories: []),
-            paths: AppPaths(home: home), now: { now }
+            paths: AppPaths(home: home, environment: [:], systemRoot: home), now: { now }
         )
     }
 }
@@ -420,6 +420,94 @@ struct ClaudeUsageFetcherTests {
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
         #expect(snapshot.notes == ["No plan limits for this login"])
+    }
+
+    @Test(arguments: [
+        "llm-gateway-auth-token.settings.json", "gateway-env.settings.json", "gateway-env-with-token.settings.json",
+        "api-key-in-settings.settings.json", "anthropic-aws.settings.json", "anthropic-google-cloud.settings.json", "mantle.settings.json",
+    ])
+    func aLoginBilledOutsideThePlanIsNotMistakenForSignedOut(settings: String) async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("../Plans/claude/\(settings)", as: ".claude/settings.json")
+        let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(snapshot.notes == ["No plan limits for this login"])
+    }
+
+    @Test func aBaseURLAloneIsAGateway() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.write(#"{"env":{"ANTHROPIC_BASE_URL":"https://llm-gateway.example.invalid"}}"#, to: ".claude/settings.json")
+        let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(snapshot.notes == ["No plan limits for this login"])
+    }
+
+    @Test func emptyGatewayVariablesStillReadAsSignedOut() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.write(#"{"env":{"ANTHROPIC_BASE_URL":"","ANTHROPIC_AUTH_TOKEN":"","CLAUDE_CODE_USE_GATEWAY":"0"}}"#, to: ".claude/settings.json")
+        let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
+
+        await #expect(throws: FetchError.notSignedIn) {
+            try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+        }
+    }
+
+    @Test(arguments: ["bedrock-managed.managed-settings.json", "gateway.managed-settings.json"])
+    func managedSettingsRouteTheLoginToo(managed: String) async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("../Plans/claude/\(managed)", as: "Library/Application Support/ClaudeCode/managed-settings.json")
+        let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(snapshot.notes == ["No plan limits for this login"])
+    }
+
+    @Test func aGatewayWinsOverAnOldSubscriptionLogin() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("../Plans/claude/bedrock-with-old-max-login.claude.json", as: ".claude.json")
+        try box.install("../Plans/claude/llm-gateway-auth-token.settings.json", as: ".claude/settings.json")
+        let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(snapshot.windows.isEmpty, "the old login's saved limits are not this gateway's")
+        #expect(snapshot.notes == ["No plan limits for this login"])
+        #expect(snapshot.source == "claude CLI")
+        #expect(snapshot.plan == nil)
+    }
+
+    @Test func reportedPlanLimitsWinOverABaseURLInTheSettings() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("claude-json-max.json", as: ".claude.json")
+        try box.write(#"{"env":{"ANTHROPIC_BASE_URL":"https://proxy.example.invalid"}}"#, to: ".claude/settings.json")
+        let runner = FakeClaude(stdout: try fixture("stream-plan-limits.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(!snapshot.windows.isEmpty)
+        #expect(snapshot.plan == "Max 20x", "a proxy in front of a subscription still bills the plan")
+    }
+
+    @Test func aGatewayNeverFallsBackToAnOldSubscriptionLoginsCache() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.install("../Plans/claude/bedrock-with-old-max-login.claude.json", as: ".claude.json")
+        try box.install("../Plans/claude/llm-gateway-auth-token.settings.json", as: ".claude/settings.json")
+
+        await #expect(throws: FetchError.timeout) {
+            try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeClaude(timedOut: true), now: now))
+        }
     }
 
     @Test func runsTheCLIWithHooksOffFromTheProbeDirectory() async throws {

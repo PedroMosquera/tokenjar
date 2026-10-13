@@ -159,7 +159,7 @@ struct ModelsTests {
     /// Tokenjar runs claude outside the user's shell, so a key or cloud switch exported only there reads as signed out.
     @Test func claudeSignedOutCopyNamesTheAPIKeyAndCloudRoutes() {
         let message = FetchError.notSignedIn.userMessage(provider: .claude)
-        for route in ["Sign in", "claude", "API key", "Bedrock", "Vertex", "settings.json", "shell"] {
+        for route in ["Sign in", "claude", "API key", "LiteLLM", "Bedrock", "Vertex", "settings.json", "shell"] {
             #expect(message.contains(route), "\(route) missing from \(message)")
         }
         #expect(message.hasSuffix("."))

@@ -171,27 +171,34 @@ struct ClaudeGlobalConfig: Decodable, Sendable {
     }
 }
 
-/// Claude Code routes to Bedrock, Vertex or Foundry when these are set in its settings `env`. Such logins have
-/// no subscription limits and no `oauthAccount`, which otherwise looks the same as being signed out.
+/// Claude Code bills a login outside any plan when its settings route it to a cloud platform, a gateway such as
+/// LiteLLM, or an API key. Such a login has no plan limits and often no `oauthAccount`, so its `/usage` answer looks
+/// the same as being signed out. Only whether each key is set is read; no value is kept.
 struct ClaudeProviderSettings: Decodable, Sendable {
     private var env: Env?
+    private var forceLoginMethod: String?
 
-    static func load(configDir: URL?, home: URL) -> ClaudeProviderSettings? {
-        let url = (configDir ?? home.appending(path: ".claude")).appending(path: "settings.json")
+    /// True when either the profile's settings.json or the managed settings an administrator deploys to the whole Mac say so.
+    static func billsOutsidePlan(configDir: URL?, paths: AppPaths) -> Bool {
+        let profile = (configDir ?? paths.home.appending(path: ".claude")).appending(path: "settings.json")
+        return [profile, paths.claudeManagedSettingsFile].contains { load($0)?.billsOutsidePlan == true }
+    }
+
+    private static func load(_ url: URL) -> ClaudeProviderSettings? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(ClaudeProviderSettings.self, from: data)
     }
 
-    var usesThirdPartyProvider: Bool { env?.thirdParty ?? false }
+    private var billsOutsidePlan: Bool { env?.billsOutsidePlan == true || forceLoginMethod == "gateway" }
 
     private struct Env: Decodable, Sendable {
-        var thirdParty = false
+        var billsOutsidePlan = false
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: Key.self)
-            thirdParty = Key.allCases.contains { key in
-                guard let value = try? c.decodeIfPresent(String.self, forKey: key) else { return false }
-                return ["1", "true"].contains(value.lowercased())
+            billsOutsidePlan = Key.allCases.contains { key in
+                guard let value = try? c.decodeIfPresent(String.self, forKey: key), !value.isEmpty else { return false }
+                return !key.isSwitch || ["1", "true"].contains(value.lowercased())
             }
         }
 
@@ -199,6 +206,16 @@ struct ClaudeProviderSettings: Decodable, Sendable {
             case bedrock = "CLAUDE_CODE_USE_BEDROCK"
             case vertex = "CLAUDE_CODE_USE_VERTEX"
             case foundry = "CLAUDE_CODE_USE_FOUNDRY"
+            case anthropicAWS = "CLAUDE_CODE_USE_ANTHROPIC_AWS"
+            case anthropicGoogleCloud = "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD"
+            case mantle = "CLAUDE_CODE_USE_MANTLE"
+            case gateway = "CLAUDE_CODE_USE_GATEWAY"
+            case apiKey = "ANTHROPIC_API_KEY"
+            case authToken = "ANTHROPIC_AUTH_TOKEN"
+            case baseURL = "ANTHROPIC_BASE_URL"
+
+            /// A `CLAUDE_CODE_USE_*` switch counts only when on; any other key counts once it has a value.
+            var isSwitch: Bool { rawValue.hasPrefix("CLAUDE_CODE_USE_") }
         }
     }
 }
