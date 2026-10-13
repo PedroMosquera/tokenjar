@@ -26,7 +26,7 @@ struct PopoverHeader: View {
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                         .fixedSize(horizontal: false, vertical: true)
-                        .help("The account with the most room left among those with fresh data and nothing amber or red.")
+                        .help(Self.roomHelp(checksStatus: model.providerStatusOn))
                         .accessibilityLabel(spoken.room ?? room)
                 }
                 if let outage = summary.outage {
@@ -49,6 +49,11 @@ struct PopoverHeader: View {
             Spacer(minLength: 8)
             RefreshButton()
         }
+    }
+
+    static func roomHelp(checksStatus: Bool) -> String {
+        let rule = "The account with the most room left among those with fresh data and nothing amber or red"
+        return checksStatus ? "\(rule), skipping a provider whose status page reports a major outage." : "\(rule)."
     }
 
     /// Provider status reaches the header only through the "All clear" caption and the room hint, never its tone.

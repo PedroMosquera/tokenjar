@@ -228,11 +228,13 @@ final class AppModel {
 
     /// Providers with an account here whose status page reports a partial or major outage of a product Tokenjar watches,
     /// with the worse of the two. Degraded performance, maintenance and incidents matched only by name stay on the card.
+    /// The header shows no age, so an answer old enough for the card to show its age counts only there.
     var statusOutages: [ProviderID: ProviderHealthItem.Level] {
         let tracked = Set(accounts.map(\.provider))
         var outages: [ProviderID: ProviderHealthItem.Level] = [:]
         for (provider, health) in providerHealth where tracked.contains(provider) {
-            let levels = Set((health.answer?.items ?? []).map(\.level))
+            guard let answer = health.answer, !answer.showsAge(now: popoverNow) else { continue }
+            let levels = Set(answer.items.map(\.level))
             if levels.contains(.majorOutage) {
                 outages[provider] = .majorOutage
             } else if levels.contains(.partialOutage) {

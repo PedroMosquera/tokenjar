@@ -9,10 +9,15 @@ private func answer(_ items: [ProviderHealthItem], ago: TimeInterval = 60) -> Pr
     ProviderHealthAnswer(items: items, answeredAt: now.addingTimeInterval(-ago))
 }
 
-private func health(_ items: [ProviderHealthItem]) -> ProviderHealth {
+/// An answer from `ago`, then a failed check a minute ago when `failure` is set.
+private func health(_ items: [ProviderHealthItem], ago: TimeInterval = 60, failure: FetchError? = nil) -> ProviderHealth {
     var health = ProviderHealth()
-    health.asked(at: now.addingTimeInterval(-60))
-    health.record(.success(answer(items)))
+    health.asked(at: now.addingTimeInterval(-ago))
+    health.record(.success(answer(items, ago: ago)))
+    if let failure {
+        health.asked(at: now.addingTimeInterval(-60))
+        health.record(.failure(failure))
+    }
     return health
 }
 
@@ -115,9 +120,27 @@ struct StatusCaptionTests {
         #expect(summary == PopoverSummary(tone: .clear, text: "All clear · next reset in 2h", outage: "GitHub Copilot status page reports an outage"))
     }
 
+    /// Card order is the user's config order, which need not follow the order providers are declared in.
     @Test func severalOutagesAreNamedInCardOrder() {
-        let summary = PopoverSummary.make(accounts: [claude, codex, copilot], statuses: calm, config: AppConfig(), now: now, outages: [.copilot, .claude])
-        #expect(summary.outage == "Status pages report outages for Claude and GitHub Copilot")
+        let summary = PopoverSummary.make(accounts: [copilot, claude, codex], statuses: calm, config: AppConfig(), now: now, outages: [.claude, .copilot])
+        #expect(summary.outage == "Status pages report outages for GitHub Copilot and Claude")
+    }
+
+    /// The header shows no age, so it speaks only from answers the card shows without one. An outage answered over 5
+    /// minutes ago, whose later checks failed, stays on its card with its age and moves nothing in the header.
+    @Test func anAnswerOldEnoughToShowItsAgeStaysOnTheCard() {
+        let major = { (name: String) in ProviderHealthItem(level: .majorOutage, names: [name]) }
+        let allClear = AppModel.previewAllClearOutage()
+        allClear.providerHealth[.copilot] = health([major("Copilot")], ago: ProviderHealthAnswer.ageShownAfter + 60, failure: .timeout)
+        #expect(allClear.statusOutages.isEmpty)
+        #expect(PopoverHeader.summary(of: allClear, voice: .written).outage == nil)
+        #expect(AccountCard.healthText(provider: .copilot, health: allClear.providerHealth, now: now)?.trailing == " · as of 6m ago")
+
+        let limitHit = AppModel.previewLimitHit()
+        limitHit.providerHealth = [.codex: health([major("Codex CLI")], ago: 2 * 3_600, failure: .parse("page data has no group"))]
+        #expect(PopoverHeader.summary(of: limitHit, voice: .written).room == "Codex has room: 5-hour 2% used")
+        limitHit.providerHealth = [.codex: health([major("Codex CLI")], ago: ProviderHealthAnswer.ageShownAfter)]
+        #expect(PopoverHeader.summary(of: limitHit, voice: .written).room == "GitHub Copilot has room: Premium requests 15% used")
     }
 
     /// The title already says something needs a look; the card carries the detail.
@@ -164,6 +187,12 @@ struct StatusCaptionTests {
         #expect(PopoverHeader.summary(of: model, voice: .written).room == "Codex has room: 5-hour 2% used")
         model.providerHealth = [.codex: health([ProviderHealthItem(level: .majorOutage, names: ["Codex CLI"])])]
         #expect(PopoverHeader.summary(of: model, voice: .written).room == "GitHub Copilot has room: Premium requests 15% used")
+    }
+
+    /// With the skip in play, "the most room" alone would no longer say how the line was picked.
+    @Test func theRoomLinesTooltipNamesTheOutageSkipOnlyWhileStatusIsOn() {
+        #expect(PopoverHeader.roomHelp(checksStatus: false) == "The account with the most room left among those with fresh data and nothing amber or red.")
+        #expect(PopoverHeader.roomHelp(checksStatus: true) == "The account with the most room left among those with fresh data and nothing amber or red, skipping a provider whose status page reports a major outage.")
     }
 
     /// The menu bar's slash and dot mean Tokenjar can't refresh or something needs you; an outage is neither.
