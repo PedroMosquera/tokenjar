@@ -96,7 +96,9 @@ struct UsageBar: View {
             let clamped = min(max(fraction, 0), 1)
             ZStack(alignment: .leading) {
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.quaternary)
+                    // A plain color, not .quaternary: in the key popover that style's vibrant blending vanished inside
+                    // this compositing group and left the track empty.
+                    Capsule().fill(Color.primary.opacity(0.12))
                     // Exact width, clipped by the track: a capsule fill needs a whole cap, so 0.04 % drew as 2 %.
                     if clamped > 0 {
                         Rectangle().fill(tint).frame(width: max(1, width * clamped))
