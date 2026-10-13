@@ -44,12 +44,15 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         }
     }
 
+    /// Opened in the browser, never fetched. Antigravity has no official status page.
     public var statusPageURL: URL? {
         switch self {
         case .claude: URL(string: "https://status.claude.com")
         case .codex: URL(string: "https://status.openai.com")
+        case .opencodeGo, .opencodeZen: URL(string: "https://status.opencode.ai")
         case .copilot: URL(string: "https://www.githubstatus.com")
-        case .opencodeGo, .opencodeZen, .antigravity, .devin: nil
+        case .devin: URL(string: "https://www.devinstatus.com")
+        case .antigravity: nil
         }
     }
 
