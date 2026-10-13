@@ -51,6 +51,20 @@ struct GeneralSettingsPane: View {
                     }
                 }
                 .disabled(!model.config.menuBar.mode.usesIcon)
+                Picker(selection: model.configBinding(\.menuBar.spendDisplay)) {
+                    ForEach(SpendDisplay.allCases, id: \.self) { display in
+                        Text(display.title).tag(display)
+                    }
+                } label: {
+                    if model.config.menuBar.mode == .worst {
+                        Text("Spend shows as")
+                        Text("For an account limited by what it spends, such as a usage-based seat.")
+                    } else {
+                        Text("Spend shows as").foregroundStyle(.secondary)
+                        Text("Only \(MenuBarMode.worst.title) shows a number")
+                    }
+                }
+                .disabled(model.config.menuBar.mode != .worst)
                 LabeledContent {
                     MenuBarPreview(config: model.config.menuBar)
                 } label: {
@@ -239,6 +253,15 @@ struct GeneralSettingsPane: View {
         let target = file.resolvingSymlinksInPath()
         let isLink = target.path != file.path
         return (isLink, SettingsLogic.tildePath((isLink ? target : file).path, home: paths.home.path))
+    }
+}
+
+extension SpendDisplay {
+    var title: String {
+        switch self {
+        case .percent: "Percentage"
+        case .amount: "Amount spent"
+        }
     }
 }
 

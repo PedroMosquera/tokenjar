@@ -69,7 +69,7 @@ public struct ClaudeUsageFetcher: UsageFetcher {
         case .report(let limits):
             let windows = limits?.windows ?? []
             if windows.isEmpty, !output.usesAPIKey, config?.planHasLimits == true { return try fallback(.parse("usage report has no limits")) }
-            return snapshot(windows: windows, money: limits?.money ?? [], notes: windows.isEmpty ? [Self.noLimitsNote] : [])
+            return snapshot(windows: windows + [limits?.spendCapWindow].compactMap { $0 }, money: limits?.money ?? [], notes: windows.isEmpty ? [Self.noLimitsNote] : [])
         case .noReport:
             if output.usesAPIKey { return snapshot(windows: [], money: [], notes: [Self.noLimitsNote]) }
             if config?.isSignedIn != true,

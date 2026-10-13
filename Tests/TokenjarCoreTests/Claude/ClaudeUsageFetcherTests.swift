@@ -291,6 +291,46 @@ struct ClaudeUsageFetcherTests {
         #expect(snapshot.notes == ["No plan limits for this login"])
     }
 
+    @Test func aSpendCapIsTheOnlyLimitOfASeatWithoutPlanLimits() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"}}"#, to: ".claude.json")
+        let runner = FakeClaude(stdout: try fixture("../Plans/claude/enterprise-usage-based-spend-cap.stream.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(snapshot.windows.map(\.id) == ["spend-cap"])
+        #expect(abs((snapshot.windows.first?.usedPercent ?? 0) - 4.132) < 0.0001)
+        #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 41.32, limit: 1000, currency: "USD")])
+    }
+
+    @Test func spendWithNoCapHasNoWindow() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"}}"#, to: ".claude.json")
+        let stream = try String(decoding: fixture("../Plans/claude/enterprise-usage-based-spend-cap.stream.jsonl"), as: UTF8.self)
+            .replacingOccurrences(of: #""monthly_limit":100000"#, with: #""monthly_limit":null"#)
+        let runner = FakeClaude(stdout: Data(stream.utf8))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(snapshot.windows.isEmpty)
+        #expect(snapshot.money.first?.limit == nil)
+    }
+
+    /// Extra usage starts only once a plan limit is hit, so the plan's own limits stay the account's number.
+    @Test func planLimitsKeepExtraUsageOutOfTheWindows() async throws {
+        let box = try Sandbox()
+        defer { box.remove() }
+        let runner = FakeClaude(stdout: try fixture("stream-extra-usage-jpy.jsonl"))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        #expect(!snapshot.money.isEmpty)
+        #expect(!snapshot.windows.isEmpty)
+        #expect(!snapshot.windows.contains { $0.id == "spend-cap" })
+    }
+
     @Test func bedrockSettingsAreNotMistakenForSignedOut() async throws {
         let box = try Sandbox()
         defer { box.remove() }

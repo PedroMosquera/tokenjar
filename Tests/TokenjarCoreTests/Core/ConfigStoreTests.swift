@@ -239,7 +239,7 @@ struct ConfigStoreTests {
     }
 
     enum NewLeaf: String, CaseIterable, Sendable {
-        case shortThresholds, paceDays, hotkey, accountShortThresholds, creditAllowance
+        case shortThresholds, paceDays, hotkey, accountShortThresholds, creditAllowance, spendDisplay
 
         func edit(_ config: inout AppConfig) {
             switch self {
@@ -248,6 +248,7 @@ struct ConfigStoreTests {
             case .hotkey: config.hotkey = "control+option+command+U"
             case .accountShortThresholds: config.accounts[0].shortAlertThresholds = [90]
             case .creditAllowance: config.accounts[0].creditAllowance = 300
+            case .spendDisplay: config.menuBar.spendDisplay = .amount
             }
         }
 
@@ -260,6 +261,7 @@ struct ConfigStoreTests {
             case .hotkey: ["hotkey": "control+U"]
             case .accountShortThresholds: ["accounts": [["id": "claude", "shortAlertThresholds": [50]]]]
             case .creditAllowance: ["accounts": [["id": "claude", "creditAllowance": 1500]]]
+            case .spendDisplay: ["menuBar": ["spendDisplay": "amount"]]
             }
         }
     }
@@ -383,6 +385,7 @@ struct ConfigStoreTests {
         #expect(config.hotkey == nil)
         #expect(config.accounts[0].shortAlertThresholds == nil)
         #expect(config.accounts[0].creditAllowance == nil)
+        #expect(config.menuBar.spendDisplay == .percent)
     }
 
     /// Like the menu bar icon: a choice from a newer build must not fail the whole load on an older one.
@@ -390,5 +393,12 @@ struct ConfigStoreTests {
     func aPaceDaysValueThisBuildDoesNotKnowReadsAsEveryDay(_ json: String) {
         let config = try? JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
         #expect(config?.paceDays == .everyDay)
+    }
+
+    /// Cost stays private unless the user opts in, so an unknown choice reads as the percentage.
+    @Test(arguments: [#"{"menuBar": {"spendDisplay": "someFutureChoice"}}"#, #"{"menuBar": {"spendDisplay": null}}"#])
+    func aSpendDisplayThisBuildDoesNotKnowReadsAsPercent(_ json: String) {
+        let config = try? JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
+        #expect(config?.menuBar.spendDisplay == .percent)
     }
 }

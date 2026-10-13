@@ -20,12 +20,15 @@ struct MenuBarState: Equatable {
         var fetchedAt: Date? = nil
         /// `AccountStatus.connectionFailure`: the network error or timeout behind the latest check, saved copies included.
         var connectionFailure: FetchError? = nil
+        /// The money behind `tightest` when it is a spend cap, for showing the amount in place of the percentage.
+        var spend: MoneyLine? = nil
     }
 
     var mode: MenuBarMode
     var icon: MenuBarIcon = .app
     var entries: [Entry]
     var showResetCountdownWhenFull: Bool
+    var spendDisplay: SpendDisplay = .percent
     var now: Date
     var connectivity: Connectivity = .online
     var settingsProblem: SettingsProblem? = nil
@@ -79,12 +82,13 @@ struct MenuBarState: Equatable {
                 failureNeedsAttention: status.failureNeedsAttention(now: now, refreshMinutes: refreshMinutes),
                 cause: cause(of: severity, windows: windows, tightest: tightest, config: config.menuBar, now: now),
                 fetchedAt: status.snapshot?.fetchedAt,
-                connectionFailure: status.connectionFailure
+                connectionFailure: status.connectionFailure,
+                spend: tightest?.id == UsageWindow.spendCapID ? status.snapshot?.money.first { $0.limit != nil } : nil
             )
         }
         return MenuBarState(
             mode: config.menuBar.mode, icon: config.menuBar.icon, entries: entries, showResetCountdownWhenFull: config.menuBar.showResetCountdownWhenFull,
-            now: now, connectivity: connectivity, settingsProblem: settingsProblem
+            spendDisplay: config.menuBar.spendDisplay, now: now, connectivity: connectivity, settingsProblem: settingsProblem
         )
     }
 

@@ -206,7 +206,7 @@ enum CodexRateLimitMapping {
         var notes: [String] = []
         if let cap = main.individualLimit {
             if let used = cap.percentUsed {
-                windows.append(UsageWindow(id: "spend-cap", label: "Spend cap", usedPercent: used, resetsAt: cap.resetsAt))
+                windows.append(UsageWindow(id: UsageWindow.spendCapID, label: "Spend cap", usedPercent: used, resetsAt: cap.resetsAt))
             }
             if let used = cap.used, let limit = cap.limit {
                 notes.append("Spend cap: \(used.formatted) of \(limit.formatted) used")

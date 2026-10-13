@@ -35,19 +35,36 @@ public enum MenuBarIcon: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// What the menu bar's number says when an account billed by spend is the tightest. Ranking always uses the percentage.
+public enum SpendDisplay: String, Codable, CaseIterable, Sendable {
+    case percent
+    /// Off by default: a dollar figure in the menu bar is visible to anyone looking at the screen.
+    case amount
+
+    /// config.json syncs between Macs, so a choice from a newer build falls back here instead of failing the load.
+    public init(from decoder: Decoder) throws {
+        self = SpendDisplay(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .percent
+    }
+}
+
 public struct MenuBarConfig: Codable, Equatable, Sendable {
     public var mode: MenuBarMode
     public var icon: MenuBarIcon
     public var warnAt: Int
     public var criticalAt: Int
     public var showResetCountdownWhenFull: Bool
+    public var spendDisplay: SpendDisplay
 
-    public init(mode: MenuBarMode = .worst, icon: MenuBarIcon = .app, warnAt: Int = 80, criticalAt: Int = 95, showResetCountdownWhenFull: Bool = true) {
+    public init(
+        mode: MenuBarMode = .worst, icon: MenuBarIcon = .app, warnAt: Int = 80, criticalAt: Int = 95, showResetCountdownWhenFull: Bool = true,
+        spendDisplay: SpendDisplay = .percent
+    ) {
         self.mode = mode
         self.icon = icon
         self.warnAt = warnAt
         self.criticalAt = criticalAt
         self.showResetCountdownWhenFull = showResetCountdownWhenFull
+        self.spendDisplay = spendDisplay
     }
 
     public init(from decoder: Decoder) throws {
@@ -58,6 +75,7 @@ public struct MenuBarConfig: Codable, Equatable, Sendable {
         warnAt = try c.decodeIfPresent(Int.self, forKey: .warnAt) ?? d.warnAt
         criticalAt = try c.decodeIfPresent(Int.self, forKey: .criticalAt) ?? d.criticalAt
         showResetCountdownWhenFull = try c.decodeIfPresent(Bool.self, forKey: .showResetCountdownWhenFull) ?? d.showResetCountdownWhenFull
+        spendDisplay = try c.decodeIfPresent(SpendDisplay.self, forKey: .spendDisplay) ?? d.spendDisplay
     }
 }
 
@@ -260,6 +278,7 @@ public struct ConfigStore: Sendable {
         copyIfEdited(\.menuBar.warnAt)
         copyIfEdited(\.menuBar.criticalAt)
         copyIfEdited(\.menuBar.showResetCountdownWhenFull)
+        copyIfEdited(\.menuBar.spendDisplay)
         copyIfEdited(\.alerts.enabled)
         copyIfEdited(\.alerts.thresholds)
         copyIfEdited(\.alerts.shortThresholds)

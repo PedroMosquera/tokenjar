@@ -28,7 +28,7 @@ enum StatusIconRenderer {
         )
         switch state.mode {
         case .worst:
-            let text = title(for: worst, showResetCountdownWhenFull: state.showResetCountdownWhenFull, now: state.now)
+            let text = title(for: worst, showResetCountdownWhenFull: state.showResetCountdownWhenFull, spendDisplay: state.spendDisplay, now: state.now)
             return RenderedStatusIcon(
                 image: image, title: text,
                 attributedTitle: attributedTitle(text, severity: worst.severity, isStale: worst.isStale, isSlashed: slash),
@@ -47,9 +47,12 @@ enum StatusIconRenderer {
         }
     }
 
-    /// Used % of the tightest window, or the time until it resets once it is full.
-    static func title(for entry: MenuBarState.Entry, showResetCountdownWhenFull: Bool, now: Date) -> String {
+    /// Used % of the tightest window, or the time until it resets once it is full. A spend cap can read as its amount.
+    static func title(for entry: MenuBarState.Entry, showResetCountdownWhenFull: Bool, spendDisplay: SpendDisplay, now: Date) -> String {
         guard let window = entry.tightest else { return "" }
+        if spendDisplay == .amount, let spend = entry.spend {
+            return Format.money(spend.amount, currency: spend.currency, fractionDigits: 0, locale: .autoupdatingCurrent)
+        }
         if showResetCountdownWhenFull, window.usedPercent >= 100, let countdown = Format.countdown(to: window.resetsAt, now: now) {
             return countdown
         }

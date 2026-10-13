@@ -59,6 +59,13 @@ struct ClaudeRateLimits: Decodable, Sendable {
         return [MoneyLine(label: "Extra usage", amount: (extra.usedCredits ?? 0) / divisor, limit: extra.monthlyLimit.map { $0 / divisor }, currency: currency)]
     }
 
+    /// A seat with no plan limits, billed per use, can only run into its monthly cap on extra usage. Uncapped spend
+    /// has no share to show.
+    var spendCapWindow: UsageWindow? {
+        guard limits.isEmpty, let line = money.first, let cap = line.limit, cap > 0 else { return nil }
+        return UsageWindow(id: UsageWindow.spendCapID, label: "Spend cap", usedPercent: line.amount / cap * 100)
+    }
+
     static func window(_ limit: Limit) -> UsageWindow {
         switch (limit.kind, limit.scopeName) {
         case ("session", _):

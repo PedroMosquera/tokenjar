@@ -222,6 +222,8 @@ public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
         self.limitStyle = limitStyle
     }
 
+    public static let spendCapID = "spend-cap"
+
     /// A monthly allowance follows its billing month, so its window is the UTC calendar month ending at the reported
     /// reset: 28 to 31 days. Pace needs that length; nil only when the reset is unknown.
     public static func monthMinutes(endingAt resetsAt: Date?) -> Int? {

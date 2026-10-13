@@ -29,6 +29,49 @@ struct MenuBarStateTests {
         return rendered.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
     }
 
+    private func spendStatus(_ amount: Double, of limit: Double) -> AccountStatus {
+        let snapshot = UsageSnapshot(
+            accountID: "work", provider: .claude, windows: [UsageWindow(id: UsageWindow.spendCapID, label: "Spend cap", usedPercent: amount / limit * 100)],
+            money: [MoneyLine(label: "Extra usage", amount: amount, limit: limit, currency: "USD")], fetchedAt: now.addingTimeInterval(-60), source: "test"
+        )
+        return AccountStatus(snapshot: snapshot)
+    }
+
+    private func spendState(display: SpendDisplay) -> MenuBarState {
+        var config = AppConfig()
+        config.menuBar.spendDisplay = display
+        let nearlyUnused = window("monthly", used: 0.04, minutes: 44_640, resetIn: 18 * 86_400)
+        return MenuBarState.make(
+            accounts: [personal, work], statuses: ["personal": status([nearlyUnused]), "work": spendStatus(473.81, of: 3000)],
+            config: config, now: now
+        )
+    }
+
+    @Test func aSpendCapCompetesLikeAnyLimit() {
+        let state = spendState(display: .percent)
+        #expect(state.worst?.accountID == "work")
+        #expect(StatusIconRenderer.render(state).title == "16%")
+    }
+
+    @Test func amountSpentReplacesThePercentForASpendAccount() {
+        let state = spendState(display: .amount)
+        #expect(state.worst?.accountID == "work")
+        #expect(StatusIconRenderer.render(state).title == Format.money(473.81, currency: "USD", fractionDigits: 0, locale: .autoupdatingCurrent))
+    }
+
+    /// A Max plan with extra usage has money too, but its number is still a plan limit.
+    @Test func amountSpentLeavesALimitAccountsPercent() {
+        var config = AppConfig()
+        config.menuBar.spendDisplay = .amount
+        var max = status([weeklyOnPace])
+        max.snapshot?.money = [MoneyLine(label: "Extra usage", amount: 25.5, limit: 50, currency: "USD")]
+        let state = MenuBarState.make(
+            accounts: [personal, work], statuses: ["personal": max, "work": spendStatus(473.81, of: 3000)], config: config, now: now
+        )
+        #expect(state.worst?.accountID == "personal")
+        #expect(StatusIconRenderer.render(state).title == "75%")
+    }
+
     @Test func aProjectedRunOutOutranksAHigherPercent() {
         let state = MenuBarState.make(
             accounts: [personal, work], statuses: ["personal": status([weeklyOnPace]), "work": status([sessionRunsOut])],
