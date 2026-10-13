@@ -582,6 +582,21 @@ struct RoomHintTests {
         #expect(summary.room == "Claude · Work has room: Week 30% used")
     }
 
+    /// Config order breaks ties only: an account with more room later in the list still wins.
+    @Test func theMostRoomWinsWhereverItSitsInConfigOrder() {
+        let statuses = ["claude": fullClaude, "copilot": using("copilot", 15, label: "Premium requests", minutes: 44_640), "codex": using("codex", 2)]
+        let summary = PopoverSummary.make(accounts: [claude, copilot, codex], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.room == "Codex has room: 5-hour 2% used")
+    }
+
+    /// Red, not only full: at the default Red at of 95 the named window is about to stop the work.
+    @Test func aRedWindowThatIsNotFullGetsTheHint() {
+        let statuses = ["claude": using("claude", 96), "codex": using("codex", 2)]
+        let summary = PopoverSummary.make(accounts: [claude, codex], statuses: statuses, config: AppConfig(), now: now)
+        #expect(summary.tone == .critical)
+        #expect(summary.room == "Codex has room: 5-hour 2% used")
+    }
+
     /// The user sets config order, so a tie never depends on anything they cannot see.
     @Test func aTieGoesToConfigOrder() {
         let statuses = ["claude": fullClaude, "codex": using("codex", 10), "copilot": using("copilot", 10, label: "Premium requests", minutes: 44_640)]
