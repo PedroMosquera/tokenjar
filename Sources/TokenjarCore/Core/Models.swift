@@ -44,11 +44,25 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         }
     }
 
+    /// Opened in the browser, never fetched. Antigravity has no official status page.
     public var statusPageURL: URL? {
         switch self {
         case .claude: URL(string: "https://status.claude.com")
         case .codex: URL(string: "https://status.openai.com")
+        case .opencodeGo, .opencodeZen: URL(string: "https://status.opencode.ai")
         case .copilot: URL(string: "https://www.githubstatus.com")
+        case .devin: URL(string: "https://www.devinstatus.com")
+        case .antigravity: nil
+        }
+    }
+
+    /// The status JSON Tokenjar reads when provider status is on, nil for a provider whose status it never fetches.
+    /// Each is an exact entry in `HTTPClient.allowedEndpoints`.
+    public var statusFeedURL: URL? {
+        switch self {
+        case .claude: URL(string: "https://status.claude.com/api/v2/summary.json")
+        case .codex: URL(string: "https://status.openai.com/proxy/status.openai.com")
+        case .copilot: URL(string: "https://www.githubstatus.com/api/v2/summary.json")
         case .opencodeGo, .opencodeZen, .antigravity, .devin: nil
         }
     }

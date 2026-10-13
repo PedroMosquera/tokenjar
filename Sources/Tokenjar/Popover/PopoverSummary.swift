@@ -46,14 +46,19 @@ struct PopoverSummary: Equatable {
     /// Under a red or full title only: the other account whose fullest live window is least used, among those with fresh
     /// data and nothing amber, red or failed. "Codex has room: 5-hour 2% used".
     var room: String?
+    /// Under "All clear" only: the status pages that report a partial or major outage, so a card below the fold cannot
+    /// hide one behind a calm title. "GitHub Copilot status page reports an outage".
+    var outage: String?
 
     /// How account names are written: `AccountTitle.name` on screen, `spokenName` for VoiceOver.
     enum Voice { case written, spoken }
 
     /// `majorOutages` are providers whose status page reports a major outage; the room hint never points at one.
+    /// `outages` are those reporting a partial or major outage, which "All clear" names.
     static func make(
         accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date,
-        connectivity: Connectivity = .online, settings: SettingsProblem? = nil, majorOutages: Set<ProviderID> = [], voice: Voice = .written
+        connectivity: Connectivity = .online, settings: SettingsProblem? = nil, majorOutages: Set<ProviderID> = [],
+        outages: Set<ProviderID> = [], voice: Voice = .written
     ) -> PopoverSummary {
         // In priority order: what stops every check, then what makes every number old, then one account at a time.
         guard !accounts.isEmpty else {
@@ -143,8 +148,20 @@ struct PopoverSummary: Equatable {
             let nothingToTrack = accounts.allSatisfy { !$0.provider.reportsWindows || statuses[$0.id]?.error?.attention == .calm }
             return PopoverSummary(tone: .empty, text: nothingToTrack ? "No limits to track" : "Waiting for usage data")
         }
-        guard let nextReset else { return PopoverSummary(tone: .clear, text: "All clear") }
-        return PopoverSummary(tone: .clear, text: "All clear · next reset in \(Format.duration(nextReset.timeIntervalSince(now)))")
+        let outage = outageCaption(accounts: accounts, outages: outages)
+        guard let nextReset else { return PopoverSummary(tone: .clear, text: "All clear", outage: outage) }
+        return PopoverSummary(tone: .clear, text: "All clear · next reset in \(Format.duration(nextReset.timeIntervalSince(now)))", outage: outage)
+    }
+
+    /// Providers in the order of their first card.
+    private static func outageCaption(accounts: [AccountConfig], outages: Set<ProviderID>) -> String? {
+        var names: [String] = []
+        for provider in accounts.map(\.provider) where outages.contains(provider) && !names.contains(provider.displayName) {
+            names.append(provider.displayName)
+        }
+        guard let last = names.last else { return nil }
+        guard names.count > 1 else { return "\(last) status page reports an outage" }
+        return "Status pages report outages for \(names.dropLast().joined(separator: ", ")) and \(last)"
     }
 
     /// The header has room for a few words: the provider alone names an account unless another account shares it.

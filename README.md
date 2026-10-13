@@ -65,7 +65,7 @@ Alerts are local notifications. By default you get one when a window crosses 80%
 
 ## Privacy
 
-Tokenjar never reads or refreshes an OAuth token; each CLI keeps and renews its own login. The one request the app sends itself is `GET https://opencode.ai/zen/go/v1/usage`, and a test fails if another endpoint is added. The Copilot request is gh's own, with gh's telemetry turned off. Tokenjar itself has no telemetry and no update check, and it never imports browser cookies.
+Tokenjar never reads or refreshes an OAuth token; each CLI keeps and renews its own login. The app's own requests are `GET https://opencode.ai/zen/go/v1/usage` and, only if you turn on Check provider status pages in Settings on that Mac, one GET to the public status page of each of Claude, Codex and GitHub Copilot you track, when you open the popover or refresh. A test fails if another endpoint is added. The Copilot request is gh's own, with gh's telemetry turned off. Tokenjar itself has no telemetry and no update check, and it never imports browser cookies.
 
 On disk it keeps token counts, model ids, timestamps and project folder names, plus each account's plan name, limit percentages and reset times. Log paths and response ids are stored only as SHA-256 digests. Prompts, outputs, emails and provider account ids are never stored. Settings > About lists what the app runs, reads, contacts and writes, and [docs/privacy.md](docs/privacy.md) has the full list.
 

@@ -297,6 +297,117 @@ extension AppModel {
 }
 
 extension AppModel {
+    /// Status pages report a problem for each provider with a feed, one kind of row each, under "All clear": a titled
+    /// outage of the three Claude products the feed names in most incidents, with one more item, on both Claude cards; an
+    /// untitled outage of four Codex products plus maintenance, answered 40 minutes ago; and two Copilot incidents matched
+    /// by name with a long title, answered over an hour ago. The last Codex check could not read its answer and the last
+    /// Copilot check timed out, which only Settings shows.
+    static func previewIncident(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = healthPreview(now: now, accounts: [
+            AccountConfig(id: "claude-personal", provider: .claude, label: "Personal"),
+            AccountConfig(id: "claude-work", provider: .claude, label: "Work"),
+            AccountConfig(id: "codex", provider: .codex, label: "Plus"),
+            AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"),
+        ])
+        model.providerHealth = [
+            .claude: health(now: now, answeredAgo: 60, askedAgo: 120, [
+                ProviderHealthItem(level: .partialOutage, names: ["Claude Code", "claude.ai", "Claude API"], title: "Elevated errors for Claude Opus 5.5"),
+                ProviderHealthItem(level: .maintenance, names: ["claude.ai"], title: "Scheduled maintenance of claude.ai"),
+            ]),
+            .codex: health(now: now, answeredAgo: 40 * 60, askedAgo: 41 * 60, failure: .parse("page data has no group"), [
+                ProviderHealthItem(level: .partialOutage, names: ["Codex CLI", "Codex Web", "Codex API", "Codex VS Code extension"]),
+                ProviderHealthItem(level: .maintenance, names: ["Codex in ChatGPT Desktop"]),
+            ]),
+            .copilot: health(now: now, answeredAgo: 65 * 60, askedAgo: 66 * 60, failure: .timeout, [
+                ProviderHealthItem(level: .incident, names: ["Copilot"], title: "Copilot Code Review is unable to complete reviews on pull requests in some large repositories"),
+                ProviderHealthItem(level: .incident, names: ["Copilot"], title: "Disruption with Copilot for access to some models"),
+            ]),
+        ]
+        return model
+    }
+
+    /// Everything calm, and only GitHub Copilot, the last card, in a major outage: the header's caption says so. Claude's
+    /// maintenance and Codex's degraded performance stay on their cards; Codex's row, the longest watched name with one
+    /// more item and an answer over an hour old, must keep its count and age.
+    static func previewAllClearOutage(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = healthPreview(now: now, accounts: [
+            AccountConfig(id: "claude-personal", provider: .claude, label: "Personal"),
+            AccountConfig(id: "codex", provider: .codex, label: "Plus"),
+            AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go", credential: .file(path: "~/.local/share/opencode/auth.json", key: "opencode-go")),
+            AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen", showInMenuBar: false),
+            AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"),
+        ])
+        model.providerHealth = [
+            .claude: health(now: now, answeredAgo: 60, askedAgo: 60, [
+                ProviderHealthItem(level: .maintenance, names: ["Claude Code"], title: "Planned database maintenance"),
+            ]),
+            .codex: health(now: now, answeredAgo: 65 * 60, askedAgo: 66 * 60, [
+                ProviderHealthItem(level: .degradedPerformance, names: ["Codex in ChatGPT Desktop"]),
+                ProviderHealthItem(level: .maintenance, names: ["Codex VS Code extension"]),
+            ]),
+            .copilot: health(now: now, answeredAgo: 60, askedAgo: 60, [
+                ProviderHealthItem(level: .majorOutage, names: ["Copilot"], title: "Incident with GitHub.com"),
+            ]),
+        ]
+        return model
+    }
+
+    /// Calm usage on every account, so the header reads "All clear", with provider status on.
+    private static func healthPreview(now: Date, accounts: [AccountConfig]) -> AppModel {
+        let model = AppModel(paths: .preview)
+        model.previewMode = true
+        model.setProviderStatus(true)
+        model.now = now
+        model.popoverNow = now
+        model.lastRefreshAt = now.addingTimeInterval(-60)
+        model.config = AppConfig(refreshMinutes: 10, accounts: accounts)
+        let checked = now.addingTimeInterval(-60)
+        for account in accounts {
+            let windows: [UsageWindow]
+            switch account.provider {
+            case .claude: windows = [
+                    UsageWindow(id: "session", label: "5-hour", usedPercent: 24, windowMinutes: 300, resetsAt: now.addingTimeInterval(3 * 3_600 + 20 * 60)),
+                    UsageWindow(id: "weekly", label: "Week", usedPercent: 38, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(3 * 86_400)),
+                ]
+            case .codex: windows = [UsageWindow(id: "session", label: "5-hour", usedPercent: 12, windowMinutes: 300, resetsAt: now.addingTimeInterval(4 * 3_600))]
+            case .copilot: windows = [UsageWindow(id: "monthly", label: "Premium requests", usedPercent: 15, windowMinutes: 44_640, resetsAt: now.addingTimeInterval(19 * 86_400))]
+            default: windows = []
+            }
+            switch account.provider {
+            case .opencodeGo:
+                model.statuses[account.id] = AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"), lastAttempt: checked)
+            case .opencodeZen:
+                model.statuses[account.id] = AccountStatus(snapshot: UsageSnapshot(
+                    accountID: account.id, provider: .opencodeZen, plan: "Pay as you go", money: [MoneyLine(label: "Spent this month (this Mac)", amount: 8.17)],
+                    fetchedAt: checked, source: "opencode.db", notes: ["Balance needs a console sign-in; showing local spend only."]
+                ), lastAttempt: checked)
+            default:
+                model.statuses[account.id] = AccountStatus(
+                    snapshot: UsageSnapshot(accountID: account.id, provider: account.provider, windows: windows, fetchedAt: checked, source: "preview"), lastAttempt: checked
+                )
+            }
+        }
+        model.store = InMemoryUsageStore()
+        return model
+    }
+
+    /// An answer that arrived `answeredAgo`, from a check started `askedAgo`, then a failed check a minute ago when
+    /// `failure` is set.
+    private static func health(
+        now: Date, answeredAgo: TimeInterval, askedAgo: TimeInterval, failure: FetchError? = nil, _ items: [ProviderHealthItem]
+    ) -> ProviderHealth {
+        var health = ProviderHealth()
+        health.asked(at: now.addingTimeInterval(-askedAgo))
+        health.record(.success(ProviderHealthAnswer(items: items, answeredAt: now.addingTimeInterval(-answeredAgo))))
+        if let failure {
+            health.asked(at: now.addingTimeInterval(-60))
+            health.record(.failure(failure))
+        }
+        return health
+    }
+}
+
+extension AppModel {
     /// A Mac offline for 25 minutes. Every network check is held, so the cards keep their last numbers; the last batch
     /// of checks ended a minute ago, which the header must not call "Updated".
     static func previewOffline(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {

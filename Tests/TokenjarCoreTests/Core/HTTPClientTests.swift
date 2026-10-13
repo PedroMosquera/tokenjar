@@ -4,9 +4,58 @@ import Testing
 
 struct HTTPClientTests {
     /// Pins the privacy promise in docs/privacy.md. Changing it must be a deliberate, reviewed edit.
-    @Test func allowlistIsExactlyOpenCode() {
-        #expect(HTTPClient.allowedHosts == ["opencode.ai"])
-        #expect(HTTPClient.allowedEndpoints == ["opencode.ai": ["/zen/go/v1/usage"]])
+    @Test func allowlistIsPinned() {
+        #expect(HTTPClient.allowedHosts == ["opencode.ai", "status.claude.com", "status.openai.com", "www.githubstatus.com"])
+        #expect(HTTPClient.allowedEndpoints == [
+            "opencode.ai": ["/zen/go/v1/usage"],
+            "status.claude.com": ["/api/v2/summary.json"],
+            "status.openai.com": ["/proxy/status.openai.com"],
+            "www.githubstatus.com": ["/api/v2/summary.json"],
+        ])
+    }
+
+    /// HTTPClient never follows a redirect, so these hosts, which answer with one, would be useless on the list. The
+    /// OpenCode and Devin status pages are links only, never fetched.
+    @Test(arguments: [
+        "https://status.anthropic.com/api/v2/summary.json",
+        "https://githubstatus.com/api/v2/summary.json",
+        "https://status.devin.ai/api/v2/summary.json",
+        "https://www.devinstatus.com/api/v2/summary.json",
+        "https://status.opencode.ai/api/status",
+    ])
+    func otherStatusHostsAreNotAllowed(url: String) {
+        let host = URL(string: url)!.host()!
+        #expect(throws: HTTPClientError.hostNotAllowed(host)) { try HTTPClient.validate(URL(string: url)!) }
+    }
+
+    /// A status host allows its one feed: not the page, not another endpoint of the same API.
+    @Test(arguments: [
+        "https://status.claude.com/",
+        "https://status.claude.com/api/v2/status.json",
+        "https://status.claude.com/api/v2/incidents.json",
+        "https://status.openai.com/api/v2/summary.json",
+        "https://status.openai.com/proxy/status.openai.com/",
+        "https://www.githubstatus.com/api/v2/components.json",
+    ])
+    func statusHostsAllowOnlyTheirFeed(url: String) {
+        let path = URL(string: url)!.path(percentEncoded: true)
+        #expect(throws: HTTPClientError.endpointNotAllowed(path)) { try HTTPClient.validate(URL(string: url)!) }
+    }
+
+    @Test func statusFeedsRefuseAQuery() {
+        #expect(throws: HTTPClientError.endpointNotAllowed("/api/v2/summary.json")) {
+            try HTTPClient.validate(URL(string: "https://status.claude.com/api/v2/summary.json?page=2")!)
+        }
+    }
+
+    /// The session the app's requests go through sends and keeps no cookies and caches nothing. `.default` would also
+    /// share the system credential store.
+    @Test func sessionIsCookieFree() {
+        let config = URLSessionTransport.shared.sessionConfiguration
+        #expect(config.httpCookieStorage == nil)
+        #expect(!config.httpShouldSetCookies)
+        #expect(config.urlCache == nil)
+        #expect(config.urlCredentialStorage !== URLCredentialStorage.shared)
     }
 
     @Test func rejectsOtherHostsAndPlainHTTP() {
@@ -24,7 +73,7 @@ struct HTTPClientTests {
         }
     }
 
-    /// The Bearer key goes with every request, so a host match alone is not enough: any other path, port or query on
+    /// The OpenCode key goes with this request, so a host match alone is not enough: any other path, port or query on
     /// opencode.ai is refused too.
     @Test(arguments: [
         "https://opencode.ai:8443/zen/go/v1/usage",

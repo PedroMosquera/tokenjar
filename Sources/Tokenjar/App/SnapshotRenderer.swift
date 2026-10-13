@@ -20,6 +20,7 @@ enum SnapshotRenderer {
             let outages = [
                 ("offline", AppModel.previewOffline()), ("no-answer", AppModel.previewNoAnswer()),
                 ("partial-outage", AppModel.previewPartialOutage()), ("settings-unloaded", AppModel.previewSettingsUnloaded()),
+                ("incident", AppModel.previewIncident()), ("all-clear-outage", AppModel.previewAllClearOutage()),
             ]
             for (name, outage) in outages {
                 outage.secrets = SessionSecretStore(InMemorySecretStore())

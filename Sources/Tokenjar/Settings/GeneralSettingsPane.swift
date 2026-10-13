@@ -69,6 +69,8 @@ struct GeneralSettingsPane: View {
             }
             .disabled(!model.canEditConfig)
 
+            providerStatusSection
+
             configFileSection
         }
         .onAppear {
@@ -87,6 +89,31 @@ struct GeneralSettingsPane: View {
             Text("Tokenjar looked for CodexBar's config on this Mac and found nothing to import.")
         }
     }
+
+    /// Not a config.json setting, and so not held back by a config that failed to load: the switch belongs to this Mac.
+    private var providerStatusSection: some View {
+        Section("Provider status") {
+            Toggle(isOn: Binding(get: { model.providerStatusOn }, set: { model.setProviderStatus($0) })) {
+                Text("Check provider status pages")
+                Text(Self.providerStatusCaption)
+            }
+            if model.providerStatusOn {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(
+                        ProviderStatusLines.make(accounts: model.accounts, health: model.providerHealth, inFlight: model.healthInFlight, now: model.now),
+                        id: \.self
+                    ) { line in
+                        Text(line)
+                    }
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    static let providerStatusCaption = "When you open the Tokenjar popover or refresh, Tokenjar asks the public status pages of Claude, Codex and GitHub Copilot whether the products you use have a problem. It sends no account data. This setting applies to this Mac only."
 
     private var configFileSection: some View {
         let target = model.paths.configFile.resolvingSymlinksInPath()
@@ -235,6 +262,36 @@ extension MenuBarMode {
         case (.icon, .app): return "The cooldown slot alone, filled and tinted for the tightest account."
         case (.icon, _): return "\(icon.phrase) alone, tinted amber or red when an account runs low."
         }
+    }
+}
+
+/// The lines under Check provider status pages, one per provider with an account here: what its last check got. A
+/// failed check changes nothing on the cards, so this is where it shows.
+enum ProviderStatusLines {
+    static func make(accounts: [AccountConfig], health: [ProviderID: ProviderHealth], inFlight: Set<ProviderID>, now: Date) -> [String] {
+        var providers: [ProviderID] = []
+        for provider in accounts.map(\.provider) where provider.statusFeedURL != nil && !providers.contains(provider) {
+            providers.append(provider)
+        }
+        guard !providers.isEmpty else { return ["No Claude, Codex or GitHub Copilot account on this Mac, so no status page is asked."] }
+        return providers.map { provider in
+            "\(provider.displayName): \(outcome(provider, health[provider], checking: inFlight.contains(provider), now: now))."
+        }
+    }
+
+    private static func outcome(_ provider: ProviderID, _ health: ProviderHealth?, checking: Bool, now: Date) -> String {
+        if checking { return "checking now" }
+        guard let health, let asked = health.lastAsked, health.answer != nil || health.lastFailure != nil else { return "not asked yet" }
+        let when = Format.age(of: asked, now: now)
+        guard let failure = health.lastFailure else { return "answered \(when)" }
+        let what = switch failure {
+        case .parse: "couldn't read the answer"
+        case .timeout: "no answer within \(Int(ProviderHealthFetcher.timeout)) s"
+        case .network(let detail) where detail.hasPrefix("HTTP "): "the page answered \(detail)"
+        case .network: "couldn't reach \(provider.statusFeedURL?.host() ?? provider.displayName)"
+        default: "couldn't check"
+        }
+        return "\(what), \(when)"
     }
 }
 

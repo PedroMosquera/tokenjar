@@ -6,7 +6,8 @@ import TokenjarCore
 @MainActor
 struct PreviewDataTests {
     private static var previewModels: [AppModel] {
-        [AppModel.preview(), .previewStates(), .previewEmpty(), .previewLimitHit()] + PreviewPlans.pages().map(\.model)
+        [AppModel.preview(), .previewStates(), .previewEmpty(), .previewLimitHit(), .previewIncident(), .previewAllClearOutage()]
+            + PreviewPlans.pages().map(\.model)
     }
 
     /// Preview renders end up in the README and in PRs, so no path in them may come from this Mac.

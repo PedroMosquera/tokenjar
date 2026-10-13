@@ -25,11 +25,15 @@ struct ModelsTests {
         }
     }
 
+    /// Each is the final URL, with no redirect: status.devin.ai and devinstatus.com both redirect to Devin's.
     @Test func statusPagesArePinned() {
         let expected: [ProviderID: String] = [
             .claude: "https://status.claude.com",
             .codex: "https://status.openai.com",
+            .opencodeGo: "https://status.opencode.ai",
+            .opencodeZen: "https://status.opencode.ai",
             .copilot: "https://www.githubstatus.com",
+            .devin: "https://www.devinstatus.com",
         ]
         for provider in ProviderID.allCases {
             #expect(provider.statusPageURL?.absoluteString == expected[provider], "\(provider)")

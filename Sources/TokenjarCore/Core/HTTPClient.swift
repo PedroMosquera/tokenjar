@@ -26,9 +26,15 @@ public enum HTTPClientError: Error, Equatable {
 /// The only way the app talks to the network. GET only, HTTPS only, allowlisted endpoints only, no redirects.
 /// Adding an endpoint here is a privacy decision: update docs/privacy.md and the tests that pin this set.
 public struct HTTPClient: Sendable {
-    /// Exact paths per host. The Bearer key travels with every request, so a host match alone would let a new caller
-    /// send it to any other path or port on that host.
-    public static let allowedEndpoints: [String: Set<String>] = ["opencode.ai": ["/zen/go/v1/usage"]]
+    /// Exact paths per host, so a caller cannot send the OpenCode key to another path or port on its host, and a status
+    /// host serves only the one feed Tokenjar reads. Status checks send no key. Each host is the one that answers without
+    /// a redirect, since none is ever followed.
+    public static let allowedEndpoints: [String: Set<String>] = [
+        "opencode.ai": ["/zen/go/v1/usage"],
+        "status.claude.com": ["/api/v2/summary.json"],
+        "status.openai.com": ["/proxy/status.openai.com"],
+        "www.githubstatus.com": ["/api/v2/summary.json"],
+    ]
     public static var allowedHosts: Set<String> { Set(allowedEndpoints.keys) }
 
     let transport: any HTTPTransport
@@ -64,6 +70,7 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionTaskD
     /// fine once but leaks a session and its connection pool for every instance a caller creates and drops.
     public static let shared = URLSessionTransport()
 
+    /// Ephemeral, with no cookie store, no cookies sent and no URL cache.
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil
@@ -71,6 +78,9 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionTaskD
         config.urlCache = nil
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
+
+    /// The configuration of the session requests go through, so a test can pin it without sending one.
+    var sessionConfiguration: URLSessionConfiguration { session.configuration }
 
     public override init() { super.init() }
 

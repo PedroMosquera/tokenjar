@@ -1,0 +1,100 @@
+{
+ "page": {
+  "id": "tymt9n04zgry",
+  "name": "Claude",
+  "url": "https://status.claude.com",
+  "time_zone": "Etc/UTC",
+  "updated_at": "2026-10-12T20:35:17.874Z"
+ },
+ "components": [
+  {
+   "id": "rwppv331jlwc",
+   "name": "claude.ai",
+   "status": "operational",
+   "created_at": "2023-07-11T17:52:24.275Z",
+   "updated_at": "2026-10-06T12:43:02.833Z",
+   "position": 1,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "0qbwn08sd68x",
+   "name": "Claude Console (platform.claude.com)",
+   "status": "operational",
+   "created_at": "2023-07-11T17:52:49.982Z",
+   "updated_at": "2026-10-07T21:44:41.416Z",
+   "position": 2,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "k8w3r06qmzrp",
+   "name": "Claude API (api.anthropic.com)",
+   "status": "operational",
+   "created_at": "2023-07-11T17:53:10.880Z",
+   "updated_at": "2026-10-06T12:43:02.867Z",
+   "position": 3,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "yyzkbfz2thpt",
+   "name": "Claude Code",
+   "status": "operational",
+   "created_at": "2025-05-22T21:35:29.822Z",
+   "updated_at": "2026-10-06T12:43:02.904Z",
+   "position": 4,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "bpp5gb3hpjcl",
+   "name": "Claude Cowork",
+   "status": "operational",
+   "created_at": "2026-04-01T17:39:47.692Z",
+   "updated_at": "2026-10-06T12:43:02.939Z",
+   "position": 5,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "0scnb50nvy53",
+   "name": "Claude for Government",
+   "status": "operational",
+   "created_at": "2026-02-17T23:24:51.249Z",
+   "updated_at": "2026-06-30T14:45:50.487Z",
+   "position": 6,
+   "group_id": null,
+   "group": false
+  }
+ ],
+ "incidents": [
+  {
+   "id": "vmys9qn874h4",
+   "name": "Issue with spend limits",
+   "status": "identified",
+   "created_at": "2026-10-07T21:23:29.603Z",
+   "updated_at": "2026-10-07T21:23:29.656Z",
+   "monitoring_at": null,
+   "resolved_at": null,
+   "impact": "none",
+   "shortlink": "https://stspg.io/frlrjsqqn605",
+   "started_at": "2026-10-07T21:23:29.599Z",
+   "incident_updates": [
+    {
+     "id": "p4pg9q0fk9t0",
+     "status": "identified",
+     "body": "We have identified an issue which resulted in some organizations to be incorrectly paused for having reached their spend limit, resulting in refused requests on the Claude API, Claude.ai, Claude Code, Claude Security, and Claude Cowork.",
+     "created_at": "2026-10-07T21:23:29.656Z",
+     "affected_components": null
+    }
+   ],
+   "components": []
+  }
+ ],
+ "scheduled_maintenances": [],
+ "status": {
+  "indicator": "none",
+  "description": "All Systems Operational"
+ }
+}

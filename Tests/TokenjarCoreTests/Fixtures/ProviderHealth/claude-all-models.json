@@ -1,0 +1,157 @@
+{
+ "page": {
+  "id": "tymt9n04zgry",
+  "name": "Claude",
+  "url": "https://status.claude.com",
+  "time_zone": "Etc/UTC",
+  "updated_at": "2026-10-12T20:35:17.874Z"
+ },
+ "components": [
+  {
+   "id": "rwppv331jlwc",
+   "name": "claude.ai",
+   "status": "major_outage",
+   "created_at": "2023-07-11T17:52:24.275Z",
+   "updated_at": "2026-10-06T12:43:02.833Z",
+   "position": 1,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "0qbwn08sd68x",
+   "name": "Claude Console (platform.claude.com)",
+   "status": "operational",
+   "created_at": "2023-07-11T17:52:49.982Z",
+   "updated_at": "2026-10-07T21:44:41.416Z",
+   "position": 2,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "k8w3r06qmzrp",
+   "name": "Claude API (api.anthropic.com)",
+   "status": "major_outage",
+   "created_at": "2023-07-11T17:53:10.880Z",
+   "updated_at": "2026-10-06T12:43:02.867Z",
+   "position": 3,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "yyzkbfz2thpt",
+   "name": "Claude Code",
+   "status": "major_outage",
+   "created_at": "2025-05-22T21:35:29.822Z",
+   "updated_at": "2026-10-06T12:43:02.904Z",
+   "position": 4,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "bpp5gb3hpjcl",
+   "name": "Claude Cowork",
+   "status": "major_outage",
+   "created_at": "2026-04-01T17:39:47.692Z",
+   "updated_at": "2026-10-06T12:43:02.939Z",
+   "position": 5,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "0scnb50nvy53",
+   "name": "Claude for Government",
+   "status": "operational",
+   "created_at": "2026-02-17T23:24:51.249Z",
+   "updated_at": "2026-06-30T14:45:50.487Z",
+   "position": 6,
+   "group_id": null,
+   "group": false
+  }
+ ],
+ "incidents": [
+  {
+   "id": "q2kg8n613kr3",
+   "name": "Elevated errors across all models",
+   "status": "identified",
+   "created_at": "2026-07-29T19:49:45.388Z",
+   "updated_at": "2026-07-29T20:33:45.585Z",
+   "monitoring_at": null,
+   "resolved_at": null,
+   "impact": "critical",
+   "shortlink": "https://stspg.io/6xr5mmpjs1k3",
+   "started_at": "2026-07-29T19:49:45.378Z",
+   "incident_updates": [
+    {
+     "id": "jcyx6n4lgps3",
+     "status": "identified",
+     "body": "We have identified an issue resulting in elevated errors across multiple models, and are working to resolve this. We will provide an update as soon as possible.",
+     "created_at": "2026-07-29T20:33:45.585Z",
+     "affected_components": [
+      {
+       "code": "rwppv331jlwc",
+       "name": "claude.ai",
+       "old_status": "major_outage",
+       "new_status": "major_outage"
+      },
+      {
+       "code": "k8w3r06qmzrp",
+       "name": "Claude API (api.anthropic.com)",
+       "old_status": "major_outage",
+       "new_status": "major_outage"
+      },
+      {
+       "code": "yyzkbfz2thpt",
+       "name": "Claude Code",
+       "old_status": "major_outage",
+       "new_status": "major_outage"
+      },
+      {
+       "code": "bpp5gb3hpjcl",
+       "name": "Claude Cowork",
+       "old_status": "major_outage",
+       "new_status": "major_outage"
+      }
+     ]
+    },
+    {
+     "id": "grjn11m71x0n",
+     "status": "investigating",
+     "body": "We are currently investigating this issue.",
+     "created_at": "2026-07-29T19:49:45.537Z",
+     "affected_components": [
+      {
+       "code": "rwppv331jlwc",
+       "name": "claude.ai",
+       "old_status": "operational",
+       "new_status": "major_outage"
+      },
+      {
+       "code": "k8w3r06qmzrp",
+       "name": "Claude API (api.anthropic.com)",
+       "old_status": "operational",
+       "new_status": "major_outage"
+      },
+      {
+       "code": "yyzkbfz2thpt",
+       "name": "Claude Code",
+       "old_status": "operational",
+       "new_status": "major_outage"
+      },
+      {
+       "code": "bpp5gb3hpjcl",
+       "name": "Claude Cowork",
+       "old_status": "operational",
+       "new_status": "major_outage"
+      }
+     ]
+    }
+   ],
+   "components": []
+  }
+ ],
+ "scheduled_maintenances": [],
+ "status": {
+  "indicator": "critical",
+  "description": "Major System Outage"
+ }
+}

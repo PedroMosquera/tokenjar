@@ -25,6 +25,20 @@ public enum DateParsing {
         return base.addingTimeInterval(fraction)
     }
 
+    private static let imfFixdate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "GMT")
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        return formatter
+    }()
+
+    /// An HTTP `Date` header in the form every current server sends, "Mon, 12 Oct 2026 20:57:15 GMT". The two obsolete
+    /// forms RFC 9110 still lets a recipient accept are not read.
+    static func httpDate(_ string: String) -> Date? {
+        imfFixdate.date(from: string.trimmingCharacters(in: .whitespaces))
+    }
+
     /// Epoch seconds or milliseconds, distinguished by magnitude.
     public static func epoch(_ value: Double) -> Date {
         value > 100_000_000_000 ? Date(timeIntervalSince1970: value / 1000) : Date(timeIntervalSince1970: value)

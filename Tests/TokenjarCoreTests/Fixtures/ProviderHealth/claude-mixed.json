@@ -1,0 +1,295 @@
+{
+ "page": {
+  "id": "tymt9n04zgry",
+  "name": "Claude",
+  "url": "https://status.claude.com",
+  "time_zone": "Etc/UTC",
+  "updated_at": "2026-10-12T20:35:17.874Z"
+ },
+ "components": [
+  {
+   "id": "rwppv331jlwc",
+   "name": "claude.ai",
+   "status": "degraded_performance",
+   "created_at": "2023-07-11T17:52:24.275Z",
+   "updated_at": "2026-10-06T12:43:02.833Z",
+   "position": 1,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "0qbwn08sd68x",
+   "name": "Claude Console (platform.claude.com)",
+   "status": "operational",
+   "created_at": "2023-07-11T17:52:49.982Z",
+   "updated_at": "2026-10-07T21:44:41.416Z",
+   "position": 2,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "k8w3r06qmzrp",
+   "name": "Claude API (api.anthropic.com)",
+   "status": "under_maintenance",
+   "created_at": "2023-07-11T17:53:10.880Z",
+   "updated_at": "2026-10-06T12:43:02.867Z",
+   "position": 3,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "yyzkbfz2thpt",
+   "name": "Claude Code",
+   "status": "partial_outage",
+   "created_at": "2025-05-22T21:35:29.822Z",
+   "updated_at": "2026-10-06T12:43:02.904Z",
+   "position": 4,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "bpp5gb3hpjcl",
+   "name": "Claude Cowork",
+   "status": "operational",
+   "created_at": "2026-04-01T17:39:47.692Z",
+   "updated_at": "2026-10-06T12:43:02.939Z",
+   "position": 5,
+   "group_id": null,
+   "group": false
+  },
+  {
+   "id": "0scnb50nvy53",
+   "name": "Claude for Government",
+   "status": "operational",
+   "created_at": "2026-02-17T23:24:51.249Z",
+   "updated_at": "2026-06-30T14:45:50.487Z",
+   "position": 6,
+   "group_id": null,
+   "group": false
+  }
+ ],
+ "incidents": [
+  {
+   "id": "bdr3fq2rkchr",
+   "name": "Elevated errors across many models",
+   "status": "investigating",
+   "created_at": "2026-08-04T20:48:20.773Z",
+   "updated_at": "2026-08-04T21:04:57.330Z",
+   "monitoring_at": null,
+   "resolved_at": null,
+   "impact": "major",
+   "shortlink": "https://stspg.io/j5npxk25yrp3",
+   "started_at": "2026-08-04T20:48:20.764Z",
+   "incident_updates": [
+    {
+     "id": "k3nkgt9v1gm8",
+     "status": "investigating",
+     "body": "We have identified an issue which resulted in some users experiencing issues when attempting to log into Anthropic services, including Claude.ai and Claude Code via oAuth. Additionally, some users saw errors when making requests to models. At this time, we have seen success rates recover and are monitoring closely to ensure there are no further issues.",
+     "created_at": "2026-08-04T21:04:57.330Z",
+     "affected_components": [
+      {
+       "code": "rwppv331jlwc",
+       "name": "claude.ai",
+       "old_status": "partial_outage",
+       "new_status": "operational"
+      },
+      {
+       "code": "k8w3r06qmzrp",
+       "name": "Claude API (api.anthropic.com)",
+       "old_status": "partial_outage",
+       "new_status": "operational"
+      },
+      {
+       "code": "yyzkbfz2thpt",
+       "name": "Claude Code",
+       "old_status": "partial_outage",
+       "new_status": "operational"
+      },
+      {
+       "code": "bpp5gb3hpjcl",
+       "name": "Claude Cowork",
+       "old_status": "partial_outage",
+       "new_status": "operational"
+      }
+     ]
+    },
+    {
+     "id": "mb004dcxh1hj",
+     "status": "investigating",
+     "body": "We are currently investigating this issue.",
+     "created_at": "2026-08-04T20:48:20.910Z",
+     "affected_components": [
+      {
+       "code": "rwppv331jlwc",
+       "name": "claude.ai",
+       "old_status": "operational",
+       "new_status": "partial_outage"
+      },
+      {
+       "code": "k8w3r06qmzrp",
+       "name": "Claude API (api.anthropic.com)",
+       "old_status": "operational",
+       "new_status": "partial_outage"
+      },
+      {
+       "code": "yyzkbfz2thpt",
+       "name": "Claude Code",
+       "old_status": "operational",
+       "new_status": "partial_outage"
+      },
+      {
+       "code": "bpp5gb3hpjcl",
+       "name": "Claude Cowork",
+       "old_status": "operational",
+       "new_status": "partial_outage"
+      }
+     ]
+    }
+   ],
+   "components": []
+  },
+  {
+   "id": "n0rlp126qf8g",
+   "name": "Issues logging into Claude.ai",
+   "status": "monitoring",
+   "created_at": "2026-08-24T20:11:23.934Z",
+   "updated_at": "2026-08-24T20:11:24.058Z",
+   "monitoring_at": "2026-08-24T20:11:24.058Z",
+   "resolved_at": null,
+   "impact": "minor",
+   "shortlink": "https://stspg.io/6211zbpptv0y",
+   "started_at": "2026-08-24T20:11:23.924Z",
+   "incident_updates": [
+    {
+     "id": "0s9yn3xt8jgv",
+     "status": "monitoring",
+     "body": "We have identified and resolved an issue which resulted in errors when attempting to access Claude.ai, including logging in via subscriptions for Claude Code. Errors occurred between 1:00pm (20:00 UTC) through 1:08pm PT (20:08 UTC). We are monitoring closely to ensure no further issues.",
+     "created_at": "2026-08-24T20:11:24.058Z",
+     "affected_components": [
+      {
+       "code": "rwppv331jlwc",
+       "name": "claude.ai",
+       "old_status": "operational",
+       "new_status": "degraded_performance"
+      },
+      {
+       "code": "yyzkbfz2thpt",
+       "name": "Claude Code",
+       "old_status": "operational",
+       "new_status": "degraded_performance"
+      },
+      {
+       "code": "bpp5gb3hpjcl",
+       "name": "Claude Cowork",
+       "old_status": "operational",
+       "new_status": "degraded_performance"
+      }
+     ]
+    }
+   ],
+   "components": [
+    {
+     "id": "rwppv331jlwc",
+     "name": "claude.ai",
+     "status": "degraded_performance",
+     "created_at": "2023-07-11T17:52:24.275Z",
+     "updated_at": "2026-10-06T12:43:02.833Z",
+     "position": 1,
+     "group_id": null,
+     "group": false
+    }
+   ]
+  },
+  {
+   "id": "vr9tpk8w7zr8",
+   "name": "Elevated errors on Claude Code and Claude Cowork",
+   "status": "identified",
+   "created_at": "2026-08-28T17:22:02.377Z",
+   "updated_at": "2026-08-28T17:22:02.478Z",
+   "monitoring_at": null,
+   "resolved_at": null,
+   "impact": "major",
+   "shortlink": "https://stspg.io/6rfby2z7stc2",
+   "started_at": "2026-08-28T17:22:02.368Z",
+   "incident_updates": [
+    {
+     "id": "cg9nyp880ysm",
+     "status": "identified",
+     "body": "We have identified an issue with an upstream cloud provider affecting Claude Cowork and Claude Code on the web. Some sessions may fail to start or disconnect mid-task; affected sessions can be retried. We are in contact with the provider and will provide an update as soon as possible.",
+     "created_at": "2026-08-28T17:22:02.478Z",
+     "affected_components": [
+      {
+       "code": "yyzkbfz2thpt",
+       "name": "Claude Code",
+       "old_status": "operational",
+       "new_status": "partial_outage"
+      },
+      {
+       "code": "bpp5gb3hpjcl",
+       "name": "Claude Cowork",
+       "old_status": "operational",
+       "new_status": "partial_outage"
+      }
+     ]
+    }
+   ],
+   "components": [
+    {
+     "id": "yyzkbfz2thpt",
+     "name": "Claude Code",
+     "status": "partial_outage",
+     "created_at": "2025-05-22T21:35:29.822Z",
+     "updated_at": "2026-10-06T12:43:02.904Z",
+     "position": 4,
+     "group_id": null,
+     "group": false
+    }
+   ]
+  }
+ ],
+ "scheduled_maintenances": [
+  {
+   "id": "maint0000001",
+   "name": "Planned maintenance",
+   "status": "in_progress",
+   "impact": "maintenance",
+   "created_at": "2026-08-27T09:00:00.000Z",
+   "updated_at": "2026-08-28T13:00:00.000Z",
+   "scheduled_for": "2026-08-28T13:00:00.000Z",
+   "scheduled_until": "2026-08-28T15:00:00.000Z",
+   "started_at": "2026-08-28T13:00:00.000Z",
+   "incident_updates": [
+    {
+     "id": "mupd00000001",
+     "status": "in_progress",
+     "body": "Scheduled maintenance is currently in progress.",
+     "created_at": "2026-08-28T13:00:00.000Z",
+     "affected_components": [
+      {
+       "code": "k8w3r06qmzrp",
+       "name": "Claude API (api.anthropic.com)",
+       "old_status": "operational",
+       "new_status": "under_maintenance"
+      }
+     ]
+    }
+   ],
+   "components": [
+    {
+     "id": "k8w3r06qmzrp",
+     "name": "Claude API (api.anthropic.com)",
+     "status": "under_maintenance",
+     "created_at": "2023-07-11T17:53:10.880Z",
+     "updated_at": "2026-10-06T12:43:02.867Z",
+     "position": 3,
+     "group_id": null,
+     "group": false
+    }
+   ]
+  }
+ ],
+ "status": {
+  "indicator": "major",
+  "description": "Partial System Outage"
+ }
+}
