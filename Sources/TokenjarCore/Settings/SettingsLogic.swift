@@ -20,6 +20,14 @@ public enum SettingsLogic {
         )
     }
 
+    /// The accounts with `id` moved `offset` places, unchanged when that would leave the list or `id` is not in it.
+    public static func moving(_ id: String, by offset: Int, in accounts: [AccountConfig]) -> [AccountConfig] {
+        guard let from = accounts.firstIndex(where: { $0.id == id }), accounts.indices.contains(from + offset) else { return accounts }
+        var out = accounts
+        out.insert(out.remove(at: from), at: from + offset)
+        return out
+    }
+
     /// nil for a blank name, which the name sheet refuses.
     public static func accountLabel(from text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

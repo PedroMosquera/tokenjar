@@ -66,10 +66,14 @@ struct AccountsSettingsPane: View {
             List(selection: Binding(get: { selection }, set: { if let id = $0 { onSelect(id) } })) {
                 // One list in the user's order, so dragging here is the order the popover's cards follow.
                 ForEach(model.config.accounts) { account in
-                    AccountListRow(
-                        content: AccountListRowContent.make(account: account, status: model.statusText(for: account)), provider: account.provider,
-                        isSelected: account.id == selection
-                    )
+                    AccountMenuRow(isSelected: account.id == selection) {
+                        AccountListRow(
+                            content: AccountListRowContent.make(account: account, status: model.statusText(for: account)), provider: account.provider,
+                            isSelected: account.id == selection
+                        )
+                    } menu: {
+                        accountMenu(account)
+                    }
                     .tag(account.id)
                     .listRowSeparator(.hidden)
                 }
@@ -85,6 +89,28 @@ struct AccountsSettingsPane: View {
             .onAppear { reveal(selection, in: scroller) }
             .onChange(of: selection) { _, id in reveal(id, in: scroller) }
         }
+    }
+
+    @ViewBuilder private func accountMenu(_ account: AccountConfig) -> some View {
+        let accounts = model.config.accounts
+        Group {
+            Button("Rename\u{2026}") { naming = .rename(account) }
+            if account.provider.reportsWindows {
+                Toggle("Show in Menu Bar", isOn: model.accountBinding(account.id, \.showInMenuBar, fallback: account.showInMenuBar))
+            }
+            Divider()
+            Button("Move Up") { move(account, by: -1) }
+                .disabled(accounts.first?.id == account.id)
+            Button("Move Down") { move(account, by: 1) }
+                .disabled(accounts.last?.id == account.id)
+            Divider()
+            Button("Remove\u{2026}", role: .destructive) { removing = account }
+        }
+        .disabled(!model.canEditConfig)
+    }
+
+    private func move(_ account: AccountConfig, by offset: Int) {
+        model.updateConfig { $0.accounts = SettingsLogic.moving(account.id, by: offset, in: $0.accounts) }
     }
 
     private func reveal(_ id: String?, in scroller: ScrollViewProxy) {
@@ -287,5 +313,35 @@ private extension AccountNaming {
     var isAdd: Bool {
         if case .add = self { return true }
         return false
+    }
+}
+
+/// A list row with its actions both on right-click and behind a \u{22EF} button, which shows while the row is hovered or
+/// selected so the menu can be found without knowing to right-click.
+private struct AccountMenuRow<Row: View, MenuItems: View>: View {
+    var isSelected: Bool
+    @ViewBuilder var row: Row
+    @ViewBuilder var menu: MenuItems
+
+    @SettingsState private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            row
+            Menu {
+                menu
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .opacity(hovering || isSelected ? 1 : 0)
+            .help("Account Actions")
+            .accessibilityLabel("Account Actions")
+        }
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .contextMenu { menu }
     }
 }

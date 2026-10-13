@@ -30,6 +30,12 @@ struct SettingsLogicTests {
         #expect(account.provider == .claude)
     }
 
+    @Test(arguments: [("b", -1, ["b", "a", "c"]), ("b", 1, ["a", "c", "b"]), ("a", -1, ["a", "b", "c"]), ("c", 1, ["a", "b", "c"]), ("x", 1, ["a", "b", "c"])])
+    func moveUpAndDownStopAtTheEnds(_ id: String, _ offset: Int, _ expected: [String]) {
+        let accounts = ["a", "b", "c"].map { AccountConfig(id: $0, provider: .claude, label: $0) }
+        #expect(SettingsLogic.moving(id, by: offset, in: accounts).map(\.id) == expected)
+    }
+
     @Test(arguments: [("  Personal ", "Personal"), ("Work", "Work"), ("   ", nil), ("", nil)] as [(String, String?)])
     func anAccountNameIsTrimmedAndCannotBeBlank(_ text: String, _ expected: String?) {
         #expect(SettingsLogic.accountLabel(from: text) == expected)
