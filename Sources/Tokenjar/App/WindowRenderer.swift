@@ -112,6 +112,7 @@ private final class RenderSession {
             }
             if let incident = data.incident {
                 renderPopover(incident, screen: "popover-incident", appearance: appearance, suffix: suffix)
+                renderSettings(incident, opening: nil, appearance: appearance, suffix: suffix) { _ in [Step(screen: "settings-general-status") {}] }
             }
             if let allClearOutage = data.allClearOutage {
                 renderPopover(allClearOutage, screen: "popover-all-clear-outage", appearance: appearance, suffix: suffix)

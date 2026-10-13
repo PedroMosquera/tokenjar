@@ -299,7 +299,8 @@ extension AppModel {
 extension AppModel {
     /// Status pages report a problem for each provider with a feed, one kind of row each, under "All clear": a titled
     /// outage with one more item on both Claude cards, an untitled outage of four Codex products answered 40 minutes ago,
-    /// and two Copilot incidents matched by name with a long title, answered over an hour ago.
+    /// and two Copilot incidents matched by name with a long title, answered over an hour ago. The last Codex check could
+    /// not read its answer and the last Copilot check timed out, which only Settings shows.
     static func previewIncident(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
         let model = healthPreview(now: now, accounts: [
             AccountConfig(id: "claude-personal", provider: .claude, label: "Personal"),
@@ -345,10 +346,11 @@ extension AppModel {
         return model
     }
 
-    /// Calm usage on every account, so the header reads "All clear".
+    /// Calm usage on every account, so the header reads "All clear", with provider status on.
     private static func healthPreview(now: Date, accounts: [AccountConfig]) -> AppModel {
         let model = AppModel(paths: .preview)
         model.previewMode = true
+        model.setProviderStatus(true)
         model.now = now
         model.popoverNow = now
         model.lastRefreshAt = now.addingTimeInterval(-60)

@@ -35,7 +35,10 @@ struct AboutSettingsPane: View {
     ]
 
     static let contacts = [
-        Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits. The only network request Tokenjar makes. Usage pages open in your browser."),
+        Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits. The only request that carries a key. Usage and status pages open in your browser."),
+        Item(what: "GET https://status.claude.com/api/v2/summary.json", why: "Claude's public status. Only with provider status on, when you open the popover or refresh."),
+        Item(what: "GET https://status.openai.com/proxy/status.openai.com", why: "Codex's public status. Only with provider status on, when you open the popover or refresh."),
+        Item(what: "GET https://www.githubstatus.com/api/v2/summary.json", why: "GitHub Copilot's public status. Only with provider status on, when you open the popover or refresh."),
     ]
 
     private let writes = [
@@ -43,6 +46,7 @@ struct AboutSettingsPane: View {
         Item(what: "~/Library/Application Support/Tokenjar/", why: "tokenjar.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens or quota, so it is not run again until that CLI (claude or agy) updates or you click Try Once More. probe: an empty folder the CLIs run in."),
         Item(what: "$TMPDIR/tokenjar-sign-in-<account>.command", why: "Only when you click Sign In in Terminal: the login command for Terminal to run. It deletes itself when it runs."),
         Item(what: "Keychain: \(AppPaths.keychainService)", why: "Only API keys you paste here."),
+        Item(what: "Preferences: \(AppPaths.bundleIdentifier)", why: "Window frames, and whether provider status is on for this Mac."),
     ]
 
     var body: some View {

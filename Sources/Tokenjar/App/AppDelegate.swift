@@ -4,7 +4,7 @@ import SwiftUI
 import TokenjarCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, StatusItemMenuTarget {
-    let model = AppModel()
+    let model = AppModel(defaults: UserDefaults.standard)
     private let windows = WindowPresenter()
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()

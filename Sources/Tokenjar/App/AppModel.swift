@@ -85,8 +85,12 @@ final class AppModel {
     var lastRefreshAt: Date?
     /// Settable so previews can show each cause; the app recomputes it after every path report, settle and fetch.
     var connectivity: Connectivity = .online
-    /// What each provider's status page last said, in memory only. Settable so previews can show each row.
+    /// What each provider's status page last said, in memory only until Tokenjar quits or the switch goes off.
+    /// Settable so previews can show each row.
     var providerHealth: [ProviderID: ProviderHealth] = [:]
+    /// Check provider status pages, kept in this Mac's preferences. Change it with `setProviderStatus`.
+    private(set) var providerStatusOn: Bool
+    private(set) var healthInFlight: Set<ProviderID> = []
     /// Ticks every 30 s so countdowns and "updated 2m ago" stay current.
     var now: Date
     /// `now` for the popover's views. It moves only while the popover is shown, so the popover's long-lived content
@@ -112,6 +116,12 @@ final class AppModel {
     @ObservationIgnored private let fetcher: (ProviderID) -> any UsageFetcher
     @ObservationIgnored private let clock: () -> Date
     @ObservationIgnored private let network: any NetworkStatus
+    @ObservationIgnored private let healthFetcher: @Sendable (ProviderID) async throws -> ProviderHealthAnswer
+    @ObservationIgnored private let healthSetting: ProviderHealthSetting
+    /// Bumped when the switch goes off, so an answer still in flight is dropped instead of shown.
+    @ObservationIgnored private var healthGeneration = 0
+    /// The last batch of status checks, for tests to wait on.
+    @ObservationIgnored private(set) var healthCheck: Task<Void, Never>?
     @ObservationIgnored private var networkWatch = NetworkWatch()
     @ObservationIgnored private var settleTask: Task<Void, Never>?
     @ObservationIgnored private var lastBackOnlineRefresh: Date?
@@ -158,16 +168,22 @@ final class AppModel {
     /// alert state written under Tokenjar's names would take them, and the move never runs onto a taken name.
     @ObservationIgnored private var waitingForLegacyMove = false
 
-    /// `paths`, `fetcher`, `clock` and `network` are seams for tests; the app uses the defaults. Only `start` starts the
-    /// network monitor, so previews, renders, developer flags and tests never run one.
+    /// `paths`, `fetcher`, `clock`, `network` and `healthFetcher` are seams for tests; the app uses the defaults. Only
+    /// `start` starts the network monitor, so previews, renders, developer flags and tests never run one. Only the app
+    /// passes its own preferences as `defaults`; everything else keeps the provider status switch in memory, off.
     init(
         paths: AppPaths = AppPaths(), fetcher: @escaping (ProviderID) -> any UsageFetcher = FetcherRegistry.fetcher(for:),
-        clock: @escaping () -> Date = { Date() }, network: any NetworkStatus = PathMonitorNetworkStatus()
+        clock: @escaping () -> Date = { Date() }, network: any NetworkStatus = PathMonitorNetworkStatus(),
+        healthFetcher: @escaping @Sendable (ProviderID) async throws -> ProviderHealthAnswer = { try await ProviderHealthFetcher().fetch($0) },
+        defaults: any DefaultsStoring = MemoryDefaults()
     ) {
         self.paths = paths
         self.fetcher = fetcher
         self.clock = clock
         self.network = network
+        self.healthFetcher = healthFetcher
+        healthSetting = ProviderHealthSetting(defaults: defaults)
+        providerStatusOn = healthSetting.isOn
         let start = clock()
         now = start
         popoverNow = start
@@ -372,6 +388,7 @@ final class AppModel {
     func popoverWillOpen() {
         now = clock()
         popoverNow = now
+        checkProviderHealth(userInitiated: false)
         guard RefreshScheduler.shouldRefreshOnPopoverOpen(lastRefreshAt: lastRefreshAt, now: now) else { return }
         refresh(force: true)
     }
@@ -552,6 +569,8 @@ final class AppModel {
     /// `userInitiated` is what the user asked for, which macOS's path status never holds back.
     @discardableResult
     func refresh(force: Bool, userInitiated: Bool = false) -> Task<Void, Never>? {
+        // Launch, wake and a return from offline force a refresh too, and must not ask the status pages.
+        if userInitiated { checkProviderHealth(userInitiated: true) }
         // Read once: a later reading for the start would push every next check back by the time this one took to begin.
         let current = clock()
         // Removed before `due`, so a held account is never begun, keeps its next due time, and stays due.
@@ -692,6 +711,76 @@ final class AppModel {
         CLILocator(home: paths.home, overrides: config.cliPaths)
     }
 
+    // MARK: Provider status
+
+    /// Settings > General's switch. Turning it on sends nothing by itself; the next popover open or refresh asks.
+    /// Turning it off forgets every answer at once and drops those still in flight.
+    func setProviderStatus(_ on: Bool) {
+        healthSetting.isOn = on
+        providerStatusOn = on
+        guard !on else { return }
+        healthGeneration += 1
+        healthInFlight = []
+        providerHealth = [:]
+    }
+
+    /// Asks the status page of each provider with an account here, once per provider. Popover open asks only a provider
+    /// last asked `ProviderHealth.askAgainAfter` ago or more, answered or not, and nothing while checks are held offline;
+    /// a refresh the user starts asks every one. The outcome never reaches connectivity, an account or the menu bar.
+    @discardableResult
+    func checkProviderHealth(userInitiated: Bool) -> Task<Void, Never>? {
+        guard !isInert, providerStatusOn, userInitiated || !networkWatch.holdsChecks else { return nil }
+        let current = clock()
+        var providers: [ProviderID] = []
+        for provider in accounts.map(\.provider) where provider.statusFeedURL != nil && !providers.contains(provider) {
+            guard !healthInFlight.contains(provider) else { continue }
+            if userInitiated || (providerHealth[provider] ?? ProviderHealth()).isDue(now: current) { providers.append(provider) }
+        }
+        guard !providers.isEmpty else { return nil }
+        for provider in providers {
+            providerHealth[provider, default: ProviderHealth()].asked(at: current)
+            healthInFlight.insert(provider)
+        }
+        let generation = healthGeneration, fetch = healthFetcher
+        let task = Task {
+            await withTaskGroup(of: (ProviderID, Result<ProviderHealthAnswer, FetchError>).self) { group in
+                for provider in providers {
+                    group.addTask {
+                        do {
+                            return (provider, .success(try await fetch(provider)))
+                        } catch let error as FetchError {
+                            return (provider, .failure(error))
+                        } catch {
+                            return (provider, .failure(.network(String(describing: type(of: error)))))
+                        }
+                    }
+                }
+                for await (provider, result) in group where generation == healthGeneration {
+                    healthInFlight.remove(provider)
+                    providerHealth[provider, default: ProviderHealth()].record(result)
+                    if case .failure(let error) = result {
+                        let line = Self.healthLogLine(provider, error)
+                        Logger(subsystem: AppPaths.bundleIdentifier, category: "provider-status").log(level: line.level, "\(line.message, privacy: .public)")
+                    }
+                }
+            }
+        }
+        healthCheck = task
+        return task
+    }
+
+    /// One line per failed check: the host and the kind of failure, never the answer. An answer that does not decode
+    /// means the feed changed under Tokenjar, a bug rather than an outage, so it is an error; the rest are notices.
+    static func healthLogLine(_ provider: ProviderID, _ error: FetchError) -> (level: OSLogType, message: String) {
+        let host = provider.statusFeedURL?.host() ?? provider.rawValue
+        switch error {
+        case .parse(let detail): return (.error, "\(host): the answer did not decode (\(detail))")
+        case .timeout: return (.default, "\(host): no answer within \(Int(ProviderHealthFetcher.timeout)) s")
+        case .network(let detail): return (.default, "\(host): \(detail)")
+        default: return (.default, "\(host): \(error)")
+        }
+    }
+
     // MARK: History
 
     /// Reads local harness logs incrementally off the main thread and stores per-response token counts.
@@ -814,4 +903,13 @@ final class AppModel {
 
     /// The popover's Quit button and its Command-Q. The app asks first; see `QuitConfirmation`.
     func quit() { presenter.requestQuit() }
+}
+
+/// Preferences held in memory: the default for every model but the app's, so tests and renders never read or write
+/// this Mac's.
+final class MemoryDefaults: DefaultsStoring {
+    private var values: [String: Any] = [:]
+
+    func object(forKey defaultName: String) -> Any? { values[defaultName] }
+    func set(_ value: Any?, forKey defaultName: String) { values[defaultName] = value }
 }

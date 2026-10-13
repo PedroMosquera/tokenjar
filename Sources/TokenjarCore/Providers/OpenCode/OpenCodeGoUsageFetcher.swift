@@ -1,6 +1,6 @@
 import Foundation
 
-/// OpenCode Go limits from `GET https://opencode.ai/zen/go/v1/usage`, the app's only own network request.
+/// OpenCode Go limits from `GET https://opencode.ai/zen/go/v1/usage`, the only request the app sends with a key.
 /// The API key comes from the account's credential, else from opencode's auth.json; it is sent only in the
 /// Authorization header and never logged or returned.
 public struct OpenCodeGoUsageFetcher: UsageFetcher {
