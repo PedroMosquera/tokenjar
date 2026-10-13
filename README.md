@@ -39,7 +39,7 @@ The menu bar item shows the used percent of the account with the least room left
   </picture>
 </p>
 
-Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. When the Mac is offline or no provider answers, the header says so once and the cards keep their last numbers with their age. Command-R refreshes.
+Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. When a limit is full, the header also names the account with the most room left, such as "Codex has room: 5-hour 2% used". When the Mac is offline or no provider answers, the header says so once and the cards keep their last numbers with their age. Command-R refreshes.
 
 Right-click the menu bar item, or Control-click it, for Refresh Now, Open Dashboard, Settings and Quit Tokenjar. Quitting from that menu, the popover or Command-Q asks first. Hold Option in the menu to quit without being asked.
 

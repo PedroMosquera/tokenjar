@@ -20,6 +20,14 @@ struct PopoverHeader: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(Self.help(for: summary))
+                if let room = summary.room {
+                    Text(room)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .fixedSize(horizontal: false, vertical: true)
+                        .help("The account with the most room left among those with fresh data and nothing amber or red.")
+                }
                 if let updated = Self.updateLine(
                     hasAccounts: !model.accounts.isEmpty, isRefreshing: model.isRefreshing, lastUpdated: model.lastUpdated,
                     connectivity: model.connectivity, nextCheck: model.nextNetworkCheck, now: model.popoverNow

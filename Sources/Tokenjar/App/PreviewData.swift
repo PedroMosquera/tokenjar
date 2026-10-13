@@ -240,6 +240,63 @@ extension AppModel {
 }
 
 extension AppModel {
+    /// Claude's 5-hour window is full while Codex has barely started, so the header names Codex under the red title.
+    static func previewLimitHit(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = AppModel(paths: .preview)
+        model.previewMode = true
+        model.now = now
+        model.popoverNow = now
+        model.lastRefreshAt = now.addingTimeInterval(-60)
+        model.config = AppConfig(refreshMinutes: 10, accounts: [
+            AccountConfig(id: "claude-personal", provider: .claude, label: "Personal"),
+            AccountConfig(id: "codex", provider: .codex, label: "Plus"),
+            AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go", credential: .file(path: "~/.local/share/opencode/auth.json", key: "opencode-go")),
+            AccountConfig(id: "opencode-zen", provider: .opencodeZen, label: "Zen", showInMenuBar: false),
+            AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"),
+        ])
+        func window(_ id: String, _ label: String, _ used: Double, _ minutes: Int, resetIn: TimeInterval, notStarted: Bool = false) -> UsageWindow {
+            UsageWindow(id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: now.addingTimeInterval(resetIn), notStarted: notStarted)
+        }
+        let checked = now.addingTimeInterval(-60)
+        let snapshots = [
+            UsageSnapshot(
+                accountID: "claude-personal", provider: .claude, plan: "Max 5x",
+                windows: [
+                    window("session", "5-hour", 100, 300, resetIn: 87 * 60),
+                    window("weekly", "Week", 40, 10_080, resetIn: 3 * 86_400 + 5 * 3_600),
+                    window("weekly:Fable", "Week · Fable", 56, 10_080, resetIn: 3 * 86_400 + 5 * 3_600),
+                ],
+                fetchedAt: checked, source: ClaudeUsageFetcher.source
+            ),
+            UsageSnapshot(
+                accountID: "codex", provider: .codex, plan: "Plus",
+                windows: [
+                    window("session", "5-hour", 2, 300, resetIn: 4 * 3_600 + 40 * 60),
+                    window("weekly", "Week", 0, 10_080, resetIn: 7 * 86_400, notStarted: true),
+                ],
+                fetchedAt: checked, source: "codex app-server"
+            ),
+            UsageSnapshot(
+                accountID: "opencode-zen", provider: .opencodeZen, plan: "Pay as you go",
+                money: [MoneyLine(label: "Spent this month (this Mac)", amount: 8.17)],
+                fetchedAt: checked, source: "opencode.db", notes: ["Balance needs a console sign-in; showing local spend only."]
+            ),
+            UsageSnapshot(
+                accountID: "copilot", provider: .copilot, plan: "Enterprise",
+                windows: [window("monthly", "Premium requests", 15, 44_640, resetIn: 19 * 86_400 + 14 * 3_600)],
+                fetchedAt: checked, source: "gh CLI"
+            ),
+        ]
+        for snapshot in snapshots {
+            model.statuses[snapshot.accountID] = AccountStatus(snapshot: snapshot, lastAttempt: checked)
+        }
+        model.statuses["opencode-go"] = AccountStatus(error: .noSubscription("No active OpenCode Go subscription for this key"), lastAttempt: checked)
+        model.store = InMemoryUsageStore()
+        return model
+    }
+}
+
+extension AppModel {
     /// A Mac offline for 25 minutes. Every network check is held, so the cards keep their last numbers; the last batch
     /// of checks ended a minute ago, which the header must not call "Updated".
     static func previewOffline(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {

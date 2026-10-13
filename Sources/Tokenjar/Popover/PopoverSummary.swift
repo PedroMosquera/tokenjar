@@ -43,10 +43,14 @@ struct PopoverSummary: Equatable {
     /// config order.
     /// Cards keep config order, so this is how an at-risk account below the fold still reaches the header.
     var others: [String] = []
+    /// Under a red or full title only: the other account whose fullest live window is least used, among those with fresh
+    /// data and nothing amber, red or failed. "Codex has room: 5-hour 2% used".
+    var room: String?
 
+    /// `majorOutages` are providers whose status page reports a major outage; the room hint never points at one.
     static func make(
         accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date,
-        connectivity: Connectivity = .online, settings: SettingsProblem? = nil
+        connectivity: Connectivity = .online, settings: SettingsProblem? = nil, majorOutages: Set<ProviderID> = []
     ) -> PopoverSummary {
         // In priority order: what stops every check, then what makes every number old, then one account at a time.
         guard !accounts.isEmpty else {
@@ -61,6 +65,7 @@ struct PopoverSummary: Equatable {
         /// `needsALook` without the accounts a Mac-wide cause already explains.
         var needsYou: [AccountConfig] = []
         var unreachable: [(account: AccountConfig, failure: FetchError)] = []
+        var roomiest: (account: AccountConfig, window: UsageWindow)?
         for account in accounts {
             let status = statuses[account.id] ?? AccountStatus()
             let refreshMinutes = account.refreshMinutes ?? config.refreshMinutes
@@ -75,6 +80,12 @@ struct PopoverSummary: Equatable {
             // accounts still being checked.
             guard let snapshot = status.snapshot, account.provider.reportsWindows else { continue }
             withData += 1
+            // Strictly fewer, so a tie keeps the account first in config order.
+            if !(failed || stuck || pressed), status.error?.attention != .calm, !majorOutages.contains(account.provider),
+               !status.isStale(now: now, refreshMinutes: refreshMinutes), let fullest = snapshot.tightestWindow(now: now),
+               roomiest.map({ fullest.usedPercent < $0.window.usedPercent }) ?? true {
+                roomiest = (account, fullest)
+            }
             for window in snapshot.windows where !window.hasReset(now: now) {
                 let severity = Severity.of(window, config: config.menuBar, now: now)
                 if worst.map({ (severity, window.usedPercent) > ($0.severity, $0.window.usedPercent) }) ?? true {
@@ -104,7 +115,13 @@ struct PopoverSummary: Equatable {
                 detail = "\(window.label) at \(Format.percent(window.usedPercent))"
             }
             let others = needsALook.filter { $0.id != worst.account.id }.map { shortName($0, among: accounts) } + settingsName
-            return PopoverSummary(tone: worst.severity == .critical ? .critical : .warning, text: "\(name): \(detail)", others: others)
+            // Only once the named window stops the work: under amber there is still room on that account. Full also
+            // counts below Red at, which a hand-edited config can set above 100.
+            let blocked = worst.severity == .critical || window.usedPercent >= 100
+            let room = blocked ? roomiest.map {
+                "\(shortName($0.account, among: accounts)) has room: \($0.window.label) \(Format.percent($0.window.usedPercent)) used"
+            } : nil
+            return PopoverSummary(tone: worst.severity == .critical ? .critical : .warning, text: "\(name): \(detail)", others: others, room: room)
         }
         if settings != nil { return PopoverSummary(tone: .problem, text: "Settings need attention") }
         if failing > 0 {

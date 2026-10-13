@@ -46,6 +46,8 @@ private final class RenderSession {
         var noAnswer: AppModel?
         var partialOutage: AppModel?
         var settingsUnloaded: AppModel?
+        /// A full window with room left on another account.
+        var limitHit: AppModel?
         var menuBar: [(name: String, state: MenuBarState)]
         var plans: [(name: String, model: AppModel)] = []
         /// Plan rows with usage history, the only ones whose dashboard page has more than All to show.
@@ -102,6 +104,9 @@ private final class RenderSession {
             if let settingsUnloaded = data.settingsUnloaded {
                 renderPopover(settingsUnloaded, screen: "popover-settings-unloaded", appearance: appearance, suffix: suffix)
             }
+            if let limitHit = data.limitHit {
+                renderPopover(limitHit, screen: "popover-limit-hit", appearance: appearance, suffix: suffix)
+            }
             for page in data.plans {
                 renderPopover(page.model, screen: "popover-\(page.name)", appearance: appearance, suffix: suffix)
                 renderSettingsAccounts(page.model, prefix: "settings-\(page.name)", appearance: appearance, suffix: suffix)
@@ -130,8 +135,9 @@ private final class RenderSession {
         let offline = AppModel.previewOffline(), noAnswer = AppModel.previewNoAnswer()
         let partialOutage = AppModel.previewPartialOutage(), settingsUnloaded = AppModel.previewSettingsUnloaded()
         let outages = [offline, noAnswer, partialOutage, settingsUnloaded]
+        let limitHit = AppModel.previewLimitHit()
         let plans = PreviewPlans.pages(now: model.now)
-        for preview in [model, states, empty, configError, short] + outages + plans.map(\.model) { preview.secrets = SessionSecretStore(InMemorySecretStore()) }
+        for preview in [model, states, empty, configError, short, limitHit] + outages + plans.map(\.model) { preview.secrets = SessionSecretStore(InMemorySecretStore()) }
         let slots = SnapshotRenderer.slotStates(now: model.now).map { (name: "slot-\($0.name)", state: $0.state) }
         let outageStrips: [(name: String, state: MenuBarState)] = [
             ("offline", offline.menuBarState), ("no-answer", noAnswer.menuBarState), ("partial-outage", partialOutage.menuBarState),
@@ -139,7 +145,7 @@ private final class RenderSession {
         ]
         return RenderData(
             model: model, states: states, empty: empty, configError: configError, short: short,
-            offline: offline, noAnswer: noAnswer, partialOutage: partialOutage, settingsUnloaded: settingsUnloaded,
+            offline: offline, noAnswer: noAnswer, partialOutage: partialOutage, settingsUnloaded: settingsUnloaded, limitHit: limitHit,
             menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + outageStrips + slots + plans.map { ($0.name, $0.model.menuBarState) },
             plans: plans, planHistory: Set(PreviewPlans.rows.filter(\.history).map(\.id))
         )
