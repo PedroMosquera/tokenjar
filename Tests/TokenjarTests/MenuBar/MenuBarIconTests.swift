@@ -64,7 +64,8 @@ struct MenuBarIconTests {
     @Test func symbolStrokesAreAsHeavyAsTheSlotFrame() {
         let slot = firstInkRun(StatusGlyph.image(.app, fraction: 0, tint: nil, alpha: 1, dot: false))
         let gauge = firstInkRun(StatusGlyph.image(.symbolGauge, fraction: 0, tint: nil, alpha: 1, dot: false))
-        #expect(abs(gauge - slot) < 0.15, "gauge \(gauge) pt, slot \(slot) pt")
+        // Semibold measures 1.62 pt on macOS 26.7 and 1.68 pt on 26.6; regular is 1.25 and bold 1.86.
+        #expect(gauge > slot - 0.15 && gauge < slot + 0.3, "gauge \(gauge) pt, slot \(slot) pt")
     }
 
     @Test func onlyModesThatShowTheIconUseTheIconSetting() {

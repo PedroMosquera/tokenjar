@@ -270,7 +270,8 @@ struct SQLiteUsageStoreTests {
         let other = try OtherConnection(url)
         try other.exec("BEGIN IMMEDIATE")
         let opening = Task.detached { try SQLiteUsageStore(url: url) }
-        try await Task.sleep(for: .milliseconds(200))
+        // Not Task.sleep: on a runner with few cores, blocked test threads can delay its wake-up past the store's 5 s wait.
+        usleep(200_000)
         try other.exec("COMMIT")
 
         _ = try await opening.value
@@ -282,7 +283,7 @@ struct SQLiteUsageStoreTests {
         let other = try OtherConnection(url)
         try other.exec("PRAGMA journal_mode = WAL; CREATE TABLE schema_version (version INTEGER NOT NULL); BEGIN IMMEDIATE")
         let opening = Task.detached { try SQLiteUsageStore(url: url) }
-        try await Task.sleep(for: .milliseconds(200))
+        usleep(200_000)
         try other.exec(SQLiteUsageStore.migrations[0] + "; INSERT INTO schema_version (version) VALUES (1); COMMIT")
 
         _ = try await opening.value
