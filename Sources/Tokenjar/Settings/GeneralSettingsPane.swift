@@ -166,7 +166,7 @@ struct GeneralSettingsPane: View {
     }
 
     @ViewBuilder private var launchAtLoginRow: some View {
-        let isOn = Binding(get: { launchesAtLogin }, set: setLaunchAtLogin)
+        let isOn = Binding(get: { launchesAtLogin }, set: { setLaunchAtLogin($0) })
         if loginState == .requiresApproval {
             LabeledContent {
                 HStack(spacing: 10) {

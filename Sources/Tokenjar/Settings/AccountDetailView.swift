@@ -435,7 +435,7 @@ struct AccountStatusText: Equatable {
                 offersCheck: false
             )
         }
-        let caption = status.error.flatMap { caption(for: $0, account: account) }
+        let caption = status.error.flatMap { Self.caption(for: $0, account: account) }
         let zenNote = provider.reportsWindows ? nil : "Reads this Mac's spend from opencode's local database. No key needed."
         if status.isRefreshing {
             return AccountStatusText(symbol: "arrow.triangle.2.circlepath", tone: .neutral, text: "Checking\u{2026}", detail: zenNote, caption: caption)
