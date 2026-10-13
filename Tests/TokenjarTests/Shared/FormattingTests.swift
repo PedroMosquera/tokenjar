@@ -51,6 +51,9 @@ struct FormattingTests {
         #expect(line(79, 100) == "$79 of $100 daily budget")
         #expect(line(79.4, 133.2, recommended: true) == "$79 of $133 recommended for today")
         #expect(line(175, 133) == "$175 of $133 daily budget · $42 over")
+        // Under $100 a day the cents carry the information, as with a $200 monthly limit.
+        #expect(line(4.27, 6.14, recommended: true) == "$4.27 of $6.14 recommended for today")
+        #expect(line(7.5, 6.14) == "$7.50 of $6.14 daily budget · $1.36 over")
         #expect(line(12, 100, from: DateParsing.iso8601("2026-10-13T09:14:00Z")) == "$12 of $100 daily budget · since 9:14\u{202F}AM")
     }
 

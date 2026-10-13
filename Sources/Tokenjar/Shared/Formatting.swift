@@ -67,9 +67,11 @@ enum Format {
     }
 
     /// "$79 of $133 recommended for today", "$175 of $133 daily budget · $42 over", with "· since 9:14 AM" when today
-    /// counts only from its first check. Whole units: a daily figure in cents is noise.
+    /// counts only from its first check. Whole units from a $100 budget up, where cents are noise; below it, as with a
+    /// $200 monthly limit, the cents carry the information.
     static func dailySpend(_ day: DailySpend, locale: Locale = .autoupdatingCurrent, timeZone: TimeZone = .autoupdatingCurrent) -> String {
-        let whole = { (amount: Double) in money(amount, currency: day.currency, fractionDigits: 0, locale: locale) }
+        let digits = day.budget >= 100 ? 0 : 2
+        let whole = { (amount: Double) in money(amount, currency: day.currency, fractionDigits: digits, locale: locale) }
         var text = "\(whole(day.spent)) of \(whole(day.budget)) " + (day.isRecommended ? "recommended for today" : "daily budget")
         if day.isOver { text += " · \(whole(day.spent - day.budget)) over" }
         if let from = day.countedFrom {

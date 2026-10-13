@@ -46,7 +46,7 @@ An Enterprise seat billed per use has one limit, the money it may spend this mon
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/popover-spend-limit-dark.png">
-    <img src="docs/images/popover-spend-limit-light.png" width="360" alt="A card for a Claude seat billed per use: a spend limit bar at 35% with $520 of $1,500 spent and 21 days to its reset, and a Today bar at 70% with $32 of a recommended $46 for today">
+    <img src="docs/images/popover-spend-limit-light.png" width="360" alt="A card for a Claude seat billed per use: a spend limit bar at 35% with $70 of $200 spent and 21 days to its reset, and a Today bar at 71% with $4.31 of a recommended $6.10 for today">
   </picture>
 </p>
 

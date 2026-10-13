@@ -24,7 +24,7 @@ struct PreviewDataTests {
         let account = try #require(model.config.accounts.first)
         let snapshot = try #require(model.status(for: account).snapshot)
         #expect(snapshot.windows.map(\.id) == [UsageWindow.spendCapID])
-        #expect(snapshot.spendLimitMoney?.limit == 1_500)
+        #expect(snapshot.spendLimitMoney?.limit == 200)
         let today = try #require(model.dailySpend(for: account, snapshot: snapshot, now: model.popoverNow))
         #expect(today.isRecommended)
         #expect(today.spent > 0)

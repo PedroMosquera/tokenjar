@@ -547,7 +547,7 @@ struct PreviewRandom {
 
 extension AppModel {
     /// A seat billed per use, with a spend limit and the recommended daily budget on, for the README's spend-limit image.
-    /// $520 of $1,500 spent, $490 of it before today.
+    /// $70 of $200 spent, $66 of it before today.
     static func previewSpendLimit(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
         let model = AppModel(paths: .preview)
         model.now = now
@@ -560,7 +560,7 @@ extension AppModel {
         let resetsAt = Date(timeIntervalSince1970: 1_793_491_200)
         let minutes = UsageWindow.monthMinutes(endingAt: resetsAt) ?? 44_640
         let cycleStart = resetsAt.addingTimeInterval(-Double(minutes) * 60)
-        let limit = 1_500.0, spent = 520.0, spentBeforeToday = 490.0
+        let limit = 200.0, spent = 70.0, spentBeforeToday = 66.0
         let window = UsageWindow(
             id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: spent / limit * 100, windowMinutes: minutes, resetsAt: resetsAt
         )
