@@ -18,7 +18,7 @@ I built it because I did not want a third-party app handling my AI logins. Token
 
 | Provider | Where the numbers come from | Plans it recognizes |
 |---|---|---|
-| Claude | `claude -p /usage`, with hooks and MCP servers off | Pro, Max, Max 5x, Max 20x, Team, Team Premium, Enterprise. API key, Bedrock, Vertex and Foundry logins have no plan limits, so they get cost history only. |
+| Claude | `claude -p /usage`, with hooks and MCP servers off | Pro, Max, Max 5x, Max 20x, Team, Team Premium, Enterprise. An Enterprise seat billed per use has no plan limits, so it shows its monthly spend limit instead. API key, Bedrock, Vertex and Foundry logins have no plan limits, so they get cost history only. |
 | Codex | `codex app-server`, read-only | Free, Go, Plus, Pro, Business, Edu, Enterprise |
 | OpenCode Go | One HTTPS GET to opencode.ai with your opencode key | Go |
 | OpenCode Zen | This month's spend, added up from the local `opencode.db` | Pay as you go |
@@ -30,7 +30,7 @@ The Antigravity reader has never run against a live install. Copilot's endpoint 
 
 ## Using it
 
-The menu bar item shows the used percent of the account with the least room left. By default it turns red at 95% and amber at 80%, or sooner when a window that is at least half used is on pace to run out before it resets. When a window is full it counts down to the reset instead. A slash across the icon means Tokenjar can't refresh right now, because the Mac is offline or no provider answered. Faded numbers are out of date, and a dot means something needs you: a failed check you can fix, or settings that can't be read. Devin and OpenCode Zen never show up there. Settings > General changes both levels and can switch the item to one thin bar per account, or to the icon alone.
+The menu bar item shows the used percent of the account with the least room left. By default it turns red at 95% and amber at 80%, or sooner when a window that is at least half used is on pace to run out before it resets. When a window is full it counts down to the reset instead. A slash across the icon means Tokenjar can't refresh right now, because the Mac is offline or no provider answered. Faded numbers are out of date, and a dot means something needs you: a failed check you can fix, or settings that can't be read. Devin and OpenCode Zen never show up there. An account billed per use counts by its spend limit, like any other limit. Settings > General changes both levels, can switch the item to one thin bar per account or to the icon alone, and can show the amount spent instead of the percent for an account billed per use. That amount is off by default, since anyone near your screen can read it.
 
 <p align="center">
   <picture>
@@ -39,7 +39,16 @@ The menu bar item shows the used percent of the account with the least room left
   </picture>
 </p>
 
-Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. When a limit is full, the header also names the account with the most room left, such as "Codex has room: 5-hour 2% used". When the Mac is offline or no provider answers, the header says so once and the cards keep their last numbers with their age. Command-R refreshes.
+Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. When a limit is full, the header also names the account with the most room left, such as "Codex has room: 5-hour 2% used". When the Mac is offline or no provider answers, the header says so once and the cards keep their last numbers with their age. Command-R refreshes, and a click outside the popover or Escape closes it. The cards follow the order of the accounts in Settings; Settings > General can group them by provider or put the account with the least room left on top.
+
+An Enterprise seat billed per use has one limit, the money it may spend this month. Its card shows that spend limit as a bar with the amount under it and the time until it resets on the 1st, at midnight UTC. Claude's `/usage` does not report that date, so it comes from the calendar month. Turn on Daily budget on the account's page in Settings to add a Today bar: today's spend against what you can spend per day and still end the month under the limit. Type an amount to use a fixed budget instead. The bar keeps counting past 100% to show how far over today is, and you get one notification a day when it goes over. Claude reports only the month's total, so Tokenjar works out today from its own checks: the total now minus the total at its last check before midnight.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/popover-spend-limit-dark.png">
+    <img src="docs/images/popover-spend-limit-light.png" width="360" alt="A card for a Claude seat billed per use: a spend limit bar at 35% with $520 of $1,500 spent and 21 days to its reset, and a Today bar at 70% with $32 of a recommended $46 for today">
+  </picture>
+</p>
 
 Right-click the menu bar item, or Control-click it, for Refresh Now, Open Dashboard, Settings and Quit Tokenjar. Quitting from that menu, the popover or Command-Q asks first. Hold Option in the menu to quit without being asked.
 
@@ -52,16 +61,16 @@ The dashboard (Command-D) charts each limit over time with its resets and estima
   </picture>
 </p>
 
-Each account gets its own page in Settings with its status, the fix when a check fails, and buttons to check it now or sign in from Terminal.
+Each account gets its own page in Settings with its status, the fix when a check fails, and buttons to check it now or sign in from Terminal. Adding an account asks for its name first. Drag accounts in the list to reorder them, or use the ⋯ button on a row, also on right-click, to rename, hide from the menu bar, move or remove one.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-account-dark.png">
-    <img src="docs/images/settings-account-light.png" width="680" alt="An account page in Settings: status, enabled and menu bar switches, the profile folder for a second Claude login, and the command Sign In in Terminal runs">
+    <img src="docs/images/settings-account-light.png" width="680" alt="An account page in Settings: the account list with each provider's logo and a ⋯ button on the selected row, then status, enabled and menu bar switches, the profile folder for a second Claude login, and the command Sign In in Terminal runs">
   </picture>
 </p>
 
-Alerts are local notifications. By default you get one when a window crosses 80% or 95%, when the pace says you will run out before the reset, and when a source stops working. Settings > Alerts changes the levels and has a reset alert, which is off by default. Until you click Allow Banners there, alerts go to Notification Center without a banner.
+Alerts are local notifications. By default you get one when a window crosses 80% or 95%, when the pace says you will run out before the reset, when a source stops working, and, with a daily budget on, the first time a day goes over it. Settings > Alerts changes the levels and has a reset alert, which is off by default. Until you click Allow Banners there, alerts go to Notification Center without a banner.
 
 ## Privacy
 
@@ -136,7 +145,7 @@ The file holds no secrets, only where keys live, so it can sit in a dotfiles rep
 
 ## Troubleshooting
 
-"Can't find the claude command on this Mac" (or codex, agy, gh): Tokenjar does not read your shell's `PATH`. It searches a fixed list of folders, and the account's page in Settings shows which ones. If the CLI lives somewhere else, put its full path under `cliPaths` in the config.
+"Can't find the claude command on this Mac" (or codex, agy, gh): Tokenjar does not read your shell's `PATH`. It searches a fixed list of folders, and the account's page in Settings shows which ones. If the CLI lives somewhere else, put its full path under `cliPaths` in the config. A Claude Code installed with npm under a Node version manager such as fnm or nvm is in none of those folders; `claude install` switches it to Anthropic's native build in `~/.local/bin`, which Tokenjar finds.
 
 No notifications: alerts only come from the installed app, not from `swift run` or a `.build` binary.
 

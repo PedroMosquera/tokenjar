@@ -51,6 +51,8 @@ private final class RenderSession {
         /// Status pages reporting a problem: one kind of card row each, and only a Copilot outage under "All clear".
         var incident: AppModel?
         var allClearOutage: AppModel?
+        /// A seat billed per use, with its spend limit and a daily budget.
+        var spendLimit: AppModel?
         var menuBar: [(name: String, state: MenuBarState)]
         var plans: [(name: String, model: AppModel)] = []
         /// Plan rows with usage history, the only ones whose dashboard page has more than All to show.
@@ -110,6 +112,9 @@ private final class RenderSession {
             if let limitHit = data.limitHit {
                 renderPopover(limitHit, screen: "popover-limit-hit", appearance: appearance, suffix: suffix)
             }
+            if let spendLimit = data.spendLimit {
+                renderPopover(spendLimit, screen: "popover-spend-limit", appearance: appearance, suffix: suffix)
+            }
             if let incident = data.incident {
                 renderPopover(incident, screen: "popover-incident", appearance: appearance, suffix: suffix)
                 renderSettings(incident, opening: nil, appearance: appearance, suffix: suffix) { _ in [Step(screen: "settings-general-status") {}] }
@@ -147,8 +152,9 @@ private final class RenderSession {
         let outages = [offline, noAnswer, partialOutage, settingsUnloaded]
         let limitHit = AppModel.previewLimitHit()
         let incident = AppModel.previewIncident(), allClearOutage = AppModel.previewAllClearOutage()
+        let spendLimit = AppModel.previewSpendLimit()
         let plans = PreviewPlans.pages(now: model.now)
-        for preview in [model, states, empty, configError, short, limitHit, incident, allClearOutage] + outages + plans.map(\.model) {
+        for preview in [model, states, empty, configError, short, limitHit, incident, allClearOutage, spendLimit] + outages + plans.map(\.model) {
             preview.secrets = SessionSecretStore(InMemorySecretStore())
         }
         let slots = SnapshotRenderer.slotStates(now: model.now).map { (name: "slot-\($0.name)", state: $0.state) }
@@ -159,7 +165,7 @@ private final class RenderSession {
         return RenderData(
             model: model, states: states, empty: empty, configError: configError, short: short,
             offline: offline, noAnswer: noAnswer, partialOutage: partialOutage, settingsUnloaded: settingsUnloaded, limitHit: limitHit,
-            incident: incident, allClearOutage: allClearOutage,
+            incident: incident, allClearOutage: allClearOutage, spendLimit: spendLimit,
             menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + outageStrips + slots + plans.map { ($0.name, $0.model.menuBarState) },
             plans: plans, planHistory: Set(PreviewPlans.rows.filter(\.history).map(\.id))
         )

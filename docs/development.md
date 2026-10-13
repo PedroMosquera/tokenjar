@@ -51,9 +51,9 @@ mkdir -p captures && .build/debug/Tokenjar --capture codex > captures/codex.json
 
 ## Preview renders and the README images
 
-Preview renders read no path, region or time zone from your Mac. The accounts, numbers and the fixed date in the preview data are made up. The preview models use a stand-in home folder, `/Users/you`, and the process switches to US English and UTC before it draws, so a render looks the same on any Mac. A render with `--real-data` shows your own config and history, so keep those images to yourself.
+Preview renders read no path, region or time zone from your Mac. The accounts, numbers and the fixed date in the preview data are made up. The preview models use a stand-in home folder, `/Users/you`, and the process switches to US English and UTC before it draws, so a render shows the same data on any Mac. The window backgrounds still follow the macOS version that draws them, so re-render the window images together rather than one alone. A render with `--real-data` shows your own config and history, so keep those images to yourself.
 
-The images in `docs/images/` came from these two commands, then a pass through ImageMagick:
+The images in `docs/images/` came from these two commands, then a pass that resizes them and rounds their corners:
 
 ```sh
 make build
@@ -62,11 +62,12 @@ make build
 ```
 
 - `popover-*.png` is `popover-<theme>.png` from `--render-windows`, kept at 720 px wide.
+- `popover-spend-limit-*.png` is `popover-spend-limit-<theme>.png`, also 720 px wide. `--only popover` renders it too.
 - `dashboard-*.png` is `dashboard-all-default-<theme>.png`, resized to 1720 px wide.
 - `settings-account-*.png` is `settings-account-claude-work-<theme>.png`, resized to 1360 px wide.
 - `menubar-*.png` joins six items from `--render-snapshots` into one strip: `menubar-slot-030`, `menubar-worst`, `menubar-slot-critical` and `menubar-slot-100`, then `menubar-bars` and `menubar-icon`. Those files are Display P3, so they are converted to sRGB first.
 
-The window captures get rounded corners and a hairline edge, and the menu bar strip gets rounded corners only. Each image is saved with no metadata, at about twice the width the README shows it at. The banner, `banner-<theme>.svg`, is a plain SVG built from `Resources/AppIcon.svg` and the shape of the menu bar slot. Its numbers are made up, and it has no provider logos.
+The window captures get rounded corners (24 px on the popovers, 22 px on the windows) and a 2 px edge, white at 16% on dark and black at 16% on light; the menu bar strip gets rounded corners only. Each image is saved with no metadata, at about twice the width the README shows it at. The banner, `banner-<theme>.svg`, is a plain SVG built from `Resources/AppIcon.svg` and the shape of the menu bar slot. Its numbers are made up, and it has no provider logos.
 
 ## Releasing
 

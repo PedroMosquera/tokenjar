@@ -544,3 +544,48 @@ struct PreviewRandom {
         return Double(state >> 11) / Double(1 << 53)
     }
 }
+
+extension AppModel {
+    /// A seat billed per use, with a spend limit and the recommended daily budget on, for the README's spend-limit image.
+    /// $520 of $1,500 spent, $490 of it before today.
+    static func previewSpendLimit(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = AppModel(paths: .preview)
+        model.now = now
+        model.popoverNow = now
+        model.lastRefreshAt = now.addingTimeInterval(-60)
+        model.config = AppConfig(accounts: [AccountConfig(id: "claude-company", provider: .claude, label: "Company", dailyBudget: DailyBudget())])
+        model.previewMode = true
+
+        // This cycle ends 2026-11-01 00:00 UTC.
+        let resetsAt = Date(timeIntervalSince1970: 1_793_491_200)
+        let minutes = UsageWindow.monthMinutes(endingAt: resetsAt) ?? 44_640
+        let cycleStart = resetsAt.addingTimeInterval(-Double(minutes) * 60)
+        let limit = 1_500.0, spent = 520.0, spentBeforeToday = 490.0
+        let window = UsageWindow(
+            id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: spent / limit * 100, windowMinutes: minutes, resetsAt: resetsAt
+        )
+        let snapshot = UsageSnapshot(
+            accountID: "claude-company", provider: .claude, plan: "Enterprise (usage-based)", windows: [window],
+            money: [MoneyLine(label: "Extra usage", amount: spent, limit: limit)], fetchedAt: now.addingTimeInterval(-60), source: "claude CLI"
+        )
+        model.statuses[snapshot.accountID] = AccountStatus(snapshot: snapshot, error: nil, lastAttempt: snapshot.fetchedAt)
+
+        // Hourly samples that climb to $490 by the end of yesterday and to $520 now.
+        let todayStart = Calendar.current.startOfDay(for: now)
+        var samples: [WindowSample] = []
+        var time = cycleStart
+        while time <= now {
+            let amount = time < todayStart
+                ? spentBeforeToday * time.timeIntervalSince(cycleStart) / todayStart.timeIntervalSince(cycleStart)
+                : spentBeforeToday + (spent - spentBeforeToday) * time.timeIntervalSince(todayStart) / now.timeIntervalSince(todayStart)
+            samples.append(WindowSample(
+                accountID: snapshot.accountID, windowID: window.id, timestamp: time, usedPercent: amount / limit * 100, resetsAt: resetsAt
+            ))
+            time = time.addingTimeInterval(3_600)
+        }
+        let store = InMemoryUsageStore()
+        store.addSamples(samples)
+        model.store = store
+        return model
+    }
+}

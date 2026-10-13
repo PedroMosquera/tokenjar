@@ -6,7 +6,7 @@ import TokenjarCore
 @MainActor
 struct PreviewDataTests {
     private static var previewModels: [AppModel] {
-        [AppModel.preview(), .previewStates(), .previewEmpty(), .previewLimitHit(), .previewIncident(), .previewAllClearOutage()]
+        [AppModel.preview(), .previewStates(), .previewEmpty(), .previewLimitHit(), .previewIncident(), .previewAllClearOutage(), .previewSpendLimit()]
             + PreviewPlans.pages().map(\.model)
     }
 
@@ -16,6 +16,19 @@ struct PreviewDataTests {
             #expect(model.paths.home.path == "/Users/you")
             #expect(model.paths.configFile.path == "/Users/you/.config/tokenjar/config.json")
         }
+    }
+
+    /// The README's spend-limit image shows both bars, with today under its budget.
+    @Test func theSpendLimitPreviewShowsASpendLimitAndAToday() throws {
+        let model = AppModel.previewSpendLimit()
+        let account = try #require(model.config.accounts.first)
+        let snapshot = try #require(model.status(for: account).snapshot)
+        #expect(snapshot.windows.map(\.id) == [UsageWindow.spendCapID])
+        #expect(snapshot.spendLimitMoney?.limit == 1_500)
+        let today = try #require(model.dailySpend(for: account, snapshot: snapshot, now: model.popoverNow))
+        #expect(today.isRecommended)
+        #expect(today.spent > 0)
+        #expect(!today.isOver)
     }
 
     @Test func theConfigFileRowShowsThePlaceholderPath() {
