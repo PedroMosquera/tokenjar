@@ -173,6 +173,12 @@ struct LimitsTimeAxisTests {
         #expect(axis(hours: 24).spansHours)
     }
 
+    /// Hours of new history get a label every hour or two, not a single one in the middle.
+    @Test func aShortSpanLabelsEveryHourOrTwo() {
+        #expect(axis(hours: 5).labels.map(\.text) == ["11:00", "12:00", "13:00", "14:00", "15:00"])
+        #expect(axis(hours: 12).labels.map(\.text) == ["06:00", "08:00", "10:00", "12:00", "14:00"])
+    }
+
     /// Centred on its tick, a label this close to either end would run past the plot.
     @Test func ticksNearEitherEndKeepTheirGridLineButNoLabel() {
         let start = calendar.date(from: DateComponents(year: 2026, month: 10, day: 9, hour: 11, minute: 30))!

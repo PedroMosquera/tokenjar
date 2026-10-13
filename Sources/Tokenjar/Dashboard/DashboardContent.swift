@@ -54,6 +54,8 @@ nonisolated struct DashboardContent: Sendable {
     var limitsDomain = Date()...Date()
     /// When the limits history begins, if that is after the range starts.
     var limitsSince: Date?
+    /// The selected account's spend-limit samples, for its spend chart; nil for All and for an account without one.
+    var spendLimit: SpendLimitHistory?
     var spend: [UsageGrouping: SpendBreakdown] = [:]
     var projects: [ProjectSummary] = []
     /// Keyed by the name the spend chart groups accounts by, so an account's bars match its limits line.
@@ -62,6 +64,12 @@ nonisolated struct DashboardContent: Sendable {
     var hasUsage = false
 
     /// Every account in scope has a color slot, so these are all the names the account grouping can give.
+    struct SpendLimitHistory: Equatable, Sendable {
+        var samples: [WindowSample]
+        var limit: Double
+        var currency: String
+    }
+
     var accountNames: Set<String> { Set(accountSlotByName.keys) }
     var points: [LimitPoint] { series.flatMap { pointsBySeries[$0.id] ?? [] } }
     var linePoints: [LimitPoint] { series.filter { !$0.peaksOnly }.flatMap { pointsBySeries[$0.id] ?? [] } }
@@ -117,6 +125,12 @@ nonisolated struct DashboardContent: Sendable {
                       let slot = slots[account.id] else { continue }
                 wanted.append((account.id, names[account.id] ?? account.id, slot, account.id, window))
             }
+        }
+        if let account = input.account, let money = snapshots[account.id]?.spendLimitMoney, let limit = money.limit {
+            // Weekly bars can start up to six days before the range, and each bar needs the check before its start.
+            let since = rangeStart.addingTimeInterval(-8 * 86_400)
+            let samples = (try? input.store?.samples(accountID: account.id, windowID: UsageWindow.spendCapID, since: since)) ?? []
+            content.spendLimit = SpendLimitHistory(samples: samples, limit: limit, currency: money.currency)
         }
         var earliest: Date?
         var reachesBack = false

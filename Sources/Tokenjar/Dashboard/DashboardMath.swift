@@ -60,7 +60,7 @@ nonisolated struct DashboardPeriods: Equatable, Sendable {
     var thisMonth: Date
     /// Earliest day any section needs, so one query serves every tile and range.
     var loadStart: Date
-    private var calendar: Calendar
+    private(set) var calendar: Calendar
 
     init(now: Date, calendar: Calendar = .current) {
         self.now = now
@@ -361,21 +361,74 @@ nonisolated enum DashboardMath {
     }
 
     /// The limits chart's x range. At 24h it is the last 24 hours. Otherwise it is the domain it shares with the
-    /// spend chart, unless the samples begin inside it (`earliest`, with nothing before the range: `reachesBack`
-    /// false); then it starts just before the first sample, spans at least a day and ends now, and `since` is set
-    /// so the card can say where the history begins.
+    /// spend chart. When the samples begin inside it (`earliest`, with nothing before the range: `reachesBack`
+    /// false), it starts just before the first sample and ends now, spanning at least `minimumSpan` so minutes of
+    /// history still get a readable axis, and `since` is set so the card can say where the history begins.
     static func limitsDomain(
-        range: DashboardRange, periods: DashboardPeriods, earliest: Date?, reachesBack: Bool
+        range: DashboardRange, periods: DashboardPeriods, earliest: Date?, reachesBack: Bool, minimumSpan: TimeInterval = 3 * 3600
     ) -> (domain: ClosedRange<Date>, since: Date?) {
         let now = periods.now
-        let lastDay = now.addingTimeInterval(-86_400)
-        guard range != .day else { return (lastDay...now, nil) }
-        let shared = periods.chartDomain(of: range)
-        guard let earliest, !reachesBack else { return (shared, nil) }
+        let full = range == .day ? now.addingTimeInterval(-86_400)...now : periods.chartDomain(of: range)
+        guard let earliest, !reachesBack else { return (full, nil) }
         let padded = earliest.addingTimeInterval(-max(range.sampleBucket, 15 * 60))
-        let start = max(shared.lowerBound, min(padded, lastDay))
-        guard start > shared.lowerBound else { return (shared, nil) }
+        let start = max(full.lowerBound, min(padded, now.addingTimeInterval(-minimumSpan)))
+        guard start > full.lowerBound else { return (full, nil) }
         return (start...now, earliest)
+    }
+
+    struct SpendPeriod: Equatable {
+        var interval: DateInterval
+        /// nil before the first sample: nothing was recorded, which is not the same as nothing spent.
+        var amount: Double?
+    }
+
+    /// What each period added to a spend limit, from the window's samples: the month's total at the period's end
+    /// minus at its start. A drop of more than `resetDrop` points is the monthly reset, so the new total is all new
+    /// spend; a smaller one is rounding and adds nothing. A period holding the first sample counts from that sample.
+    static func recordedSpend(
+        samples: [WindowSample], limit: Double, periods: [DateInterval], now: Date, resetDrop: Double = 0.5
+    ) -> [SpendPeriod] {
+        var total: [(date: Date, spent: Double)] = []
+        var reference: Double?
+        var spent = 0.0
+        for sample in samples.sorted(by: { $0.timestamp < $1.timestamp }) {
+            if let level = reference {
+                if sample.usedPercent >= level {
+                    spent += sample.usedPercent - level
+                    reference = sample.usedPercent
+                } else if level - sample.usedPercent > resetDrop {
+                    spent += sample.usedPercent
+                    reference = sample.usedPercent
+                }
+            } else {
+                reference = sample.usedPercent
+            }
+            total.append((sample.timestamp, spent / 100 * limit))
+        }
+        func spentBy(_ date: Date) -> Double? { total.last { $0.date <= date }?.spent }
+        return periods.map { period in
+            guard let end = spentBy(min(period.end, now)) else { return SpendPeriod(interval: period, amount: nil) }
+            return SpendPeriod(interval: period, amount: end - (spentBy(period.start) ?? 0))
+        }
+    }
+
+    /// The bars of the spend chart: the last 24 hours by hour at 24h, else the range's days, or the weeks that
+    /// cover them.
+    static func spendPeriods(range: DashboardRange, weekly: Bool, periods: DashboardPeriods) -> [DateInterval] {
+        let calendar = periods.calendar
+        if range == .day {
+            guard let hour = calendar.dateInterval(of: .hour, for: periods.now) else { return [] }
+            return (0..<24).reversed().map { DateInterval(start: hour.start.addingTimeInterval(-Double($0) * 3600), duration: 3600) }
+        }
+        let days = periods.days(of: range).compactMap { calendar.dateInterval(of: .day, for: $0) }
+        guard weekly, let first = days.first, let last = days.last else { return days }
+        var weeks: [DateInterval] = []
+        var cursor = calendar.dateInterval(of: .weekOfYear, for: first.start)
+        while let week = cursor, week.start < last.end {
+            weeks.append(week)
+            cursor = calendar.dateInterval(of: .weekOfYear, for: week.end)
+        }
+        return weeks
     }
 
     /// One color slot per account for both dashboard charts. Accounts with limit windows come first in config

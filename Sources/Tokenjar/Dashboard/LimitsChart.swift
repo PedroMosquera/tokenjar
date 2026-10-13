@@ -175,9 +175,9 @@ struct LimitsTimeAxis: Equatable {
     var spansHours: Bool
 
     /// Past a day and a half, a grid line at each midnight and each day at least half in view named once, in the
-    /// middle of the part in view, so no label runs past the plot. Shorter spans get a grid line every 6 hours, named
-    /// by the day at midnight and by the time otherwise, so an hour never reads as a date; those near either end go
-    /// unnamed for the same reason.
+    /// middle of the part in view, so no label runs past the plot. Shorter spans get a grid line every 6 hours, or
+    /// every hour or two up to 8 or 16 hours, named by the day at midnight and by the time otherwise, so an hour never
+    /// reads as a date; those near either end go unnamed for the same reason.
     init(_ domain: ClosedRange<Date>, calendar: Calendar = .current, locale: Locale = .current) {
         let style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
         let dayStyle = style.weekday(.abbreviated).day()
@@ -200,10 +200,12 @@ struct LimitsTimeAxis: Equatable {
             }
             return
         }
+        let span = domain.upperBound.timeIntervalSince(domain.lowerBound)
+        let step = span <= 8 * 3600 ? 1 : span <= 16 * 3600 ? 2 : 6
         grid = days
-            .flatMap { day in [0, 6, 12, 18].compactMap { calendar.date(bySettingHour: $0, minute: 0, second: 0, of: day) } }
+            .flatMap { day in stride(from: 0, to: 24, by: step).compactMap { calendar.date(bySettingHour: $0, minute: 0, second: 0, of: day) } }
             .filter(domain.contains)
-        let margin: TimeInterval = 2 * 3600
+        let margin = min(2 * 3600, span / 10)
         labels = grid
             .filter { $0.timeIntervalSince(domain.lowerBound) >= margin && domain.upperBound.timeIntervalSince($0) >= margin }
             .map { Label(date: $0, text: $0.formatted($0 == calendar.startOfDay(for: $0) ? dayStyle : style.hour().minute())) }

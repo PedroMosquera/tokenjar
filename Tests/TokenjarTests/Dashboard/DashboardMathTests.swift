@@ -250,13 +250,21 @@ struct DashboardMathTests {
         #expect(periods.axisDays(of: .month) == [-28, -21, -14, -7, 0].map(day))
     }
 
-    @Test func newHistoryClipsTheLimitsChartToADayAtLeast() {
+    /// New history fills the chart: it starts just before the first sample instead of leaving most of a day empty.
+    @Test func newHistoryClipsTheLimitsChartToItsFirstSample() {
         let periods = DashboardPeriods(now: now, calendar: Self.calendar)
-        let threeHoursAgo = now.addingTimeInterval(-3 * 3600)
-        let clipped = DashboardMath.limitsDomain(range: .week, periods: periods, earliest: threeHoursAgo, reachesBack: false)
-        #expect(clipped.domain.lowerBound >= now.addingTimeInterval(-86_400))
-        #expect(clipped.domain.upperBound == now)
-        #expect(clipped.since == threeHoursAgo)
+        let fiveHoursAgo = now.addingTimeInterval(-5 * 3600)
+        for range in [DashboardRange.day, .week] {
+            let clipped = DashboardMath.limitsDomain(range: range, periods: periods, earliest: fiveHoursAgo, reachesBack: false)
+            #expect(clipped.domain.lowerBound < fiveHoursAgo && clipped.domain.lowerBound >= fiveHoursAgo.addingTimeInterval(-3600))
+            #expect(clipped.domain.upperBound == now)
+            #expect(clipped.since == fiveHoursAgo)
+        }
+
+        // Minutes of history still get a readable axis.
+        let justNow = now.addingTimeInterval(-10 * 60)
+        let minimal = DashboardMath.limitsDomain(range: .week, periods: periods, earliest: justNow, reachesBack: false)
+        #expect(minimal.domain.lowerBound == now.addingTimeInterval(-3 * 3600))
 
         // Two days of history at 7d: the chart starts just before the first sample.
         let twoDaysAgo = now.addingTimeInterval(-2 * 86_400)
@@ -276,4 +284,42 @@ struct DashboardMathTests {
         // 24h is the last 24 hours, never the two calendar days the spend chart shows.
         #expect(DashboardMath.limitsDomain(range: .day, periods: periods, earliest: nil, reachesBack: false).domain == now.addingTimeInterval(-86_400)...now)
     }
+
+    // MARK: Recorded spend
+
+    private func spendSample(_ at: Date, _ percent: Double) -> WindowSample {
+        WindowSample(accountID: "work", windowID: UsageWindow.spendCapID, timestamp: at, usedPercent: percent, resetsAt: nil)
+    }
+
+    /// $1,000 limit: $100, then $150 and $160 the next day, a reset to $10 on the 1st, then $40.
+    @Test func recordedSpendCountsWhatEachPeriodAddedAcrossAReset() {
+        let samples = [
+            spendSample(day(-3).addingTimeInterval(20 * 3600), 10), spendSample(day(-2).addingTimeInterval(9 * 3600), 15),
+            spendSample(day(-2).addingTimeInterval(18 * 3600), 16), spendSample(day(-1).addingTimeInterval(1 * 3600), 1),
+            spendSample(day(0).addingTimeInterval(10 * 3600), 4),
+        ]
+        let periods = (-4...0).map { DateInterval(start: day($0), end: day($0 + 1)) }
+        let spend = DashboardMath.recordedSpend(samples: samples, limit: 1_000, periods: periods, now: now)
+        #expect(spend.map(\.amount) == [nil, 0, 60, 10, 30])
+    }
+
+    /// A rounding dip of a hundredth of a point is not a reset that would count the whole month again.
+    @Test func aTinyDipIsNotAReset() {
+        let samples = [spendSample(day(0).addingTimeInterval(3600), 30), spendSample(day(0).addingTimeInterval(7200), 29.99), spendSample(day(0).addingTimeInterval(9000), 31)]
+        let spend = DashboardMath.recordedSpend(samples: samples, limit: 1_000, periods: [DateInterval(start: day(0), end: day(1))], now: now)
+        #expect(abs((spend.first?.amount ?? 0) - 10) < 0.001)
+    }
+
+    @Test func spendPeriodsFollowTheRange() {
+        let periods = DashboardPeriods(now: now, calendar: Self.calendar)
+        let hours = DashboardMath.spendPeriods(range: .day, weekly: false, periods: periods)
+        #expect(hours.count == 24)
+        #expect(hours.last?.start == Self.calendar.dateInterval(of: .hour, for: now)?.start)
+        #expect(DashboardMath.spendPeriods(range: .week, weekly: false, periods: periods).map(\.start) == (-6...0).map(day))
+        let weeks = DashboardMath.spendPeriods(range: .month, weekly: true, periods: periods)
+        #expect(weeks.first?.contains(day(-29)) == true)
+        #expect(weeks.last?.contains(now) == true)
+        #expect(zip(weeks, weeks.dropFirst()).allSatisfy { $0.end == $1.start })
+    }
 }
+

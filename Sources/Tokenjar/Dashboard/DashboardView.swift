@@ -6,6 +6,7 @@ struct DashboardView: View {
     // Explicit State storage: the SDK's @State is a macro whose plugin ships only with Xcode.
     private let rangeState: State<DashboardRange>
     private let groupingState: State<UsageGrouping>
+    private let weeklySpendState = State(initialValue: false)
     private let contentState = State(initialValue: DashboardContent())
 
     init(range: DashboardRange = .week, grouping: UsageGrouping = .model) {
@@ -28,7 +29,8 @@ struct DashboardView: View {
             ScrollView {
                 DashboardDetail(
                     account: account, accounts: accounts, content: contentState.wrappedValue,
-                    range: rangeState.projectedValue, groupingSelection: groupingState.projectedValue
+                    range: rangeState.projectedValue, groupingSelection: groupingState.projectedValue,
+                    weeklySpend: weeklySpendState.projectedValue
                 )
                 .padding(20)
                 .opacity(DashboardLoadKey.dims(shown: contentState.wrappedValue.key, wanted: key) ? 0.6 : 1)
@@ -53,13 +55,18 @@ private struct DashboardDetail: View {
     var content: DashboardContent
     var rangeBinding: Binding<DashboardRange>
     var groupingSelection: Binding<UsageGrouping>
+    var weeklySpend: Binding<Bool>
 
-    init(account: AccountConfig?, accounts: [AccountConfig], content: DashboardContent, range: Binding<DashboardRange>, groupingSelection: Binding<UsageGrouping>) {
+    init(
+        account: AccountConfig?, accounts: [AccountConfig], content: DashboardContent, range: Binding<DashboardRange>,
+        groupingSelection: Binding<UsageGrouping>, weeklySpend: Binding<Bool>
+    ) {
         self.account = account
         self.accounts = accounts
         self.content = content
         self.rangeBinding = range
         self.groupingSelection = groupingSelection
+        self.weeklySpend = weeklySpend
     }
 
     private var range: DashboardRange { rangeBinding.wrappedValue }
@@ -71,7 +78,14 @@ private struct DashboardDetail: View {
             header(sections)
             if sections.history, noUsage == nil { kpis }
             if let account { windowTiles(account) }
-            if sections.limits { limitsCard }
+            if sections.limits {
+                // A spend limit's percent line barely moves in a day; what it added per period is the useful view.
+                if let account, let history = content.spendLimit {
+                    spendOverTimeCard(account, history)
+                } else {
+                    limitsCard
+                }
+            }
             if sections.history {
                 spendCard(emptyMessage: DashboardSections.spendEmptyMessage(account: account, content: content, breakdown: breakdown, range: range))
                 if noUsage == nil { projectsCard }
@@ -208,6 +222,40 @@ private struct DashboardDetail: View {
         }
     }
 
+    private func spendOverTimeCard(_ account: AccountConfig, _ history: DashboardContent.SpendLimitHistory) -> some View {
+        let weekly = range != .day && weeklySpend.wrappedValue
+        let unit: Calendar.Component = range == .day ? .hour : weekly ? .weekOfYear : .day
+        let intervals = DashboardMath.spendPeriods(range: range, weekly: weekly, periods: content.periods)
+        let spend = DashboardMath.recordedSpend(samples: history.samples, limit: history.limit, periods: intervals, now: content.periods.now)
+        let budget = unit == .day
+            ? model.status(for: account).snapshot.flatMap { model.dailySpend(for: account, snapshot: $0, now: model.now)?.budget }
+            : nil
+        var subtitle = "Spend added each \(unit == .hour ? "hour" : weekly ? "week" : "day"), from Tokenjar's checks of the spend limit"
+        if let first = history.samples.map(\.timestamp).min(), let start = intervals.first?.start, first > start {
+            subtitle += " · recorded since \(first.formatted(.dateTime.weekday(.abbreviated).hour().minute()))"
+        }
+        return DashboardCard(title: "Spend over time", subtitle: subtitle) {
+            if range != .day {
+                Picker("Bars", selection: weeklySpend) {
+                    Text("Daily").tag(false)
+                    Text("Weekly").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
+        } content: {
+            Group {
+                if spend.allSatisfy({ $0.amount == nil }) {
+                    DashboardEmptyState(systemImage: "chart.bar", message: "No spend recorded in this range yet. Tokenjar records it at each check.")
+                } else {
+                    SpendOverTimeChart(periods: spend, unit: unit, currency: history.currency, dailyBudget: budget)
+                }
+            }
+            .frame(height: 210)
+        }
+    }
+
     private var limitsSubtitle: String {
         var subtitle = if account != nil {
             "Used % per window, faint rules mark resets"
@@ -218,7 +266,7 @@ private struct DashboardDetail: View {
         }
         // The axis starts where the history does, so say so rather than let it read as the whole range.
         if let since = content.limitsSince {
-            subtitle += " · since \(since.formatted(.dateTime.weekday(.abbreviated).hour().minute()))"
+            subtitle += " · recorded since \(since.formatted(.dateTime.weekday(.abbreviated).hour().minute()))"
         }
         return subtitle
     }
