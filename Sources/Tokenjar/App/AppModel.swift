@@ -207,6 +207,14 @@ final class AppModel {
         }
     }
 
+    /// `accounts` in the order the user picked for the popover's cards.
+    var popoverAccounts: [AccountConfig] {
+        let fullness = accounts.reduce(into: [String: Double]()) { result, account in
+            result[account.id] = MenuBarRule.window(of: statuses[account.id]?.snapshot, now: popoverNow)?.usedPercent
+        }
+        return config.accountOrder.sorted(accounts, fullness: fullness)
+    }
+
     func status(for account: AccountConfig) -> AccountStatus {
         statuses[account.id] ?? AccountStatus()
     }

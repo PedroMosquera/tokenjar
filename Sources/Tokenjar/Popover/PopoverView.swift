@@ -39,7 +39,7 @@ struct PopoverView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 8) {
-                        ForEach(model.accounts) { account in
+                        ForEach(model.popoverAccounts) { account in
                             AccountCard(account: account, burnUps: burnUps)
                         }
                     }

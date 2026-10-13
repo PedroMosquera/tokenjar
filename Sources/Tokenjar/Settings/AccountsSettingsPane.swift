@@ -60,22 +60,18 @@ struct AccountsSettingsPane: View {
     private var list: some View {
         ScrollViewReader { scroller in
             List(selection: Binding(get: { selection }, set: { if let id = $0 { onSelect(id) } })) {
-                ForEach(ProviderID.allCases, id: \.self) { provider in
-                    let accounts = model.config.accounts.filter { $0.provider == provider }
-                    if !accounts.isEmpty {
-                        Section {
-                            ForEach(accounts) { account in
-                                AccountListRow(content: AccountListRowContent.make(account: account, status: model.statusText(for: account)), isSelected: account.id == selection)
-                                    .tag(account.id)
-                                    .listRowSeparator(.hidden)
-                            }
-                        } header: {
-                            HStack(spacing: 6) {
-                                ProviderLogoView(provider: provider, size: 14)
-                                Text(provider.displayName)
-                            }
-                        }
-                    }
+                // One list in the user's order, so dragging here is the order the popover's cards follow.
+                ForEach(model.config.accounts) { account in
+                    AccountListRow(
+                        content: AccountListRowContent.make(account: account, status: model.statusText(for: account)), provider: account.provider,
+                        isSelected: account.id == selection
+                    )
+                    .tag(account.id)
+                    .listRowSeparator(.hidden)
+                }
+                .onMove { from, to in
+                    guard model.canEditConfig else { return }
+                    model.updateConfig { $0.accounts.move(fromOffsets: from, toOffset: to) }
                 }
             }
             .listStyle(.inset)
@@ -158,6 +154,7 @@ struct AccountsSettingsPane: View {
 
 struct AccountListRow: View {
     var content: AccountListRowContent
+    var provider: ProviderID
     var isSelected = false
 
     /// Orange is hard to see on the selection's accent fill. SwiftUI does not tell an inset list's row when its selection
@@ -168,6 +165,7 @@ struct AccountListRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            ProviderLogoView(provider: provider, size: 14)
             Text(content.title)
                 .lineLimit(1)
                 .layoutPriority(1)
@@ -186,7 +184,7 @@ struct AccountListRow: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(content.title)
+        .accessibilityLabel(content.title == provider.displayName ? content.title : "\(provider.displayName), \(content.title)")
         .accessibilityValue(content.caption ?? "")
     }
 }

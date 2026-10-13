@@ -74,6 +74,18 @@ struct GeneralSettingsPane: View {
             }
             .disabled(!model.canEditConfig)
 
+            Section("Popover") {
+                Picker(selection: model.configBinding(\.accountOrder)) {
+                    ForEach(AccountOrder.allCases, id: \.self) { order in
+                        Text(order.title).tag(order)
+                    }
+                } label: {
+                    Text("Order accounts")
+                    Text("Drag accounts in the Accounts pane to set your order.")
+                }
+            }
+            .disabled(!model.canEditConfig)
+
             Section("Usage colors") {
                 PercentField(
                     title: "Amber at", value: usageLevel(.warn), range: UsageLevels.warnRange,
@@ -253,6 +265,16 @@ struct GeneralSettingsPane: View {
         let target = file.resolvingSymlinksInPath()
         let isLink = target.path != file.path
         return (isLink, SettingsLogic.tildePath((isLink ? target : file).path, home: paths.home.path))
+    }
+}
+
+extension AccountOrder {
+    var title: String {
+        switch self {
+        case .manual: "Your order"
+        case .byProvider: "By provider"
+        case .tightestFirst: "Tightest first"
+        }
     }
 }
 

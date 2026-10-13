@@ -239,7 +239,7 @@ struct ConfigStoreTests {
     }
 
     enum NewLeaf: String, CaseIterable, Sendable {
-        case shortThresholds, paceDays, hotkey, accountShortThresholds, creditAllowance, spendDisplay
+        case shortThresholds, paceDays, hotkey, accountShortThresholds, creditAllowance, spendDisplay, accountOrder
 
         func edit(_ config: inout AppConfig) {
             switch self {
@@ -249,6 +249,7 @@ struct ConfigStoreTests {
             case .accountShortThresholds: config.accounts[0].shortAlertThresholds = [90]
             case .creditAllowance: config.accounts[0].creditAllowance = 300
             case .spendDisplay: config.menuBar.spendDisplay = .amount
+            case .accountOrder: config.accountOrder = .tightestFirst
             }
         }
 
@@ -262,6 +263,7 @@ struct ConfigStoreTests {
             case .accountShortThresholds: ["accounts": [["id": "claude", "shortAlertThresholds": [50]]]]
             case .creditAllowance: ["accounts": [["id": "claude", "creditAllowance": 1500]]]
             case .spendDisplay: ["menuBar": ["spendDisplay": "amount"]]
+            case .accountOrder: ["accountOrder": "byProvider"]
             }
         }
     }
@@ -386,6 +388,7 @@ struct ConfigStoreTests {
         #expect(config.accounts[0].shortAlertThresholds == nil)
         #expect(config.accounts[0].creditAllowance == nil)
         #expect(config.menuBar.spendDisplay == .percent)
+        #expect(config.accountOrder == .manual)
     }
 
     /// Like the menu bar icon: a choice from a newer build must not fail the whole load on an older one.
@@ -400,5 +403,30 @@ struct ConfigStoreTests {
     func aSpendDisplayThisBuildDoesNotKnowReadsAsPercent(_ json: String) {
         let config = try? JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
         #expect(config?.menuBar.spendDisplay == .percent)
+    }
+
+    @Test(arguments: [#"{"accountOrder": "someFutureChoice"}"#, #"{"accountOrder": null}"#])
+    func anAccountOrderThisBuildDoesNotKnowReadsAsManual(_ json: String) {
+        let config = try? JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
+        #expect(config?.accountOrder == .manual)
+    }
+
+    /// A reorder writes the shared accounts in their new order and still keeps an account only config.local.json holds
+    /// out of config.json.
+    @Test func aReorderSavesTheNewOrderWithoutLeakingLocalAccounts() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"{"accounts": [{"id": "claude", "provider": "claude"}, {"id": "copilot", "provider": "copilot"}]}"#, to: paths.configFile)
+        try write(#"{"accounts": [{"id": "claude-work", "provider": "claude", "label": "Work"}]}"#, to: paths.localConfigFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+
+        var edited = loaded.merged
+        edited.accounts = [edited.accounts[2], edited.accounts[1], edited.accounts[0]]
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        let saved = try JSONDecoder().decode(AppConfig.self, from: Data(contentsOf: paths.configFile))
+        #expect(saved.accounts.map(\.id) == ["copilot", "claude"])
     }
 }

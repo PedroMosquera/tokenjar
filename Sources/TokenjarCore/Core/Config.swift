@@ -89,6 +89,39 @@ public enum PaceDays: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// The order of the popover's account cards. The Settings list and the menu bar's bars always keep the user's order.
+public enum AccountOrder: String, Codable, CaseIterable, Sendable {
+    /// The order of `AppConfig.accounts`, which the user sets by dragging in Settings.
+    case manual
+    case byProvider
+    case tightestFirst
+
+    /// config.json syncs between Macs, so a choice from a newer build falls back here instead of failing the load.
+    public init(from decoder: Decoder) throws {
+        self = AccountOrder(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .manual
+    }
+
+    /// `fullness` is each account's tightest used %, keyed by account id; an account missing from it has nothing to
+    /// measure and goes last. Every order is stable, so equal accounts keep the user's order and cards do not swap on
+    /// a refresh.
+    public func sorted(_ accounts: [AccountConfig], fullness: [String: Double]) -> [AccountConfig] {
+        let indexed = Array(accounts.enumerated())
+        switch self {
+        case .manual:
+            return accounts
+        case .byProvider:
+            var firstSeen: [ProviderID: Int] = [:]
+            for (index, account) in indexed where firstSeen[account.provider] == nil { firstSeen[account.provider] = index }
+            return indexed.sorted { (firstSeen[$0.element.provider]!, $0.offset) < (firstSeen[$1.element.provider]!, $1.offset) }.map(\.element)
+        case .tightestFirst:
+            return indexed.sorted { a, b in
+                let x = fullness[a.element.id] ?? -1, y = fullness[b.element.id] ?? -1
+                return x != y ? x > y : a.offset < b.offset
+            }.map(\.element)
+        }
+    }
+}
+
 public struct AlertConfig: Codable, Equatable, Sendable {
     public var enabled: Bool
     /// Used-% thresholds for windows longer than a day, ascending. An empty list turns them off.
@@ -137,11 +170,12 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var paceDays: PaceDays
     /// The global shortcut that opens the popover, as a readable combination such as "control+option+command+U"; nil is off.
     public var hotkey: String?
+    public var accountOrder: AccountOrder
 
     public init(
         version: Int = 1, refreshMinutes: Int = 10, menuBar: MenuBarConfig = MenuBarConfig(), alerts: AlertConfig = AlertConfig(),
         accounts: [AccountConfig] = [], cliPaths: [String: String] = [:], launchAtLogin: Bool = false, paceDays: PaceDays = .everyDay,
-        hotkey: String? = nil
+        hotkey: String? = nil, accountOrder: AccountOrder = .manual
     ) {
         self.version = version
         self.refreshMinutes = refreshMinutes
@@ -152,6 +186,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         self.launchAtLogin = launchAtLogin
         self.paceDays = paceDays
         self.hotkey = hotkey
+        self.accountOrder = accountOrder
     }
 
     public init(from decoder: Decoder) throws {
@@ -166,6 +201,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
         paceDays = try c.decodeIfPresent(PaceDays.self, forKey: .paceDays) ?? d.paceDays
         hotkey = try c.decodeIfPresent(String.self, forKey: .hotkey)
+        accountOrder = try c.decodeIfPresent(AccountOrder.self, forKey: .accountOrder) ?? d.accountOrder
     }
 
     /// The long-window list for every window: what `AlertEngine` uses until it moves to `thresholds(for:window:)`.
@@ -273,6 +309,7 @@ public struct ConfigStore: Sendable {
         copyIfEdited(\.launchAtLogin)
         copyIfEdited(\.paceDays)
         copyIfEdited(\.hotkey)
+        copyIfEdited(\.accountOrder)
         copyIfEdited(\.menuBar.mode)
         copyIfEdited(\.menuBar.icon)
         copyIfEdited(\.menuBar.warnAt)
