@@ -337,6 +337,17 @@ struct PopoverSummaryTests {
         #expect(PopoverHeader.help(for: offline) == "Offline")
     }
 
+    /// A title cut at two lines can only be read in full here, and the tooltip is where the rule can be explained.
+    @Test func aLimitTitlesTooltipKeepsTheTitleAndExplainsTheRule() {
+        let rule = "Tokenjar names the window closest to its limit across all accounts; others that need a look are listed after Also."
+        let full = PopoverSummary(tone: .critical, text: "Claude · Personal: 5-hour full, resets in 1h 27m")
+        #expect(PopoverHeader.help(for: full) == "Claude · Personal: 5-hour full, resets in 1h 27m. \(rule)")
+        let amber = PopoverSummary(tone: .warning, text: "Codex: 5-hour at 85%")
+        #expect(PopoverHeader.help(for: amber) == "Codex: 5-hour at 85%. \(rule)")
+        let clear = PopoverSummary(tone: .clear, text: "All clear · next reset in 2h 10m")
+        #expect(PopoverHeader.help(for: clear) == "All clear · next reset in 2h 10m")
+    }
+
     /// A config that failed at launch leaves no accounts; "No accounts yet" would say the install is fresh.
     @Test func settingsNotLoadedIsNotAnEmptyInstall() {
         let unloaded = SettingsProblem(message: "Could not read config.json.", file: "config.json", nothingLoaded: true)

@@ -92,10 +92,17 @@ struct PopoverHeader: View {
         return seconds < 60 ? "in under a minute" : "in \(Format.duration(seconds))"
     }
 
-    /// The title's tooltip. "Can't reach any provider" alone does not say what could cause it.
+    /// The title's tooltip. "Can't reach any provider" alone does not say what could cause it, and a limit title can be
+    /// cut at two lines, so its tooltip repeats it in full before saying how the account was picked.
     static func help(for summary: PopoverSummary) -> String {
-        guard summary.tone == .noAnswer else { return summary.text }
-        return "No provider answered the last check. A VPN, a proxy or a Wi-Fi sign-in page can cause this."
+        switch summary.tone {
+        case .noAnswer:
+            "No provider answered the last check. A VPN, a proxy or a Wi-Fi sign-in page can cause this."
+        case .warning, .critical:
+            "\(summary.text). Tokenjar names the window closest to its limit across all accounts; others that need a look are listed after Also."
+        default:
+            summary.text
+        }
     }
 
     /// The refresh button and Command-R. The user asked, so it runs whatever macOS says about the network.
