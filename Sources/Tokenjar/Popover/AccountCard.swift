@@ -22,6 +22,11 @@ struct AccountCard: View {
         (status.error ?? status.connectionFailure).flatMap { ErrorRow.isShown(error: $0, provider: provider, connectivity: connectivity) ? $0 : nil }
     }
 
+    /// What the provider's status page last said, on every card of that provider and no other.
+    static func healthText(provider: ProviderID, health: [ProviderID: ProviderHealth], now: Date) -> HealthRowText? {
+        health[provider]?.answer.flatMap { HealthRowText(provider: provider, answer: $0, now: now) }
+    }
+
     var body: some View {
         let status = model.status(for: account)
         let refreshMinutes = account.refreshMinutes ?? model.config.refreshMinutes
@@ -33,6 +38,9 @@ struct AccountCard: View {
             AccountCardHeader(account: account, status: status, isStale: isStale)
             if let shownError {
                 ErrorRow(account: account, error: shownError, needsAttention: status.failureNeedsAttention(now: model.popoverNow, refreshMinutes: refreshMinutes))
+            }
+            if let health = Self.healthText(provider: account.provider, health: model.providerHealth, now: model.popoverNow) {
+                HealthRow(account: account, text: health)
             }
             if let snapshot = status.snapshot {
                 SnapshotBody(account: account, snapshot: snapshot, isStale: isStale, burnUps: burnUps)

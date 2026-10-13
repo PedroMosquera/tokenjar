@@ -85,6 +85,8 @@ final class AppModel {
     var lastRefreshAt: Date?
     /// Settable so previews can show each cause; the app recomputes it after every path report, settle and fetch.
     var connectivity: Connectivity = .online
+    /// What each provider's status page last said, in memory only. Settable so previews can show each row.
+    var providerHealth: [ProviderID: ProviderHealth] = [:]
     /// Ticks every 30 s so countdowns and "updated 2m ago" stay current.
     var now: Date
     /// `now` for the popover's views. It moves only while the popover is shown, so the popover's long-lived content
@@ -203,6 +205,22 @@ final class AppModel {
     /// The soonest an automatic check of an account that needs the network can run.
     var nextNetworkCheck: Date? {
         scheduler.nextCheck(accounts.filter(\.provider.checkUsesNetwork).map(\.id))
+    }
+
+    /// Providers with an account here whose status page reports a partial or major outage of a product Tokenjar watches,
+    /// with the worse of the two. Degraded performance, maintenance and incidents matched only by name stay on the card.
+    var statusOutages: [ProviderID: ProviderHealthItem.Level] {
+        let tracked = Set(accounts.map(\.provider))
+        var outages: [ProviderID: ProviderHealthItem.Level] = [:]
+        for (provider, health) in providerHealth where tracked.contains(provider) {
+            let levels = Set((health.answer?.items ?? []).map(\.level))
+            if levels.contains(.majorOutage) {
+                outages[provider] = .majorOutage
+            } else if levels.contains(.partialOutage) {
+                outages[provider] = .partialOutage
+            }
+        }
+        return outages
     }
 
     var menuBarState: MenuBarState {

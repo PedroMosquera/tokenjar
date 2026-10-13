@@ -5,9 +5,9 @@ struct PopoverHeader: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let summary = makeSummary(.written)
+        let summary = Self.summary(of: model, voice: .written)
         // VoiceOver can read the middle dot in "Claude · Work" out loud.
-        let spoken = makeSummary(.spoken)
+        let spoken = Self.summary(of: model, voice: .spoken)
         HStack(spacing: 10) {
             toneIcon(summary.tone)
                 .padding(.leading, -PopoverView.symbolBearing)
@@ -29,6 +29,13 @@ struct PopoverHeader: View {
                         .help("The account with the most room left among those with fresh data and nothing amber or red.")
                         .accessibilityLabel(spoken.room ?? room)
                 }
+                if let outage = summary.outage {
+                    Text(outage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .help("A status page reports a partial or major outage of a product you use. Its cards say which.")
+                }
                 if let updated = Self.updateLine(
                     hasAccounts: !model.accounts.isEmpty, isRefreshing: model.isRefreshing, lastUpdated: model.lastUpdated,
                     connectivity: model.connectivity, nextCheck: model.nextNetworkCheck, now: model.popoverNow
@@ -44,10 +51,13 @@ struct PopoverHeader: View {
         }
     }
 
-    private func makeSummary(_ voice: PopoverSummary.Voice) -> PopoverSummary {
-        PopoverSummary.make(
+    /// Provider status reaches the header only through the "All clear" caption and the room hint, never its tone.
+    static func summary(of model: AppModel, voice: PopoverSummary.Voice) -> PopoverSummary {
+        let outages = model.statusOutages
+        return PopoverSummary.make(
             accounts: model.accounts, statuses: model.statuses, config: model.config, now: model.popoverNow,
-            connectivity: model.connectivity, settings: model.settingsProblem, voice: voice
+            connectivity: model.connectivity, settings: model.settingsProblem,
+            majorOutages: Set(outages.filter { $0.value == .majorOutage }.keys), outages: Set(outages.keys), voice: voice
         )
     }
 
