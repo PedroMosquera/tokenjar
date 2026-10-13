@@ -8,14 +8,18 @@ enum HealthFixtures {
         return try Data(contentsOf: url)
     }
 
-    /// A Statuspage fixture with some top-level component statuses replaced, keyed by component id.
-    static func statuspage(_ name: String, statuses: [String: String]) throws -> Data {
+    /// A Statuspage fixture with some top-level component statuses replaced, keyed by component id, and its first
+    /// incident changed by `incident`.
+    static func statuspage(_ name: String, statuses: [String: String], incident: (inout [String: Any]) -> Void = { _ in }) throws -> Data {
         var json = try object(name)
         json["components"] = (json["components"] as! [[String: Any]]).map { component in
             var component = component
             if let status = statuses[component["id"] as! String] { component["status"] = status }
             return component
         }
+        var incidents = json["incidents"] as! [[String: Any]]
+        if !incidents.isEmpty { incident(&incidents[0]) }
+        json["incidents"] = incidents
         return try JSONSerialization.data(withJSONObject: json)
     }
 

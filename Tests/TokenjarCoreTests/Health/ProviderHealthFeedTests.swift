@@ -55,6 +55,27 @@ struct ProviderHealthFeedTests {
         #expect(try HealthFixtures.texts(.claude, HealthFixtures.data("claude-spend-limits.json")) == [])
     }
 
+    /// The fallback words are Claude Code and claude.ai. An incident about the API, the Console or Cowork names "Claude"
+    /// too, and must stay off the cards of a subscription.
+    @Test func aComponentlessIncidentNamingOnlyOtherClaudeProductsShowsNothing() throws {
+        let body = try HealthFixtures.statuspage("claude-spend-limits.json", statuses: [:]) { incident in
+            incident["impact"] = "minor"
+            incident["name"] = "Elevated errors on the Claude API"
+            incident["incident_updates"] = [["body": "We are investigating elevated errors on the Claude API and Claude Console. Some Claude Cowork sessions may not start."]]
+        }
+        #expect(try HealthFixtures.texts(.claude, body) == [])
+    }
+
+    /// A claude.ai incident must not title a Claude API outage that no incident lists: each keeps its own item.
+    @Test func aComponentlessIncidentAboutAnotherProductDoesNotTitleTheComponentsDown() throws {
+        let body = try HealthFixtures.statuspage("claude-spend-limits.json", statuses: ["k8w3r06qmzrp": "major_outage"]) { incident in
+            incident["impact"] = "minor"
+            incident["name"] = "Issues logging into claude.ai"
+            incident["incident_updates"] = [["body": "We are investigating this issue."]]
+        }
+        #expect(try HealthFixtures.texts(.claude, body) == ["Major outage on Claude API", "Incident on claude.ai: Issues logging into claude.ai"])
+    }
+
     /// An upcoming maintenance never names a component that is already under maintenance.
     @Test func maintenanceTakesTheNameOfTheMaintenanceInProgress() throws {
         let items = try ProviderHealthFeed.forProvider(.claude)!.items(from: HealthFixtures.data("claude-maintenance.json"))

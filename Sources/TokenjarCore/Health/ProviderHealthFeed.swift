@@ -132,7 +132,7 @@ struct ProviderHealthFeed: Sendable {
 
     /// Items come from three rules. An unresolved incident listing a watched component that is down is one item titled
     /// by that incident. Watched components down with no incident listing them are one item together, titled by a
-    /// component-less incident that names the product, if any. Any other component-less incident naming the product is
+    /// component-less incident that names one of them, if any. Any other component-less incident naming the product is
     /// an `.incident` item. Components under maintenance take the name of an in-progress maintenance that lists them.
     private func statuspageItems(from body: Data) throws -> [ProviderHealthItem] {
         let decoder = JSONDecoder()
@@ -178,7 +178,9 @@ struct ProviderHealthFeed: Sendable {
 
         let unlisted = down.filter { !covered.contains($0.id) }
         if !unlisted.isEmpty {
-            let title = mentions.isEmpty ? nil : mentions.removeFirst().incident.name
+            // Only an incident that names one of these products can title them; another product's incident keeps its own item.
+            let names = Set(unlisted.map(\.name))
+            let title = mentions.firstIndex { !names.isDisjoint(with: $0.names) }.map { mentions.remove(at: $0).incident.name }
             items.append(item(unlisted, levels: levels, title: title, since: unlisted.compactMap { updated[$0.id] }.max()))
         }
         let idle = underMaintenance.filter { !covered.contains($0.id) }
