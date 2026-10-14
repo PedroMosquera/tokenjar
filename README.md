@@ -20,7 +20,7 @@ I built it because I did not want a third-party app handling my AI logins. Token
 
 | Provider | Where the numbers come from | Plans it recognizes |
 |---|---|---|
-| Claude | `claude -p /usage`, with hooks and MCP servers off | Pro, Max, Max 5x, Max 20x, Team, Team Premium, Enterprise. An Enterprise seat billed per use has no plan limits, so it shows its monthly spend limit instead. API key, gateway (such as LiteLLM), Bedrock, Vertex and Foundry logins have no plan limits, so they get cost history only. Tokenjar finds them in Claude's `settings.json`, not in your shell. |
+| Claude | `claude -p /usage`, with hooks and MCP servers off | Pro, Max, Max 5x, Max 20x, Team, Team Premium, Enterprise. An Enterprise seat billed per use has no plan limits, so it shows its monthly spend limit instead. API key, gateway (such as LiteLLM), Bedrock, Vertex and Foundry logins have no plan limits, so their card shows this month's spend instead, estimated at list price from the local logs. Tokenjar finds them in Claude's `settings.json`, not in your shell. |
 | Codex | `codex app-server`, read-only | Free, Go, Plus, Pro, Business, Edu, Enterprise |
 | OpenCode Go | One HTTPS GET to opencode.ai with your opencode key | Go |
 | OpenCode Zen | This month's spend, added up from the local `opencode.db` | Pay as you go |

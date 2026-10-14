@@ -281,6 +281,11 @@ private struct SnapshotBody: View {
                     }
                 }
             }
+            if let costLine = model.monthCostLine(snapshot: snapshot, now: now) {
+                Text(costLine)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             ForEach(snapshot.notes, id: \.self) { note in
                 Text(note)
                     .font(.caption)

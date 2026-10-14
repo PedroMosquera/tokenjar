@@ -44,7 +44,16 @@ struct AccountDetailView: View {
                 }
                 // OpenCode's login belongs to its key source, inside the Credential section.
                 if !account.provider.isLinkOnly, !account.provider.usesAPIKey {
-                    signInSection
+                    if PlanLogin.applies(snapshot: model.status(for: account).snapshot) {
+                        signInSection
+                    } else {
+                        Section {
+                            Text("Claude Code uses an API key, a gateway or a cloud provider set in its settings.json, so there is nothing to sign in to here. Change the login in that file.")
+                                .foregroundStyle(.secondary)
+                        } header: {
+                            Text("Sign in")
+                        }
+                    }
                 }
                 if let snapshot = model.status(for: account).snapshot, snapshot.spendLimitMoney != nil {
                     dailyBudgetSection(snapshot)
@@ -593,6 +602,14 @@ enum AgySignInRow: Equatable {
         case .notSignedIn: .signedOut
         default: status.snapshot == nil ? .install : .signedIn
         }
+    }
+}
+
+/// Whether the account's login is one the provider's CLI signs in to. False only once a check has shown the login is
+/// billed per use outside any plan, such as Claude through an API key or a gateway set in its settings.json.
+enum PlanLogin {
+    static func applies(snapshot: UsageSnapshot?) -> Bool {
+        snapshot?.billing != .payAsYouGo
     }
 }
 

@@ -21,7 +21,7 @@ Your Claude Code probably uses an API key, a gateway such as LiteLLM, or a cloud
 }
 ```
 
-To keep the key out of that file, leave `ANTHROPIC_AUTH_TOKEN` out and set `"apiKeyHelper"` to a script that prints the key, such as one that reads it from Keychain. Tokenjar only checks which of these are set, never their values. The card then says "No plan limits for this login", and the dashboard shows what your Claude Code usage would cost at API prices. Settings an administrator deploys in `/Library/Application Support/ClaudeCode/managed-settings.json` count too.
+To keep the key out of that file, leave `ANTHROPIC_AUTH_TOKEN` out and set `"apiKeyHelper"` to a script that prints the key, such as one that reads it from Keychain. Tokenjar only checks which of these are set, never their values. The card then says "No plan limits for this login" and shows this month's spend, estimated at list price from Claude Code's local logs; a gateway that routes to other models or bills at other rates will differ. To make the card's Open Usage Page go to your gateway's own dashboard, set Usage page URL on the account's page in Settings. Settings an administrator deploys in `/Library/Application Support/ClaudeCode/managed-settings.json` count too.
 
 ## "No Copilot access for this GitHub account"
 

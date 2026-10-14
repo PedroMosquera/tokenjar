@@ -67,7 +67,10 @@ public struct ClaudeUsageFetcher: UsageFetcher {
         var plan = outsidePlan ? nil : config?.plan
 
         func snapshot(windows: [UsageWindow], money: [MoneyLine], notes: [String] = []) -> UsageSnapshot {
-            UsageSnapshot(accountID: account.id, provider: .claude, plan: plan, windows: windows, money: money, fetchedAt: now, source: Self.source, notes: notes)
+            UsageSnapshot(
+                accountID: account.id, provider: .claude, plan: plan, billing: outsidePlan && windows.isEmpty ? .payAsYouGo : nil,
+                windows: windows, money: money, fetchedAt: now, source: Self.source, notes: notes
+            )
         }
 
         switch output.kind {

@@ -198,6 +198,7 @@ struct ClaudeUsageFetcherTests {
         #expect(snapshot.notes == ["No plan limits for this login"])
         #expect(snapshot.source == "claude CLI")
         #expect(snapshot.plan == nil, "an API key does not bill the subscription saved in .claude.json")
+        #expect(snapshot.billing == .payAsYouGo)
     }
 
     @Test func apiKeyReportWithoutRateLimitsIgnoresTheSubscriptionCache() async throws {
@@ -435,6 +436,7 @@ struct ClaudeUsageFetcherTests {
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
         #expect(snapshot.notes == ["No plan limits for this login"])
+        #expect(snapshot.billing == .payAsYouGo)
     }
 
     @Test func aBaseURLAloneIsAGateway() async throws {
@@ -497,6 +499,7 @@ struct ClaudeUsageFetcherTests {
 
         #expect(!snapshot.windows.isEmpty)
         #expect(snapshot.plan == "Max 20x", "a proxy in front of a subscription still bills the plan")
+        #expect(snapshot.billing == nil)
     }
 
     @Test func aGatewayNeverFallsBackToAnOldSubscriptionLoginsCache() async throws {

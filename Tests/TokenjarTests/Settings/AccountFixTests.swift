@@ -68,3 +68,19 @@ struct AccountFixTests {
         #expect(AccountFix.searchedText(for: "agy", locator: locator, home: home.path) == "Looked only at ~/bin/agy, set in cliPaths")
     }
 }
+
+struct PlanLoginTests {
+    private func snapshot(_ billing: Billing?) -> UsageSnapshot {
+        UsageSnapshot(accountID: "claude", provider: .claude, billing: billing, fetchedAt: Date(timeIntervalSince1970: 0), source: "test")
+    }
+
+    @Test func aLoginBilledOutsideAPlanHasNothingToSignIn() {
+        #expect(PlanLogin.applies(snapshot: snapshot(.payAsYouGo)) == false)
+    }
+
+    @Test func aPlanLoginOrAnUncheckedOneKeepsThem() {
+        #expect(PlanLogin.applies(snapshot: snapshot(nil)))
+        #expect(PlanLogin.applies(snapshot: snapshot(.subscription)))
+        #expect(PlanLogin.applies(snapshot: nil))
+    }
+}

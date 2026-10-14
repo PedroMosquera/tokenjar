@@ -845,6 +845,12 @@ final class AppModel {
         (try? store?.samples(accountID: accountID, windowID: windowID, since: since)) ?? []
     }
 
+    /// The card's cost line for an account billed per use; nil, without reading the store, for every other account.
+    func monthCostLine(snapshot: UsageSnapshot, now: Date) -> String? {
+        guard CostLine.applies(to: snapshot), let monthStart = Calendar.current.dateInterval(of: .month, for: now)?.start else { return nil }
+        return MonthCostLine.text(snapshot: snapshot, rows: pricedUsage(accountIDs: [snapshot.accountID], since: monthStart), now: now)
+    }
+
     func pricedUsage(accountIDs: [String]?, since: Date) -> [PricedUsageRow] {
         let rows = (try? store?.dailyUsage(accountIDs: accountIDs, since: since)) ?? []
         return rows.map(priceTable.priced)
