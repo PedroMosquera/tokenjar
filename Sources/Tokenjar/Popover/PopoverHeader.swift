@@ -60,7 +60,7 @@ struct PopoverHeader: View {
     static func summary(of model: AppModel, voice: PopoverSummary.Voice) -> PopoverSummary {
         let outages = model.statusOutages
         return PopoverSummary.make(
-            accounts: model.accounts, statuses: model.statuses, config: model.config, now: model.popoverNow,
+            accounts: model.shownAccounts, statuses: model.statuses, config: model.config, now: model.popoverNow,
             connectivity: model.connectivity, settings: model.settingsProblem,
             majorOutages: Set(outages.filter { $0.value == .majorOutage }.keys), outages: Set(outages.keys), voice: voice
         )

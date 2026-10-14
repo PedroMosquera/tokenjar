@@ -148,11 +148,10 @@ private struct AccountMenu: View {
             }
             Divider()
             PinToMenuBarToggle(account: account)
-            // A link card has no usage of its own, so its dashboard page would be empty.
-            if !account.provider.isLinkOnly {
-                Button("Show in Dashboard") { model.showDashboard(accountID: account.id) }
-            }
+            Button("Show in Dashboard") { model.showDashboard(accountID: account.id) }
             Button("Settings for This Account") { model.showSettings(accountID: account.id) }
+            Button("Hide and Stop Checking") { model.updateAccount(account.id) { $0.enabled = false } }
+                .disabled(!model.canEditConfig)
         } label: {
             Image(systemName: "ellipsis")
                 .font(.callout.weight(.semibold))

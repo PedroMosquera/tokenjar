@@ -19,6 +19,14 @@ struct PopoverFooter: View {
 
             Spacer()
 
+            let hidden = model.hiddenAccounts
+            if !hidden.isEmpty {
+                Button("\(hidden.count) hidden") { model.showSettings(accountID: hidden[0].id) }
+                    // Without it the footer squeezes Settings into two lines to make room.
+                    .fixedSize()
+                    .help("Accounts turned off or not connected. Open Settings to show them.")
+            }
+
             Button { model.quit() } label: {
                 Label("Quit", systemImage: "power")
             }

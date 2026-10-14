@@ -33,9 +33,9 @@ struct PopoverView: View {
             }
             Divider()
                 .padding(.horizontal, Self.dividerInset)
-            if model.accounts.isEmpty {
+            if model.popoverAccounts.isEmpty {
                 // With no settings loaded, "Add an account" would contradict the banner: the accounts exist, unread.
-                if model.settingsProblem?.nothingLoaded != true { EmptyAccounts() }
+                if model.settingsProblem?.nothingLoaded != true { EmptyAccounts(hasHidden: !model.hiddenAccounts.isEmpty) }
             } else {
                 ScrollView {
                     VStack(spacing: 8) {
@@ -91,10 +91,11 @@ private struct ConfigErrorBanner: View {
 
 private struct EmptyAccounts: View {
     @Environment(AppModel.self) private var model
+    var hasHidden: Bool
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("Add an account to see its usage limits here.")
+            Text(hasHidden ? "No account is on and connected. Open Settings to set one up." : "Add an account to see its usage limits here.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

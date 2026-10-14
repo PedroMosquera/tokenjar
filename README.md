@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml)
 
-Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot. Devin gets a card that opens its usage page.
+Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot. Devin shares no usage yet, so it only gets a link to its usage page in Settings.
 
 I built it because I did not want a third-party app handling my AI logins. Tokenjar asks each provider's own CLI for the numbers, except for OpenCode, where it reads opencode's key and local database. History stays on your Mac. There is no prebuilt download: you build it from source with the Command Line Tools, by hand or through Homebrew.
 
@@ -26,7 +26,7 @@ I built it because I did not want a third-party app handling my AI logins. Token
 | OpenCode Zen | This month's spend, added up from the local `opencode.db` | Pay as you go |
 | Antigravity | `agy -p /usage` (agy 1.1.11 or later) | No plan name. Each quota pool agy reports becomes a limit. |
 | GitHub Copilot | `gh api`, a read-only GET | Free, Pro, Pro+, Max, Business, Enterprise |
-| Devin, which now includes Windsurf | Nothing yet. Devin shares no usage with local apps, so its card opens the usage page. | |
+| Devin, which now includes Windsurf | Nothing yet. Devin shares no usage with local apps, so it has no card; its page in Settings opens the usage page. | |
 
 The Antigravity reader has never run against a live install. Copilot's endpoint is undocumented, and most Copilot plans have not been checked against a real account.
 
@@ -41,7 +41,7 @@ The menu bar item shows the used percent of the account with the least room left
   </picture>
 </p>
 
-Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. When a limit is full, the header also names the account with the most room left, such as "Codex has room: 5-hour 2% used". When the Mac is offline or no provider answers, the header says so once and the cards keep their last numbers with their age. Command-R refreshes, and a click outside the popover or Escape closes it. The cards follow the order of the accounts in Settings; Settings > General can group them by provider or put the account with the least room left on top.
+Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. When a limit is full, the header also names the account with the most room left, such as "Codex has room: 5-hour 2% used". When the Mac is offline or no provider answers, the header says so once and the cards keep their last numbers with their age. Command-R refreshes, and a click outside the popover or Escape closes it. The cards follow the order of the accounts in Settings; Settings > General can group them by provider or put the account with the least room left on top. An account that can't connect, because its CLI is missing or it has never been signed in, stays out of the popover until it does. One that worked and then signed out keeps its card, since that needs you. Hide and Stop Checking in a card's ⋯ menu turns an account off, and the footer counts what is hidden ("2 hidden"); clicking it opens Settings, where Enabled turns an account back on.
 
 An Enterprise seat billed per use has one limit, the money it may spend this month. Its card shows that spend limit in money, such as "$70 of $200", with the share used and the time until it resets on the 1st, at midnight UTC, under the bar. Spending past the limit is allowed on these seats, so past 100% the card, the header and the menu bar keep counting ("108%", "$240 over") instead of calling it full, and you get one notification when spend first passes the limit. Claude's `/usage` does not report that date, so it comes from the calendar month. Turn on Daily budget on the account's page in Settings to add a Today bar: today's spend against what you can spend per day and still end the month under the limit. Type an amount to use a fixed budget instead. The bar keeps counting past 100% to show how far over today is, and you get one notification a day when it goes over. Claude reports only the month's total, so Tokenjar works out today from its own checks: the total now minus the total at its last check before midnight.
 

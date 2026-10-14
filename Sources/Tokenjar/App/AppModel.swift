@@ -206,12 +206,37 @@ final class AppModel {
         }
     }
 
-    /// `accounts` in the order the user picked for the popover's cards.
+    /// `accounts` in config order without link-only accounts, which have nothing to show, and accounts that cannot
+    /// connect: no CLI, or signed out with no data ever saved. One that worked and then signed out stays, since that is a
+    /// problem the user needs to see. The cards, the header and the menu bar all read this, so none of them warns
+    /// about an account the others hide.
+    var shownAccounts: [AccountConfig] {
+        accounts.filter { !$0.provider.isLinkOnly && !cannotConnect($0) }
+    }
+
+    /// `shownAccounts` in the order the user picked for the popover's cards.
     var popoverAccounts: [AccountConfig] {
-        let fullness = accounts.reduce(into: [String: Double]()) { result, account in
+        let shown = shownAccounts
+        let fullness = shown.reduce(into: [String: Double]()) { result, account in
             result[account.id] = MenuBarRule.window(of: statuses[account.id]?.snapshot, now: popoverNow)?.usedPercent
         }
-        return config.accountOrder.sorted(accounts, fullness: fullness)
+        return config.accountOrder.sorted(shown, fullness: fullness)
+    }
+
+    /// Set-up accounts the popover does not show: turned off, missing their files, or unable to connect. Link-only
+    /// accounts are left out by design, so they are not counted.
+    var hiddenAccounts: [AccountConfig] {
+        let shown = Set(shownAccounts.map(\.id))
+        return config.accounts.filter { !$0.provider.isLinkOnly && !shown.contains($0.id) }
+    }
+
+    private func cannotConnect(_ account: AccountConfig) -> Bool {
+        let status = status(for: account)
+        return switch status.error {
+        case .cliNotFound: true
+        case .notSignedIn: status.snapshot == nil
+        default: false
+        }
     }
 
     func status(for account: AccountConfig) -> AccountStatus {
@@ -270,7 +295,7 @@ final class AppModel {
 
     var menuBarState: MenuBarState {
         MenuBarState.make(
-            accounts: accounts.filter(\.showInMenuBar), statuses: statuses, config: config, now: now,
+            accounts: shownAccounts.filter(\.showInMenuBar), statuses: statuses, config: config, now: now,
             connectivity: connectivity, settingsProblem: settingsProblem, pinned: pinnedAccountID
         )
     }
