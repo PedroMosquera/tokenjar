@@ -195,6 +195,8 @@ Other changes on this Mac:
 - **Login item.** Tokenjar registers or unregisters itself as a login item (`SMAppService`) only when you flip Launch at login in Settings > General, and only when it runs as an app bundle.
 - **Notifications.** With alerts on, Tokenjar asks macOS for quiet provisional delivery at launch and when you turn alerts on; this shows no prompt. The system prompt for banners appears only when you click Allow Banners in Settings > Alerts. Alerts are local notifications titled with the account's name (for example "Claude · Personal"), with no emails, ids or raw errors in the text, and Tokenjar withdraws its own notifications when a window resets or a source recovers.
 
+`--status` prints the last snapshot of each enabled account as JSON on stdout. It reads `config.json`, `config.local.json` and the history database, the database opened read-only, and runs no CLI, sends no request and writes nothing; a missing database prints no numbers rather than creating one.
+
 Developer flags write nothing of yours, and none of them runs the move from Headroom's folders described below.
 
 - `--render-snapshots <dir>` writes PNG renders of built-in preview data into `<dir>`.

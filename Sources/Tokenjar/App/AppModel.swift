@@ -9,10 +9,8 @@ struct AccountStatus: Equatable {
     var lastAttempt: Date?
     var isRefreshing = false
 
-    /// Data older than twice the refresh interval is shown dimmed; it may no longer reflect the account.
     func isStale(now: Date, refreshMinutes: Int) -> Bool {
-        guard let fetchedAt = snapshot?.fetchedAt else { return false }
-        return now.timeIntervalSince(fetchedAt) > Double(max(refreshMinutes, 1) * 2 * 60)
+        snapshot?.isStale(now: now, refreshMinutes: refreshMinutes) ?? false
     }
 
     /// The network error or timeout behind the latest check this launch, whether the card shows it as an error or shows a

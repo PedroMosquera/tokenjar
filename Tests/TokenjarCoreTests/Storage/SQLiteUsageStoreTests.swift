@@ -43,6 +43,24 @@ struct SQLiteUsageStoreTests {
         #expect(mode == 0o600)
     }
 
+    @Test func readOnlySnapshotsNeverCreateTheStore() throws {
+        let url = temp.url.appending(path: "tokenjar.sqlite")
+
+        #expect(try SQLiteUsageStore.latestSnapshotsReadOnly(at: url).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @Test func readOnlySnapshotsReadWhileTheAppHoldsTheStore() throws {
+        let url = temp.url.appending(path: "tokenjar.sqlite")
+        let store = try SQLiteUsageStore(url: url)
+        try store.record(UsageSnapshot(accountID: "acct", provider: .claude, windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: 40)], fetchedAt: now, source: "test"))
+
+        let read = try SQLiteUsageStore.latestSnapshotsReadOnly(at: url)
+
+        #expect(read.map(\.accountID) == ["acct"])
+        #expect(read.first?.windows.first?.usedPercent == 40)
+    }
+
     @Test func reopeningKeepsDataAndDoesNotMigrateAgain() throws {
         let url = temp.url.appending(path: "tokenjar.sqlite")
         do {

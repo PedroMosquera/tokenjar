@@ -276,13 +276,40 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         }
     }
 
+    /// The latest snapshots without opening the store for writing: nothing is created, migrated or locked beyond a read,
+    /// so a command line can ask while the app runs. Empty when the store does not exist yet.
+    public static func latestSnapshotsReadOnly(at url: URL) throws -> [UsageSnapshot] {
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        var handle: OpaquePointer?
+        let rc = sqlite3_open_v2(url.path, &handle, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil)
+        guard let handle else { throw SQLiteError(code: rc, message: "cannot open the database") }
+        let connection = Connection(handle: handle)
+        guard rc == SQLITE_OK else { throw SQLiteError(code: rc, message: String(cString: sqlite3_errmsg(connection.handle))) }
+        sqlite3_busy_timeout(connection.handle, Int32(busyTimeout * 1_000))
+        var statementHandle: OpaquePointer?
+        let prepared = sqlite3_prepare_v2(connection.handle, snapshotsQuery, -1, &statementHandle, nil)
+        guard prepared == SQLITE_OK, let statementHandle else {
+            throw SQLiteError(code: prepared, message: String(cString: sqlite3_errmsg(connection.handle)))
+        }
+        let statement = Statement(handle: statementHandle, db: connection.handle)
+        var rows: [String] = []
+        while try statement.step() { rows.append(statement.text(0)) }
+        return decodeSnapshots(rows)
+    }
+
     public func latestSnapshots() throws -> [UsageSnapshot] {
         let rows: [String] = try locked {
-            let statement = try prepare("SELECT json FROM snapshots ORDER BY account_id")
+            let statement = try prepare(Self.snapshotsQuery)
             var out: [String] = []
             while try statement.step() { out.append(statement.text(0)) }
             return out
         }
+        return Self.decodeSnapshots(rows)
+    }
+
+    private static let snapshotsQuery = "SELECT json FROM snapshots ORDER BY account_id"
+
+    private static func decodeSnapshots(_ rows: [String]) -> [UsageSnapshot] {
         let decoder = JSONDecoder()
         // A row written by an older build may no longer decode. It is only a last-known value, so drop it.
         return rows.compactMap { try? decoder.decode(UsageSnapshot.self, from: Data($0.utf8)) }

@@ -340,6 +340,11 @@ public struct UsageSnapshot: Codable, Hashable, Sendable {
     }
 
     /// `tightestWindow` among the windows that have not reset by `now`.
+    /// Older than twice the refresh interval: shown faded, since it may no longer reflect the account.
+    public func isStale(now: Date, refreshMinutes: Int) -> Bool {
+        now.timeIntervalSince(fetchedAt) > Double(max(refreshMinutes, 1) * 2 * 60)
+    }
+
     public func tightestWindow(now: Date) -> UsageWindow? {
         Self.tightest(windows.filter { !$0.hasReset(now: now) })
     }

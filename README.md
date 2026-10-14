@@ -74,6 +74,17 @@ Each account gets its own page in Settings with its status, the fix when a check
 
 Alerts are local notifications. By default you get one when a window crosses 80% or 95%, when the pace says you will run out before the reset, when a source stops working, and, with a daily budget on, the first time a day goes over it. Settings > Alerts changes the levels and has a reset alert, which is off by default. Until you click Allow Banners there, alerts go to Notification Center without a banner.
 
+### In scripts
+
+`Tokenjar --status` prints each enabled account's last numbers as one line of JSON: its plan, when it was checked, whether that is out of date, and each limit window with its used percent, reset time, where an even pace would be and whether it runs out before the reset. It runs no check and writes nothing, so a tmux, SketchyBar or Claude Code status line can call it every few seconds while the app keeps the numbers fresh. `version` changes only when a field changes meaning or goes away.
+
+```sh
+alias tokenjar=~/Applications/Tokenjar.app/Contents/MacOS/Tokenjar
+tokenjar --status | jq -r '.accounts[] | .label as $label | .tightestWindowID as $t | .windows[] | select(.id == $t) | "\($label) \(.usedPercent | round)%"'
+```
+
+That prints one line per account with the number the menu bar uses, such as `Personal 81%`.
+
 ## Privacy
 
 Tokenjar never reads or refreshes an OAuth token; each CLI keeps and renews its own login. The app's own requests are `GET https://opencode.ai/zen/go/v1/usage` and, only if you turn on Check provider status pages in Settings on that Mac, one GET to the public status page of each of Claude, Codex and GitHub Copilot you track, when you open the popover or refresh. A test fails if another endpoint is added. The Copilot request is gh's own, with gh's telemetry turned off. Tokenjar itself has no telemetry and no update check, and it never imports browser cookies.
