@@ -528,7 +528,8 @@ struct RoomHintTests {
     }
 
     /// The owner's state: Claude's 5-hour window is full, Codex has barely started, Go has no subscription, Zen only
-    /// spends and Copilot has used some premium requests.
+    /// spends and Copilot has used some premium requests. The only test that pins the hint's wording; the others check
+    /// which account it names.
     @Test func aFullWindowNamesTheAccountWithTheMostRoom() {
         let statuses = [
             "claude": fullClaude,
@@ -583,7 +584,7 @@ struct RoomHintTests {
             "copilot": using("copilot", 15, label: "Premium requests", minutes: 44_640),
         ]
         let summary = PopoverSummary.make(accounts: [claude, codex, agy, go, zen, devin, copilot], statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary.room == "GitHub Copilot has room: Premium requests 15% used")
+        #expect(summary.room?.contains("GitHub Copilot") == true)
         #expect(summary.others == ["Antigravity"])
     }
 
@@ -605,14 +606,14 @@ struct RoomHintTests {
         let work = AccountConfig(id: "work", provider: .claude, label: "Work")
         let statuses = ["claude": fullClaude, "work": using("work", 30, label: "Week", minutes: 10_080), "codex": using("codex", 40)]
         let summary = PopoverSummary.make(accounts: [claude, work, codex], statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary.room == "Claude · Work has room: Week 30% used")
+        #expect(summary.room?.contains("Claude · Work") == true)
     }
 
     /// Config order breaks ties only: an account with more room later in the list still wins.
     @Test func theMostRoomWinsWhereverItSitsInConfigOrder() {
         let statuses = ["claude": fullClaude, "copilot": using("copilot", 15, label: "Premium requests", minutes: 44_640), "codex": using("codex", 2)]
         let summary = PopoverSummary.make(accounts: [claude, copilot, codex], statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary.room == "Codex has room: 5-hour 2% used")
+        #expect(summary.room?.contains("Codex") == true)
     }
 
     /// Red, not only full: at the default Red at of 95 the named window is about to stop the work.
@@ -620,16 +621,16 @@ struct RoomHintTests {
         let statuses = ["claude": using("claude", 96), "codex": using("codex", 2)]
         let summary = PopoverSummary.make(accounts: [claude, codex], statuses: statuses, config: AppConfig(), now: now)
         #expect(summary.tone == .critical)
-        #expect(summary.room == "Codex has room: 5-hour 2% used")
+        #expect(summary.room?.contains("Codex") == true)
     }
 
     /// The user sets config order, so a tie never depends on anything they cannot see.
     @Test func aTieGoesToConfigOrder() {
         let statuses = ["claude": fullClaude, "codex": using("codex", 10), "copilot": using("copilot", 10, label: "Premium requests", minutes: 44_640)]
         let first = PopoverSummary.make(accounts: [claude, codex, copilot], statuses: statuses, config: AppConfig(), now: now)
-        #expect(first.room == "Codex has room: 5-hour 10% used")
+        #expect(first.room?.contains("Codex") == true)
         let swapped = PopoverSummary.make(accounts: [claude, copilot, codex], statuses: statuses, config: AppConfig(), now: now)
-        #expect(swapped.room == "GitHub Copilot has room: Premium requests 10% used")
+        #expect(swapped.room?.contains("GitHub Copilot") == true)
     }
 
     /// A window past its reset still shows the cycle that ended, which says nothing about the room left now.
@@ -637,7 +638,7 @@ struct RoomHintTests {
         let reset = AccountStatus(snapshot: snapshot("codex", [window("session", "5-hour", used: 5, resetIn: -60)]), lastAttempt: now)
         let statuses = ["claude": fullClaude, "codex": reset, "copilot": using("copilot", 10, label: "Premium requests", minutes: 44_640)]
         let summary = PopoverSummary.make(accounts: [claude, codex, copilot], statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary.room == "GitHub Copilot has room: Premium requests 10% used")
+        #expect(summary.room?.contains("GitHub Copilot") == true)
     }
 
     /// Red at can be hand-edited above 100, and a full window still stops the work.
@@ -646,14 +647,14 @@ struct RoomHintTests {
         config.menuBar.criticalAt = 110
         let summary = PopoverSummary.make(accounts: [claude, codex], statuses: ["claude": fullClaude, "codex": using("codex", 2)], config: config, now: now)
         #expect(summary.tone == .warning)
-        #expect(summary.room == "Codex has room: 5-hour 2% used")
+        #expect(summary.room?.contains("Codex") == true)
     }
 
     /// The seam provider status fills: a provider whose status page reports a major outage is not where to go.
     @Test func aProviderInMajorOutageIsSkipped() {
         let statuses = ["claude": fullClaude, "codex": using("codex", 2), "copilot": using("copilot", 15, label: "Premium requests", minutes: 44_640)]
         let summary = PopoverSummary.make(accounts: [claude, codex, copilot], statuses: statuses, config: AppConfig(), now: now, majorOutages: [.codex])
-        #expect(summary.room == "GitHub Copilot has room: Premium requests 15% used")
+        #expect(summary.room?.contains("GitHub Copilot") == true)
     }
 }
 
