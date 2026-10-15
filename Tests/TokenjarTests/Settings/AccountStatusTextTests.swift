@@ -71,15 +71,15 @@ struct AccountStatusTextTests {
     /// The same failure gets the card's icon, and a saved copy shown because of one says so rather than "Updated".
     @Test func aTransientFailureNamesTheProvider() {
         let reach = text(claude, AccountStatus(snapshot: snapshot(claude, windows: ["5-hour"], ago: 50 * 60), error: .network("offline")))
-        #expect(reach.text == "Can't reach Claude. Tokenjar tries again at the next refresh.")
+        #expect(reach.text == FetchError.network("offline").userMessage(provider: .claude))
         #expect(reach.symbol == "wifi.exclamationmark")
         let late = text(codex, AccountStatus(error: .timeout))
-        #expect(late.text == "No answer from Codex in time. Tokenjar tries again at the next refresh.")
+        #expect(late.text == FetchError.timeout.userMessage(provider: .codex))
         #expect(late.symbol == "clock.arrow.circlepath")
         var cached = snapshot(claude, windows: ["5-hour"], ago: 3 * 3_600)
         cached.liveCheckFailure = .timeout
         let saved = text(claude, AccountStatus(snapshot: cached, lastAttempt: now))
-        #expect(saved.text == "No answer from Claude in time. Tokenjar tries again at the next refresh.")
+        #expect(saved.text == FetchError.timeout.userMessage(provider: .claude))
         #expect(saved.detail == "Showing data from \(age(3 * 3_600)).")
     }
 

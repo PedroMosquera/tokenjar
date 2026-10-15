@@ -252,7 +252,7 @@ struct HeaderSubtitleTests {
         #expect(HeaderSubtitle.accountText(account: claude, status: stale, connectivity: .offline, now: now) == "claude CLI · updated 25m ago · offline")
         #expect(HeaderSubtitle.accountText(account: claude, status: stale, connectivity: .noAnswer, now: now) == "claude CLI · updated 25m ago · can't reach any provider")
         #expect(HeaderSubtitle.accountText(account: claude, status: stale, connectivity: .online, now: now)
-            == "claude CLI · updated 25m ago · Can't reach Claude. Tokenjar tries again at the next refresh.")
+            == "claude CLI · updated 25m ago · \(FetchError.network("offline").userMessage(provider: .claude))")
         #expect(HeaderSubtitle.accountText(account: claude, status: AccountStatus(error: .notSignedIn), connectivity: .offline, now: now)
             == FetchError.notSignedIn.userMessage(provider: .claude))
     }
