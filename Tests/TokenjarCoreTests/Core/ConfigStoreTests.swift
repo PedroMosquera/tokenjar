@@ -239,7 +239,7 @@ struct ConfigStoreTests {
     }
 
     enum NewLeaf: String, CaseIterable, Sendable {
-        case shortThresholds, paceDays, hotkey, accountShortThresholds, creditAllowance, spendDisplay, accountOrder, dailyBudget
+        case shortThresholds, paceDays, hotkey, accountShortThresholds, creditAllowance, spendDisplay, accountOrder, dailyBudget, monthlyBudget
 
         func edit(_ config: inout AppConfig) {
             switch self {
@@ -251,6 +251,7 @@ struct ConfigStoreTests {
             case .spendDisplay: config.menuBar.spendDisplay = .amount
             case .accountOrder: config.accountOrder = .tightestFirst
             case .dailyBudget: config.accounts[0].dailyBudget = DailyBudget(amount: 100)
+            case .monthlyBudget: config.accounts[0].monthlyBudget = 200
             }
         }
 
@@ -266,6 +267,7 @@ struct ConfigStoreTests {
             case .spendDisplay: ["menuBar": ["spendDisplay": "amount"]]
             case .accountOrder: ["accountOrder": "byProvider"]
             case .dailyBudget: ["accounts": [["id": "claude", "dailyBudget": ["amount": 50]]]]
+            case .monthlyBudget: ["accounts": [["id": "claude", "monthlyBudget": 500]]]
             }
         }
     }
@@ -390,6 +392,7 @@ struct ConfigStoreTests {
         #expect(config.accounts[0].shortAlertThresholds == nil)
         #expect(config.accounts[0].creditAllowance == nil)
         #expect(config.accounts[0].dailyBudget == nil)
+        #expect(config.accounts[0].monthlyBudget == nil)
         #expect(config.menuBar.spendDisplay == .percent)
         #expect(config.accountOrder == .manual)
     }

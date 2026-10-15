@@ -56,6 +56,16 @@ struct MonthCostLineTests {
         ))
     }
 
+    /// The budget bar already shows the month's total and its pace, so the line keeps only today and what the amounts are.
+    @Test func besideABudgetBarOnlyTodayAndTheEstimateRemain() {
+        let budgeted = MonthlyBudget.apply(200, spent: 12.4, to: snapshot(billing: .payAsYouGo), now: now, calendar: Self.calendar)
+        let rows = [row(day(10, 1), cost: 4.5), row(day(10, 10), cost: 7.9)]
+        #expect(MonthCostLine.text(snapshot: budgeted, rows: rows, now: now, calendar: Self.calendar, locale: locale)
+            == MonthCostLine.Lines(amounts: "$7.90 today", detail: "Estimate at list price"))
+        #expect(MonthCostLine.text(snapshot: budgeted, rows: [row(day(10, 1), cost: 4.5)], now: now, calendar: Self.calendar, locale: locale)
+            == MonthCostLine.Lines(amounts: nil, detail: "Estimate at list price"))
+    }
+
     @Test func aPlanLoginShowsNoCostLine() {
         #expect(text(nil, [row(day(10, 1), cost: 4.5)]) == nil)
         #expect(text(.subscription, [row(day(10, 1), cost: 4.5)]) == nil)

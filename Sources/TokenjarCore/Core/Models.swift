@@ -140,12 +140,14 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
     public var dashboardURL: String?
     /// nil is off; on, it draws a Today bar for an account limited by what it spends.
     public var dailyBudget: DailyBudget?
+    /// What a login billed per use may spend per calendar month, in USD, set by hand (`MonthlyBudget`). nil is none.
+    public var monthlyBudget: Double?
 
     public init(
         id: String, provider: ProviderID, label: String, enabled: Bool = true,
         profileDir: String? = nil, credential: CredentialRef? = nil, showInMenuBar: Bool = true,
         refreshMinutes: Int? = nil, alertThresholds: [Int]? = nil, shortAlertThresholds: [Int]? = nil,
-        creditAllowance: Int? = nil, dashboardURL: String? = nil, dailyBudget: DailyBudget? = nil
+        creditAllowance: Int? = nil, dashboardURL: String? = nil, dailyBudget: DailyBudget? = nil, monthlyBudget: Double? = nil
     ) {
         self.id = id
         self.provider = provider
@@ -160,6 +162,7 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         self.creditAllowance = creditAllowance
         self.dashboardURL = dashboardURL
         self.dailyBudget = dailyBudget
+        self.monthlyBudget = monthlyBudget
     }
 
     public init(from decoder: Decoder) throws {
@@ -177,6 +180,7 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         creditAllowance = try c.decodeIfPresent(Int.self, forKey: .creditAllowance)
         dashboardURL = try c.decodeIfPresent(String.self, forKey: .dashboardURL)
         dailyBudget = try c.decodeIfPresent(DailyBudget.self, forKey: .dailyBudget)
+        monthlyBudget = try c.decodeIfPresent(Double.self, forKey: .monthlyBudget)
     }
 
     public var displayName: String { "\(provider.displayName) · \(label)" }

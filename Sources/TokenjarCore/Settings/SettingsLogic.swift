@@ -28,10 +28,10 @@ public enum SettingsLogic {
         return out
     }
 
-    /// nil for blank or unreadable text, or an amount that is not positive: the recommended budget then applies.
+    /// A daily or monthly budget typed in Settings. nil for blank or unreadable text, or an amount that is not positive.
     /// A currency symbol or spaces are ignored. With both "." and "," the last one is the decimal point; with one kind,
     /// it is the decimal point when it is the locale's, or when a group after it is not three digits ("5.50" in German).
-    public static func dailyBudgetAmount(from text: String, locale: Locale = .autoupdatingCurrent) -> Double? {
+    public static func budgetAmount(from text: String, locale: Locale = .autoupdatingCurrent) -> Double? {
         let kept = text.filter { $0.isASCII && ($0.isNumber || $0 == "." || $0 == ",") }
         guard !kept.isEmpty, !text.contains("-") else { return nil }
         let separators = kept.filter { $0 == "." || $0 == "," }

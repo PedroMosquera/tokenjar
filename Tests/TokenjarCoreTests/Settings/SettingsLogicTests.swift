@@ -44,7 +44,7 @@ struct SettingsLogicTests {
         ("", "en_US", nil), ("abc", "en_US", nil), ("-5", "en_US", nil), ("0", "en_US", nil),
     ] as [(String, String, Double?)])
     func aDailyBudgetAmountIsAPositiveNumberOrNone(_ text: String, _ locale: String, _ expected: Double?) {
-        #expect(SettingsLogic.dailyBudgetAmount(from: text, locale: Locale(identifier: locale)) == expected)
+        #expect(SettingsLogic.budgetAmount(from: text, locale: Locale(identifier: locale)) == expected)
     }
 
     @Test(arguments: [("  Personal ", "Personal"), ("Work", "Work"), ("   ", nil), ("", nil)] as [(String, String?)])

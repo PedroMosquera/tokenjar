@@ -710,6 +710,7 @@ final class AppModel {
 
     private func apply(_ result: Result<UsageSnapshot, FetchError>, to account: AccountConfig) -> Applied {
         let current = clock()
+        let result = result.map { withMonthlyBudget($0, account: account, now: current) }
         var modelTurn: ProbeLatch.CLI?, rateLimited = false
         if case .failure(let error) = result {
             modelTurn = ProbeLatch.CLI(modelTurn: error)
@@ -752,6 +753,13 @@ final class AppModel {
         notifications?.handle(outcome)
         if alertState != previousAlertState { saveAlertState() }
         return .applied(sampled: sampled)
+    }
+
+    /// Added before the snapshot is stored, so its samples feed the Today bar and the dashboard as a seat's cap does.
+    private func withMonthlyBudget(_ snapshot: UsageSnapshot, account: AccountConfig, now: Date) -> UsageSnapshot {
+        guard account.monthlyBudget != nil, let monthStart = Calendar.current.dateInterval(of: .month, for: now)?.start else { return snapshot }
+        let spent = DashboardMath.cost(pricedUsage(accountIDs: [account.id], since: monthStart), since: monthStart).amount
+        return MonthlyBudget.apply(account.monthlyBudget, spent: spent, to: snapshot, now: now)
     }
 
     /// Accounts whose last probe spent tokens or quota stay out, unless the binary of the CLI that ran it has changed.

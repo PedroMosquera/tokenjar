@@ -139,6 +139,26 @@ struct AppModelAccountsTests {
         #expect(model.hiddenAccounts.map(\.id) == ["off"])
     }
 
+    /// A gateway login's budget is drawn as a spend limit, so the menu bar and alerts count it like a seat's own cap.
+    @Test func aMonthlyBudgetBecomesTheAccountsSpendLimit() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        var gateway = AccountConfig(id: "gateway", provider: .claude, label: "LiteLLM")
+        gateway.monthlyBudget = 200
+        let model = try loadedModel(home, [gateway], clock: clock) { account in
+            .success(UsageSnapshot(accountID: account.id, provider: .claude, billing: .payAsYouGo, fetchedAt: Date(), source: "test"))
+        }
+        try model.store?.upsert([UsageEvent(
+            dedupeKey: "gateway:1", timestamp: clock.now.addingTimeInterval(-3600), accountID: "gateway", harness: .claudeCode,
+            model: "claude-opus-5-5", project: "tokenjar", inputTokens: 100, reportedCostUSD: 50
+        )])
+        await model.tick()?.value
+
+        let snapshot = try #require(model.status(for: gateway).snapshot)
+        #expect(snapshot.spendLimitMoney == MoneyLine(label: "Monthly budget", amount: 50, limit: 200))
+        #expect(model.menuBarState.entries.first?.tightest?.usedPercent == 25)
+    }
+
     private let clock = TestClock()
 
     private func loadedModel(

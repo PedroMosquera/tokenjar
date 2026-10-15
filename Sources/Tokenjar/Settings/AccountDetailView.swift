@@ -55,6 +55,10 @@ struct AccountDetailView: View {
                         }
                     }
                 }
+                if account.monthlyBudget != nil || model.status(for: account).snapshot.map(MonthlyBudget.applies) == true {
+                    monthlyBudgetSection
+                        .disabled(!model.canEditConfig)
+                }
                 if let snapshot = model.status(for: account).snapshot, snapshot.spendLimitMoney != nil {
                     dailyBudgetSection(snapshot)
                         .disabled(!model.canEditConfig)
@@ -178,6 +182,23 @@ struct AccountDetailView: View {
         }
     }
 
+    private var monthlyBudgetSection: some View {
+        Section {
+            CommittingTextField(
+                title: "Monthly budget", prompt: "None",
+                value: account.monthlyBudget.map { $0.formatted(.number.precision(.fractionLength(0...2))) } ?? ""
+            ) { text in
+                // Empty clears the budget; text that is not an amount keeps what was there.
+                let amount = SettingsLogic.budgetAmount(from: text)
+                guard amount != nil || text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                model.updateAccount(account.id) { $0.monthlyBudget = amount }
+            }
+            Text("In US dollars. Draws a bar against this month's spend, estimated at list price from this Mac's logs, and counts in the menu bar and alerts like a spend limit.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     /// Only for an account limited by what it spends, which is the only kind a Today bar can measure.
     private func dailyBudgetSection(_ snapshot: UsageSnapshot) -> some View {
         let isOn = Binding(
@@ -197,7 +218,7 @@ struct AccountDetailView: View {
                     value: account.dailyBudget?.amount.map { $0.formatted(.number.precision(.fractionLength(0...2))) } ?? ""
                 ) { text in
                     // Empty means the recommended amount; text that is not an amount keeps what was there.
-                    let amount = SettingsLogic.dailyBudgetAmount(from: text)
+                    let amount = SettingsLogic.budgetAmount(from: text)
                     guard amount != nil || text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                     model.updateAccount(account.id) { $0.dailyBudget = DailyBudget(amount: amount) }
                 }

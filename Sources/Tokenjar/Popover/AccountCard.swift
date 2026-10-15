@@ -283,8 +283,10 @@ private struct SnapshotBody: View {
             let costLine = model.monthCostLine(snapshot: snapshot, now: now)
             if let costLine {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(costLine.amounts)
-                        .font(.callout)
+                    if let amounts = costLine.amounts {
+                        Text(amounts)
+                            .font(.callout)
+                    }
                     if let detail = costLine.detail {
                         Text(detail)
                             .font(.caption)
