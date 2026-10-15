@@ -92,6 +92,7 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
             AND NOT EXISTS (SELECT 1 FROM message v1 WHERE v1.id = m.id)
               AND NOT EXISTS (SELECT 1 FROM message v1 WHERE v1.session_id = m.session_id AND v1.time_created = m.time_created)
             """ : ""
+        // json_extract on one malformed row fails the whole query. CASE guarantees json_valid runs first; AND does not.
         // `>=` rather than `>`: a row written later in the same millisecond as the previous scan is not lost.
         // Re-reading the boundary rows is harmless because the store upserts by dedupeKey.
         let sql = switch table {
@@ -103,8 +104,8 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
                    json_extract(data, '$.tokens.cache.write'), json_extract(data, '$.path.cwd')
             FROM message
             WHERE time_updated >= ?1
-              AND json_extract(data, '$.role') = 'assistant'
-              AND json_extract(data, '$.providerID') IN (\(placeholders))
+              AND CASE WHEN json_valid(data)
+                  THEN json_extract(data, '$.role') = 'assistant' AND json_extract(data, '$.providerID') IN (\(placeholders)) END
             ORDER BY time_updated
             """
         case .sessionMessage:
@@ -116,7 +117,7 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
             FROM session_message m LEFT JOIN session s ON s.id = m.session_id
             WHERE m.time_updated >= ?1
               AND m.type = 'assistant'
-              AND json_extract(m.data, '$.model.providerID') IN (\(placeholders))
+              AND CASE WHEN json_valid(m.data) THEN json_extract(m.data, '$.model.providerID') IN (\(placeholders)) END
               \(notACopy)
             ORDER BY m.time_updated
             """

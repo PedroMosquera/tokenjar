@@ -140,6 +140,25 @@ struct OpenCodeHistoryScannerTests {
         #expect(result.checkpoints[checkpointKey(dir, "message")] == nil)
     }
 
+    /// SQLite's json_extract raises on malformed JSON and aborts the whole query, so one bad row could hide every other.
+    @Test func skipsRowsWithMalformedJSONAndKeepsTheRest() throws {
+        let dir = try OpenCodeTempDirectory()
+        let db = try OpenCodeFixtureDatabase(at: database(dir))
+        try db.createV1Tables()
+        try db.createV2Tables()
+        try db.insertV1(id: "msg_v1_before", provider: "opencode-go", created: t0)
+        try db.exec(#"INSERT INTO message VALUES ('msg_v1_bad', 'ses_1', \#(t0 + 1), \#(t0 + 1), '{"role":"assistant","providerID":"opencode-go",')"#)
+        try db.insertV1(id: "msg_v1_after", provider: "opencode-go", created: t0 + 2)
+        try db.insertV2(id: "msg_v2_before", session: "ses_2", provider: "opencode-go", created: t0 + 10, seq: 1)
+        try db.exec(#"INSERT INTO session_message VALUES ('msg_v2_bad', 'ses_2', 'assistant', \#(t0 + 11), \#(t0 + 11), 'not json', 2)"#)
+        try db.insertV2(id: "msg_v2_after", session: "ses_2", provider: "opencode-go", created: t0 + 12, seq: 3)
+
+        let result = try scan(dir)
+        #expect(result.events.map(\.dedupeKey) == ["opencode:msg_v1_before", "opencode:msg_v1_after", "opencode:msg_v2_before", "opencode:msg_v2_after"])
+        #expect(result.checkpoints[checkpointKey(dir, "message")] == "\(t0 + 2)")
+        #expect(result.checkpoints[checkpointKey(dir, "session_message")] == "\(t0 + 12)")
+    }
+
     @Test func missingDatabaseYieldsNothingAndKeepsCheckpoints() throws {
         let dir = try OpenCodeTempDirectory()
         let result = try scan(dir, checkpoints: ["other": "x"])
