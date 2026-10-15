@@ -57,7 +57,7 @@ final class AntigravityUsageFetcherTests {
         (output("agy 1.2.0\n", stderr: "error: unknown option '--version' (see docs v2.0)\n", exitCode: 2), "Could not read the agy version"),
     ])
     func refusesOldOrUnknownVersionsBeforeAskingForUsage(version: ProcessResult, message: String) async throws {
-        let runner = try FakeAgy(version: version, usage: output(fixture("usage-snake.json")))
+        let runner = try agy(version: version, usage: output(fixture("usage-snake.json")))
         await #expect(throws: FetchError.unsupported(message)) { try await self.fetch(runner) }
         #expect(runner.calls.map(\.arguments) == [["--version"]])
     }
@@ -65,7 +65,7 @@ final class AntigravityUsageFetcherTests {
     // MARK: Invocation
 
     @Test func missingBinaryIsCLINotFoundWithoutRunningAnything() async throws {
-        let runner = try FakeAgy(usage: output(fixture("usage-snake.json")))
+        let runner = try agy(usage: output(fixture("usage-snake.json")))
         let context = try context(runner, agyPath: home.appending(path: "bin/not-installed").path)
         await #expect(throws: FetchError.cliNotFound("agy")) {
             try await AntigravityUsageFetcher().fetch(self.account, context: context)
@@ -74,7 +74,7 @@ final class AntigravityUsageFetcherTests {
     }
 
     @Test func runsReadOnlyUsageCommandFromTheProbeDirectory() async throws {
-        let runner = try FakeAgy(usage: output(fixture("usage-snake.json")))
+        let runner = try agy(usage: output(fixture("usage-snake.json")))
         let context = try context(runner)
         try makeWorldReadableDirectory(context.paths.supportDirectory)
         _ = try await AntigravityUsageFetcher().fetch(account, context: context)
@@ -92,24 +92,24 @@ final class AntigravityUsageFetcherTests {
     }
 
     @Test func signInFailureIsNotSignedIn() async throws {
-        let runner = FakeAgy(usage: output("", stderr: "You are not signed in. Run agy and log in.\n", exitCode: 1))
+        let runner = agy(usage: output("", stderr: "You are not signed in. Run agy and log in.\n", exitCode: 1))
         await #expect(throws: FetchError.notSignedIn) { try await self.fetch(runner) }
     }
 
     @Test func otherFailureCarriesOnlyTheExitStatus() async throws {
-        let runner = FakeAgy(usage: output("", stderr: "internal error: placeholder detail\n", exitCode: 2))
+        let runner = agy(usage: output("", stderr: "internal error: placeholder detail\n", exitCode: 2))
         await #expect(throws: FetchError.parse("agy exited with status 2")) { try await self.fetch(runner) }
     }
 
     @Test func timeoutIsReported() async throws {
-        let runner = FakeAgy(usage: output("", exitCode: 15, timedOut: true))
+        let runner = agy(usage: output("", exitCode: 15, timedOut: true))
         await #expect(throws: FetchError.timeout) { try await self.fetch(runner) }
     }
 
     // MARK: Parsing
 
     @Test func snakeCaseReportBecomesOneWindowPerPoolAndLimit() async throws {
-        let snapshot = try await fetch(FakeAgy(usage: output(fixture("usage-snake.json"))))
+        let snapshot = try await fetch(agy(usage: output(fixture("usage-snake.json"))))
         #expect(summary(snapshot.windows) == [
             "gemini:session | Gemini · 5-hour | 38.0 | 300 | 2026-10-10T22:30:00Z",
             "gemini:weekly | Gemini · Week | 10.0 | 10080 | 2026-10-12T00:00:00Z",
@@ -124,7 +124,7 @@ final class AntigravityUsageFetcherTests {
     }
 
     @Test func camelCaseReportParsesTheSameFields() async throws {
-        let snapshot = try await fetch(FakeAgy(usage: output(fixture("usage-camel.json"))))
+        let snapshot = try await fetch(agy(usage: output(fixture("usage-camel.json"))))
         #expect(summary(snapshot.windows) == [
             "gemini:session | Gemini · 5-hour | 50.0 | 300 | 2026-10-10T22:30:00Z",
             "gemini:weekly | Gemini · Week | 20.0 | 10080 | 2026-10-12T00:00:00Z",
@@ -138,19 +138,19 @@ final class AntigravityUsageFetcherTests {
         Update available: run agy update
         {"meta":{"groups":"n/a"},"payload":{"reports":[{"kind":"quota","detail":{"groups":[{"name":"Gemini models","buckets":[{"window":"weekly","remaining_fraction":0.7,"reset_time":"2026-10-12T00:00:00Z"}]}]}}]}}
         """
-        let snapshot = try await fetch(FakeAgy(usage: output(stdout)))
+        let snapshot = try await fetch(agy(usage: output(stdout)))
         #expect(summary(snapshot.windows) == ["gemini:weekly | Gemini · Week | 30.0 | 10080 | 2026-10-12T00:00:00Z"])
     }
 
     @Test func skipsDisabledBuckets() async throws {
         let stdout = #"{"groups":[{"name":"Gemini models","buckets":[{"window":"five_hour","remaining_fraction":0.1,"disabled":true},{"window":"weekly","remaining_fraction":0.5,"disabled":false}]}]}"#
-        let snapshot = try await fetch(FakeAgy(usage: output(stdout)))
+        let snapshot = try await fetch(agy(usage: output(stdout)))
         #expect(snapshot.windows.map(\.id) == ["gemini:weekly"])
     }
 
     @Test func unknownWindowKeepsItsNameWithoutALength() async throws {
         let stdout = #"{"groups":[{"name":"Gemini models","buckets":[{"window":"Daily_Requests","remaining_fraction":0.75}]}]}"#
-        let snapshot = try await fetch(FakeAgy(usage: output(stdout)))
+        let snapshot = try await fetch(agy(usage: output(stdout)))
         #expect(summary(snapshot.windows) == ["gemini:dailyrequests | Gemini · Daily_Requests | 25.0 | - | -"])
     }
 
@@ -173,18 +173,18 @@ final class AntigravityUsageFetcherTests {
         #"{"groups":[{"name":"Gemini models","limits":[{"window":"weekly","remaining_fraction":0.4}]}]}"#,
     ])
     func unrecognizedBucketsAreAParseErrorNotAnEmptyAccount(stdout: String) async throws {
-        let runner = FakeAgy(usage: output(stdout))
+        let runner = agy(usage: output(stdout))
         await #expect(throws: FetchError.parse("agy /usage buckets not recognized")) { try await self.fetch(runner) }
     }
 
     @Test func oneUnrecognizedBucketBesideAGoodOneIsSkipped() async throws {
         let stdout = #"{"groups":[{"name":"Gemini models","buckets":[{"window":"weekly","remaining_fraction":0.5},{"window":"five_hour","remaining_percent":40}]}]}"#
-        let snapshot = try await fetch(FakeAgy(usage: output(stdout)))
+        let snapshot = try await fetch(agy(usage: output(stdout)))
         #expect(snapshot.windows.map(\.id) == ["gemini:weekly"])
     }
 
     @Test func errorPayloadAboutSignInIsNotSignedIn() async throws {
-        let runner = FakeAgy(usage: output(#"{"error":{"code":"UNAUTHENTICATED","message":"Please sign in"}}"#))
+        let runner = agy(usage: output(#"{"error":{"code":"UNAUTHENTICATED","message":"Please sign in"}}"#))
         await #expect(throws: FetchError.notSignedIn) { try await self.fetch(runner) }
     }
 
@@ -193,7 +193,7 @@ final class AntigravityUsageFetcherTests {
         #"{"result":{"error":"placeholder detail"}}"#,
     ])
     func otherErrorPayloadIsAParseError(stdout: String) async throws {
-        let runner = FakeAgy(usage: output(stdout))
+        let runner = agy(usage: output(stdout))
         await #expect(throws: FetchError.parse("agy /usage reported an error")) { try await self.fetch(runner) }
     }
 
@@ -207,7 +207,7 @@ final class AntigravityUsageFetcherTests {
         #"{"response":"Usage is not available for this account type","command":{"data":{"message":"Usage is not available for this account type"}}}"#,
     ])
     func emptyReportShowsANoteInsteadOfWindows(stdout: String) async throws {
-        let snapshot = try await fetch(FakeAgy(usage: output(stdout)))
+        let snapshot = try await fetch(agy(usage: output(stdout)))
         #expect(snapshot.windows.isEmpty)
         #expect(snapshot.notes == ["No usage limits reported for this account"])
         #expect(snapshot.source == "agy CLI")
@@ -221,7 +221,7 @@ final class AntigravityUsageFetcherTests {
         #"{"response":"Synthetic quota report","num_turns":0,"usage":{"total_tokens":0},"command":{"name":"usage","data":{}}}"#,
     ])
     func outputWithoutGroupsOrAReasonIsAParseError(stdout: String) async throws {
-        let runner = FakeAgy(usage: output(stdout))
+        let runner = agy(usage: output(stdout))
         await #expect(throws: FetchError.parse("agy /usage has no groups")) { try await self.fetch(runner) }
     }
 
@@ -234,33 +234,33 @@ final class AntigravityUsageFetcherTests {
         #"{"response":"Here is your usage.","num_turns":0,"usage":{"input_tokens":0,"total_tokens":120},"command":{"name":"usage"}}"#,
     ])
     func aModelReplySaysTheProbeSpentQuota(stdout: String) async throws {
-        let runner = FakeAgy(usage: output(stdout))
+        let runner = agy(usage: output(stdout))
         await #expect(throws: FetchError.unsupported(AntigravityUsageFetcher.modelTurnMessage)) { try await self.fetch(runner) }
     }
 
     /// agy wraps a local slash command's answer in the same envelope as a model reply (`response`, `num_turns`), so
     /// those keys alone must not latch the account and pause its checks.
     @Test func aLocalUsageAnswerWithoutGroupsIsNotAModelTurn() async throws {
-        let local = FakeAgy(usage: output(try fixture("enterprise-no-quota.stdout.json")))
+        let local = agy(usage: output(try fixture("enterprise-no-quota.stdout.json")))
         let noQuota = try? await fetch(local)
         #expect(noQuota?.windows == [])
         #expect(noQuota?.notes == ["No usage limits reported for this account"])
 
-        let renamed = FakeAgy(usage: output(try fixture("renamed-groups-envelope.stdout.json")))
+        let renamed = agy(usage: output(try fixture("renamed-groups-envelope.stdout.json")))
         await #expect(throws: FetchError.parse("agy /usage has no groups")) { try await self.fetch(renamed) }
 
-        let turn = FakeAgy(usage: output(try fixture("model-turn.stdout.json")))
+        let turn = agy(usage: output(try fixture("model-turn.stdout.json")))
         await #expect(throws: FetchError.unsupported(AntigravityUsageFetcher.modelTurnMessage)) { try await self.fetch(turn) }
     }
 
     @Test func nonJSONOutputIsAParseError() async throws {
-        let runner = FakeAgy(usage: output("Usage: agy [options] [prompt]\n"))
+        let runner = agy(usage: output("Usage: agy [options] [prompt]\n"))
         await #expect(throws: FetchError.parse("agy /usage output is not JSON")) { try await self.fetch(runner) }
     }
 
     // MARK: Helpers
 
-    private func context(_ runner: FakeAgy, agyPath: String? = nil) throws -> FetchContext {
+    private func context(_ runner: FakeRunner, agyPath: String? = nil) throws -> FetchContext {
         let agy = home.appending(path: "bin/agy")
         try Data().write(to: agy)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: agy.path)
@@ -271,7 +271,7 @@ final class AntigravityUsageFetcherTests {
         )
     }
 
-    private func fetch(_ runner: FakeAgy) async throws -> UsageSnapshot {
+    private func fetch(_ runner: FakeRunner) async throws -> UsageSnapshot {
         try await AntigravityUsageFetcher().fetch(account, context: context(runner))
     }
 
@@ -291,40 +291,7 @@ final class AntigravityUsageFetcherTests {
     }
 }
 
-private func output(_ stdout: String, stderr: String = "", exitCode: Int32 = 0, timedOut: Bool = false) -> ProcessResult {
-    ProcessResult(exitCode: exitCode, stdout: Data(stdout.utf8), stderr: Data(stderr.utf8), timedOut: timedOut)
-}
-
-/// Answers `--version` with `version` and anything else with `usage`, and records every call. Never spawns a process.
-private final class FakeAgy: ProcessRunning, @unchecked Sendable {
-    struct Call {
-        var executable: URL
-        var arguments: [String]
-        var environment: [String: String]
-        var currentDirectory: URL?
-        var timeout: TimeInterval
-        var outputLimit: Int
-    }
-
-    private let lock = NSLock()
-    private var recorded: [Call] = []
-    private let version: ProcessResult
-    private let usage: ProcessResult
-
-    init(version: ProcessResult = output("agy 1.1.11"), usage: ProcessResult) {
-        self.version = version
-        self.usage = usage
-    }
-
-    var calls: [Call] { lock.withLock { recorded } }
-
-    func run(
-        _ executable: URL, arguments: [String], environment: [String: String],
-        currentDirectory: URL?, stdin: Data?, timeout: TimeInterval, outputLimit: Int
-    ) async throws -> ProcessResult {
-        lock.withLock {
-            recorded.append(Call(executable: executable, arguments: arguments, environment: environment, currentDirectory: currentDirectory, timeout: timeout, outputLimit: outputLimit))
-        }
-        return arguments == ["--version"] ? version : usage
-    }
+/// Answers `--version` with `version` and anything else with `usage`.
+private func agy(version: ProcessResult = output("agy 1.1.11"), usage: ProcessResult) -> FakeRunner {
+    FakeRunner { $0.arguments == ["--version"] ? version : usage }
 }

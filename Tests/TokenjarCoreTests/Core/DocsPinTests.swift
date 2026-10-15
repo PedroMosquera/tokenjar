@@ -58,7 +58,9 @@ struct DocsPinTests {
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
             overrides[cli] = binary.path
         }
-        let runner = RecordingRunner()
+        // agy has to pass its version check for the `/usage` run to be recorded too.
+        let agyVersion = output("agy " + AntigravityUsageFetcher.minimumVersion.map(String.init).joined(separator: "."))
+        let runner = FakeRunner { $0.arguments == ["--version"] ? agyVersion : output(exitCode: 1) }
         let launcher = RecordingCodexLauncher(ScriptedCodexConnection(replies: [:], finishAfter: "initialize"))
         let context = FetchContext(
             process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: overrides, searchDirectories: []), paths: AppPaths(home: home)
@@ -68,12 +70,13 @@ struct DocsPinTests {
         }
 
         _ = try? await ClaudeUsageFetcher().fetch(account(.claude), context: context)
-        let claude = runner.calls
+        let claudeCount = runner.calls.count
         _ = try? await CodexUsageFetcher(launcher: launcher, timeout: 5).fetch(account(.codex), context: context)
         let codex = launcher.launches.map { Call(executable: $0.executable, arguments: $0.arguments, environment: $0.environment) }
         _ = try? await AntigravityUsageFetcher().fetch(account(.antigravity), context: context)
         _ = try? await CopilotUsageFetcher().fetch(account(.copilot), context: context)
-        return claude + codex + runner.calls.dropFirst(claude.count)
+        let recorded = runner.calls.map { Call(executable: $0.executable, arguments: $0.arguments, environment: $0.environment) }
+        return recorded.prefix(claudeCount) + codex + recorded.dropFirst(claudeCount)
     }
 }
 
@@ -81,23 +84,4 @@ private struct Call {
     var executable: URL
     var arguments: [String]
     var environment: [String: String]
-}
-
-/// Answers agy's version check with the minimum it accepts, so the `/usage` run is recorded too, and fails every
-/// other run. Never spawns a process.
-private final class RecordingRunner: ProcessRunning, @unchecked Sendable {
-    private let lock = NSLock()
-    private var recorded: [Call] = []
-
-    var calls: [Call] { lock.withLock { recorded } }
-
-    func run(
-        _ executable: URL, arguments: [String], environment: [String: String],
-        currentDirectory: URL?, stdin: Data?, timeout: TimeInterval, outputLimit: Int
-    ) async throws -> ProcessResult {
-        lock.withLock { recorded.append(Call(executable: executable, arguments: arguments, environment: environment)) }
-        guard arguments == ["--version"] else { return ProcessResult(exitCode: 1, stdout: Data(), stderr: Data(), timedOut: false) }
-        let version = "agy " + AntigravityUsageFetcher.minimumVersion.map(String.init).joined(separator: ".")
-        return ProcessResult(exitCode: 0, stdout: Data(version.utf8), stderr: Data(), timedOut: false)
-    }
 }

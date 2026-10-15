@@ -7,7 +7,7 @@ import Testing
 final class CaptureCommandTests {
     let home: URL
     let systemRoot: URL
-    let runner = ScriptedRunner()
+    let runner = FakeRunner()
 
     init() throws {
         let base = FileManager.default.temporaryDirectory.appending(path: "tokenjar-capture-\(UUID().uuidString)")
@@ -339,42 +339,5 @@ final class CaptureCommandTests {
         let text = String(decoding: stdout.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         process.waitUntilExit()
         return (process.terminationStatus, text)
-    }
-}
-
-private func output(_ stdout: String, stderr: String = "", exitCode: Int32 = 0) -> ProcessResult {
-    ProcessResult(exitCode: exitCode, stdout: Data(stdout.utf8), stderr: Data(stderr.utf8), timedOut: false)
-}
-
-/// Answers each run with the next of `answers` (an empty success once they run out) and records the call.
-final class ScriptedRunner: ProcessRunning, @unchecked Sendable {
-    struct Call: Equatable {
-        var executable: URL
-        var arguments: [String]
-        var environment: [String: String]
-        var currentDirectory: URL?
-        var timeout: TimeInterval
-        var outputLimit: Int
-    }
-
-    private let lock = NSLock()
-    private var recorded: [Call] = []
-    private var queued: [ProcessResult] = []
-
-    var answers: [ProcessResult] {
-        get { lock.withLock { queued } }
-        set { lock.withLock { queued = newValue } }
-    }
-
-    var calls: [Call] { lock.withLock { recorded } }
-
-    func run(
-        _ executable: URL, arguments: [String], environment: [String: String],
-        currentDirectory: URL?, stdin: Data?, timeout: TimeInterval, outputLimit: Int
-    ) async throws -> ProcessResult {
-        lock.withLock {
-            recorded.append(Call(executable: executable, arguments: arguments, environment: environment, currentDirectory: currentDirectory, timeout: timeout, outputLimit: outputLimit))
-            return queued.isEmpty ? ProcessResult(exitCode: 0, stdout: Data(), stderr: Data(), timedOut: false) : queued.removeFirst()
-        }
     }
 }

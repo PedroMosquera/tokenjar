@@ -21,7 +21,7 @@ final class CopilotUsageFetcherTests {
     /// docs/privacy.md quotes this command. Any field flag would turn the request into a POST, --cache would write the
     /// answer to disk, and the filter is what keeps the login, ids and organizations inside gh.
     @Test func runsAPinnedReadOnlyGETThroughGh() async throws {
-        let runner = FakeGh(output(try fixture("user-enterprise.json")))
+        let runner = FakeRunner(output(try fixture("user-enterprise.json")))
         let context = try context(runner)
         try makeWorldReadableDirectory(context.paths.supportDirectory)
         _ = try await CopilotUsageFetcher().fetch(account, context: context)
@@ -46,7 +46,7 @@ final class CopilotUsageFetcherTests {
     }
 
     @Test func environmentIsTheMinimalOneWithGhTelemetryAndPromptsOff() async throws {
-        let runner = FakeGh(output(try fixture("user-enterprise.json")))
+        let runner = FakeRunner(output(try fixture("user-enterprise.json")))
         let context = try context(runner)
         _ = try await CopilotUsageFetcher().fetch(account, context: context)
 
@@ -60,7 +60,7 @@ final class CopilotUsageFetcherTests {
     }
 
     @Test func profileFolderBecomesGhConfigDir() async throws {
-        let runner = FakeGh(output(try fixture("user-enterprise.json")))
+        let runner = FakeRunner(output(try fixture("user-enterprise.json")))
         let work = AccountConfig(id: "copilot-work", provider: .copilot, label: "Work", profileDir: "~/.config/gh-work")
         _ = try await CopilotUsageFetcher().fetch(work, context: context(runner))
         #expect(runner.calls.first?.environment["GH_CONFIG_DIR"] == home.appending(path: ".config/gh-work").path)
@@ -261,14 +261,14 @@ final class CopilotUsageFetcherTests {
     // MARK: Failures
 
     @Test func missingGhIsCLINotFoundWithoutRunningAnything() async throws {
-        let runner = FakeGh(output("{}"))
+        let runner = FakeRunner(output("{}"))
         let context = try context(runner, ghPath: home.appending(path: "bin/not-installed").path)
         await #expect(throws: FetchError.cliNotFound("gh")) { try await CopilotUsageFetcher().fetch(self.account, context: context) }
         #expect(runner.calls.isEmpty)
     }
 
     @Test func ghThatCannotStartIsCLINotFound() async throws {
-        let runner = FakeGh(output("{}"), throwsOnRun: true)
+        let runner = FakeRunner { _ in throw CocoaError(.executableNotLoadable) }
         await #expect(throws: FetchError.cliNotFound("gh")) { try await self.fetch(runner) }
     }
 
@@ -306,7 +306,7 @@ final class CopilotUsageFetcherTests {
 
     // MARK: Helpers
 
-    private func context(_ runner: FakeGh, ghPath: String? = nil) throws -> FetchContext {
+    private func context(_ runner: FakeRunner, ghPath: String? = nil) throws -> FetchContext {
         let gh = home.appending(path: "bin/gh")
         try Data().write(to: gh)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: gh.path)
@@ -318,10 +318,10 @@ final class CopilotUsageFetcherTests {
     }
 
     private func fetch(_ result: ProcessResult) async throws -> UsageSnapshot {
-        try await fetch(FakeGh(result))
+        try await fetch(FakeRunner(result))
     }
 
-    private func fetch(_ runner: FakeGh) async throws -> UsageSnapshot {
+    private func fetch(_ runner: FakeRunner) async throws -> UsageSnapshot {
         try await CopilotUsageFetcher().fetch(account, context: context(runner))
     }
 
@@ -346,44 +346,5 @@ final class CopilotUsageFetcherTests {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .appending(path: "Fixtures/Copilot/\(name)")
         return try String(contentsOf: url, encoding: .utf8)
-    }
-}
-
-private func output(_ stdout: String, stderr: String = "", exitCode: Int32 = 0, timedOut: Bool = false) -> ProcessResult {
-    ProcessResult(exitCode: exitCode, stdout: Data(stdout.utf8), stderr: Data(stderr.utf8), timedOut: timedOut)
-}
-
-/// Stands in for gh: returns one canned result and records every call. Never spawns a process.
-private final class FakeGh: ProcessRunning, @unchecked Sendable {
-    struct Call {
-        var executable: URL
-        var arguments: [String]
-        var environment: [String: String]
-        var currentDirectory: URL?
-        var stdin: Data?
-        var timeout: TimeInterval
-    }
-
-    private let lock = NSLock()
-    private var recorded: [Call] = []
-    private let result: ProcessResult
-    private let throwsOnRun: Bool
-
-    init(_ result: ProcessResult, throwsOnRun: Bool = false) {
-        self.result = result
-        self.throwsOnRun = throwsOnRun
-    }
-
-    var calls: [Call] { lock.withLock { recorded } }
-
-    func run(
-        _ executable: URL, arguments: [String], environment: [String: String],
-        currentDirectory: URL?, stdin: Data?, timeout: TimeInterval, outputLimit: Int
-    ) async throws -> ProcessResult {
-        lock.withLock {
-            recorded.append(Call(executable: executable, arguments: arguments, environment: environment, currentDirectory: currentDirectory, stdin: stdin, timeout: timeout))
-        }
-        if throwsOnRun { throw CocoaError(.executableNotLoadable) }
-        return result
     }
 }
