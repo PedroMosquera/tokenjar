@@ -4,24 +4,22 @@ import Testing
 
 /// The fixtures are the filtered `gh api` output, not the raw `copilot_internal/user` body.
 final class CopilotUsageFetcherTests {
-    let home: URL
+    let temp = TemporaryDirectory()
+    var home: URL { temp.url }
     let account = AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")
     let now = DateParsing.iso8601("2026-10-11T12:00:00Z")!
     let cycleEnd = DateParsing.iso8601("2026-11-01T00:00:00Z")!
 
     init() throws {
-        home = FileManager.default.temporaryDirectory.appending(path: "tokenjar-copilot-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home.appending(path: "bin"), withIntermediateDirectories: true)
     }
-
-    deinit { try? FileManager.default.removeItem(at: home) }
 
     // MARK: Invocation
 
     /// docs/privacy.md quotes this command. Any field flag would turn the request into a POST, --cache would write the
     /// answer to disk, and the filter is what keeps the login, ids and organizations inside gh.
     @Test func runsAPinnedReadOnlyGETThroughGh() async throws {
-        let runner = FakeRunner(output(try fixture("user-enterprise.json")))
+        let runner = FakeRunner(output(try fixtureText("Copilot/user-enterprise.json")))
         let context = try context(runner)
         try makeWorldReadableDirectory(context.paths.supportDirectory)
         _ = try await CopilotUsageFetcher().fetch(account, context: context)
@@ -46,7 +44,7 @@ final class CopilotUsageFetcherTests {
     }
 
     @Test func environmentIsTheMinimalOneWithGhTelemetryAndPromptsOff() async throws {
-        let runner = FakeRunner(output(try fixture("user-enterprise.json")))
+        let runner = FakeRunner(output(try fixtureText("Copilot/user-enterprise.json")))
         let context = try context(runner)
         _ = try await CopilotUsageFetcher().fetch(account, context: context)
 
@@ -60,7 +58,7 @@ final class CopilotUsageFetcherTests {
     }
 
     @Test func profileFolderBecomesGhConfigDir() async throws {
-        let runner = FakeRunner(output(try fixture("user-enterprise.json")))
+        let runner = FakeRunner(output(try fixtureText("Copilot/user-enterprise.json")))
         let work = AccountConfig(id: "copilot-work", provider: .copilot, label: "Work", profileDir: "~/.config/gh-work")
         _ = try await CopilotUsageFetcher().fetch(work, context: context(runner))
         #expect(runner.calls.first?.environment["GH_CONFIG_DIR"] == home.appending(path: ".config/gh-work").path)
@@ -110,7 +108,7 @@ final class CopilotUsageFetcherTests {
     // MARK: Mapping
 
     @Test func enterpriseSeatShowsItsMonthlyAICredits() async throws {
-        let snapshot = try await fetch(output(try fixture("user-enterprise.json")))
+        let snapshot = try await fetch(output(try fixtureText("Copilot/user-enterprise.json")))
         #expect(snapshot.windows == [
             UsageWindow(id: "monthly", label: "AI credits", usedPercent: (1000 - 750.5) / 1000 * 100, windowMinutes: 31 * 1_440, resetsAt: cycleEnd),
         ])
@@ -124,7 +122,7 @@ final class CopilotUsageFetcherTests {
     }
 
     @Test func freePlanDerivesChatAndCompletionsFromItsMonthlyQuotas() async throws {
-        let snapshot = try await fetch(output(try fixture("user-free.json")))
+        let snapshot = try await fetch(output(try fixtureText("Copilot/user-free.json")))
         #expect(snapshot.windows == [
             UsageWindow(id: "chat:monthly", label: "Chat", usedPercent: 20, windowMinutes: 31 * 1_440, resetsAt: cycleEnd),
             UsageWindow(id: "completions:monthly", label: "Completions", usedPercent: 25, windowMinutes: 31 * 1_440, resetsAt: cycleEnd),
@@ -155,14 +153,14 @@ final class CopilotUsageFetcherTests {
     }
 
     @Test func pooledSeatWithoutAPerUserBudgetShowsCreditsUsedAsANote() async throws {
-        let snapshot = try await fetch(output(try fixture("user-pooled-unlimited.json")))
+        let snapshot = try await fetch(output(try fixtureText("Copilot/user-pooled-unlimited.json")))
         #expect(snapshot.windows.isEmpty)
         #expect(snapshot.notes == ["31 AI credits used this cycle (no per-user limit)"])
         #expect(snapshot.plan == "Business")
     }
 
     @Test func premiumModelsIsTheSameAllowanceAsPremiumInteractions() async throws {
-        let snapshot = try await fetch(output(try fixture("user-premium-models.json")))
+        let snapshot = try await fetch(output(try fixtureText("Copilot/user-premium-models.json")))
         #expect(snapshot.windows == [
             UsageWindow(id: "monthly", label: "AI credits", usedPercent: 25, windowMinutes: 31 * 1_440, resetsAt: cycleEnd),
         ])
@@ -216,7 +214,7 @@ final class CopilotUsageFetcherTests {
     }
 
     @Test func legacyPremiumRequestsFallBackToPercentRemainingAndTheResetDate() async throws {
-        let snapshot = try await fetch(output(try fixture("user-legacy-premium.json")))
+        let snapshot = try await fetch(output(try fixtureText("Copilot/user-legacy-premium.json")))
         #expect(snapshot.windows == [
             UsageWindow(id: "monthly", label: "Premium requests", usedPercent: 40, windowMinutes: 31 * 1_440, resetsAt: cycleEnd),
             UsageWindow(id: "codereview:monthly", label: "Code review", usedPercent: 10, windowMinutes: 31 * 1_440, resetsAt: cycleEnd),
@@ -225,7 +223,7 @@ final class CopilotUsageFetcherTests {
     }
 
     @Test func overageGoesPast100AndAddsANote() async throws {
-        let snapshot = try await fetch(output(try fixture("user-overage.json")))
+        let snapshot = try await fetch(output(try fixtureText("Copilot/user-overage.json")))
         #expect(snapshot.windows.map(\.usedPercent) == [110.75])
         #expect(snapshot.notes == ["2,150 AI credits over the allowance this cycle"])
         #expect(snapshot.plan == "Max")
@@ -340,11 +338,5 @@ final class CopilotUsageFetcherTests {
         let output = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         process.waitUntilExit()
         return (process.terminationStatus, output)
-    }
-
-    private func fixture(_ name: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Fixtures/Copilot/\(name)")
-        return try String(contentsOf: url, encoding: .utf8)
     }
 }

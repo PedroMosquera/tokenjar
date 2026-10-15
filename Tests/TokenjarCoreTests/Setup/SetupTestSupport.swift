@@ -2,16 +2,8 @@ import Foundation
 
 /// A throwaway home directory, so setup tests never depend on what is installed on the machine running them.
 struct TempHome {
-    let url: URL
-
-    init() throws {
-        url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-setup-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    }
-
-    func remove() {
-        try? FileManager.default.removeItem(at: url)
-    }
+    private let directory = TemporaryDirectory()
+    var url: URL { directory.url }
 
     func makeDirectory(_ relative: String) throws {
         try FileManager.default.createDirectory(at: url.appending(path: relative), withIntermediateDirectories: true)
@@ -27,8 +19,6 @@ struct TempHome {
     }
 
     func copyFixture(_ name: String, to relative: String) throws {
-        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Fixtures/Setup/\(name)")
-        try write(relative, String(decoding: try Data(contentsOf: fixture), as: UTF8.self))
+        try write(relative, fixtureText("Setup/\(name)"))
     }
 }

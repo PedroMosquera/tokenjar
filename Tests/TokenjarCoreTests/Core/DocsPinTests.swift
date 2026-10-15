@@ -37,9 +37,7 @@ struct DocsPinTests {
     }
 
     private static func privacySection(_ heading: String) throws -> String {
-        let doc = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "docs/privacy.md")
+        let doc = TestPaths.repository.appending(path: "docs/privacy.md")
         let lines = try String(contentsOf: doc, encoding: .utf8).components(separatedBy: "\n")
         let start = try #require(lines.firstIndex(of: heading), "docs/privacy.md has no \"\(heading)\" section")
         let end = lines[(start + 1)...].firstIndex { $0.hasPrefix("## ") } ?? lines.endIndex
@@ -48,8 +46,8 @@ struct DocsPinTests {
 
     /// Every account sets a profile folder, so the per-CLI variables that depend on one are recorded too.
     private static func recordedCalls() async throws -> [Call] {
-        let home = FileManager.default.temporaryDirectory.appending(path: "tokenjar-docs-pin-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: home) }
+        let temp = TemporaryDirectory()
+        let home = temp.url
         var overrides: [String: String] = [:]
         for cli in ["claude", "codex", "agy", "gh"] {
             let binary = home.appending(path: "bin/\(cli)")

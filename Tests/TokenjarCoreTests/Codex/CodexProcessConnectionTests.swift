@@ -14,7 +14,7 @@ struct CodexProcessConnectionTests {
     done
     """
 
-    private func launch(_ script: String, in temp: CodexTempDirectory) throws -> any CodexAppServerConnection {
+    private func launch(_ script: String, in temp: TemporaryDirectory) throws -> any CodexAppServerConnection {
         let file = try temp.write(script, to: "fake-app-server.sh")
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
         return try ProcessCodexAppServerLauncher().launch(
@@ -23,7 +23,7 @@ struct CodexProcessConnectionTests {
     }
 
     @Test func exchangesLinesWithARealProcess() async throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let connection = try launch(Self.fakeServer, in: temp)
         defer { connection.terminate() }
 
@@ -33,7 +33,7 @@ struct CodexProcessConnectionTests {
     }
 
     @Test func terminateFinishesTheLineStream() async throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let connection = try launch("#!/bin/sh\nwhile :; do sleep 1; done\n", in: temp)
 
         connection.terminate()
@@ -43,7 +43,7 @@ struct CodexProcessConnectionTests {
     }
 
     @Test func sendingAfterTheServerExitedThrowsInsteadOfKillingTheApp() async throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let connection = try launch("#!/bin/sh\nexit 0\n", in: temp)
         defer { connection.terminate() }
         var iterator = connection.lines.makeAsyncIterator()

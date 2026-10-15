@@ -4,9 +4,7 @@ import SQLite3
 
 enum OpenCodeFixtures {
     static func data(_ name: String) throws -> Data {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Fixtures/OpenCode/\(name)")
-        return try Data(contentsOf: url)
+        try fixture("OpenCode/\(name)")
     }
 }
 
@@ -22,28 +20,6 @@ final class OpenCodeFakeTransport: HTTPTransport, @unchecked Sendable {
     func send(_ request: URLRequest) async throws -> HTTPResponse {
         lock.withLock { sent.append(request) }
         return response
-    }
-}
-
-/// A fresh directory under the system temp dir, removed on deinit.
-final class OpenCodeTempDirectory {
-    let url: URL
-
-    init() throws {
-        url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-opencode-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    }
-
-    deinit {
-        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
-        try? FileManager.default.removeItem(at: url)
-    }
-
-    func write(_ text: String, to name: String) throws -> URL {
-        let file = url.appending(path: name)
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(text.utf8).write(to: file)
-        return file
     }
 }
 

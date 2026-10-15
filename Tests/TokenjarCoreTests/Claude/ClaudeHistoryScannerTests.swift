@@ -2,27 +2,22 @@ import Foundation
 import Testing
 @testable import TokenjarCore
 
-private let fixtureProjects = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-    .appending(path: "Fixtures/Claude/projects")
-
 /// A temp home with the fixture transcripts copied to `~/.claude/projects`, so tests can append and replace files.
 private struct TranscriptHome {
+    private let directory = TemporaryDirectory()
     let home: URL
     var projects: URL { home.appending(path: ".claude/projects") }
     var main: URL { projects.appending(path: "-Users-PLACEHOLDER-work-demo/SESSION_A.jsonl") }
     var subagent: URL { projects.appending(path: "-Users-PLACEHOLDER-work-demo/SESSION_A/subagents/agent-1.jsonl") }
 
     init() throws {
-        let temp = FileManager.default.temporaryDirectory.appending(path: "tokenjar-claude-scan-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: temp.appending(path: ".claude"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: directory.url.appending(path: ".claude"), withIntermediateDirectories: true)
         // The enumerator reports /var/folders as /private/var/folders, and resolvingSymlinksInPath strips /private again.
-        let real = try #require(realpath(temp.path, nil))
+        let real = try #require(realpath(directory.url.path, nil))
         defer { free(real) }
         home = URL(fileURLWithPath: String(cString: real))
-        try FileManager.default.copyItem(at: fixtureProjects, to: projects)
+        try FileManager.default.copyItem(at: TestPaths.fixtures.appending(path: "Claude/projects"), to: projects)
     }
-
-    func remove() { try? FileManager.default.removeItem(at: home) }
 
     func scan(_ checkpoints: ScanCheckpoints = [:], account: AccountConfig = AccountConfig(id: "claude-personal", provider: .claude, label: "Personal")) throws -> ScanResult {
         try ClaudeHistoryScanner().scan(account, checkpoints: checkpoints, paths: AppPaths(home: home))
@@ -49,7 +44,6 @@ private func assistantLine(
 struct ClaudeHistoryScannerTests {
     @Test func readsAssistantUsageIncludingSubagentsAndSkipsEverythingElse() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
 
         let events = try box.scan().events
 
@@ -71,7 +65,6 @@ struct ClaudeHistoryScannerTests {
 
     @Test func homeFolderIsStoredAsTildeNeverTheAccountName() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
         let session = box.projects.appending(path: "-home/SESSION_H.jsonl")
         try FileManager.default.createDirectory(at: session.deletingLastPathComponent(), withIntermediateDirectories: true)
         let lines = [
@@ -88,7 +81,6 @@ struct ClaudeHistoryScannerTests {
 
     @Test func cacheWritesSplitByTTLAndDefaultToFiveMinutes() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
 
         let events = Dictionary(try box.scan().events.map { ($0.dedupeKey, $0) }, uniquingKeysWith: { a, _ in a })
 
@@ -121,7 +113,6 @@ struct ClaudeHistoryScannerTests {
 
     @Test func streamingChunksCollapseToTheLargestCountsInTheStore() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
         let store = InMemoryUsageStore(calendar: Calendar(identifier: .gregorian).with(timeZone: .gmt))
 
         try store.upsert(box.scan().events)
@@ -140,7 +131,6 @@ struct ClaudeHistoryScannerTests {
 
     @Test func resumesFromCheckpointsAndOnlyReadsAppendedLines() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
 
         let first = try box.scan()
         #expect(first.checkpoints.count == 2)
@@ -159,7 +149,6 @@ struct ClaudeHistoryScannerTests {
 
     @Test func leavesAPartialLastLineForTheNextScan() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
         let first = try box.scan()
         let completeSize = try box.size(box.main)
 
@@ -179,7 +168,6 @@ struct ClaudeHistoryScannerTests {
     /// Both bad lines contain "usage", so they get past the cheap filter and reach the decoder.
     @Test func skipsMalformedLinesAndKeepsReadingPastThem() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
         let first = try box.scan()
 
         let cutShort = assistantLine(id: "msg_X", request: "req_X", output: 4)
@@ -197,7 +185,6 @@ struct ClaudeHistoryScannerTests {
 
     @Test func rescansFromTheStartWhenTheFileIsReplacedOrTruncated() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
         let first = try box.scan()
 
         // Same bytes under a new inode: the offset would say "nothing new", the inode says it is another file.
@@ -219,7 +206,6 @@ struct ClaudeHistoryScannerTests {
     /// Dropping it would only cost a full rescan of that file later, but the scan should resume where it left off.
     @Test func keepsTheCheckpointOfAFileItCannotRead() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
         let first = try box.scan()
         try box.append(assistantLine(id: "msg_U", request: "req_U", output: 1) + "\n", to: box.main)
         try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: box.main.path)
@@ -233,7 +219,6 @@ struct ClaudeHistoryScannerTests {
 
     @Test func dropsCheckpointsOfDeletedFiles() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
         let first = try box.scan()
 
         try FileManager.default.removeItem(at: box.subagent)
@@ -244,7 +229,6 @@ struct ClaudeHistoryScannerTests {
 
     @Test func profileDirScansOnlyItsOwnProjects() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
         let workProjects = box.home.appending(path: ".claude-work/projects/-Users-PLACEHOLDER-work-other")
         try FileManager.default.createDirectory(at: workProjects, withIntermediateDirectories: true)
         try Data((assistantLine(id: "msg_W", request: "req_W", output: 1) + "\n").utf8).write(to: workProjects.appending(path: "SESSION_W.jsonl"))
@@ -258,7 +242,6 @@ struct ClaudeHistoryScannerTests {
 
     @Test func defaultAccountAlsoReadsTheXDGConfigLocation() throws {
         let box = try TranscriptHome()
-        defer { box.remove() }
         let xdg = box.home.appending(path: ".config/claude/projects/-Users-PLACEHOLDER-work-xdg")
         try FileManager.default.createDirectory(at: xdg, withIntermediateDirectories: true)
         try Data((assistantLine(id: "msg_X", request: "req_X", output: 1) + "\n").utf8).write(to: xdg.appending(path: "SESSION_X.jsonl"))

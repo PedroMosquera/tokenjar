@@ -7,7 +7,7 @@ struct LegacyMigrationTests {
     private let paths: AppPaths
 
     init() throws {
-        home = try TempHome()
+        home = TempHome()
         paths = AppPaths(home: home.url, environment: [:])
     }
 
@@ -27,7 +27,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func movesTheSupportFolderAndRenamesTheDatabaseFilesTogether() throws {
-        defer { home.remove() }
         try home.write("\(oldSupport)/headroom.sqlite", "db")
         try home.write("\(oldSupport)/headroom.sqlite-wal", "wal")
         try home.write("\(oldSupport)/headroom.sqlite-shm", "shm")
@@ -50,7 +49,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func databaseFilesThatAreMissingAreSkipped() throws {
-        defer { home.remove() }
         try home.write("\(oldSupport)/headroom.sqlite", "db")
 
         let events = LegacyMigration.run(paths: paths, legacyAppIsRunning: false)
@@ -61,7 +59,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func movesTheConfigFolder() throws {
-        defer { home.remove() }
         try home.write(".config/headroom/config.json", "shared")
         try home.write(".config/headroom/config.local.json", "local")
 
@@ -74,7 +71,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func honorsXDGConfigHome() throws {
-        defer { home.remove() }
         try home.write("xdg/headroom/config.json", "shared")
         let paths = AppPaths(home: home.url, environment: ["XDG_CONFIG_HOME": home.url.appending(path: "xdg").path])
 
@@ -86,7 +82,6 @@ struct LegacyMigrationTests {
     /// `stow --no-folding`: a real folder whose config.json is a relative link into the dotfiles repo. The folder keeps
     /// its depth, so the link still resolves after the move.
     @Test func aRelativeStowLinkInsideTheConfigFolderStillResolves() throws {
-        defer { home.remove() }
         try home.write("dotfiles/headroom/.config/headroom/config.json", "from the repo")
         try home.makeDirectory(".config/headroom")
         let link = "../../dotfiles/headroom/.config/headroom/config.json"
@@ -101,7 +96,6 @@ struct LegacyMigrationTests {
 
     /// Folded stow: the config folder itself is a relative link. The link moves, never the folder it points to.
     @Test func aConfigFolderThatIsARelativeLinkMovesAsALink() throws {
-        defer { home.remove() }
         try home.write("dotfiles/headroom/.config/headroom/config.json", "from the repo")
         try home.makeDirectory(".config")
         let link = "../dotfiles/headroom/.config/headroom"
@@ -116,7 +110,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func whenBothNamesExistNothingChanges() throws {
-        defer { home.remove() }
         try home.write("\(oldSupport)/headroom.sqlite", "old db")
         try home.makeDirectory(newSupport)
         try home.write(".config/headroom/config.json", "old config")
@@ -132,7 +125,6 @@ struct LegacyMigrationTests {
 
     /// `--probe` run before the first launch leaves only this behind, and it must not keep Headroom's history from moving.
     @Test func aSupportFolderHoldingOnlyTheEmptyProbeFolderStillMoves() throws {
-        defer { home.remove() }
         try home.write("\(oldSupport)/headroom.sqlite", "db")
         try paths.createProbeDirectory()
 
@@ -143,7 +135,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func aProbeFolderWithAnythingInItStillCountsAsTokenjarsOwn() throws {
-        defer { home.remove() }
         try home.write("\(oldSupport)/headroom.sqlite", "db")
         try home.write("\(newSupport)/probe/kept", "kept")
 
@@ -155,7 +146,6 @@ struct LegacyMigrationTests {
 
     /// A dangling stow link at the new path is still the user's, so it counts as existing.
     @Test func aDanglingLinkAtTheNewConfigPathIsLeftAlone() throws {
-        defer { home.remove() }
         try home.write(".config/headroom/config.json", "old config")
         try FileManager.default.createSymbolicLink(atPath: home.url.appending(path: ".config/tokenjar").path, withDestinationPath: "../dotfiles/gone")
 
@@ -166,7 +156,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func nothingMovesWhileTheOldAppRuns() throws {
-        defer { home.remove() }
         try home.write("\(oldSupport)/headroom.sqlite", "db")
         try home.write(".config/headroom/config.json", "config")
 
@@ -180,7 +169,6 @@ struct LegacyMigrationTests {
 
     /// The match the app uses for a Headroom with no bundle id, such as one started from `.build`.
     @Test func findsARunningProcessByItsExactName() throws {
-        defer { home.remove() }
         let child = Process()
         child.executableURL = URL(fileURLWithPath: "/bin/sleep")
         child.arguments = ["30"]
@@ -193,7 +181,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func aHeadroomFolderWhoseTokenjarNameIsFreeIsLeftToMove() throws {
-        defer { home.remove() }
         #expect(!LegacyMigration.hasDataToMove(paths: paths))
 
         try home.write(".config/headroom/config.json", "old config")
@@ -209,7 +196,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func aDatabaseStillUnderItsOldNameIsLeftToMove() throws {
-        defer { home.remove() }
         try home.write("\(newSupport)/headroom.sqlite", "db")
         #expect(LegacyMigration.hasDataToMove(paths: paths))
 
@@ -218,7 +204,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func withoutHeadroomFoldersNothingIsCreated() throws {
-        defer { home.remove() }
 
         #expect(LegacyMigration.run(paths: paths, legacyAppIsRunning: false) == [])
 
@@ -227,7 +212,6 @@ struct LegacyMigrationTests {
     }
 
     @Test func aFolderThatCannotMoveIsReportedAndTheOtherStillMoves() throws {
-        defer { home.remove() }
         try home.write("\(oldSupport)/headroom.sqlite", "db")
         try home.write(".config/headroom/config.json", "config")
         let parent = home.url.appending(path: "Library/Application Support").path
@@ -246,7 +230,6 @@ struct LegacyMigrationTests {
     /// SQLite pairs the database with its -wal by name, and the -wal holds transactions not yet in the database, so a
     /// rename that cannot finish puts the files it already renamed back.
     @Test func aDatabaseThatCannotBeRenamedWholeKeepsItsOldNames() throws {
-        defer { home.remove() }
         try home.write("\(oldSupport)/headroom.sqlite", "db")
         try home.write("\(oldSupport)/headroom.sqlite-wal", "wal")
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: home.url.appending(path: "\(oldSupport)/headroom.sqlite-wal").path)

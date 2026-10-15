@@ -5,17 +5,17 @@ import Testing
 struct CodexHistoryScannerTests {
     private let scanner = CodexHistoryScanner()
 
-    private func account(_ temp: CodexTempDirectory) -> AccountConfig {
+    private func account(_ temp: TemporaryDirectory) -> AccountConfig {
         AccountConfig(id: "codex-test", provider: .codex, label: "Test", profileDir: temp.url.appending(path: "codex-home").path)
     }
 
-    private func scan(_ temp: CodexTempDirectory, _ checkpoints: ScanCheckpoints = [:]) throws -> ScanResult {
+    private func scan(_ temp: TemporaryDirectory, _ checkpoints: ScanCheckpoints = [:]) throws -> ScanResult {
         try scanner.scan(account(temp), checkpoints: checkpoints, paths: AppPaths(home: temp.url))
     }
 
     @Test func usageRecordsAreUsedAndTokenCountsInTheSameFileIgnored() throws {
-        let temp = try CodexTempDirectory()
-        try temp.copyFixture("rollout-records.jsonl", to: "codex-home/sessions/2026/10/09/rollout-r.jsonl")
+        let temp = TemporaryDirectory()
+        try temp.copyFixture("Codex/rollout-records.jsonl", to: "codex-home/sessions/2026/10/09/rollout-r.jsonl")
 
         let events = try scan(temp).events
 
@@ -30,8 +30,8 @@ struct CodexHistoryScannerTests {
     }
 
     @Test func tokenCountOnlyFilesCountPositiveDeltas() throws {
-        let temp = try CodexTempDirectory()
-        try temp.copyFixture("rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-t.jsonl")
+        let temp = TemporaryDirectory()
+        try temp.copyFixture("Codex/rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-t.jsonl")
 
         let events = try scan(temp).events
 
@@ -46,7 +46,7 @@ struct CodexHistoryScannerTests {
     }
 
     @Test func homeFolderIsStoredAsTildeNeverTheAccountName() throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         func rollout(cwd: String, response: String) -> String {
             [
                 #"{"timestamp":"2026-10-09T10:00:00Z","type":"session_meta","payload":{"cwd":"\#(cwd)"}}"#,
@@ -66,7 +66,7 @@ struct CodexHistoryScannerTests {
 
     /// Both bad lines name a relevant type, so they get past the cheap filter and reach the decoder.
     @Test func skipsMalformedLinesAndKeepsReadingPastThem() throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let record = { (response: String) in
             #"{"timestamp":"2026-10-09T10:00:02Z","type":"token_usage_record","payload":{"response_id":"\#(response)","usage":{"input_tokens":10,"output_tokens":1,"total_tokens":11}}}"#
         }
@@ -119,8 +119,8 @@ struct CodexHistoryScannerTests {
     }
 
     @Test func importedSessionsWithoutTurnContextAreNotCodexUsage() throws {
-        let temp = try CodexTempDirectory()
-        try temp.copyFixture("rollout-imported.jsonl", to: "codex-home/sessions/2026/06/20/rollout-i.jsonl")
+        let temp = TemporaryDirectory()
+        try temp.copyFixture("Codex/rollout-imported.jsonl", to: "codex-home/sessions/2026/06/20/rollout-i.jsonl")
 
         let result = try scan(temp)
 
@@ -129,20 +129,20 @@ struct CodexHistoryScannerTests {
     }
 
     @Test func archivedSessionsAreIncluded() throws {
-        let temp = try CodexTempDirectory()
-        try temp.copyFixture("rollout-records.jsonl", to: "codex-home/archived_sessions/rollout-r.jsonl")
-        try temp.copyFixture("rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-t.jsonl")
+        let temp = TemporaryDirectory()
+        try temp.copyFixture("Codex/rollout-records.jsonl", to: "codex-home/archived_sessions/rollout-r.jsonl")
+        try temp.copyFixture("Codex/rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-t.jsonl")
 
         #expect(try scan(temp).events.count == 5)
     }
 
     @Test func incrementalScansContinueDeltasFromTheCheckpoint() throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let lines = try CodexFixtures.lines("rollout-token-count.jsonl")
         let path = "codex-home/sessions/2026/10/09/rollout-t.jsonl"
         let whole = try {
-            let other = try CodexTempDirectory()
-            try other.copyFixture("rollout-token-count.jsonl", to: path)
+            let other = TemporaryDirectory()
+            try other.copyFixture("Codex/rollout-token-count.jsonl", to: path)
             return try scan(other).events
         }()
 
@@ -168,7 +168,7 @@ struct CodexHistoryScannerTests {
     }
 
     @Test func incrementalScansReadOnlyTheTailAndKeepRecordModeAndContext() throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let lines = try CodexFixtures.lines("rollout-records.jsonl")
         let path = "codex-home/sessions/2026/10/09/rollout-r.jsonl"
 
@@ -186,20 +186,20 @@ struct CodexHistoryScannerTests {
     }
 
     @Test func replacedFileIsRescannedFromTheStartWithStableKeys() throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let path = "codex-home/sessions/2026/10/09/rollout-t.jsonl"
-        let file = try temp.copyFixture("rollout-token-count.jsonl", to: path)
+        let file = try temp.copyFixture("Codex/rollout-token-count.jsonl", to: path)
         let first = try scan(temp)
 
         try FileManager.default.removeItem(at: file)
-        try temp.copyFixture("rollout-token-count.jsonl", to: path)
+        try temp.copyFixture("Codex/rollout-token-count.jsonl", to: path)
         let second = try scan(temp, first.checkpoints)
 
         #expect(second.events == first.events)
     }
 
     @Test func truncatedFileIsRescannedFromTheStart() throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let lines = try CodexFixtures.lines("rollout-token-count.jsonl")
         let path = "codex-home/sessions/2026/10/09/rollout-t.jsonl"
         try temp.write(lines.joined(separator: "\n") + "\n", to: path)
@@ -212,7 +212,7 @@ struct CodexHistoryScannerTests {
     }
 
     @Test func keepsTheCheckpointOfAFileItCannotRead() throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let lines = try CodexFixtures.lines("rollout-token-count.jsonl")
         let path = "codex-home/sessions/2026/10/09/rollout-t.jsonl"
         let file = try temp.write(lines[..<6].joined(separator: "\n") + "\n", to: path)
@@ -229,7 +229,7 @@ struct CodexHistoryScannerTests {
     }
 
     @Test func checkpointsForDeletedFilesAreDropped() throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let result = try scan(temp, ["/gone/rollout-x.jsonl": "1:2:"])
         #expect(result.checkpoints.isEmpty)
         #expect(result.events.isEmpty)
@@ -251,9 +251,9 @@ struct CodexHistoryScannerTests {
     }
 
     @Test func eventsCarryNoTextFromTheLog() throws {
-        let temp = try CodexTempDirectory()
-        try temp.copyFixture("rollout-records.jsonl", to: "codex-home/sessions/2026/10/09/rollout-r.jsonl")
-        try temp.copyFixture("rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-t.jsonl")
+        let temp = TemporaryDirectory()
+        try temp.copyFixture("Codex/rollout-records.jsonl", to: "codex-home/sessions/2026/10/09/rollout-r.jsonl")
+        try temp.copyFixture("Codex/rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-t.jsonl")
 
         let encoded = String(decoding: try JSONEncoder().encode(scan(temp).events), as: UTF8.self)
 

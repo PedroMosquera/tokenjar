@@ -24,8 +24,7 @@ struct CodexBarImportTests {
     ]
 
     @Test func previewReadsProvidersAndAllowlistedDefaults() throws {
-        let home = try TempHome()
-        defer { home.remove() }
+        let home = TempHome()
         try home.copyFixture("codexbar-config.json", to: ".config/codexbar/config.json")
         let defaults = FakeDefaults(codexBarDefaults)
 
@@ -42,28 +41,24 @@ struct CodexBarImportTests {
     }
 
     @Test func nothingToImportIsNil() throws {
-        let home = try TempHome()
-        defer { home.remove() }
+        let home = TempHome()
         #expect(CodexBarImport.preview(paths: AppPaths(home: home.url), environment: [:], defaults: FakeDefaults()) == nil)
     }
 
     @Test func defaultsAloneStillPreview() throws {
-        let home = try TempHome()
-        defer { home.remove() }
+        let home = TempHome()
         let preview = CodexBarImport.preview(paths: AppPaths(home: home.url), environment: [:], defaults: FakeDefaults(["refreshFrequency": "twoMinutes"]))
         #expect(preview == CodexBarImportPreview(refreshMinutes: 2))
     }
 
     @Test func configWithNoneOfOurProvidersPreviewsAnEmptyList() throws {
-        let home = try TempHome()
-        defer { home.remove() }
+        let home = TempHome()
         try home.write(".config/codexbar/config.json", #"{"providers":[{"id":"cursor","enabled":true},{"id":"claude","enabled":false}]}"#)
         #expect(CodexBarImport.preview(paths: AppPaths(home: home.url), environment: [:], defaults: FakeDefaults())?.enabledProviders == [])
     }
 
     @Test func findsConfigUnderXDGAndLegacyPaths() throws {
-        let home = try TempHome()
-        defer { home.remove() }
+        let home = TempHome()
         let paths = AppPaths(home: home.url)
         try home.write(".codexbar/config.json", #"{"providers":[{"id":"claude","enabled":true}]}"#)
         #expect(CodexBarImport.preview(paths: paths, environment: [:], defaults: FakeDefaults())?.enabledProviders == [.claude])
@@ -88,8 +83,7 @@ struct CodexBarImportTests {
     }
 
     @Test func offOnlyThresholdsAreNotImported() throws {
-        let home = try TempHome()
-        defer { home.remove() }
+        let home = TempHome()
         let preview = CodexBarImport.preview(
             paths: AppPaths(home: home.url), environment: [:], defaults: FakeDefaults(["quotaWarningThresholds": [0], "quotaWarningNotificationsEnabled": false])
         )

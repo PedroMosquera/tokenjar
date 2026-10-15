@@ -3,11 +3,7 @@ import Testing
 @testable import TokenjarCore
 
 struct ConfigStoreTests {
-    private func tempHome() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-config-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
-    }
+    let temp = TemporaryDirectory()
 
     private func write(_ json: String, to url: URL) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -15,8 +11,7 @@ struct ConfigStoreTests {
     }
 
     @Test func localOverridesWinAndAccountsMergeByID() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"{"refreshMinutes": 10, "accounts": [{"id": "claude", "provider": "claude", "label": "Personal"}, {"id": "codex", "provider": "codex"}]}"#, to: paths.configFile)
         try write(#"{"refreshMinutes": 5, "accounts": [{"id": "claude", "showInMenuBar": false}, {"id": "work", "provider": "claude", "label": "Work"}]}"#, to: paths.localConfigFile)
@@ -31,8 +26,7 @@ struct ConfigStoreTests {
     }
 
     @Test func savingAnEditDoesNotLeakLocalOverridesIntoTheSharedFile() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"{"accounts": [{"id": "claude", "provider": "claude", "label": "Personal", "refreshMinutes": 10}]}"#, to: paths.configFile)
         try write(#"{"refreshMinutes": 2, "accounts": [{"id": "claude", "refreshMinutes": 1, "showInMenuBar": false}]}"#, to: paths.localConfigFile)
@@ -53,8 +47,7 @@ struct ConfigStoreTests {
     /// `apply` remaps every account once any account changes, so the untouched `claude` entry still goes through the
     /// per-field copy. Comparing whole structs also covers fields added later.
     @Test func savingOneEditLeavesEveryLocallyOverriddenFieldOutOfTheSharedFile() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"{"accounts": [{"id": "claude", "provider": "claude", "label": "Personal"}, {"id": "codex", "provider": "codex", "label": "Plus"}]}"#, to: paths.configFile)
         try write(#"""
@@ -80,8 +73,7 @@ struct ConfigStoreTests {
     /// Settings binds single fields (Amber at, one alert toggle, one CLI path). Saving one must not carry the sibling
     /// fields config.local.json sets into the shared file.
     @Test func editingOneSubfieldWritesOnlyThatSubfield() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"{"cliPaths": {"agy": "/opt/agy"}, "accounts": []}"#, to: paths.configFile)
         try write(#"{"cliPaths": {"claude": "/opt/work/claude"}, "launchAtLogin": true, "menuBar": {"mode": "bars"}, "alerts": {"thresholds": [50]}}"#, to: paths.localConfigFile)
@@ -129,8 +121,7 @@ struct ConfigStoreTests {
 
     /// The config is meant to be stowed from a dotfiles repo; replacing the symlink would silently stop syncing.
     @Test func writeKeepsAStowSymlinkPointingAtTheRepo() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         let repoFile = home.appending(path: "dotfiles/tokenjar/.config/tokenjar/config.json")
         try write(#"{"accounts": []}"#, to: repoFile)
@@ -149,8 +140,7 @@ struct ConfigStoreTests {
 
     /// Stow writes relative links, resolved against the link's own folder.
     @Test func writeFollowsARelativeStowLink() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         let repoFile = home.appending(path: "dotfiles/tokenjar/.config/tokenjar/config.json")
         try write(#"{"accounts": []}"#, to: repoFile)
@@ -168,8 +158,7 @@ struct ConfigStoreTests {
     /// A save through a link whose repo file is gone (a branch switch in the dotfiles repo) would replace the link with
     /// a regular file, and the config would silently stop syncing.
     @Test func writeThroughADanglingLinkThrowsAndKeepsTheLink() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try FileManager.default.createDirectory(at: paths.configDirectory, withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(atPath: paths.configFile.path, withDestinationPath: "../../dotfiles/tokenjar/.config/tokenjar/config.json")
@@ -187,8 +176,7 @@ struct ConfigStoreTests {
     /// The app names the broken file in its banner, so a syntax error such as a merge conflict must say which one.
     @Test(arguments: [("config.json", true), ("config.local.json", false)])
     func unreadableJSONNamesItsFile(file: String, isBase: Bool) throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         let conflicted = "<<<<<<< HEAD\n{\"refreshMinutes\": 5}\n=======\n{\"refreshMinutes\": 15}\n>>>>>>> theirs\n"
         try write(isBase ? conflicted : #"{"accounts": []}"#, to: paths.configFile)
@@ -267,8 +255,7 @@ struct ConfigStoreTests {
     /// none of the others leaks.
     @Test(arguments: NewLeaf.allCases)
     func everyNewLeafSavesWithoutLeakingLocalOverrides(_ leaf: NewLeaf) throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"{"accounts": [{"id": "claude", "provider": "claude", "label": "Personal"}]}"#, to: paths.configFile)
         let local = NewLeaf.allCases.filter { $0 != leaf }.reduce(["refreshMinutes": 2] as [String: Any]) { ConfigStore.merge($0, $1.localOverride) }
@@ -287,8 +274,7 @@ struct ConfigStoreTests {
     }
 
     @Test func anAccountEditKeepsLocalOnlyAccountsOutOfConfigJSON() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"{"accounts": [{"id": "claude", "provider": "claude", "label": "Personal"}]}"#, to: paths.configFile)
         try write(#"{"accounts": [{"id": "claude-work", "provider": "claude", "label": "Work", "profileDir": "~/.claude-work"}]}"#, to: paths.localConfigFile)
@@ -321,8 +307,7 @@ struct ConfigStoreTests {
     /// merge appends accounts that exist only in config.local.json, so they load last whatever order a save wrote.
     @Test(arguments: AccountEdit.allCases)
     func aLocalOnlyAccountStaysLastAfterAnyEditAndReload(_ edit: AccountEdit) throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"{"accounts": [{"id": "claude", "provider": "claude"}, {"id": "codex", "provider": "codex"}]}"#, to: paths.configFile)
         try write(#"{"accounts": [{"id": "claude-work", "provider": "claude", "profileDir": "~/.claude-work"}]}"#, to: paths.localConfigFile)
@@ -340,8 +325,7 @@ struct ConfigStoreTests {
 
     /// config.json syncs to Macs that may run a newer build; a save here must not drop what that build added.
     @Test func saveKeepsKeysThisBuildDoesNotKnow() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"""
             {"futureTop": {"nested": [1, 2]}, "menuBar": {"mode": "bars", "futureMenuBarKey": "x"},
@@ -375,8 +359,7 @@ struct ConfigStoreTests {
 
     /// Earlier builds wrote these keys to the same synced file, so this build must load it and leave them in place.
     @Test func keysRemovedFromThisBuildStillLoadAndSurviveASave() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"""
             {"hotkey": "control+option+command+U", "alerts": {"thresholds": [70], "shortThresholds": [95]},
@@ -402,8 +385,7 @@ struct ConfigStoreTests {
 
     @Test(arguments: ["[1, 2]", #""config""#, "null", "42"])
     func aTopLevelThatIsNotAnObjectIsALoadError(_ body: String) throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(body, to: paths.configFile)
 
@@ -418,8 +400,7 @@ struct ConfigStoreTests {
     /// Saves match accounts by id, so an edit to the second of two would be written over the first one's provider and
     /// unknown keys. Two Macs that each add a second login and then merge the dotfiles repo can produce this.
     @Test func twoAccountsWithTheSameIDAreALoadError() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"{"accounts": [{"id": "claude-2", "provider": "claude"}, {"id": "claude-2", "provider": "codex"}]}"#, to: paths.configFile)
 
@@ -434,8 +415,7 @@ struct ConfigStoreTests {
     /// A repeated id in config.local.json merges into one account whether or not config.json lists any accounts.
     @Test(arguments: [#"{}"#, #"{"accounts": []}"#])
     func aRepeatedLocalIDMergesWhateverTheSharedFileHolds(_ shared: String) throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(shared, to: paths.configFile)
         try write(#"{"accounts": [{"id": "work", "provider": "claude", "label": "Work"}, {"id": "work", "showInMenuBar": false}]}"#, to: paths.localConfigFile)
@@ -480,8 +460,7 @@ struct ConfigStoreTests {
     /// A reorder writes the shared accounts in their new order and still keeps an account only config.local.json holds
     /// out of config.json.
     @Test func aReorderSavesTheNewOrderWithoutLeakingLocalAccounts() throws {
-        let home = try tempHome()
-        defer { try? FileManager.default.removeItem(at: home) }
+        let home = temp.url
         let paths = AppPaths(home: home)
         try write(#"{"accounts": [{"id": "claude", "provider": "claude"}, {"id": "copilot", "provider": "copilot"}]}"#, to: paths.configFile)
         try write(#"{"accounts": [{"id": "claude-work", "provider": "claude", "label": "Work"}]}"#, to: paths.localConfigFile)

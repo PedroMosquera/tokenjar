@@ -13,14 +13,6 @@ enum StoreKind: String, CaseIterable, Sendable {
     }
 }
 
-/// A fresh directory that does not exist yet, so tests also cover creating the store's parent directory.
-/// Deleted on deinit: keep it in a suite's stored property, which outlives every store a test opens in it.
-final class TemporaryDirectory: Sendable {
-    let url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-store-tests/\(UUID().uuidString)")
-
-    deinit { try? FileManager.default.removeItem(at: url) }
-}
-
 func fixedCalendar(_ zone: String) -> Calendar {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: zone)!

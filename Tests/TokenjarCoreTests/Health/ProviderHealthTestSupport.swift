@@ -3,9 +3,7 @@ import Foundation
 
 enum HealthFixtures {
     static func data(_ name: String) throws -> Data {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Fixtures/ProviderHealth/\(name)")
-        return try Data(contentsOf: url)
+        try fixture("ProviderHealth/\(name)")
     }
 
     /// A Statuspage fixture with some top-level component statuses replaced, keyed by component id, and its first

@@ -4,25 +4,21 @@ import Testing
 
 /// `--capture` against fake CLIs and a fake transport in a throwaway home and system root. Nothing is spawned except
 /// the system jq, which stands in for gh's own jq.
-final class CaptureCommandTests {
-    let home: URL
-    let systemRoot: URL
+struct CaptureCommandTests {
+    let temp = TemporaryDirectory()
+    var home: URL { temp.url.appending(path: "home") }
+    var systemRoot: URL { temp.url.appending(path: "root") }
     let runner = FakeRunner()
 
     init() throws {
-        let base = FileManager.default.temporaryDirectory.appending(path: "tokenjar-capture-\(UUID().uuidString)")
-        home = base.appending(path: "home")
-        systemRoot = base.appending(path: "root")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: systemRoot, withIntermediateDirectories: true)
     }
 
-    deinit { try? FileManager.default.removeItem(at: home.deletingLastPathComponent()) }
-
     // MARK: Claude
 
     @Test func claudeCaptureRunsTheProbeArguments() async throws {
-        runner.answers = [output(String(decoding: try fixture("Claude/stream-plan-limits.jsonl"), as: UTF8.self))]
+        runner.answers = [output(try fixtureText("Claude/stream-plan-limits.jsonl"))]
         try write(".claude.json", #"""
         {"oauthAccount": {"accountUuid": "123e4567-e89b-12d3-a456-426614174000", "emailAddress": "someone@example.com",
           "displayName": "Jane Placeholder", "organizationName": "Placeholder Org", "organizationType": "claude_enterprise",
@@ -61,7 +57,7 @@ final class CaptureCommandTests {
     }
 
     @Test func claudeWithoutManagedSettingsReportsNone() async throws {
-        runner.answers = [output(String(decoding: try fixture("Claude/stream-plan-limits.jsonl"), as: UTF8.self))]
+        runner.answers = [output(try fixtureText("Claude/stream-plan-limits.jsonl"))]
 
         let json = try object(try document(await capture(.claude)))
 
@@ -319,10 +315,6 @@ final class CaptureCommandTests {
         let file = (root ?? home).appending(path: relative)
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(contents.utf8).write(to: file)
-    }
-
-    private func fixture(_ name: String) throws -> Data {
-        try Data(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appending(path: "Fixtures/\(name)"))
     }
 
     private func jq(_ program: String, _ input: String) throws -> (status: Int32, output: String) {

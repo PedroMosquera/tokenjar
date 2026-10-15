@@ -5,21 +5,21 @@ import Testing
 struct OpenCodeHistoryScannerTests {
     let t0: Int64 = 1_791_000_000_000
 
-    private func account(_ dir: OpenCodeTempDirectory) -> AccountConfig {
+    private func account(_ dir: TemporaryDirectory) -> AccountConfig {
         AccountConfig(id: "go", provider: .opencodeGo, label: "Go", profileDir: dir.url.path)
     }
 
-    private func scan(_ dir: OpenCodeTempDirectory, providers: Set<String> = ["opencode-go"], checkpoints: ScanCheckpoints = [:]) throws -> ScanResult {
+    private func scan(_ dir: TemporaryDirectory, providers: Set<String> = ["opencode-go"], checkpoints: ScanCheckpoints = [:]) throws -> ScanResult {
         try OpenCodeHistoryScanner(providerIDs: providers, environment: [:])
             .scan(account(dir), checkpoints: checkpoints, paths: AppPaths(home: dir.url))
     }
 
-    private func database(_ dir: OpenCodeTempDirectory) -> URL { dir.url.appending(path: "opencode.db") }
+    private func database(_ dir: TemporaryDirectory) -> URL { dir.url.appending(path: "opencode.db") }
 
-    private func checkpointKey(_ dir: OpenCodeTempDirectory, _ table: String) -> String { sha256Hex(database(dir).path + "#" + table) }
+    private func checkpointKey(_ dir: TemporaryDirectory, _ table: String) -> String { sha256Hex(database(dir).path + "#" + table) }
 
     @Test func keepsOnlyAssistantRowsOfTheScannedProviders() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir))
         try db.createV1Tables()
         try db.insertV1(id: "msg_go_1", provider: "opencode-go", cost: "0.0123", input: 100, output: 50, reasoning: 7, cacheRead: 1_000, cacheWrite: 20, cwd: "/work/alpha", created: t0, updated: t0 + 5_000)
@@ -48,7 +48,7 @@ struct OpenCodeHistoryScannerTests {
     }
 
     @Test func integerCostIsReadAsDollars() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir))
         try db.createV1Tables()
         try db.insertV1(id: "msg_zero", provider: "opencode-go", cost: "0", created: t0)
@@ -59,7 +59,7 @@ struct OpenCodeHistoryScannerTests {
     }
 
     @Test func resumesFromTheLastUpdateAndRereadsRowsThatChanged() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir))
         try db.createV1Tables()
         try db.insertV1(id: "msg_old", provider: "opencode-go", created: t0, updated: t0 + 500)
@@ -83,7 +83,7 @@ struct OpenCodeHistoryScannerTests {
     /// Both tables live side by side once opencode has created `session_message`. Rows that exist only there,
     /// including ones older than the newest `message` row, count; copies of `message` rows do not.
     @Test func readsBothTablesAndSkipsV2CopiesOfV1Rows() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir))
         try db.createV1Tables()
         try db.createV2Tables()
@@ -105,7 +105,7 @@ struct OpenCodeHistoryScannerTests {
 
     /// A newer checkpoint in one table must not hide rows the other table gained after its own checkpoint.
     @Test func eachTableResumesFromItsOwnCheckpoint() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir))
         try db.createV1Tables()
         try db.createV2Tables()
@@ -120,7 +120,7 @@ struct OpenCodeHistoryScannerTests {
     }
 
     @Test func readsTheV2TableWhenTheV1TableIsGone() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir))
         try db.createV2Tables()
         try db.insertSession("ses_1", directory: "/work/beta")
@@ -142,7 +142,7 @@ struct OpenCodeHistoryScannerTests {
 
     /// SQLite's json_extract raises on malformed JSON and aborts the whole query, so one bad row could hide every other.
     @Test func skipsRowsWithMalformedJSONAndKeepsTheRest() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir))
         try db.createV1Tables()
         try db.createV2Tables()
@@ -160,7 +160,7 @@ struct OpenCodeHistoryScannerTests {
     }
 
     @Test func missingDatabaseYieldsNothingAndKeepsCheckpoints() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let result = try scan(dir, checkpoints: ["other": "x"])
         #expect(result.events.isEmpty)
         #expect(result.checkpoints == ["other": "x"])
@@ -168,7 +168,7 @@ struct OpenCodeHistoryScannerTests {
 
     /// opencode not running: WAL database, no -wal or -shm, and a directory we cannot write to.
     @Test func opensAQuiescentWALDatabaseInAReadOnlyDirectory() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir), wal: true)
         try db.createV1Tables()
         try db.insertV1(id: "msg_1", provider: "opencode-go", created: t0)
@@ -204,13 +204,13 @@ struct OpenCodeZenUsageFetcherTests {
         return calendar
     }
 
-    private func context(_ dir: OpenCodeTempDirectory, now: Date) -> FetchContext {
+    private func context(_ dir: TemporaryDirectory, now: Date) -> FetchContext {
         FetchContext(http: HTTPClient(transport: OpenCodeFakeTransport(HTTPResponse(status: 500, body: Data()))),
                      secrets: InMemorySecretStore(), paths: AppPaths(home: dir.url), now: { now })
     }
 
     @Test func reportsMonthToDateZenSpendFromTheLocalDatabase() async throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let db = try OpenCodeFixtureDatabase(at: dir.url.appending(path: "opencode.db"))
         try db.createV1Tables()
         let ms = { (iso: String) in Int64(DateParsing.iso8601(iso)!.timeIntervalSince1970 * 1_000) }
@@ -234,7 +234,7 @@ struct OpenCodeZenUsageFetcherTests {
     }
 
     @Test func noDatabaseIsUnsupported() async throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let account = AccountConfig(id: "zen", provider: .opencodeZen, label: "Zen", profileDir: dir.url.path)
         await #expect(throws: FetchError.unsupported("OpenCode has not been used on this Mac")) {
             try await OpenCodeZenUsageFetcher(environment: [:], calendar: utc).fetch(account, context: context(dir, now: Date()))

@@ -3,7 +3,7 @@ import Testing
 import TokenjarCore
 
 struct FixtureShapeTests {
-    static let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appending(path: "Fixtures")
+    static let folder = TestPaths.fixtures
 
     @Test func fixturesCarryNoSecrets() throws {
         let files = try Self.files(under: Self.folder)

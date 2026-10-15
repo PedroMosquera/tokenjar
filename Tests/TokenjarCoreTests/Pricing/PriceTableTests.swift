@@ -3,10 +3,8 @@ import Testing
 @testable import TokenjarCore
 
 struct PriceTableTests {
-    static let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appending(path: "Fixtures/Pricing")
-    static let bundled = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appending(path: "Resources/pricing.json")
+    static let fixtures = TestPaths.fixtures.appending(path: "Pricing")
+    static let bundled = TestPaths.repository.appending(path: "Resources/pricing.json")
 
     static func price(_ input: Double, source: String = "test") -> ModelPrice {
         ModelPrice(input: input, output: input * 5, cacheRead: input / 10, cacheWrite5m: input * 1.25, cacheWrite1h: input * 2, source: source, asOf: "2026-10-10")

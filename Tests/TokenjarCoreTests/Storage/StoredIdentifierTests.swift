@@ -14,7 +14,7 @@ struct StoredIdentifierTests {
 
     @Test func scannedPathsAndResponseIDsAreStoredOnlyAsDigests() throws {
         let home = temp.url.appending(path: "home")
-        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appending(path: "Fixtures")
+        let fixtures = TestPaths.fixtures
         try FileManager.default.createDirectory(at: home.appending(path: ".claude"), withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: fixtures.appending(path: "Claude/projects"), to: home.appending(path: ".claude/projects"))
         let rollout = home.appending(path: ".codex/sessions/2026/10/09/rollout-2026-10-09T11-28-27-SESSIONUUID.jsonl")

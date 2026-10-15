@@ -5,9 +5,7 @@ import Testing
 
 struct LogoAssetTests {
     private var logos: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Resources/Logos")
+        TestPaths.repository.appending(path: "Resources/Logos")
     }
 
     /// docs/logos.md: every mark is normalized to 16 x 16 pt, the menu bar glyph height.

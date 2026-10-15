@@ -99,7 +99,7 @@ struct CaptureRedactorTests {
 
     /// Captures exist partly to learn when quotas reset, so a reset date survives where it is pinned.
     @Test func aResetDateAtItsPinnedPathIsKept() throws {
-        let claudeLines = try String(decoding: fixture("Claude/stream-plan-limits.jsonl"), as: UTF8.self)
+        let claudeLines = try fixtureText("Claude/stream-plan-limits.jsonl")
             .split(separator: "\n").map { try json(String($0)) }
         let inventory = try json(#"{"result": {"rateLimitResetCredits": {"availableCount": 1, "credits": [{"status": "available", "expiresAt": "2026-10-20T00:00:00Z"}]}}}"#)
         let cases: [(ProviderID, Any, [String])] = [
@@ -319,9 +319,5 @@ struct CaptureRedactorTests {
 
     private func json(_ data: Data) throws -> Any {
         try JSONSerialization.jsonObject(with: data)
-    }
-
-    private func fixture(_ name: String) throws -> Data {
-        try Data(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appending(path: "Fixtures/\(name)"))
     }
 }

@@ -5,7 +5,7 @@ import Testing
 struct CodexUsageFetcherTests {
     let now = Date(timeIntervalSince1970: 1_791_658_800)
 
-    private func context(_ temp: CodexTempDirectory, binary: URL?, now: Date? = nil) -> FetchContext {
+    private func context(_ temp: TemporaryDirectory, binary: URL?, now: Date? = nil) -> FetchContext {
         let missing = temp.url.appending(path: "no-such-codex").path
         let fixedNow = now ?? self.now
         return FetchContext(
@@ -16,12 +16,12 @@ struct CodexUsageFetcherTests {
         )
     }
 
-    private func account(_ temp: CodexTempDirectory) -> AccountConfig {
+    private func account(_ temp: TemporaryDirectory) -> AccountConfig {
         AccountConfig(id: "codex-test", provider: .codex, label: "Test", profileDir: temp.url.appending(path: "codex-home").path)
     }
 
     @Test func spawnsTheUsersCLIReadOnlyAndMapsTheAnswer() async throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let binary = try temp.fakeCodexBinary()
         let launcher = RecordingCodexLauncher(.answering(rateLimits: try CodexFixtures.line("rate-limits-plus.json")))
         let fetcher = CodexUsageFetcher(launcher: launcher, clientVersion: "9.9.9")
@@ -46,7 +46,7 @@ struct CodexUsageFetcherTests {
     }
 
     @Test func defaultProfileLeavesCodexHomeUnset() async throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let launcher = RecordingCodexLauncher(.answering(rateLimits: try CodexFixtures.line("rate-limits-plus.json")))
         let plain = AccountConfig(id: "codex-test", provider: .codex, label: "Test")
 
@@ -56,7 +56,7 @@ struct CodexUsageFetcherTests {
     }
 
     @Test func apiKeyLoginHasNoPlanLimits() async throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let launcher = RecordingCodexLauncher(.answering(
             rateLimits: #"{"id":2,"error":{"code":-32600,"message":"chatgpt authentication required to read rate limits"}}"#
         ))
@@ -69,8 +69,8 @@ struct CodexUsageFetcherTests {
     }
 
     @Test func signedOutIsReportedEvenWhenALogExists() async throws {
-        let temp = try CodexTempDirectory()
-        try temp.copyFixture("rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-a.jsonl")
+        let temp = TemporaryDirectory()
+        try temp.copyFixture("Codex/rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-a.jsonl")
         let launcher = RecordingCodexLauncher(.answering(
             rateLimits: #"{"id":2,"error":{"code":-32600,"message":"codex account authentication required to read rate limits"}}"#
         ))
@@ -81,7 +81,7 @@ struct CodexUsageFetcherTests {
     }
 
     @Test func missingCLIWithoutLogsIsCliNotFound() async throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let launcher = RecordingCodexLauncher(.answering(rateLimits: "{}"))
 
         await #expect(throws: FetchError.cliNotFound("codex")) {
@@ -91,8 +91,8 @@ struct CodexUsageFetcherTests {
     }
 
     @Test func missingCLIFallsBackToTheLastLoggedLimits() async throws {
-        let temp = try CodexTempDirectory()
-        try temp.copyFixture("rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-a.jsonl")
+        let temp = TemporaryDirectory()
+        try temp.copyFixture("Codex/rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-a.jsonl")
         let at = Date.codexFixture("2026-10-09T10:30:00Z")
 
         let snapshot = try await CodexUsageFetcher(launcher: RecordingCodexLauncher(.answering(rateLimits: "{}")))
@@ -107,8 +107,8 @@ struct CodexUsageFetcherTests {
     }
 
     @Test func serverFailureFallsBackAndDropsWindowsThatHaveReset() async throws {
-        let temp = try CodexTempDirectory()
-        try temp.copyFixture("rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-a.jsonl")
+        let temp = TemporaryDirectory()
+        try temp.copyFixture("Codex/rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-a.jsonl")
         let launcher = RecordingCodexLauncher(.answering(
             rateLimits: #"{"id":2,"error":{"code":-32603,"message":"failed to fetch codex rate limits: placeholder"}}"#
         ))
@@ -122,7 +122,7 @@ struct CodexUsageFetcherTests {
     }
 
     @Test func serverFailureWithoutLogsIsANetworkError() async throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let launcher = RecordingCodexLauncher(.answering(
             rateLimits: #"{"id":2,"error":{"code":-32603,"message":"failed to fetch codex rate limits: placeholder"}}"#
         ))
@@ -134,7 +134,7 @@ struct CodexUsageFetcherTests {
 
     @Test(.timeLimit(.minutes(1)))
     func silentServerTimesOutAndIsTerminated() async throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let connection = ScriptedCodexConnection(replies: ["initialize": [#"{"id":1,"result":{}}"#]])
         let launcher = RecordingCodexLauncher(connection)
 
@@ -148,8 +148,8 @@ struct CodexUsageFetcherTests {
     /// offline Mac and a missing CLI must not read alike.
     @Test(.timeLimit(.minutes(1)))
     func aLoggedCopyRecordsWhyTheLiveCheckFailed() async throws {
-        let temp = try CodexTempDirectory()
-        try temp.copyFixture("rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-a.jsonl")
+        let temp = TemporaryDirectory()
+        try temp.copyFixture("Codex/rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-a.jsonl")
         let at = Date.codexFixture("2026-10-09T10:30:00Z")
         let rpcFailure = RecordingCodexLauncher(.answering(
             rateLimits: #"{"id":2,"error":{"code":-32603,"message":"failed to fetch codex rate limits: placeholder"}}"#
@@ -168,7 +168,7 @@ struct CodexUsageFetcherTests {
     }
 
     @Test func aLiveAnswerHasNoLiveCheckFailure() async throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let launcher = RecordingCodexLauncher(.answering(rateLimits: try CodexFixtures.line("rate-limits-plus.json")))
 
         let snapshot = try await CodexUsageFetcher(launcher: launcher).fetch(account(temp), context: context(temp, binary: try temp.fakeCodexBinary()))
@@ -178,11 +178,11 @@ struct CodexUsageFetcherTests {
     }
 
     @Test func fallbackPicksTheNewestLogThatHasLimits() throws {
-        let temp = try CodexTempDirectory()
+        let temp = TemporaryDirectory()
         let home = temp.url.appending(path: "codex-home")
-        try temp.copyFixture("rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-old.jsonl", modified: .codexFixture("2026-10-09T10:21:00Z"))
-        try temp.copyFixture("rollout-records.jsonl", to: "codex-home/sessions/2026/10/09/rollout-new.jsonl", modified: .codexFixture("2026-10-09T11:30:00Z"))
-        try temp.copyFixture("rollout-imported.jsonl", to: "codex-home/sessions/2026/10/10/rollout-imported.jsonl", modified: .codexFixture("2026-10-10T09:00:00Z"))
+        try temp.copyFixture("Codex/rollout-token-count.jsonl", to: "codex-home/sessions/2026/10/09/rollout-old.jsonl", modified: .codexFixture("2026-10-09T10:21:00Z"))
+        try temp.copyFixture("Codex/rollout-records.jsonl", to: "codex-home/sessions/2026/10/09/rollout-new.jsonl", modified: .codexFixture("2026-10-09T11:30:00Z"))
+        try temp.copyFixture("Codex/rollout-imported.jsonl", to: "codex-home/sessions/2026/10/10/rollout-imported.jsonl", modified: .codexFixture("2026-10-10T09:00:00Z"))
 
         let snapshot = try #require(CodexRollouts.lastLoggedSnapshot(codexHome: home, accountID: "a", now: .codexFixture("2026-10-09T12:00:00Z")))
 

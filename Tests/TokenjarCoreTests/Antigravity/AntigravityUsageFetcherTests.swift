@@ -5,16 +5,14 @@ import Testing
 /// The fixtures are synthetic. No answer from a real agy account has been captured, so they follow the field names
 /// of CodexBar's agy test fixture.
 final class AntigravityUsageFetcherTests {
-    let home: URL
+    let temp = TemporaryDirectory()
+    var home: URL { temp.url }
     let account = AccountConfig(id: "agy-test", provider: .antigravity, label: "Google")
     let now = Date(timeIntervalSince1970: 1_791_660_000)
 
     init() throws {
-        home = FileManager.default.temporaryDirectory.appending(path: "tokenjar-agy-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home.appending(path: "bin"), withIntermediateDirectories: true)
     }
-
-    deinit { try? FileManager.default.removeItem(at: home) }
 
     // MARK: Version gate
 
@@ -57,7 +55,7 @@ final class AntigravityUsageFetcherTests {
         (output("agy 1.2.0\n", stderr: "error: unknown option '--version' (see docs v2.0)\n", exitCode: 2), "Could not read the agy version"),
     ])
     func refusesOldOrUnknownVersionsBeforeAskingForUsage(version: ProcessResult, message: String) async throws {
-        let runner = try agy(version: version, usage: output(fixture("usage-snake.json")))
+        let runner = try agy(version: version, usage: output(fixtureText("Antigravity/usage-snake.json")))
         await #expect(throws: FetchError.unsupported(message)) { try await self.fetch(runner) }
         #expect(runner.calls.map(\.arguments) == [["--version"]])
     }
@@ -65,7 +63,7 @@ final class AntigravityUsageFetcherTests {
     // MARK: Invocation
 
     @Test func missingBinaryIsCLINotFoundWithoutRunningAnything() async throws {
-        let runner = try agy(usage: output(fixture("usage-snake.json")))
+        let runner = try agy(usage: output(fixtureText("Antigravity/usage-snake.json")))
         let context = try context(runner, agyPath: home.appending(path: "bin/not-installed").path)
         await #expect(throws: FetchError.cliNotFound("agy")) {
             try await AntigravityUsageFetcher().fetch(self.account, context: context)
@@ -74,7 +72,7 @@ final class AntigravityUsageFetcherTests {
     }
 
     @Test func runsReadOnlyUsageCommandFromTheProbeDirectory() async throws {
-        let runner = try agy(usage: output(fixture("usage-snake.json")))
+        let runner = try agy(usage: output(fixtureText("Antigravity/usage-snake.json")))
         let context = try context(runner)
         try makeWorldReadableDirectory(context.paths.supportDirectory)
         _ = try await AntigravityUsageFetcher().fetch(account, context: context)
@@ -109,7 +107,7 @@ final class AntigravityUsageFetcherTests {
     // MARK: Parsing
 
     @Test func snakeCaseReportBecomesOneWindowPerPoolAndLimit() async throws {
-        let snapshot = try await fetch(agy(usage: output(fixture("usage-snake.json"))))
+        let snapshot = try await fetch(agy(usage: output(fixtureText("Antigravity/usage-snake.json"))))
         #expect(summary(snapshot.windows) == [
             "gemini:session | Gemini · 5-hour | 38.0 | 300 | 2026-10-10T22:30:00Z",
             "gemini:weekly | Gemini · Week | 10.0 | 10080 | 2026-10-12T00:00:00Z",
@@ -124,7 +122,7 @@ final class AntigravityUsageFetcherTests {
     }
 
     @Test func camelCaseReportParsesTheSameFields() async throws {
-        let snapshot = try await fetch(agy(usage: output(fixture("usage-camel.json"))))
+        let snapshot = try await fetch(agy(usage: output(fixtureText("Antigravity/usage-camel.json"))))
         #expect(summary(snapshot.windows) == [
             "gemini:session | Gemini · 5-hour | 50.0 | 300 | 2026-10-10T22:30:00Z",
             "gemini:weekly | Gemini · Week | 20.0 | 10080 | 2026-10-12T00:00:00Z",
@@ -241,15 +239,15 @@ final class AntigravityUsageFetcherTests {
     /// agy wraps a local slash command's answer in the same envelope as a model reply (`response`, `num_turns`), so
     /// those keys alone must not latch the account and pause its checks.
     @Test func aLocalUsageAnswerWithoutGroupsIsNotAModelTurn() async throws {
-        let local = agy(usage: output(try fixture("enterprise-no-quota.stdout.json")))
+        let local = agy(usage: output(try fixtureText("Antigravity/enterprise-no-quota.stdout.json")))
         let noQuota = try? await fetch(local)
         #expect(noQuota?.windows == [])
         #expect(noQuota?.notes == ["No usage limits reported for this account"])
 
-        let renamed = agy(usage: output(try fixture("renamed-groups-envelope.stdout.json")))
+        let renamed = agy(usage: output(try fixtureText("Antigravity/renamed-groups-envelope.stdout.json")))
         await #expect(throws: FetchError.parse("agy /usage has no groups")) { try await self.fetch(renamed) }
 
-        let turn = agy(usage: output(try fixture("model-turn.stdout.json")))
+        let turn = agy(usage: output(try fixtureText("Antigravity/model-turn.stdout.json")))
         await #expect(throws: FetchError.unsupported(AntigravityUsageFetcher.modelTurnMessage)) { try await self.fetch(turn) }
     }
 
@@ -273,12 +271,6 @@ final class AntigravityUsageFetcherTests {
 
     private func fetch(_ runner: FakeRunner) async throws -> UsageSnapshot {
         try await AntigravityUsageFetcher().fetch(account, context: context(runner))
-    }
-
-    private func fixture(_ name: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Fixtures/Antigravity/\(name)")
-        return try String(contentsOf: url, encoding: .utf8)
     }
 
     private func summary(_ windows: [UsageWindow]) -> [String] {

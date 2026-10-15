@@ -6,7 +6,7 @@ import Testing
 struct OpenCodeLocalDataTests {
     private let openAIOAuth = #""openai":{"type":"oauth","access":"placeholder-access","refresh":"placeholder-refresh","expires":0}"#
 
-    private func key(_ account: AccountConfig, in dir: OpenCodeTempDirectory, secrets: any SecretStore = InMemorySecretStore()) throws -> String {
+    private func key(_ account: AccountConfig, in dir: TemporaryDirectory, secrets: any SecretStore = InMemorySecretStore()) throws -> String {
         try OpenCodeLocalData.apiKey(for: account, secrets: secrets, paths: AppPaths(home: dir.url), dataDirectory: dir.url)
     }
 
@@ -15,19 +15,19 @@ struct OpenCodeLocalDataTests {
     }
 
     @Test func defaultPrefersTheGoEntryOverTheGenericOne() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         _ = try dir.write(#"{"opencode":{"type":"api","key":"sk-generic"},"opencode-go":{"type":"api","key":"sk-go"},\#(openAIOAuth)}"#, to: "auth.json")
         #expect(try key(account(nil), in: dir) == "sk-go")
     }
 
     @Test func defaultFallsBackToTheGenericEntry() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         _ = try dir.write(#"{\#(openAIOAuth),"opencode":{"type":"api","key":"sk-generic"}}"#, to: "auth.json")
         #expect(try key(account(nil), in: dir) == "sk-generic")
     }
 
     @Test func oauthEntriesAreNeverUsed() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         _ = try dir.write(#"{\#(openAIOAuth),"opencode-go":{"type":"oauth","access":"placeholder","refresh":"placeholder","expires":0}}"#, to: "auth.json")
         #expect(throws: FetchError.notSignedIn) { try key(account(nil), in: dir) }
         let file = dir.url.appending(path: "auth.json").path
@@ -35,20 +35,20 @@ struct OpenCodeLocalDataTests {
     }
 
     @Test func wellKnownEntryUsesItsToken() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         _ = try dir.write(#"{"opencode-go":{"type":"wellknown","key":"OPENCODE_API_KEY","token":"sk-wellknown"}}"#, to: "auth.json")
         #expect(try key(account(nil), in: dir) == "sk-wellknown")
     }
 
     @Test func explicitFileAndEntryWinOverTheDefault() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         _ = try dir.write(#"{"opencode-go":{"type":"api","key":"sk-default"}}"#, to: "auth.json")
         let custom = try dir.write(#"{"work":{"type":"api","key":"  sk-work\n"}}"#, to: "other/keys.json")
         #expect(try key(account(.file(path: custom.path, key: "work")), in: dir) == "sk-work")
     }
 
     @Test func explicitFileThatIsMissingDoesNotFallBack() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         _ = try dir.write(#"{"opencode-go":{"type":"api","key":"sk-default"}}"#, to: "auth.json")
         #expect(throws: FetchError.notSignedIn) {
             try key(account(.file(path: dir.url.appending(path: "missing.json").path, key: "opencode-go")), in: dir)
@@ -56,7 +56,7 @@ struct OpenCodeLocalDataTests {
     }
 
     @Test func keychainCredentialReadsOnlyTheAppStore() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         _ = try dir.write(#"{"opencode-go":{"type":"api","key":"sk-default"}}"#, to: "auth.json")
         let secrets = InMemorySecretStore(["work-go": "sk-pasted"])
         #expect(try key(account(.keychain(account: "work-go")), in: dir, secrets: secrets) == "sk-pasted")
@@ -65,7 +65,7 @@ struct OpenCodeLocalDataTests {
 
     /// Signed out would send the user to paste a key they already have.
     @Test func aRefusedKeychainReadIsDeniedNotSignedOut() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         let keychain = CountingSecretStore(["go": "sk-pasted"])
         keychain.refuse(with: errSecAuthFailed)
         #expect(throws: FetchError.keychainDenied) { try key(account(.keychain(account: "go")), in: dir, secrets: keychain) }
@@ -75,7 +75,7 @@ struct OpenCodeLocalDataTests {
     }
 
     @Test func noAuthFileIsNotSignedIn() throws {
-        let dir = try OpenCodeTempDirectory()
+        let dir = TemporaryDirectory()
         #expect(throws: FetchError.notSignedIn) { try key(account(nil), in: dir) }
     }
 

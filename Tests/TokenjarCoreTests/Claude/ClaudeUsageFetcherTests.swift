@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import TokenjarCore
 
-private let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appending(path: "Fixtures/Claude")
-
-private func fixture(_ name: String) throws -> Data {
-    try Data(contentsOf: fixtures.appending(path: name))
-}
-
 /// The ways a run can fail that make the fetcher fall back to Claude Code's cache.
 private enum FailedRun: CustomTestStringConvertible, Sendable {
     case timeout, unrecognized, missingCLI
@@ -23,33 +17,12 @@ private enum FailedRun: CustomTestStringConvertible, Sendable {
     var testDescription: String { "\(self)" }
 }
 
-/// A throwaway home directory so nothing touches the real ~/.claude.json or ~/Library.
-private struct Sandbox {
-    let home: URL
-
-    init() throws {
-        home = FileManager.default.temporaryDirectory.appending(path: "tokenjar-claude-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-    }
-
-    func remove() { try? FileManager.default.removeItem(at: home) }
-
-    func install(_ fixtureName: String, as relativePath: String) throws {
-        let target = home.appending(path: relativePath)
-        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try fixture(fixtureName).write(to: target)
-    }
-
-    func write(_ text: String, to relativePath: String) throws {
-        let target = home.appending(path: relativePath)
-        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(text.utf8).write(to: target)
-    }
-
+private extension TemporaryDirectory {
+    /// Uses this directory as home and system root, so nothing touches the real ~/.claude.json or ~/Library.
     func context(_ runner: FakeRunner, cli: String = "/bin/sh", now: Date) -> FetchContext {
         FetchContext(
-            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: ["claude": cli], searchDirectories: []),
-            paths: AppPaths(home: home, environment: [:], systemRoot: home), now: { now }
+            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: url, overrides: ["claude": cli], searchDirectories: []),
+            paths: AppPaths(home: url, environment: [:], systemRoot: url), now: { now }
         )
     }
 }
@@ -59,10 +32,9 @@ struct ClaudeUsageFetcherTests {
     let account = AccountConfig(id: "claude-personal", provider: .claude, label: "Personal")
 
     @Test func mapsAllThreeLimitKindsFromTheCLI() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-plan-limits.jsonl")))
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-plan-limits.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -81,9 +53,8 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func extraUsageIsInMinorUnitsOfItsCurrency() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        let runner = FakeRunner(output(stdout: try fixture("stream-extra-usage-jpy.jsonl")))
+        let box = TemporaryDirectory()
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-extra-usage-jpy.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -111,9 +82,8 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func unknownLimitKindKeepsItsKindAsID() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        let runner = FakeRunner(output(stdout: try fixture("stream-extra-usage-jpy.jsonl")))
+        let box = TemporaryDirectory()
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-extra-usage-jpy.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -143,9 +113,8 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func signedOutConfigThrowsNotSignedIn() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let box = TemporaryDirectory()
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         await #expect(throws: FetchError.notSignedIn) {
             try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
@@ -154,10 +123,9 @@ struct ClaudeUsageFetcherTests {
 
     @Test(arguments: [nil, "claude-json-max.json"])
     func apiKeyLoginHasNoPlanLimits(globalConfig: String?) async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        if let globalConfig { try box.install(globalConfig, as: ".claude.json") }
-        let runner = FakeRunner(output(stdout: try fixture("stream-api-key.jsonl")))
+        let box = TemporaryDirectory()
+        if let globalConfig { try box.copyFixture("Claude/\(globalConfig)", to: ".claude.json") }
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-api-key.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -169,10 +137,9 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func apiKeyReportWithoutRateLimitsIgnoresTheSubscriptionCache() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
-        let stream = String(decoding: try fixture("stream-plan-limits.jsonl"), as: UTF8.self)
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
+        let stream = try fixtureText("Claude/stream-plan-limits.jsonl")
             .replacingOccurrences(of: #""apiKeySource":"none""#, with: #""apiKeySource":"apiKeyHelper""#)
             .replacingOccurrences(of: #""rate_limits":"#, with: #""rate_limits_removed":"#)
 
@@ -184,14 +151,13 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func malformedUsageCacheKeepsPlanAndSignIn() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise"},"cachedUsageUtilization":{"fetchedAtMs":"soon"}}"#, to: ".claude.json")
 
-        let reported = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output(stdout: try fixture("stream-plan-limits.jsonl"))), now: now))
+        let reported = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output(stdout: try fixture("Claude/stream-plan-limits.jsonl"))), now: now))
         #expect(reported.plan == "Enterprise")
 
-        let unreported = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl"))), now: now))
+        let unreported = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl"))), now: now))
         #expect(unreported.plan == "Enterprise")
         #expect(unreported.notes == ["No plan limits for this login"])
     }
@@ -202,9 +168,8 @@ struct ClaudeUsageFetcherTests {
         #""num_turns":0,"total_cost_usd":0.0123"#,
     ])
     func usageAnsweredByAModelTurnFailsInsteadOfServingTheCache(resultFields: String) async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
         let stream = """
         {"type":"system","subtype":"init","apiKeySource":"none","model":"claude-opus-5-5"}
         {"type":"assistant","message":{"model":"claude-opus-5-5","content":[{"type":"text","text":"MODEL_TEXT"}],"usage":{"input_tokens":12,"output_tokens":40}}}
@@ -220,9 +185,8 @@ struct ClaudeUsageFetcherTests {
     /// Serving the cache, or calling it a timeout, would let every refresh spend tokens again.
     @Test(arguments: [true, false])
     func aModelReplyWithoutAResultLineIsAModelTurn(timedOut: Bool) async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
         let stream = """
         {"type":"system","subtype":"init","apiKeySource":"none","model":"claude-opus-5-5"}
         {"type":"assistant","message":{"model":"claude-opus-5-5","content":[{"type":"text","text":"MODEL_TEXT"}],"usage":{"input_tokens":12,"output_tokens":40}}}
@@ -237,9 +201,8 @@ struct ClaudeUsageFetcherTests {
 
     /// The local `/usage` answer is an assistant line too, so a run that hangs after printing it is only a timeout.
     @Test func aTimeoutAfterTheLocalUsageAnswerIsStillATimeout() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        let lines = String(decoding: try fixture("stream-signed-out.jsonl"), as: UTF8.self).split(separator: "\n")
+        let box = TemporaryDirectory()
+        let lines = try fixtureText("Claude/stream-signed-out.jsonl").split(separator: "\n")
         let partial = Data((lines.prefix(2).joined(separator: "\n") + "\n").utf8)
 
         await #expect(throws: FetchError.timeout) {
@@ -248,10 +211,9 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func usageBasedEnterpriseSeatHasNoPlanLimits() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"}}"#, to: ".claude.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -260,10 +222,9 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func aSpendCapIsTheOnlyLimitOfASeatWithoutPlanLimits() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"}}"#, to: ".claude.json")
-        let runner = FakeRunner(output(stdout: try fixture("enterprise-usage-based-spend-cap.stream.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/enterprise-usage-based-spend-cap.stream.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -291,10 +252,9 @@ struct ClaudeUsageFetcherTests {
     /// Runs seconds apart can answer with only the local cost summary, while Claude Code's cache holds the spend it
     /// fetched moments before. Without the cache the bar would come and go between refreshes.
     @Test func aSeatWithoutPlanLimitsReadsItsSpendLimitFromTheCacheWhenTheReportIsMissing() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(usageBasedSeat(cacheFetchedAt: "2026-10-10T19:59:30Z"), to: ".claude.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -309,10 +269,9 @@ struct ClaudeUsageFetcherTests {
 
     /// Last month's spend says nothing about this month's cap.
     @Test func aCachedSpendLimitFromAnEarlierMonthIsNotShown() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(usageBasedSeat(cacheFetchedAt: "2026-09-30T23:00:00Z"), to: ".claude.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -322,10 +281,9 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func anotherAccountsCachedSpendIsNotShown() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(usageBasedSeat(cacheFetchedAt: "2026-10-10T19:59:30Z", cacheAccount: "ACCOUNT_UUID_OTHER"), to: ".claude.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -341,10 +299,9 @@ struct ClaudeUsageFetcherTests {
         ("2027-02-01T00:00:00Z", "2027-03-01T00:00:00Z", 28 * 1440),
     ])
     func aSpendLimitResetsAtTheStartOfTheNextUTCMonth(_ at: String, _ resets: String, _ minutes: Int) async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"}}"#, to: ".claude.json")
-        let runner = FakeRunner(output(stdout: try fixture("enterprise-usage-based-spend-cap.stream.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/enterprise-usage-based-spend-cap.stream.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: DateParsing.iso8601(at)!))
 
@@ -353,10 +310,9 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func spendWithNoCapHasNoWindow() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"}}"#, to: ".claude.json")
-        let stream = try String(decoding: fixture("enterprise-usage-based-spend-cap.stream.jsonl"), as: UTF8.self)
+        let stream = try fixtureText("Claude/enterprise-usage-based-spend-cap.stream.jsonl")
             .replacingOccurrences(of: #""monthly_limit":100000"#, with: #""monthly_limit":null"#)
         let runner = FakeRunner(output(stream))
 
@@ -368,9 +324,8 @@ struct ClaudeUsageFetcherTests {
 
     /// Extra usage starts only once a plan limit is hit, so the plan's own limits stay the account's number.
     @Test func planLimitsKeepExtraUsageOutOfTheWindows() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        let runner = FakeRunner(output(stdout: try fixture("stream-extra-usage-jpy.jsonl")))
+        let box = TemporaryDirectory()
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-extra-usage-jpy.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -380,10 +335,9 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func bedrockSettingsAreNotMistakenForSignedOut() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(#"{"env":{"CLAUDE_CODE_USE_BEDROCK":"1","AWS_REGION":"us-east-1"}}"#, to: ".claude/settings.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -395,10 +349,9 @@ struct ClaudeUsageFetcherTests {
         "api-key-in-settings.settings.json", "anthropic-aws.settings.json", "anthropic-google-cloud.settings.json", "mantle.settings.json",
     ])
     func aLoginBilledOutsideThePlanIsNotMistakenForSignedOut(settings: String) async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("\(settings)", as: ".claude/settings.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/\(settings)", to: ".claude/settings.json")
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -407,10 +360,9 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func aBaseURLAloneIsAGateway() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(#"{"env":{"ANTHROPIC_BASE_URL":"https://llm-gateway.example.invalid"}}"#, to: ".claude/settings.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -418,10 +370,9 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func emptyGatewayVariablesStillReadAsSignedOut() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         try box.write(#"{"env":{"ANTHROPIC_BASE_URL":"","ANTHROPIC_AUTH_TOKEN":"","CLAUDE_CODE_USE_GATEWAY":"0"}}"#, to: ".claude/settings.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         await #expect(throws: FetchError.notSignedIn) {
             try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
@@ -430,10 +381,9 @@ struct ClaudeUsageFetcherTests {
 
     @Test(arguments: ["bedrock-managed.managed-settings.json", "gateway.managed-settings.json"])
     func managedSettingsRouteTheLoginToo(managed: String) async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("\(managed)", as: "Library/Application Support/ClaudeCode/managed-settings.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/\(managed)", to: "Library/Application Support/ClaudeCode/managed-settings.json")
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -441,11 +391,10 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func aGatewayWinsOverAnOldSubscriptionLogin() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("bedrock-with-old-max-login.claude.json", as: ".claude.json")
-        try box.install("llm-gateway-auth-token.settings.json", as: ".claude/settings.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/bedrock-with-old-max-login.claude.json", to: ".claude.json")
+        try box.copyFixture("Claude/llm-gateway-auth-token.settings.json", to: ".claude/settings.json")
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -456,11 +405,10 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func reportedPlanLimitsWinOverABaseURLInTheSettings() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
         try box.write(#"{"env":{"ANTHROPIC_BASE_URL":"https://proxy.example.invalid"}}"#, to: ".claude/settings.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-plan-limits.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-plan-limits.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -470,10 +418,9 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func aGatewayNeverFallsBackToAnOldSubscriptionLoginsCache() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("bedrock-with-old-max-login.claude.json", as: ".claude.json")
-        try box.install("llm-gateway-auth-token.settings.json", as: ".claude/settings.json")
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/bedrock-with-old-max-login.claude.json", to: ".claude.json")
+        try box.copyFixture("Claude/llm-gateway-auth-token.settings.json", to: ".claude/settings.json")
 
         await #expect(throws: FetchError.timeout) {
             try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output(timedOut: true)), now: now))
@@ -481,9 +428,8 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func runsTheCLIWithHooksOffFromTheProbeDirectory() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        let runner = FakeRunner(output(stdout: try fixture("stream-plan-limits.jsonl")))
+        let box = TemporaryDirectory()
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-plan-limits.jsonl")))
         let work = AccountConfig(id: "claude-work", provider: .claude, label: "Work", profileDir: "~/.claude-work")
 
         _ = try await ClaudeUsageFetcher().fetch(work, context: box.context(runner, now: now))
@@ -491,15 +437,15 @@ struct ClaudeUsageFetcherTests {
 
         let calls = runner.calls
         try #require(calls.count == 2)
-        let probe = box.home.appending(path: "Library/Application Support/Tokenjar/probe")
+        let probe = box.url.appending(path: "Library/Application Support/Tokenjar/probe")
         #expect(calls[0].executable.path == "/bin/sh")
         #expect(calls[0].arguments == [
             "-p", "/usage", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
             "--strict-mcp-config", "--settings", #"{"disableAllHooks":true}"#,
         ])
-        #expect(calls[0].environment["CLAUDE_CONFIG_DIR"] == box.home.appending(path: ".claude-work").path)
+        #expect(calls[0].environment["CLAUDE_CONFIG_DIR"] == box.url.appending(path: ".claude-work").path)
         #expect(calls[1].environment["CLAUDE_CONFIG_DIR"] == nil)
-        #expect(calls[0].environment["HOME"] == box.home.path)
+        #expect(calls[0].environment["HOME"] == box.url.path)
         #expect(calls[0].currentDirectory?.path == probe.path)
         #expect(FileManager.default.fileExists(atPath: probe.path))
         #expect(calls[0].stdin == nil)
@@ -508,24 +454,22 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func probeFolderAndItsParentAreOwnerOnlyEvenIfTheyExisted() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        let paths = AppPaths(home: box.home)
+        let box = TemporaryDirectory()
+        let paths = AppPaths(home: box.url)
         try makeWorldReadableDirectory(paths.probeDirectory)
         try makeWorldReadableDirectory(paths.supportDirectory)
 
-        _ = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output(stdout: try fixture("stream-plan-limits.jsonl"))), now: now))
+        _ = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output(stdout: try fixture("Claude/stream-plan-limits.jsonl"))), now: now))
 
         #expect(try posixMode(paths.supportDirectory) == 0o700)
         #expect(try posixMode(paths.probeDirectory) == 0o700)
     }
 
     @Test func profileDirReadsItsOwnConfigAndLegacyFileWins() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
         try box.write(#"{"oauthAccount":{"organizationType":"claude_pro"}}"#, to: ".claude-work/.claude.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-plan-limits.jsonl")))
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-plan-limits.jsonl")))
         let work = AccountConfig(id: "claude-work", provider: .claude, label: "Work", profileDir: "~/.claude-work")
 
         let fromProfile = try await ClaudeUsageFetcher().fetch(work, context: box.context(runner, now: now))
@@ -539,9 +483,8 @@ struct ClaudeUsageFetcherTests {
     // MARK: Cache fallback
 
     @Test func missingCLIFallsBackToClaudeCodeCache() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
         let runner = FakeRunner(output())
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, cli: "/nonexistent/claude", now: now))
@@ -557,13 +500,12 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func cacheOfAnotherAccountIsIgnored() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        var json = try #require(try JSONSerialization.jsonObject(with: fixture("claude-json-max.json")) as? [String: Any])
+        let box = TemporaryDirectory()
+        var json = try #require(try JSONSerialization.jsonObject(with: fixture("Claude/claude-json-max.json")) as? [String: Any])
         var cache = try #require(json["cachedUsageUtilization"] as? [String: Any])
         cache["accountUuid"] = "ACCOUNT_UUID_OTHER"
         json["cachedUsageUtilization"] = cache
-        try JSONSerialization.data(withJSONObject: json).write(to: box.home.appending(path: ".claude.json"))
+        try JSONSerialization.data(withJSONObject: json).write(to: box.url.appending(path: ".claude.json"))
 
         await #expect(throws: FetchError.cliNotFound("claude")) {
             try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output()), cli: "/nonexistent/claude", now: now))
@@ -571,23 +513,21 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func timeoutFallsBackToCacheOrReportsTimeout() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         let runner = FakeRunner(output(timedOut: true))
 
         await #expect(throws: FetchError.timeout) {
             try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
         }
 
-        try box.install("claude-json-max.json", as: ".claude.json")
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
         #expect(snapshot.source == "Claude Code cache")
     }
 
     @Test func cacheWithoutLimitsUsesBucketsAndDropsPastResets() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-pro-buckets.json", as: ".claude.json")
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-pro-buckets.json", to: ".claude.json")
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output()), cli: "/nonexistent/claude", now: now))
 
@@ -601,10 +541,9 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func subscriptionWithoutReportedLimitsUsesCacheInsteadOfClaimingNone() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
-        let runner = FakeRunner(output(stdout: try fixture("stream-signed-out.jsonl")))
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
+        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -620,9 +559,8 @@ struct ClaudeUsageFetcherTests {
         (.missingCLI, .other),
     ])
     fileprivate func aSavedCopyRecordsWhyTheLiveCheckFailed(_ run: FailedRun, _ expected: LiveCheckFailure) async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(run.runner, cli: run == .missingCLI ? "/nonexistent/claude" : "/bin/sh", now: now))
 
@@ -633,9 +571,8 @@ struct ClaudeUsageFetcherTests {
     /// The card says why a network error or a timeout made the copy stand in, in the provider's name and only when the
     /// cause is not Mac-wide, so the note says only where the numbers come from.
     @Test func aConnectionFailureLeavesItsReasonToTheCard() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output(timedOut: true)), now: now))
 
@@ -643,19 +580,17 @@ struct ClaudeUsageFetcherTests {
     }
 
     @Test func aLiveAnswerHasNoLiveCheckFailure() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
-        try box.install("claude-json-max.json", as: ".claude.json")
+        let box = TemporaryDirectory()
+        try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
 
-        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output(stdout: try fixture("stream-plan-limits.jsonl"))), now: now))
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeRunner(output(stdout: try fixture("Claude/stream-plan-limits.jsonl"))), now: now))
 
         #expect(snapshot.source == ClaudeUsageFetcher.source)
         #expect(snapshot.liveCheckFailure == nil)
     }
 
     @Test func unrecognizedOutputIsAParseError() async throws {
-        let box = try Sandbox()
-        defer { box.remove() }
+        let box = TemporaryDirectory()
         let runner = FakeRunner(output(stdout: Data("Error: something went wrong\n".utf8), exitCode: 1))
 
         await #expect {

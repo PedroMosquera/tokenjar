@@ -2,12 +2,8 @@ import Foundation
 @testable import TokenjarCore
 
 enum CodexFixtures {
-    static let directory = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
-        .appending(path: "Fixtures/Codex")
-
     static func data(_ name: String) throws -> Data {
-        try Data(contentsOf: directory.appending(path: name))
+        try fixture("Codex/\(name)")
     }
 
     static func line(_ name: String) throws -> String {
@@ -24,31 +20,7 @@ enum CodexFixtures {
     }
 }
 
-/// A scratch directory that stands in for a home folder or CODEX_HOME. Removed when the value is released.
-final class CodexTempDirectory {
-    let url: URL
-
-    init() throws {
-        url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-codex-tests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    }
-
-    deinit { try? FileManager.default.removeItem(at: url) }
-
-    @discardableResult
-    func write(_ contents: String, to relativePath: String, modified: Date? = nil) throws -> URL {
-        let file = url.appending(path: relativePath)
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(contents.utf8).write(to: file)
-        if let modified { try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: file.path) }
-        return file
-    }
-
-    @discardableResult
-    func copyFixture(_ name: String, to relativePath: String, modified: Date? = nil) throws -> URL {
-        try write(String(decoding: CodexFixtures.data(name), as: UTF8.self), to: relativePath, modified: modified)
-    }
-
+extension TemporaryDirectory {
     /// An executable placeholder the CLI locator accepts. It is never run: tests inject a fake launcher.
     func fakeCodexBinary() throws -> URL {
         let file = try write("#!/bin/sh\nexit 1\n", to: "bin/codex")
