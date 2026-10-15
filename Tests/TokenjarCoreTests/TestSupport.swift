@@ -7,8 +7,8 @@ enum TestPaths {
     static let repository = target.deletingLastPathComponent().deletingLastPathComponent()
 }
 
-/// 2027-01-15 08:00 UTC. The clock for suites that only need a fixed instant; a suite's own `now` shadows it.
-let now = Date(timeIntervalSince1970: 1_800_000_000)
+/// 2027-01-15 08:00 UTC, for suites that only need some fixed instant. Named apart from `now` so that a suite opts in.
+let fixedNow = Date(timeIntervalSince1970: 1_800_000_000)
 
 /// The bytes of `Fixtures/<path>`.
 func fixture(_ path: String) throws -> Data {
@@ -19,8 +19,8 @@ func fixtureText(_ path: String) throws -> String {
     String(decoding: try fixture(path), as: UTF8.self)
 }
 
-/// A fresh directory under the system temp folder, deleted on deinit. Keep the value alive (a local or a suite's
-/// stored property) for as long as anything reads under it.
+/// A fresh directory under the system temp folder, deleted on deinit. Swift may release a local after its last use, so
+/// hold it in a suite's stored property, or use `withExtendedLifetime`, while anything still reads only its `url`.
 final class TemporaryDirectory: Sendable {
     let url = FileManager.default.temporaryDirectory.appending(path: "tokenjar-tests/\(UUID().uuidString)")
 

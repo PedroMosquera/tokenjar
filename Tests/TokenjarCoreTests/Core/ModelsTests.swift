@@ -3,6 +3,7 @@ import Testing
 @testable import TokenjarCore
 
 struct ModelsTests {
+    let now = fixedNow
     @Test(arguments: [nil, "file:///Applications/Calculator.app", "smb://host/share", "javascript:alert(1)", "not a url"])
     func noOverrideOrOneOutsideHTTPFallsBackToTheProviderDefault(_ override: String?) {
         let account = AccountConfig(id: "a", provider: .claude, label: "x", dashboardURL: override)

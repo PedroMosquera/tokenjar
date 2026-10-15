@@ -3,6 +3,7 @@ import Testing
 @testable import TokenjarCore
 
 struct PaceTests {
+    let now = fixedNow
     @Test func projectsExhaustionBeforeReset() throws {
         // 5h window, 2h elapsed, 60 % used: rate 30 %/h, 40 % left takes 80m, reset is in 3h.
         let window = UsageWindow(id: "session", label: "5-hour", usedPercent: 60, windowMinutes: 300, resetsAt: now.addingTimeInterval(3 * 3600))
