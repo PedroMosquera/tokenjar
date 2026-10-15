@@ -66,7 +66,6 @@ struct StoredIdentifierTests {
 
     @Test func migrationRewritesIdentifiersAnEarlierBuildStoredRaw() throws {
         let url = temp.url.appending(path: "tokenjar.sqlite")
-        try FileManager.default.createDirectory(at: temp.url, withIntermediateDirectories: true)
         try rawExec(url, """
             CREATE TABLE schema_version (version INTEGER NOT NULL);
             \(SQLiteUsageStore.migrations[0]);

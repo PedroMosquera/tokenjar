@@ -74,6 +74,8 @@ struct DocsPinTests {
         _ = try? await AntigravityUsageFetcher().fetch(account(.antigravity), context: context)
         _ = try? await CopilotUsageFetcher().fetch(account(.copilot), context: context)
         let recorded = runner.calls.map { Call(executable: $0.executable, arguments: $0.arguments, environment: $0.environment) }
+        // The fetchers read the fake binaries under it, so it must outlive them.
+        withExtendedLifetime(temp) {}
         return recorded.prefix(claudeCount) + codex + recorded.dropFirst(claudeCount)
     }
 }
