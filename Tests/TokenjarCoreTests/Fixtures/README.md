@@ -15,4 +15,4 @@ numbers in them are made up. Where no real answer could be captured, the fixture
   status.openai.com's page data with the fields Tokenjar does not read left out; tests fill in its affected components,
   whose shape follows CodexBar's decoder because none were affected when it was saved.
 - `Claude/`: the `.settings.json`, `.managed-settings.json` and `.claude.json` files follow Claude Code's documented settings, one per way a login can be billed outside the plan (a gateway, a cloud provider, a key in the settings). `enterprise-usage-based-spend-cap.stream.jsonl` is inferred, since nothing published shows that answer.
-- `Codex/`: `rate-limits-workspace-hidden.json` is inferred, since no answer from a workspace that hides its limits has been captured.
+- `Codex/`: `rate-limits-workspace-hidden.json` is inferred, since no answer from a workspace that hides its limits has been captured. `rate-limits-plus-spark-recorded-id.json` is written by hand from the documented limit id and name.

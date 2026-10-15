@@ -34,9 +34,9 @@ SOFTWARE.
 
 These test fixtures are adapted from the tests of [CodexBar](https://github.com/steipete/CodexBar):
 
-- `Tests/TokenjarCoreTests/Fixtures/Copilot/user-pooled-unlimited.json` follows the body in the "decodes credits used counter from token billed business payload" test of that CodexBar file, with more fields and another reset date.
+- `Tests/TokenjarCoreTests/Fixtures/Copilot/user-pooled-unlimited.json` follows the body in the "decodes credits used counter from token billed business payload" test of CodexBar's `Tests/CodexBarTests/CopilotUsageModelsTests.swift`, with more fields and another reset date.
 - The body inline in `CopilotUsageFetcherTests.aTokenBilledPlaceholderWithoutTheUnlimitedFlagKeepsItsCreditsUsed` follows the body in the "keeps credit counter accessible without unlimited marker" test of that CodexBar file.
-- `Tests/TokenjarCoreTests/Fixtures/Antigravity/usage-camel.json` and `usage-snake.json` follow the field names of CodexBar's agy test fixture. `Fixtures/Antigravity/renamed-groups-envelope.stdout.json` uses the same shape and its group and bucket labels.
+- `Tests/TokenjarCoreTests/Fixtures/Antigravity/usage-camel.json` and `usage-snake.json` follow the field names of CodexBar's agy test fixture. `Fixtures/Antigravity/renamed-groups-envelope.stdout.json` uses the same shape and that fixture's group and bucket labels.
 
 ```text
 MIT License
