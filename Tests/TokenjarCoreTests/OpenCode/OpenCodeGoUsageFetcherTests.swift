@@ -56,46 +56,31 @@ struct OpenCodeGoUsageFetcherTests {
         #expect(s.windows.first?.notStarted == false)
     }
 
-    @Test func missingWindowsIsAParseError() {
-        guard case .parse = error(status: 200, body: #"{"usage":{}}"#) else {
-            Issue.record("expected parse error")
-            return
-        }
+    /// Captured classic error bodies. A 403 is a valid key without a Go plan, never a bad key.
+    @Test(arguments: [
+        ("go-error-403.json", 403, FetchError.noSubscription("No active OpenCode Go subscription for this key")),
+        ("go-error-401.json", 401, FetchError.unauthorized),
+        ("go-error-503.json", 503, FetchError.network("OpenCode API unavailable (HTTP 503)")),
+    ])
+    func capturedErrorBodiesAreClassified(fixture: String, status: Int, expected: FetchError) throws {
+        let body = String(decoding: try OpenCodeFixtures.data(fixture), as: UTF8.self)
+        #expect(error(status: status, body: body) == expected)
     }
 
-    @Test func entitlementErrorMeansNoSubscriptionNotABadKey() throws {
-        let body = String(decoding: try OpenCodeFixtures.data("go-error-403.json"), as: UTF8.self)
-        #expect(error(status: 403, body: body) == .noSubscription("No active OpenCode Go subscription for this key"))
-    }
-
-    @Test func authErrorIsUnauthorized() throws {
-        let body = String(decoding: try OpenCodeFixtures.data("go-error-401.json"), as: UTF8.self)
-        #expect(error(status: 401, body: body) == .unauthorized)
-    }
-
-    @Test func routingFailureIsNetwork() throws {
-        let body = String(decoding: try OpenCodeFixtures.data("go-error-503.json"), as: UTF8.self)
-        guard case .network = error(status: 503, body: body) else {
-            Issue.record("expected network error")
-            return
-        }
-    }
-
-    @Test func taggedV2ErrorsAreClassifiedByName() {
-        #expect(error(status: 403, body: #"{"_tag":"EntitlementError"}"#) == .noSubscription(OpenCodeGoUsageFetcher.noSubscriptionMessage))
-        #expect(error(status: 404, body: #"{"_tag":"SubscriptionNotFound"}"#) == .noSubscription(OpenCodeGoUsageFetcher.noSubscriptionMessage))
-        #expect(error(status: 401, body: #"{"_tag":"Unauthorized"}"#) == .unauthorized)
-        #expect(error(status: 200, body: #"{"_tag":"AuthError"}"#) == .unauthorized)
-        #expect(error(status: 429, body: #"{"_tag":"RateLimitError"}"#, headers: ["retry-after": "30"]) == .rateLimited(retryAfter: 30))
-        guard case .network = error(status: 500, body: #"{"_tag":"InternalError"}"#) else {
-            Issue.record("expected network error for an unknown tag on a 5xx")
-            return
-        }
-    }
-
-    @Test func forbiddenWithoutAKnownNameStillMeansNoSubscription() {
-        #expect(error(status: 403, body: "") == .noSubscription(OpenCodeGoUsageFetcher.noSubscriptionMessage))
-        #expect(error(status: 403, body: #"{"_tag":"Forbidden"}"#) == .noSubscription(OpenCodeGoUsageFetcher.noSubscriptionMessage))
+    /// Migrated v2 workspaces answer `{"_tag": ...}`. A known name wins over the status; anything else falls through to it.
+    @Test(arguments: [
+        ("v2 entitlement tag", 403, #"{"_tag":"EntitlementError"}"#, [:], FetchError.noSubscription(OpenCodeGoUsageFetcher.noSubscriptionMessage)),
+        ("v2 subscription tag on a 404", 404, #"{"_tag":"SubscriptionNotFound"}"#, [:], .noSubscription(OpenCodeGoUsageFetcher.noSubscriptionMessage)),
+        ("v2 unauthorized tag", 401, #"{"_tag":"Unauthorized"}"#, [:], .unauthorized),
+        ("v2 auth tag on a 200", 200, #"{"_tag":"AuthError"}"#, [:], .unauthorized),
+        ("v2 rate limit tag keeps retry-after", 429, #"{"_tag":"RateLimitError"}"#, ["retry-after": "30"], .rateLimited(retryAfter: 30)),
+        ("unknown tag on a 5xx", 500, #"{"_tag":"InternalError"}"#, [:], .network("OpenCode API unavailable (HTTP 500)")),
+        ("forbidden without a body", 403, "", [:], .noSubscription(OpenCodeGoUsageFetcher.noSubscriptionMessage)),
+        ("forbidden with an unknown tag", 403, #"{"_tag":"Forbidden"}"#, [:], .noSubscription(OpenCodeGoUsageFetcher.noSubscriptionMessage)),
+        ("200 without windows", 200, #"{"usage":{}}"#, [:], .parse("usage body has no rolling, weekly or monthly window")),
+    ] as [(String, Int, String, [String: String], FetchError)])
+    func errorsAreClassifiedByNameThenStatus(_ label: String, status: Int, body: String, headers: [String: String], expected: FetchError) {
+        #expect(error(status: status, body: body, headers: headers) == expected)
     }
 
     @Test func fetchSendsOneAuthorizedGetToTheUsageEndpoint() async throws {

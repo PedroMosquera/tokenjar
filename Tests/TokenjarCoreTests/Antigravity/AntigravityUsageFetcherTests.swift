@@ -89,19 +89,18 @@ final class AntigravityUsageFetcherTests {
         #expect(usage.outputLimit == 1 << 20)
     }
 
-    @Test func signInFailureIsNotSignedIn() async throws {
-        let runner = agy(usage: output("", stderr: "You are not signed in. Run agy and log in.\n", exitCode: 1))
-        await #expect(throws: FetchError.notSignedIn) { try await self.fetch(runner) }
-    }
-
-    @Test func otherFailureCarriesOnlyTheExitStatus() async throws {
-        let runner = agy(usage: output("", stderr: "internal error: placeholder detail\n", exitCode: 2))
-        await #expect(throws: FetchError.parse("agy exited with status 2")) { try await self.fetch(runner) }
-    }
-
-    @Test func timeoutIsReported() async throws {
-        let runner = agy(usage: output("", exitCode: 15, timedOut: true))
-        await #expect(throws: FetchError.timeout) { try await self.fetch(runner) }
+    /// A failed run or an error payload is classified without carrying stderr or the payload's detail.
+    @Test(arguments: [
+        (output("", stderr: "You are not signed in. Run agy and log in.\n", exitCode: 1), FetchError.notSignedIn),
+        (output("", stderr: "internal error: placeholder detail\n", exitCode: 2), .parse("agy exited with status 2")),
+        (output("", exitCode: 15, timedOut: true), .timeout),
+        (output(#"{"error":{"code":"UNAUTHENTICATED","message":"Please sign in"}}"#), .notSignedIn),
+        (output(#"{"command":{"name":"usage","error":{"code":"UNAVAILABLE","message":"placeholder detail"}}}"#), .parse("agy /usage reported an error")),
+        (output(#"{"result":{"error":"placeholder detail"}}"#), .parse("agy /usage reported an error")),
+        (output("Usage: agy [options] [prompt]\n"), .parse("agy /usage output is not JSON")),
+    ])
+    func usageFailuresAreClassified(usage: ProcessResult, expected: FetchError) async throws {
+        await #expect(throws: expected) { try await self.fetch(agy(usage: usage)) }
     }
 
     // MARK: Parsing
@@ -181,20 +180,6 @@ final class AntigravityUsageFetcherTests {
         #expect(snapshot.windows.map(\.id) == ["gemini:weekly"])
     }
 
-    @Test func errorPayloadAboutSignInIsNotSignedIn() async throws {
-        let runner = agy(usage: output(#"{"error":{"code":"UNAUTHENTICATED","message":"Please sign in"}}"#))
-        await #expect(throws: FetchError.notSignedIn) { try await self.fetch(runner) }
-    }
-
-    @Test(arguments: [
-        #"{"command":{"name":"usage","error":{"code":"UNAVAILABLE","message":"placeholder detail"}}}"#,
-        #"{"result":{"error":"placeholder detail"}}"#,
-    ])
-    func otherErrorPayloadIsAParseError(stdout: String) async throws {
-        let runner = agy(usage: output(stdout))
-        await #expect(throws: FetchError.parse("agy /usage reported an error")) { try await self.fetch(runner) }
-    }
-
     @Test(arguments: [
         #"{"command":{"data":{"groups":[]}}}"#,
         #"{"command":{"data":{"message":"Usage is not available for this account type"}}}"#,
@@ -249,11 +234,6 @@ final class AntigravityUsageFetcherTests {
 
         let turn = agy(usage: output(try fixtureText("Antigravity/model-turn.stdout.json")))
         await #expect(throws: FetchError.unsupported(AntigravityUsageFetcher.modelTurnMessage)) { try await self.fetch(turn) }
-    }
-
-    @Test func nonJSONOutputIsAParseError() async throws {
-        let runner = agy(usage: output("Usage: agy [options] [prompt]\n"))
-        await #expect(throws: FetchError.parse("agy /usage output is not JSON")) { try await self.fetch(runner) }
     }
 
     // MARK: Helpers

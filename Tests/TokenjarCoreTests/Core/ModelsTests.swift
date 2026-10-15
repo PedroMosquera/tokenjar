@@ -3,8 +3,8 @@ import Testing
 @testable import TokenjarCore
 
 struct ModelsTests {
-    @Test(arguments: ["file:///Applications/Calculator.app", "smb://host/share", "javascript:alert(1)", "not a url"])
-    func dashboardOverridesOutsideHTTPFallBackToTheProviderDefault(_ override: String) {
+    @Test(arguments: [nil, "file:///Applications/Calculator.app", "smb://host/share", "javascript:alert(1)", "not a url"])
+    func noOverrideOrOneOutsideHTTPFallsBackToTheProviderDefault(_ override: String?) {
         let account = AccountConfig(id: "a", provider: .claude, label: "x", dashboardURL: override)
         #expect(account.resolvedDashboardURL == ProviderID.claude.defaultDashboardURL)
     }
@@ -18,6 +18,7 @@ struct ModelsTests {
             .opencodeZen: "https://opencode.ai/auth",
             .antigravity: "https://antigravity.google/docs/plans",
             .copilot: "https://github.com/settings/copilot",
+            // The quota sits on Usage & limits; Settings > Plans only lists plans.
             .devin: "https://app.devin.ai/settings/usage",
         ]
         for provider in ProviderID.allCases {
@@ -79,11 +80,10 @@ struct ModelsTests {
         #expect(snapshot.tightestWindow?.id == "session")
     }
 
-    @Test func aWindowHasResetOnceItsResetTimeHasPassed() {
-        #expect(UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now.addingTimeInterval(-60)).hasReset(now: now))
-        #expect(UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now).hasReset(now: now))
-        #expect(!UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now.addingTimeInterval(60)).hasReset(now: now))
-        #expect(!UsageWindow(id: "session", label: "5-hour", usedPercent: 100).hasReset(now: now))
+    @Test(arguments: [(-60, true), (0, true), (60, false), (nil, false)] as [(TimeInterval?, Bool)])
+    func aWindowHasResetOnceItsResetTimeHasPassed(resetIn: TimeInterval?, hasReset: Bool) {
+        let window = UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: resetIn.map(now.addingTimeInterval))
+        #expect(window.hasReset(now: now) == hasReset)
     }
 
     /// A full 5-hour window that reset a minute ago no longer limits anything; the live 40 % one does.
@@ -97,60 +97,46 @@ struct ModelsTests {
     }
 
     /// Every surface reads this to decide whether an account needs a look, so each case is pinned.
-    @Test func attentionClassifiesEveryFetchError() {
-        let expected: [(FetchError, FetchError.Attention)] = [
-            (.noSubscription("No active OpenCode Go subscription for this key"), .calm),
-            (.network("offline"), .transient),
-            (.timeout, .transient),
-            (.rateLimited(retryAfter: 60), .transient),
-            (.cliNotFound("claude"), .actionable),
-            (.notSignedIn, .actionable),
-            (.unauthorized, .actionable),
-            (.parse("shape"), .actionable),
-            (.unsupported("model turn"), .actionable),
-            (.keychainDenied, .actionable),
-        ]
-        for (error, attention) in expected {
-            #expect(error.attention == attention, "\(error)")
-        }
+    /// An outdated CLI is actionable: updating it is the user's move, and waiting for the next check changes nothing.
+    @Test(arguments: [
+        (FetchError.noSubscription("No active OpenCode Go subscription for this key"), FetchError.Attention.calm),
+        (.network("offline"), .transient),
+        (.timeout, .transient),
+        (.rateLimited(retryAfter: 60), .transient),
+        (.cliNotFound("claude"), .actionable),
+        (.notSignedIn, .actionable),
+        (.unauthorized, .actionable),
+        (.parse("shape"), .actionable),
+        (.unsupported("model turn"), .actionable),
+        (.keychainDenied, .actionable),
+        (.cliTooOld(name: "codex", minimum: "0.50.0"), .actionable),
+        (.cliTooOld(name: "codex", minimum: nil), .actionable),
+    ])
+    func attentionClassifiesEveryFetchError(_ error: FetchError, attention: FetchError.Attention) {
+        #expect(error.attention == attention)
     }
 
     /// Each message names the cause and what happens next, as one or two whole sentences.
-    @Test func errorMessagesSayWhatHappenedAndWhatHappensNext() {
-        let expected: [(FetchError, String)] = [
-            (.cliNotFound("claude"), "Can't find the claude command on this Mac."),
-            (.notSignedIn, "Signed out. Sign in again to see limits."),
-            (.unauthorized, "The sign-in or API key was rejected."),
-            (.network("URLError"), "Can't reach the server. Tokenjar tries again at the next refresh."),
-            (.timeout, "No answer in time. Tokenjar tries again at the next refresh."),
-            (.parse("unrecognized output"), "Couldn't read the usage answer. An update may have changed it."),
-            (.rateLimited(retryAfter: 60), "Checking too often. Tokenjar waits before the next check."),
-            (.keychainDenied, "Keychain access was denied. Tokenjar won't ask again on its own."),
-        ]
-        for (error, message) in expected {
-            #expect(error.userMessage == message)
-        }
-        for message in [ClaudeUsageFetcher.modelTurnMessage, AntigravityUsageFetcher.modelTurnMessage] {
-            #expect(message.hasSuffix("click Try Once More."))
-            #expect(!message.contains("CLI"))
-        }
+    @Test(arguments: [
+        (FetchError.cliNotFound("claude"), "Can't find the claude command on this Mac."),
+        (.notSignedIn, "Signed out. Sign in again to see limits."),
+        (.unauthorized, "The sign-in or API key was rejected."),
+        (.network("URLError"), "Can't reach the server. Tokenjar tries again at the next refresh."),
+        (.timeout, "No answer in time. Tokenjar tries again at the next refresh."),
+        (.parse("unrecognized output"), "Couldn't read the usage answer. An update may have changed it."),
+        (.rateLimited(retryAfter: 60), "Checking too often. Tokenjar waits before the next check."),
+        (.keychainDenied, "Keychain access was denied. Tokenjar won't ask again on its own."),
+        (.cliTooOld(name: "agy", minimum: "1.1.11"), "Update agy to 1.1.11 or later."),
+        (.cliTooOld(name: "codex", minimum: nil), "Update codex: this version answers in a format Tokenjar can't read."),
+    ])
+    func errorMessagesSayWhatHappenedAndWhatHappensNext(_ error: FetchError, message: String) {
+        #expect(error.userMessage == message)
     }
 
-    /// The quota sits on Usage & limits; Settings > Plans only lists plans.
-    @Test func devinOpensItsUsagePage() {
-        #expect(ProviderID.devin.defaultDashboardURL.absoluteString == "https://app.devin.ai/settings/usage")
-        #expect(AccountConfig(id: "devin", provider: .devin, label: "Devin").resolvedDashboardURL.absoluteString == "https://app.devin.ai/settings/usage")
-    }
-
-    @Test func anOutdatedCLINamesItsMinimumVersion() {
-        #expect(FetchError.cliTooOld(name: "agy", minimum: "1.1.11").userMessage == "Update agy to 1.1.11 or later.")
-        #expect(FetchError.cliTooOld(name: "codex", minimum: nil).userMessage == "Update codex: this version answers in a format Tokenjar can't read.")
-    }
-
-    /// Updating the CLI is the user's move; waiting for the next check changes nothing.
-    @Test func outdatedCLIIsActionable() {
-        #expect(FetchError.cliTooOld(name: "codex", minimum: "0.50.0").attention == .actionable)
-        #expect(FetchError.cliTooOld(name: "codex", minimum: nil).attention == .actionable)
+    @Test(arguments: [ClaudeUsageFetcher.modelTurnMessage, AntigravityUsageFetcher.modelTurnMessage])
+    func aModelTurnMessageOffersTryOnceMoreWithoutSayingCLI(_ message: String) {
+        #expect(message.hasSuffix("click Try Once More."))
+        #expect(!message.contains("CLI"))
     }
 
     /// Tokenjar runs claude outside the user's shell, so a key or cloud switch exported only there reads as signed out.

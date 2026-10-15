@@ -270,10 +270,6 @@ final class CopilotUsageFetcherTests {
         await #expect(throws: FetchError.cliNotFound("gh")) { try await self.fetch(runner) }
     }
 
-    @Test func timeoutIsReported() async throws {
-        await #expect(throws: FetchError.timeout) { try await self.fetch(output("", exitCode: 15, timedOut: true)) }
-    }
-
     /// gh exits 4 when it has no login and 1 with "gh: <message> (HTTP <status>)" when the API refuses. stderr is only
     /// matched, never kept, since it can name the account.
     @Test(arguments: [
@@ -288,6 +284,7 @@ final class CopilotUsageFetcherTests {
         (output("", stderr: "error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com\n", exitCode: 1), FetchError.network("gh could not reach GitHub")),
         (output("", stderr: "Get \"https://api.github.com/copilot_internal/user\": proxyconnect tcp: dial tcp 127.0.0.1:9: connect: connection refused\n", exitCode: 1), FetchError.network("gh could not reach GitHub")),
         (output("", stderr: "placeholder-login: something unexpected happened\n", exitCode: 2), FetchError.parse("gh exited with status 2")),
+        (output("", exitCode: 15, timedOut: true), FetchError.timeout),
     ])
     func failuresAreClassifiedWithoutKeepingStderr(result: ProcessResult, expected: FetchError) async throws {
         await #expect(throws: expected) { try await self.fetch(result) }
