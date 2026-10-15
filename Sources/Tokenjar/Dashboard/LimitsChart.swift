@@ -102,7 +102,7 @@ struct LimitsChart: View, Equatable {
     private static let closeThresholds = 8
 
     /// The rule is drawn in the color it stands for, so its label gives only the level.
-    static func thresholdLabel(_ percent: Int, severity: Severity) -> String {
+    static func thresholdLabel(_ percent: Int) -> String {
         "\(percent)%"
     }
 
@@ -118,7 +118,7 @@ struct LimitsChart: View, Equatable {
             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
             .accessibilityLabel(Self.thresholdAccessibilityLabel(percent, severity: severity))
             .annotation(position: below ? .bottom : .top, alignment: .leading, spacing: 2) {
-                Text(Self.thresholdLabel(percent, severity: severity))
+                Text(Self.thresholdLabel(percent))
                     .font(.caption2)
                     .foregroundStyle(severity.color)
                     .padding(.leading, 5)

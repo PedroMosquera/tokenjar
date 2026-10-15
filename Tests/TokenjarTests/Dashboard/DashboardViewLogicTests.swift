@@ -223,8 +223,8 @@ struct DashboardSidebarFocusTests {
 struct LimitsThresholdLabelTests {
     /// Guards against a color name returning to the label; the rule is already drawn in that color.
     @Test func theLabelIsTheLevelAlone() {
-        #expect(LimitsChart.thresholdLabel(80, severity: .warning) == "80%")
-        #expect(LimitsChart.thresholdLabel(95, severity: .critical) == "95%")
+        #expect(LimitsChart.thresholdLabel(80) == "80%")
+        #expect(LimitsChart.thresholdLabel(95) == "95%")
     }
 
     @Test func voiceOverHearsWhatEachRuleMeans() {
