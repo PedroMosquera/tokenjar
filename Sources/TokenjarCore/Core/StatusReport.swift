@@ -34,13 +34,13 @@ public struct StatusReport: Encodable, Equatable, Sendable {
         public var runsOutBeforeReset: Bool?
     }
 
-    public static func make(config: AppConfig, snapshots: [UsageSnapshot], now: Date, calendar: Calendar = .current) -> StatusReport {
+    public static func make(config: AppConfig, snapshots: [UsageSnapshot], now: Date) -> StatusReport {
         let byID = Dictionary(snapshots.map { ($0.accountID, $0) }, uniquingKeysWith: { first, _ in first })
-        let workWeek = WorkWeek(config.paceDays, calendar: calendar)
         let accounts = config.accounts.filter(\.enabled).map { account in
             let snapshot = byID[account.id]
             let windows = (snapshot?.windows ?? []).filter { !$0.hasReset(now: now) }.map { window in
-                let pace = Pace.compute(window, now: now, workWeek: workWeek)
+                // Every-day pace, as the popover and alerts use: `paceDays` must not make the two disagree.
+                let pace = Pace.compute(window, now: now)
                 return Window(
                     id: window.id, label: window.label, usedPercent: window.usedPercent, resetsAt: window.resetsAt,
                     expectedPercent: pace?.expectedPercent, runsOutBeforeReset: pace?.runsOutBeforeReset

@@ -47,6 +47,20 @@ struct StatusReportTests {
         #expect(session.runsOutBeforeReset == true)
     }
 
+    /// `now` is a Saturday, so this weekly window has run into a weekend, where working-day pace differs from every-day pace.
+    @Test func paceMatchesThePopoverEvenWithWorkingDays() throws {
+        let account = AccountConfig(id: "work", provider: .claude, label: "Work")
+        let weekly = window("weekly", used: 30, startedHoursAgo: 72, lengthHours: 168)
+        let snapshot = UsageSnapshot(accountID: "work", provider: .claude, windows: [weekly], fetchedAt: now, source: "t")
+        let config = AppConfig(refreshMinutes: 10, accounts: [account], paceDays: .workingDays)
+
+        let reported = try #require(StatusReport.make(config: config, snapshots: [snapshot], now: now).accounts.first?.windows.first)
+
+        let pace = try #require(Pace.compute(weekly, now: now))
+        #expect(reported.expectedPercent == pace.expectedPercent)
+        #expect(reported.runsOutBeforeReset == pace.runsOutBeforeReset)
+    }
+
     @Test func aWindowPastItsResetIsLeftOut() {
         let account = AccountConfig(id: "work", provider: .claude, label: "Work")
         let snapshot = UsageSnapshot(accountID: "work", provider: .claude, windows: [
