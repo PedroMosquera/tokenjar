@@ -428,6 +428,7 @@ struct AppModelNetworkTests {
         // The task runs on the main actor up to its first suspension, so once it has started it is parked or done.
         try await waitUntil { progress.started }
         #expect(!progress.returned)
+        #expect(rig.log.count("zen") == 0)
         rig.model.networkPathChanged(.unusable)
         await launch.value?.value
 
