@@ -215,10 +215,11 @@ struct DashboardSidebarFocusTests {
         #expect(window.makeFirstResponder(list))
 
         window.makeFirstResponder(nil)
-        // Waits for the watcher's main-queue hop, which a full parallel run can hold up well past a fixed delay.
-        // Suspends rather than spinning the run loop: this test runs on the main queue, which runs nothing else meanwhile.
-        let deadline = ContinuousClock.now + .seconds(5)
-        while window.firstResponder !== list, ContinuousClock.now < deadline {
+        // Waits for the watcher's main-queue hop. Counts turns, not seconds: each turn queues behind the same main-queue
+        // backlog as the hop, which a full parallel run holds up well past any fixed delay. Suspends, never spins the run loop.
+        var turns = 0
+        while window.firstResponder !== list, turns < 1_000 {
+            turns += 1
             try await Task.sleep(for: .milliseconds(20))
         }
         #expect(window.firstResponder === list)
