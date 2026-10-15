@@ -27,6 +27,11 @@ private nonisolated final class Gates: @unchecked Sendable {
     }
 }
 
+private final class LaunchProgress {
+    var started = false
+    var returned = false
+}
+
 private nonisolated struct GatedFetcher: UsageFetcher {
     var log: FetchLog
     var gates: Gates
@@ -413,9 +418,16 @@ struct AppModelNetworkTests {
         let rig = try rig([claude, zen])
         defer { rig.home.remove() }
 
-        let launch = Task { await rig.model.launchRefresh(firstPathWait: .seconds(30)) }
-        try await Task.sleep(for: .milliseconds(50))
-        #expect(rig.log.count("zen") == 0)
+        let progress = LaunchProgress()
+        let launch = Task {
+            progress.started = true
+            let refresh = await rig.model.launchRefresh(firstPathWait: .seconds(30))
+            progress.returned = true
+            return refresh
+        }
+        // The task runs on the main actor up to its first suspension, so once it has started it is parked or done.
+        try await waitUntil { progress.started }
+        #expect(!progress.returned)
         rig.model.networkPathChanged(.unusable)
         await launch.value?.value
 
