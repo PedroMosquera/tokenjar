@@ -32,13 +32,28 @@ struct MonthCostLineTests {
         UsageSnapshot(accountID: "claude", provider: .claude, billing: billing, fetchedAt: now, source: "test")
     }
 
-    func text(_ billing: Billing?, _ rows: [PricedUsageRow]) -> String? {
-        MonthCostLine.text(snapshot: snapshot(billing: billing), rows: rows, now: now, calendar: Self.calendar, locale: locale)
+    func text(_ billing: Billing?, _ rows: [PricedUsageRow], now: Date? = nil) -> MonthCostLine.Lines? {
+        MonthCostLine.text(snapshot: snapshot(billing: billing), rows: rows, now: now ?? self.now, calendar: Self.calendar, locale: locale)
     }
 
-    @Test func aPayAsYouGoLoginShowsThisMonthsEstimate() {
+    @Test func aPayAsYouGoLoginShowsThisMonthTodayAndWhereTheMonthIsHeaded() {
         let rows = [row(day(10, 1), cost: 4.5), row(day(10, 10), cost: 7.9), row(day(9, 30), cost: 100)]
-        #expect(text(.payAsYouGo, rows) == "$12.40 this month, estimate at list price")
+        // 9 days 15.5 hours of October's 31 days have passed: $12.40 at that rate is about $40 by the 31st.
+        #expect(text(.payAsYouGo, rows) == MonthCostLine.Lines(
+            amounts: "$12.40 this month · $7.90 today", detail: "On pace for ~$40 this month, estimate at list price"
+        ))
+    }
+
+    @Test func aDayWithoutUsageLeavesTodayOut() {
+        #expect(text(.payAsYouGo, [row(day(10, 1), cost: 4.5)])?.amounts == "$4.50 this month")
+    }
+
+    /// Too little of the month has passed for a rate to mean anything, as with the bars' pace.
+    @Test func theFirstHoursOfAMonthMakeNoProjection() {
+        let early = Self.calendar.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: 10))!
+        #expect(text(.payAsYouGo, [row(day(10, 1), cost: 3)], now: early) == MonthCostLine.Lines(
+            amounts: "$3 this month · $3 today", detail: "Estimate at list price"
+        ))
     }
 
     @Test func aPlanLoginShowsNoCostLine() {
@@ -47,12 +62,21 @@ struct MonthCostLineTests {
     }
 
     @Test func aMonthWithoutUsageSaysSo() {
-        #expect(text(.payAsYouGo, [row(day(9, 30), cost: 3)]) == "No usage logged this month")
+        #expect(text(.payAsYouGo, [row(day(9, 30), cost: 3)]) == MonthCostLine.Lines(amounts: "No usage logged this month", detail: nil))
     }
 
     @Test func unpricedModelsAreNamedNotCountedAsFree() {
-        #expect(text(.payAsYouGo, [row(day(10, 2), cost: 2), row(day(10, 3), cost: nil)])
-            == "$2 this month, estimate at list price, some models unpriced")
-        #expect(text(.payAsYouGo, [row(day(10, 3), cost: nil)]) == "No list price for the models used this month")
+        #expect(text(.payAsYouGo, [row(day(10, 2), cost: 2), row(day(10, 3), cost: nil)])?.detail
+            == "On pace for ~$6 this month, estimate at list price, some models unpriced")
+        #expect(text(.payAsYouGo, [row(day(10, 3), cost: nil)]) == MonthCostLine.Lines(
+            amounts: "No list price for the models used this month", detail: nil
+        ))
+    }
+
+    /// The cost line already says the login is billed per use, so the note saying it has no plan limits repeats it.
+    @Test func theCostLineReplacesTheNoLimitsNote() {
+        let notes = [ClaudeUsageFetcher.noLimitsNote, "Other note"]
+        #expect(MonthCostLine.notes(notes, besideCostLine: true) == ["Other note"])
+        #expect(MonthCostLine.notes(notes, besideCostLine: false) == notes)
     }
 }

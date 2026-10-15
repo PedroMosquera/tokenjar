@@ -280,12 +280,20 @@ private struct SnapshotBody: View {
                     }
                 }
             }
-            if let costLine = model.monthCostLine(snapshot: snapshot, now: now) {
-                Text(costLine)
-                    .font(.callout)
-                    .fixedSize(horizontal: false, vertical: true)
+            let costLine = model.monthCostLine(snapshot: snapshot, now: now)
+            if let costLine {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(costLine.amounts)
+                        .font(.callout)
+                    if let detail = costLine.detail {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
-            ForEach(snapshot.notes, id: \.self) { note in
+            ForEach(MonthCostLine.notes(snapshot.notes, besideCostLine: costLine != nil), id: \.self) { note in
                 Text(note)
                     .font(.caption)
                     .foregroundStyle(.secondary)

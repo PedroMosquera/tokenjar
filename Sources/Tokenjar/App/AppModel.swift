@@ -869,7 +869,7 @@ final class AppModel {
     }
 
     /// The card's cost line for an account billed per use; nil, without reading the store, for every other account.
-    func monthCostLine(snapshot: UsageSnapshot, now: Date) -> String? {
+    func monthCostLine(snapshot: UsageSnapshot, now: Date) -> MonthCostLine.Lines? {
         guard CostLine.applies(to: snapshot), let monthStart = Calendar.current.dateInterval(of: .month, for: now)?.start else { return nil }
         return MonthCostLine.text(snapshot: snapshot, rows: pricedUsage(accountIDs: [snapshot.accountID], since: monthStart), now: now)
     }
