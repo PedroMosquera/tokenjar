@@ -209,10 +209,20 @@ extension UsageWindow {
 }
 
 public enum ConfigError: Error {
-    /// The file could not be read, is not a JSON object, does not decode as a config, or lists two accounts with one id. `file` is the name only, safe to show.
+    /// The file could not be read, is not a JSON object, or does not decode as a config. `file` is the name only, safe to
+    /// show; `detail` is a raw decoder message for logs, never for the user.
     case invalidJSON(file: String, detail: String)
+    /// Two accounts in `file` share `id`. Saves match accounts by id, so an edit to the second would be written over the
+    /// first one's provider and unknown keys.
+    case duplicateAccountID(file: String, id: String)
     /// The file is a symlink whose destination is gone, so a save would replace the link instead of writing through it.
     case brokenLink(file: String)
+
+    /// A sentence the user can act on, for the one case where naming the file is not enough because its JSON is valid.
+    public var userMessage: String? {
+        guard case .duplicateAccountID(let file, let id) = self else { return nil }
+        return "\(file) lists two accounts with the id \"\(id)\". Rename one."
+    }
 }
 
 /// Loads `config.json` merged with `config.local.json` (local wins), and saves edits back to `config.json`
@@ -342,7 +352,9 @@ public struct ConfigStore: Sendable {
     static func merge(_ base: [String: Any], _ overlay: [String: Any]) -> [String: Any] {
         var out = base
         for (key, value) in overlay {
-            if key == "accounts", let baseAccounts = base[key] as? [[String: Any]], let overlayAccounts = value as? [[String: Any]] {
+            // A missing base list merges like an empty one, so a repeated local id merges either way.
+            if key == "accounts", let baseAccounts = (base[key] ?? [[String: Any]]()) as? [[String: Any]],
+               let overlayAccounts = value as? [[String: Any]] {
                 var merged = baseAccounts
                 for account in overlayAccounts {
                     if let id = account["id"] as? String, let index = merged.firstIndex(where: { ($0["id"] as? String) == id }) {
@@ -402,8 +414,6 @@ public struct ConfigStore: Sendable {
         return dictionary
     }
 
-    /// Two accounts with one id fail the load: saves match accounts by id, so an edit to the second would be written
-    /// over the first one's provider and unknown keys.
     private func decode(_ object: [String: Any], file: URL) throws -> AppConfig {
         let config: AppConfig
         do {
@@ -414,7 +424,7 @@ public struct ConfigStore: Sendable {
         }
         var seen = Set<String>()
         if let repeated = config.accounts.first(where: { !seen.insert($0.id).inserted }) {
-            throw ConfigError.invalidJSON(file: file.lastPathComponent, detail: "two accounts have the id \"\(repeated.id)\"")
+            throw ConfigError.duplicateAccountID(file: file.lastPathComponent, id: repeated.id)
         }
         return config
     }

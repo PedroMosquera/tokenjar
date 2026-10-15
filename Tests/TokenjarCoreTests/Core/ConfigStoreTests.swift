@@ -426,9 +426,24 @@ struct ConfigStoreTests {
         #expect {
             try ConfigStore(paths: paths).load()
         } throws: { error in
-            guard case ConfigError.invalidJSON(let name, let detail) = error else { return false }
-            return name == "config.json" && detail.contains("claude-2")
+            guard case ConfigError.duplicateAccountID(file: "config.json", id: "claude-2") = error else { return false }
+            return (error as? ConfigError)?.userMessage == #"config.json lists two accounts with the id "claude-2". Rename one."#
         }
+    }
+
+    /// A repeated id in config.local.json merges into one account whether or not config.json lists any accounts.
+    @Test(arguments: [#"{}"#, #"{"accounts": []}"#])
+    func aRepeatedLocalIDMergesWhateverTheSharedFileHolds(_ shared: String) throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(shared, to: paths.configFile)
+        try write(#"{"accounts": [{"id": "work", "provider": "claude", "label": "Work"}, {"id": "work", "showInMenuBar": false}]}"#, to: paths.localConfigFile)
+
+        let loaded = try #require(try ConfigStore(paths: paths).load())
+        #expect(loaded.merged.accounts.map(\.id) == ["work"])
+        #expect(loaded.merged.accounts[0].label == "Work")
+        #expect(loaded.merged.accounts[0].showInMenuBar == false)
     }
 
     @Test func aConfigWithoutTheNewKeysLoadsTheDefaults() throws {

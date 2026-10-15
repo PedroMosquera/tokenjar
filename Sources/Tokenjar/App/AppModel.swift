@@ -555,15 +555,18 @@ final class AppModel {
 
     /// An error that names no file is shown against config.json, whose folder also holds config.local.json.
     private static func fileAtFault(_ error: Error) -> String {
-        if case ConfigError.invalidJSON(let name, _) = error { return name }
-        return "config.json"
+        switch error as? ConfigError {
+        case .invalidJSON(let name, _), .duplicateAccountID(let name, _): name
+        default: "config.json"
+        }
     }
 
     private func loadFailureMessage(_ error: Error) -> String {
-        var file = "config.json or config.local.json"
-        if case ConfigError.invalidJSON(let name, _) = error { file = name }
+        var problem = "Could not read config.json or config.local.json."
+        if case ConfigError.invalidJSON(let name, _) = error { problem = "Could not read \(name)." }
+        if let message = (error as? ConfigError)?.userMessage { problem = message }
         let fallback = hasLoadedConfig ? "Using the last good settings" : "No settings are loaded"
-        return "Could not read \(file). \(fallback), and nothing is saved until it is fixed and reloaded."
+        return "\(problem) \(fallback), and nothing is saved until it is fixed and reloaded."
     }
 
     /// lstat, not stat: a stow link whose target is gone still takes the path.

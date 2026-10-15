@@ -104,6 +104,20 @@ struct AppModelConfigTests {
         #expect(model.settingsProblem?.nothingLoaded == false)
     }
 
+    /// The file is valid JSON, so "Could not read" alone would leave nothing to look for.
+    @Test func aRepeatedAccountIDNamesTheID() throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        try home.write(".config/tokenjar/config.json", #"{"accounts": [{"id": "claude-2", "provider": "claude"}, {"id": "claude-2", "provider": "codex"}]}"#)
+        let model = model(home)
+        model.loadState()
+
+        #expect(model.settingsProblem == SettingsProblem(
+            message: #"config.json lists two accounts with the id "claude-2". Rename one. No settings are loaded, and nothing is saved until it is fixed and reloaded."#,
+            file: "config.json", nothingLoaded: true
+        ))
+    }
+
     /// Settings that failed to load used to show only in the popover and Settings, never in the menu bar.
     @Test func aBrokenConfigReachesTheMenuBar() throws {
         let home = try ModelHome()

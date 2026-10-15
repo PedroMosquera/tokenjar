@@ -52,4 +52,15 @@ struct StatusCommandTests {
         #expect(result.out.isEmpty)
         #expect(result.err.contains("config.json"))
     }
+
+    @Test func aRepeatedAccountIDSaysWhichOne() throws {
+        defer { try? FileManager.default.removeItem(at: home) }
+        try FileManager.default.createDirectory(at: paths.configFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"{"accounts": [{"id": "claude-2", "provider": "claude"}, {"id": "claude-2", "provider": "codex"}]}"#.utf8).write(to: paths.configFile)
+
+        let result = run(["Tokenjar", "--status"])
+
+        #expect(result.status == 1)
+        #expect(result.err == "config.json lists two accounts with the id \"claude-2\". Rename one. Then ask again.\n")
+    }
 }

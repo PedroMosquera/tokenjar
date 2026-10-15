@@ -41,7 +41,7 @@ The last `/usage` check ran as a model turn and spent tokens (claude) or quota (
 
 ## "Could not read config.json" (or config.local.json)
 
-The file is not valid JSON, often because of a leftover merge conflict. Tokenjar keeps the last good settings (none, if the file was already broken at launch) and saves nothing until the file loads again. Fix it and save; the app reloads within 30 seconds, or click Reload in Settings > General. "config.json is missing or its link is broken" means the same for a missing file or a dangling stow link.
+The file is not valid JSON, often because of a leftover merge conflict. Tokenjar keeps the last good settings (none, if the file was already broken at launch) and saves nothing until the file loads again. Fix it and save; the app reloads within 30 seconds, or click Reload in Settings > General. "config.json is missing or its link is broken" means the same for a missing file or a dangling stow link. "config.json lists two accounts with the id ..." means the same for two accounts that share an `id`, which a merge in the dotfiles repo can produce: give one of them a new `id`.
 
 ## Keychain prompt after an update
 

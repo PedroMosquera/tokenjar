@@ -14,6 +14,9 @@ enum StatusCommand {
         } catch ConfigError.invalidJSON(let file, _) {
             errorOutput("Could not read \(file). Fix it, then ask again.\n")
             return 1
+        } catch let error as ConfigError where error.userMessage != nil {
+            errorOutput("\(error.userMessage!) Then ask again.\n")
+            return 1
         } catch ConfigError.brokenLink(let file) {
             errorOutput("\(file) is missing or its link is broken.\n")
             return 1
