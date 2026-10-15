@@ -139,9 +139,10 @@ struct SessionSecretStoreTests {
         }
 
         startReader()
-        entered.wait()
+        try #require(entered.wait(timeout: .now() + 10) == .success)
         keychain.duringRead = nil
-        // The first read now waits on its prompt holding nothing, so each later read finds no key and has to queue.
+        // The first read now waits on its prompt before storing what it found, so each later read finds nothing held and
+        // queues behind it.
         for _ in 0..<5 { startReader() }
         for _ in 0..<6 { started.wait() }
         Thread.sleep(forTimeInterval: 0.1)

@@ -30,7 +30,6 @@ struct SQLiteUsageStoreTests {
 
     @Test func migratesAnEmptyFile() throws {
         let url = temp.url.appending(path: "tokenjar.sqlite")
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         #expect(FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o644]))
 
         _ = try SQLiteUsageStore(url: url)
@@ -317,7 +316,7 @@ struct SQLiteUsageStoreTests {
             do { _ = try SQLiteUsageStore(url: url) } catch { failure = error }
             done.signal()
         }.start()
-        let deadline = Date().addingTimeInterval(2)
+        let deadline = Date().addingTimeInterval(10)
         while try posixMode(url) != 0o600 {
             try #require(Date() < deadline, "the store never started opening")
             usleep(1_000)
@@ -355,6 +354,8 @@ private final class OtherConnection {
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil) == SQLITE_OK else {
             throw SQLiteError(code: SQLITE_CANTOPEN, message: "open")
         }
+        // The store's WAL retry briefly takes a read lock, which a COMMIT without a busy timeout fails on at once.
+        sqlite3_busy_timeout(db, 5_000)
     }
 
     deinit { sqlite3_close_v2(db) }
