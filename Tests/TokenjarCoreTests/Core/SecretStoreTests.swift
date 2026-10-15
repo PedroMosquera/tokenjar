@@ -120,17 +120,35 @@ struct SessionSecretStoreTests {
     }
 
     /// Two accounts can name the same item, and their checks run in parallel.
-    @Test func readsThatOverlapAskTheKeychainOnce() async throws {
+    /// Threads rather than tasks, so the overlap does not depend on the width of the cooperative pool.
+    @Test func readsThatOverlapAskTheKeychainOnce() throws {
         let keychain = CountingSecretStore(["go": "sk-placeholder"])
-        keychain.duringRead = { Thread.sleep(forTimeInterval: 0.05) }
+        let entered = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0), started = DispatchSemaphore(value: 0)
+        keychain.duringRead = { entered.signal(); release.wait() }
         let session = SessionSecretStore(keychain)
-
-        let keys = await withTaskGroup(of: String?.self) { group in
-            for _ in 0..<6 { group.addTask { try? session.read(account: "go") } }
-            return await group.reduce(into: [String?]()) { $0.append($1) }
+        let lock = NSLock(), done = DispatchGroup()
+        nonisolated(unsafe) var keys: [String?] = []
+        func startReader() {
+            done.enter()
+            Thread {
+                started.signal()
+                let key = try? session.read(account: "go")
+                lock.withLock { keys.append(key) }
+                done.leave()
+            }.start()
         }
 
-        #expect(keys == Array(repeating: "sk-placeholder", count: 6))
+        startReader()
+        entered.wait()
+        keychain.duringRead = nil
+        // The first read now waits on its prompt holding nothing, so each later read finds no key and has to queue.
+        for _ in 0..<5 { startReader() }
+        for _ in 0..<6 { started.wait() }
+        Thread.sleep(forTimeInterval: 0.1)
+        release.signal()
+
+        #expect(done.wait(timeout: .now() + 10) == .success)
+        #expect(lock.withLock { keys } == Array(repeating: "sk-placeholder", count: 6))
         #expect(keychain.readCount("go") == 1)
     }
 

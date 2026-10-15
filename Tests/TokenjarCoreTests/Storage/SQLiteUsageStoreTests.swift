@@ -283,29 +283,51 @@ struct SQLiteUsageStoreTests {
     }
 
     /// SQLite skips the busy timeout when switching a new file to WAL collides with another writer.
-    @Test func firstOpenWaitsForAnotherWriterOnTheNewFile() async throws {
+    @Test func firstOpenWaitsForAnotherWriterOnTheNewFile() throws {
         let url = temp.url.appending(path: "tokenjar.sqlite")
         let other = try OtherConnection(url)
         try other.exec("BEGIN IMMEDIATE")
-        let opening = Task.detached { try SQLiteUsageStore(url: url) }
-        // Not Task.sleep: on a runner with few cores, blocked test threads can delay its wake-up past the store's 5 s wait.
-        usleep(200_000)
+        let opened = try startOpening(url)
         try other.exec("COMMIT")
 
-        _ = try await opening.value
+        try opened()
         #expect(try query(url, "PRAGMA journal_mode") == ["wal"])
     }
 
-    @Test func skipsMigrationsAnotherOpenerAppliedWhileThisOneWaited() async throws {
+    @Test func skipsMigrationsAnotherOpenerAppliedWhileThisOneWaited() throws {
         let url = temp.url.appending(path: "tokenjar.sqlite")
         let other = try OtherConnection(url)
         try other.exec("PRAGMA journal_mode = WAL; CREATE TABLE schema_version (version INTEGER NOT NULL); BEGIN IMMEDIATE")
-        let opening = Task.detached { try SQLiteUsageStore(url: url) }
-        usleep(200_000)
+        let opened = try startOpening(url)
         try other.exec(SQLiteUsageStore.migrations[0] + "; INSERT INTO schema_version (version) VALUES (1); COMMIT")
 
-        _ = try await opening.value
+        try opened()
         #expect(try query(url, "SELECT version FROM schema_version") == allVersions)
+    }
+
+    /// Starts opening a store at `url`, which another connection has locked, and returns once the store has started (it
+    /// makes the file 0600 just before it opens it) with a call that waits for the open to finish. A fixed sleep alone
+    /// passed without any wait whenever the opener started late. A thread, not a task: blocked test threads on a narrow
+    /// cooperative pool can hold a task back past the store's 5 s busy timeout.
+    private func startOpening(_ url: URL) throws -> () throws -> Void {
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
+        let done = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var failure: (any Error)?
+        Thread {
+            do { _ = try SQLiteUsageStore(url: url) } catch { failure = error }
+            done.signal()
+        }.start()
+        let deadline = Date().addingTimeInterval(2)
+        while try posixMode(url) != 0o600 {
+            try #require(Date() < deadline, "the store never started opening")
+            usleep(1_000)
+        }
+        // From 0600 to the lock is a few calls.
+        usleep(100_000)
+        return {
+            try #require(done.wait(timeout: .now() + 10) == .success, "the store never finished opening")
+            if let failure { throw failure }
+        }
     }
 
     /// Reads the database through its own connection, so assertions do not depend on the store's code paths.
