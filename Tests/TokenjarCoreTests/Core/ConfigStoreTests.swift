@@ -400,6 +400,37 @@ struct ConfigStoreTests {
         #expect(account["creditAllowance"] as? Int == 1500)
     }
 
+    @Test(arguments: ["[1, 2]", #""config""#, "null", "42"])
+    func aTopLevelThatIsNotAnObjectIsALoadError(_ body: String) throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(body, to: paths.configFile)
+
+        #expect {
+            try ConfigStore(paths: paths).load()
+        } throws: { error in
+            guard case ConfigError.invalidJSON(let name, let detail) = error else { return false }
+            return name == "config.json" && !detail.isEmpty
+        }
+    }
+
+    /// Saves match accounts by id, so an edit to the second of two would be written over the first one's provider and
+    /// unknown keys. Two Macs that each add a second login and then merge the dotfiles repo can produce this.
+    @Test func twoAccountsWithTheSameIDAreALoadError() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"{"accounts": [{"id": "claude-2", "provider": "claude"}, {"id": "claude-2", "provider": "codex"}]}"#, to: paths.configFile)
+
+        #expect {
+            try ConfigStore(paths: paths).load()
+        } throws: { error in
+            guard case ConfigError.invalidJSON(let name, let detail) = error else { return false }
+            return name == "config.json" && detail.contains("claude-2")
+        }
+    }
+
     @Test func aConfigWithoutTheNewKeysLoadsTheDefaults() throws {
         let json = #"{"alerts": {"thresholds": [70]}, "accounts": [{"id": "copilot", "provider": "copilot"}]}"#
         let config = try JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))

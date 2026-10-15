@@ -209,7 +209,7 @@ extension UsageWindow {
 }
 
 public enum ConfigError: Error {
-    /// The file could not be read, is not a JSON object, or does not decode as a config. `file` is the name only, safe to show.
+    /// The file could not be read, is not a JSON object, does not decode as a config, or lists two accounts with one id. `file` is the name only, safe to show.
     case invalidJSON(file: String, detail: String)
     /// The file is a symlink whose destination is gone, so a save would replace the link instead of writing through it.
     case brokenLink(file: String)
@@ -402,12 +402,20 @@ public struct ConfigStore: Sendable {
         return dictionary
     }
 
+    /// Two accounts with one id fail the load: saves match accounts by id, so an edit to the second would be written
+    /// over the first one's provider and unknown keys.
     private func decode(_ object: [String: Any], file: URL) throws -> AppConfig {
+        let config: AppConfig
         do {
             let data = try JSONSerialization.data(withJSONObject: object)
-            return try JSONDecoder().decode(AppConfig.self, from: data)
+            config = try JSONDecoder().decode(AppConfig.self, from: data)
         } catch {
             throw ConfigError.invalidJSON(file: file.lastPathComponent, detail: String(describing: error))
         }
+        var seen = Set<String>()
+        if let repeated = config.accounts.first(where: { !seen.insert($0.id).inserted }) {
+            throw ConfigError.invalidJSON(file: file.lastPathComponent, detail: "two accounts have the id \"\(repeated.id)\"")
+        }
+        return config
     }
 }
