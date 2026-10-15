@@ -176,6 +176,25 @@ struct ClaudeHistoryScannerTests {
         #expect(completed.events.first?.outputTokens == 9)
     }
 
+    /// Both bad lines contain "usage", so they get past the cheap filter and reach the decoder.
+    @Test func skipsMalformedLinesAndKeepsReadingPastThem() throws {
+        let box = try TranscriptHome()
+        defer { box.remove() }
+        let first = try box.scan()
+
+        let cutShort = assistantLine(id: "msg_X", request: "req_X", output: 4)
+        try box.append([
+            assistantLine(id: "msg_V", request: "req_V", output: 2),
+            #"{"type":"assistant","message":{"usage":{"input_tokens":"#,
+            String(cutShort.prefix(cutShort.count / 2)),
+            assistantLine(id: "msg_W", request: "req_W", output: 3),
+        ].joined(separator: "\n") + "\n", to: box.main)
+        let next = try box.scan(first.checkpoints)
+
+        #expect(next.events.map(\.dedupeKey) == ["claude:msg_V:req_V", "claude:msg_W:req_W"])
+        #expect(next.checkpoints[sha256Hex(box.main.path)]?.hasSuffix(":\(try box.size(box.main))") == true)
+    }
+
     @Test func rescansFromTheStartWhenTheFileIsReplacedOrTruncated() throws {
         let box = try TranscriptHome()
         defer { box.remove() }

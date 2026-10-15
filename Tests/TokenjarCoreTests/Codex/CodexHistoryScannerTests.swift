@@ -64,6 +64,29 @@ struct CodexHistoryScannerTests {
         #expect(events.map(\.project) == ["~", "~", "x"])
     }
 
+    /// Both bad lines name a relevant type, so they get past the cheap filter and reach the decoder.
+    @Test func skipsMalformedLinesAndKeepsReadingPastThem() throws {
+        let temp = try CodexTempDirectory()
+        let record = { (response: String) in
+            #"{"timestamp":"2026-10-09T10:00:02Z","type":"token_usage_record","payload":{"response_id":"\#(response)","usage":{"input_tokens":10,"output_tokens":1,"total_tokens":11}}}"#
+        }
+        let cutShort = record("resp_cut")
+        let file = try temp.write([
+            #"{"timestamp":"2026-10-09T10:00:01Z","type":"turn_context","payload":{"model":"gpt-6.1-sol","cwd":"/x/p"}}"#,
+            record("resp_before"),
+            #"{"timestamp":"2026-10-09T10:00:03Z","type":"token_usage_record","payload":{"#,
+            String(cutShort.prefix(cutShort.count / 2)),
+            record("resp_after"),
+        ].joined(separator: "\n") + "\n", to: "codex-home/sessions/2026/10/09/rollout-m.jsonl")
+
+        let result = try scan(temp)
+
+        #expect(result.events.map(\.dedupeKey) == ["codex:resp_before", "codex:resp_after"])
+        #expect(result.events.allSatisfy { $0.model == "gpt-6.1-sol" && $0.project == "p" })
+        let checkpoint = try #require(result.checkpoints.values.first.flatMap(CodexHistoryScanner.Checkpoint.init))
+        #expect(checkpoint.offset == (try Data(contentsOf: file)).count)
+    }
+
     @Test func jumpToTheContextWindowWithoutOutputIsNotUsage() {
         var reader = CodexHistoryScanner.FileReader(fileName: "f", accountID: "a", home: URL(fileURLWithPath: "/Users/placeholder"))
         let lines = [
