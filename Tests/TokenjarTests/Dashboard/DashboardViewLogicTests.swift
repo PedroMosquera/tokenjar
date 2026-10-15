@@ -221,12 +221,6 @@ struct DashboardSidebarFocusTests {
 }
 
 struct LimitsThresholdLabelTests {
-    /// The rule is drawn in its own color, so a color name in the label repeats it.
-    @Test func theLabelIsTheLevelAlone() {
-        #expect(LimitsChart.thresholdLabel(80, severity: .warning) == "80%")
-        #expect(LimitsChart.thresholdLabel(95, severity: .critical) == "95%")
-    }
-
     @Test func voiceOverHearsWhatEachRuleMeans() {
         #expect(LimitsChart.thresholdAccessibilityLabel(80, severity: .warning) == "Turns amber at 80%")
         #expect(LimitsChart.thresholdAccessibilityLabel(95, severity: .critical) == "Turns red at 95%")

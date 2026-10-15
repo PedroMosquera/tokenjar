@@ -113,9 +113,10 @@ struct AccountActionTests {
 struct MoneyRowTests {
     private let us = Locale(identifier: "en_US")
 
-    @Test func anAmountAndItsLimitShareOnePrecision() {
-        #expect(MoneyRow.amount(MoneyLine(label: "Extra usage", amount: 12.4, limit: 100), locale: us) == "$12.40 used of $100.00")
-        #expect(MoneyRow.amount(MoneyLine(label: "Spent", amount: 12.4), locale: us) == "$12.40")
+    /// Format owns how amounts read; the row only picks the form by whether the line has a limit.
+    @Test func aLineWithALimitShowsBothAmounts() {
+        #expect(MoneyRow.amount(MoneyLine(label: "Extra usage", amount: 12.4, limit: 100), locale: us) == Format.moneyUsed(12.4, of: 100, locale: us))
+        #expect(MoneyRow.amount(MoneyLine(label: "Spent", amount: 12.4), locale: us) == Format.money(12.4, locale: us))
     }
 }
 

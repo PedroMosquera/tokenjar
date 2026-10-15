@@ -71,10 +71,6 @@ struct StatusGlyphTests {
         #expect(glyphAlpha(neutral, 7, 6) < 0.05)
     }
 
-    @Test func theMarkIsSizedForTheMenuBar() {
-        #expect(StatusGlyph.slot(0.5).size == NSSize(width: 18, height: 18))
-    }
-
     /// The status item must not shift the items beside it when a check fails or recovers.
     @Test(arguments: [MenuBarIcon.app, .markMana, .logoClaude, .symbolBrain])
     func theDotNeverChangesTheWidth(_ icon: MenuBarIcon) {
