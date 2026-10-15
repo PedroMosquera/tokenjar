@@ -65,14 +65,14 @@ struct MenuBarState: Equatable {
         accounts: [AccountConfig], statuses: [String: AccountStatus], config: AppConfig, now: Date,
         connectivity: Connectivity = .online, settingsProblem: SettingsProblem? = nil, pinned: String? = nil
     ) -> MenuBarState {
-        // An account with no window to show (a link, spend only, or no subscription) would draw an empty bar and a
-        // "no data" line that reads as a failure.
         let entries = accounts.compactMap { account -> Entry? in
             let status = statuses[account.id] ?? AccountStatus()
             let refreshMinutes = account.refreshMinutes ?? config.refreshMinutes
-            guard account.provider.reportsWindows, status.snapshot != nil || status.error?.attention != .calm else { return nil }
+            guard MenuBarRule.includes(provider: account.provider, snapshot: status.snapshot, attention: status.error?.attention) else {
+                return nil
+            }
             let windows = status.snapshot?.windows ?? []
-            let tightest = status.snapshot?.tightestWindow(now: now)
+            let tightest = MenuBarRule.window(of: status.snapshot, now: now)
             // Every window counts: a lower window projected to run out still needs to color the menu bar.
             let severity = Severity.worst(of: windows, config: config.menuBar, now: now)
             return Entry(

@@ -123,8 +123,4 @@ enum Format {
         }
         return tenths((value * 10).rounded() / 10) + "B"
     }
-
-    static func clockTime(_ date: Date) -> String {
-        date.formatted(date: .omitted, time: .shortened)
-    }
 }

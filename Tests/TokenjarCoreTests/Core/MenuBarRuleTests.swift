@@ -13,8 +13,8 @@ struct MenuBarRuleTests {
         UsageWindow(id: "weekly", label: "Week", usedPercent: 40, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(86_400))
     }
 
-    /// `MenuBarState.make`'s rule before it moved to core, so adopting it there changes nothing.
-    @Test func includesMatchesTodaysMenuBar() {
+    /// An account not checked yet, or one whose failure needs a look, still has something to say.
+    @Test func onlyACalmFailureWithNothingFetchedIsLeftOut() {
         let cases: [(snapshot: UsageSnapshot?, attention: FetchError.Attention?, included: Bool)] = [
             (snapshot([week]), nil, true),
             (snapshot(), nil, true),
@@ -45,31 +45,5 @@ struct MenuBarRuleTests {
         #expect(MenuBarRule.window(of: full, now: now)?.id == "weekly")
         #expect(MenuBarRule.window(of: snapshot(), now: now) == nil)
         #expect(MenuBarRule.window(of: nil, now: now) == nil)
-    }
-
-    /// An account not checked yet, or one whose failure needs a look, still has something to say.
-    @Test func nothingToTrackForAWindowlessSuccessOrACalmError() {
-        #expect(MenuBarRule.hasNothingToTrack(snapshot: snapshot(), attention: nil))
-        #expect(MenuBarRule.hasNothingToTrack(snapshot: snapshot(), attention: .calm))
-        #expect(MenuBarRule.hasNothingToTrack(snapshot: nil, attention: .calm))
-
-        #expect(!MenuBarRule.hasNothingToTrack(snapshot: nil, attention: nil))
-        #expect(!MenuBarRule.hasNothingToTrack(snapshot: snapshot(), attention: .transient))
-        #expect(!MenuBarRule.hasNothingToTrack(snapshot: snapshot(), attention: .actionable))
-        #expect(!MenuBarRule.hasNothingToTrack(snapshot: nil, attention: .actionable))
-    }
-
-    /// Dropping an account that still has a window would hide a real limit from the menu bar.
-    @Test func anyWindowMeansSomethingToTrack() {
-        let idle = UsageWindow(id: "session", label: "5-hour", usedPercent: 0, windowMinutes: 300, notStarted: true)
-        let reset = UsageWindow(id: "session", label: "5-hour", usedPercent: 100, windowMinutes: 300, resetsAt: now.addingTimeInterval(-60))
-        for windows in [[week], [idle], [reset]] {
-            for attention: FetchError.Attention? in [nil, .calm, .transient, .actionable] {
-                #expect(
-                    !MenuBarRule.hasNothingToTrack(snapshot: snapshot(windows), attention: attention),
-                    "\(windows.map(\.id)) \(String(describing: attention))"
-                )
-            }
-        }
     }
 }
