@@ -3,8 +3,6 @@ import Testing
 @testable import TokenjarCore
 
 struct CostLineEligibilityTests {
-    private let now = Date(timeIntervalSince1970: 1_800_000_000)
-
     private func snapshot(_ provider: ProviderID, _ billing: Billing?, money: [MoneyLine] = [], windows: [UsageWindow] = []) -> UsageSnapshot {
         UsageSnapshot(accountID: "a", provider: provider, plan: "Plan", billing: billing, windows: windows, money: money, fetchedAt: now, source: "test")
     }

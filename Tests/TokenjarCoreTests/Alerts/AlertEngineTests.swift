@@ -3,8 +3,6 @@ import Testing
 @testable import TokenjarCore
 
 struct AlertEngineTests {
-    /// 2027-01-15 08:00 UTC.
-    let now = Date(timeIntervalSince1970: 1_800_000_000)
     let account = AccountConfig(id: "claude-work", provider: .claude, label: "Work")
     let clock = Date.FormatStyle(
         date: .omitted, time: .shortened, locale: Locale(identifier: "en_GB"),
@@ -226,7 +224,7 @@ struct AlertEngineTests {
 
     func projection(used: Double, resetIn: TimeInterval, config: AppConfig = AppConfig()) -> [AlertEvent] {
         var state = AlertState()
-        let window = { (used: Double) in self.session(used, resetsAt: self.now.addingTimeInterval(resetIn)) }
+        let window = { (used: Double) in self.session(used, resetsAt: now.addingTimeInterval(resetIn)) }
         _ = run(&state, ok(window(1)), config: config)
         return run(&state, ok(window(used)), config: config).events.filter { $0.kind == .projectedExhaustion }
     }

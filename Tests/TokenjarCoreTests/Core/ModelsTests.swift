@@ -71,7 +71,6 @@ struct ModelsTests {
     }
 
     @Test func tightestWindowPrefersHigherUseThenSoonerReset() {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
         let snapshot = UsageSnapshot(accountID: "a", provider: .claude, windows: [
             UsageWindow(id: "weekly", label: "Week", usedPercent: 70, resetsAt: now.addingTimeInterval(86_400)),
             UsageWindow(id: "session", label: "5-hour", usedPercent: 70, resetsAt: now.addingTimeInterval(3_600)),
@@ -81,7 +80,6 @@ struct ModelsTests {
     }
 
     @Test func aWindowHasResetOnceItsResetTimeHasPassed() {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
         #expect(UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now.addingTimeInterval(-60)).hasReset(now: now))
         #expect(UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now).hasReset(now: now))
         #expect(!UsageWindow(id: "session", label: "5-hour", usedPercent: 100, resetsAt: now.addingTimeInterval(60)).hasReset(now: now))
@@ -90,7 +88,6 @@ struct ModelsTests {
 
     /// A full 5-hour window that reset a minute ago no longer limits anything; the live 40 % one does.
     @Test func tightestWindowAtATimeSkipsWindowsThatHaveReset() {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
         let snapshot = UsageSnapshot(accountID: "a", provider: .claude, windows: [
             UsageWindow(id: "session", label: "5-hour", usedPercent: 100, windowMinutes: 300, resetsAt: now.addingTimeInterval(-60)),
             UsageWindow(id: "weekly", label: "Week", usedPercent: 40, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(86_400)),
@@ -190,7 +187,6 @@ struct ModelsTests {
     @Test func billingRoundTripsThroughStoredJSON() throws {
         let temp = TemporaryDirectory()
         let store = try SQLiteUsageStore(url: temp.url.appending(path: "tokenjar.sqlite"))
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
         for billing in Billing.allCases {
             try store.record(UsageSnapshot(accountID: billing.rawValue, provider: .claude, billing: billing, fetchedAt: now, source: "test"))
         }

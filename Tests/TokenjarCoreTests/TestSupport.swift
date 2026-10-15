@@ -7,6 +7,9 @@ enum TestPaths {
     static let repository = target.deletingLastPathComponent().deletingLastPathComponent()
 }
 
+/// 2027-01-15 08:00 UTC. The clock for suites that only need a fixed instant; a suite's own `now` shadows it.
+let now = Date(timeIntervalSince1970: 1_800_000_000)
+
 /// The bytes of `Fixtures/<path>`.
 func fixture(_ path: String) throws -> Data {
     try Data(contentsOf: TestPaths.fixtures.appending(path: path))

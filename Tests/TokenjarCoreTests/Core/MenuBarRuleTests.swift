@@ -3,8 +3,6 @@ import Testing
 @testable import TokenjarCore
 
 struct MenuBarRuleTests {
-    private let now = Date(timeIntervalSince1970: 1_800_000_000)
-
     private func snapshot(_ windows: [UsageWindow] = []) -> UsageSnapshot {
         UsageSnapshot(accountID: "a", provider: .claude, windows: windows, fetchedAt: now, source: "test")
     }
