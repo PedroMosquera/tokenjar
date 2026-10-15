@@ -33,11 +33,9 @@ struct CodexBarImportTests {
         #expect(preview == CodexBarImportPreview(
             enabledProviders: [.codex, .claude, .opencodeGo, .antigravity], thresholdsUsed: [50, 80], refreshMinutes: 15, notificationsEnabled: true
         ))
+        // A literal, so a key added to the import or to the allowlist fails here.
+        #expect(Set(defaults.requested) == ["refreshFrequency", "quotaWarningNotificationsEnabled", "quotaWarningThresholds"])
         #expect(Set(defaults.requested) == Set(CodexBarImport.defaultsKeys))
-    }
-
-    @Test func defaultsAllowlistIsPinned() {
-        #expect(CodexBarImport.defaultsKeys == ["refreshFrequency", "quotaWarningNotificationsEnabled", "quotaWarningThresholds"])
     }
 
     @Test func nothingToImportIsNil() throws {
