@@ -127,12 +127,12 @@ nonisolated func usageSnapshot(_ account: AccountConfig, plan: String? = nil, fe
 
 /// Polls instead of sleeping a fixed time; records an issue rather than hanging when the condition never holds.
 @MainActor
-func waitUntil(_ condition: () -> Bool, sourceLocation: SourceLocation = #_sourceLocation) async throws {
-    for _ in 0..<300 {
+func waitUntil(_ condition: () -> Bool, turns: Int = 300, sourceLocation: SourceLocation = #_sourceLocation) async throws {
+    for _ in 0..<turns {
         if condition() { return }
         try await Task.sleep(for: .milliseconds(10))
     }
-    Issue.record("condition did not hold within 3 s", sourceLocation: sourceLocation)
+    Issue.record("condition did not hold within \(turns) turns", sourceLocation: sourceLocation)
 }
 
 /// Stands in for the Keychain: counts reads and refuses with any status, as a Deny on the prompt does.

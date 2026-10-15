@@ -3,7 +3,8 @@ import Testing
 @testable import TokenjarCore
 
 /// Runs real /bin tools. `.timeLimit` only backstops a hang; elapsed-time bounds are asserted with a clock.
-@Suite(.timeLimit(.minutes(1)))
+/// A test can only lower it, not raise it, so it outlasts ten slow launches plus one 30 s process timeout.
+@Suite(.timeLimit(.minutes(3)))
 struct ProcessRunnerTests {
     let runner = FoundationProcessRunner()
 
