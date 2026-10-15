@@ -124,21 +124,18 @@ public enum AccountOrder: String, Codable, CaseIterable, Sendable {
 
 public struct AlertConfig: Codable, Equatable, Sendable {
     public var enabled: Bool
-    /// Used-% thresholds for windows longer than a day, ascending. An empty list turns them off.
+    /// Used-% thresholds, ascending. An empty list turns them off.
     public var thresholds: [Int]
-    /// Used-% thresholds for windows of a day or less (`UsageWindow.isShort`). An empty list turns them off.
-    public var shortThresholds: [Int]
     public var projectedExhaustion: Bool
     public var windowResets: Bool
     public var sourceProblems: Bool
 
     public init(
-        enabled: Bool = true, thresholds: [Int] = [80, 95], shortThresholds: [Int] = [95], projectedExhaustion: Bool = true,
+        enabled: Bool = true, thresholds: [Int] = [80, 95], projectedExhaustion: Bool = true,
         windowResets: Bool = false, sourceProblems: Bool = true
     ) {
         self.enabled = enabled
         self.thresholds = thresholds
-        self.shortThresholds = shortThresholds
         self.projectedExhaustion = projectedExhaustion
         self.windowResets = windowResets
         self.sourceProblems = sourceProblems
@@ -149,7 +146,6 @@ public struct AlertConfig: Codable, Equatable, Sendable {
         let d = AlertConfig()
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled
         thresholds = try c.decodeIfPresent([Int].self, forKey: .thresholds) ?? d.thresholds
-        shortThresholds = try c.decodeIfPresent([Int].self, forKey: .shortThresholds) ?? d.shortThresholds
         projectedExhaustion = try c.decodeIfPresent(Bool.self, forKey: .projectedExhaustion) ?? d.projectedExhaustion
         windowResets = try c.decodeIfPresent(Bool.self, forKey: .windowResets) ?? d.windowResets
         sourceProblems = try c.decodeIfPresent(Bool.self, forKey: .sourceProblems) ?? d.sourceProblems
@@ -168,14 +164,12 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var launchAtLogin: Bool
     /// Whether pace in windows longer than a day counts every day or only working days (`WorkWeek`).
     public var paceDays: PaceDays
-    /// The global shortcut that opens the popover, as a readable combination such as "control+option+command+U"; nil is off.
-    public var hotkey: String?
     public var accountOrder: AccountOrder
 
     public init(
         version: Int = 1, refreshMinutes: Int = 10, menuBar: MenuBarConfig = MenuBarConfig(), alerts: AlertConfig = AlertConfig(),
         accounts: [AccountConfig] = [], cliPaths: [String: String] = [:], launchAtLogin: Bool = false, paceDays: PaceDays = .everyDay,
-        hotkey: String? = nil, accountOrder: AccountOrder = .manual
+        accountOrder: AccountOrder = .manual
     ) {
         self.version = version
         self.refreshMinutes = refreshMinutes
@@ -185,7 +179,6 @@ public struct AppConfig: Codable, Equatable, Sendable {
         self.cliPaths = cliPaths
         self.launchAtLogin = launchAtLogin
         self.paceDays = paceDays
-        self.hotkey = hotkey
         self.accountOrder = accountOrder
     }
 
@@ -200,27 +193,16 @@ public struct AppConfig: Codable, Equatable, Sendable {
         cliPaths = try c.decodeIfPresent([String: String].self, forKey: .cliPaths) ?? d.cliPaths
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
         paceDays = try c.decodeIfPresent(PaceDays.self, forKey: .paceDays) ?? d.paceDays
-        hotkey = try c.decodeIfPresent(String.self, forKey: .hotkey)
         accountOrder = try c.decodeIfPresent(AccountOrder.self, forKey: .accountOrder) ?? d.accountOrder
     }
 
-    /// The long-window list for every window: what `AlertEngine` uses until it moves to `thresholds(for:window:)`.
     public func thresholds(for account: AccountConfig) -> [Int] {
         (account.alertThresholds ?? alerts.thresholds).sorted()
-    }
-
-    /// An account's `alertThresholds` also covers its short windows until it sets `shortAlertThresholds`, so an
-    /// override set before the split keeps its alerts.
-    public func thresholds(for account: AccountConfig, window: UsageWindow) -> [Int] {
-        let list = window.isShort
-            ? account.shortAlertThresholds ?? account.alertThresholds ?? alerts.shortThresholds
-            : account.alertThresholds ?? alerts.thresholds
-        return list.sorted()
     }
 }
 
 extension UsageWindow {
-    /// A day or less, such as a 5-hour session. An unknown length counts as long, which keeps the long-window alerts.
+    /// A day or less, such as a 5-hour session. An unknown length counts as long.
     public var isShort: Bool {
         windowMinutes.map { $0 <= 1440 } ?? false
     }
@@ -308,7 +290,6 @@ public struct ConfigStore: Sendable {
         copyIfEdited(\.refreshMinutes)
         copyIfEdited(\.launchAtLogin)
         copyIfEdited(\.paceDays)
-        copyIfEdited(\.hotkey)
         copyIfEdited(\.accountOrder)
         copyIfEdited(\.menuBar.mode)
         copyIfEdited(\.menuBar.icon)
@@ -318,7 +299,6 @@ public struct ConfigStore: Sendable {
         copyIfEdited(\.menuBar.spendDisplay)
         copyIfEdited(\.alerts.enabled)
         copyIfEdited(\.alerts.thresholds)
-        copyIfEdited(\.alerts.shortThresholds)
         copyIfEdited(\.alerts.projectedExhaustion)
         copyIfEdited(\.alerts.windowResets)
         copyIfEdited(\.alerts.sourceProblems)
@@ -352,8 +332,6 @@ public struct ConfigStore: Sendable {
         if before.showInMenuBar != after.showInMenuBar { out.showInMenuBar = after.showInMenuBar }
         if before.refreshMinutes != after.refreshMinutes { out.refreshMinutes = after.refreshMinutes }
         if before.alertThresholds != after.alertThresholds { out.alertThresholds = after.alertThresholds }
-        if before.shortAlertThresholds != after.shortAlertThresholds { out.shortAlertThresholds = after.shortAlertThresholds }
-        if before.creditAllowance != after.creditAllowance { out.creditAllowance = after.creditAllowance }
         if before.dashboardURL != after.dashboardURL { out.dashboardURL = after.dashboardURL }
         if before.dailyBudget != after.dailyBudget { out.dailyBudget = after.dailyBudget }
         if before.monthlyBudget != after.monthlyBudget { out.monthlyBudget = after.monthlyBudget }

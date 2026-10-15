@@ -133,10 +133,6 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
     public var refreshMinutes: Int?
     /// Used-% thresholds that override the global ones.
     public var alertThresholds: [Int]?
-    /// Overrides `alertThresholds` on windows of a day or less only (`AppConfig.thresholds(for:window:)`).
-    public var shortAlertThresholds: [Int]?
-    /// AI credits the user's plan includes per billing cycle, entered by hand.
-    public var creditAllowance: Int?
     public var dashboardURL: String?
     /// nil is off; on, it draws a Today bar for an account limited by what it spends.
     public var dailyBudget: DailyBudget?
@@ -146,8 +142,8 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
     public init(
         id: String, provider: ProviderID, label: String, enabled: Bool = true,
         profileDir: String? = nil, credential: CredentialRef? = nil, showInMenuBar: Bool = true,
-        refreshMinutes: Int? = nil, alertThresholds: [Int]? = nil, shortAlertThresholds: [Int]? = nil,
-        creditAllowance: Int? = nil, dashboardURL: String? = nil, dailyBudget: DailyBudget? = nil, monthlyBudget: Double? = nil
+        refreshMinutes: Int? = nil, alertThresholds: [Int]? = nil,
+        dashboardURL: String? = nil, dailyBudget: DailyBudget? = nil, monthlyBudget: Double? = nil
     ) {
         self.id = id
         self.provider = provider
@@ -158,8 +154,6 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         self.showInMenuBar = showInMenuBar
         self.refreshMinutes = refreshMinutes
         self.alertThresholds = alertThresholds
-        self.shortAlertThresholds = shortAlertThresholds
-        self.creditAllowance = creditAllowance
         self.dashboardURL = dashboardURL
         self.dailyBudget = dailyBudget
         self.monthlyBudget = monthlyBudget
@@ -176,8 +170,6 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         showInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showInMenuBar) ?? true
         refreshMinutes = try c.decodeIfPresent(Int.self, forKey: .refreshMinutes)
         alertThresholds = try c.decodeIfPresent([Int].self, forKey: .alertThresholds)
-        shortAlertThresholds = try c.decodeIfPresent([Int].self, forKey: .shortAlertThresholds)
-        creditAllowance = try c.decodeIfPresent(Int.self, forKey: .creditAllowance)
         dashboardURL = try c.decodeIfPresent(String.self, forKey: .dashboardURL)
         dailyBudget = try c.decodeIfPresent(DailyBudget.self, forKey: .dailyBudget)
         monthlyBudget = try c.decodeIfPresent(Double.self, forKey: .monthlyBudget)

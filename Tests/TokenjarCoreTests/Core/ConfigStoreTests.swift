@@ -63,8 +63,7 @@ struct ConfigStoreTests {
              "alerts": {"enabled": false, "thresholds": [50], "projectedExhaustion": false, "windowResets": true, "sourceProblems": false},
              "accounts": [{"id": "claude", "label": "Work", "enabled": false, "profileDir": "~/.claude-alt",
                            "credential": {"keychain": {"account": "x"}}, "showInMenuBar": false, "refreshMinutes": 1,
-                           "alertThresholds": [50], "shortAlertThresholds": [60], "creditAllowance": 1500,
-                           "dashboardURL": "https://x.example"}]}
+                           "alertThresholds": [50], "dashboardURL": "https://x.example"}]}
             """#, to: paths.localConfigFile)
         let store = ConfigStore(paths: paths)
         let loaded = try #require(try store.load())
@@ -239,15 +238,11 @@ struct ConfigStoreTests {
     }
 
     enum NewLeaf: String, CaseIterable, Sendable {
-        case shortThresholds, paceDays, hotkey, accountShortThresholds, creditAllowance, spendDisplay, accountOrder, dailyBudget, monthlyBudget
+        case paceDays, spendDisplay, accountOrder, dailyBudget, monthlyBudget
 
         func edit(_ config: inout AppConfig) {
             switch self {
-            case .shortThresholds: config.alerts.shortThresholds = [90]
             case .paceDays: config.paceDays = .workingDays
-            case .hotkey: config.hotkey = "control+option+command+U"
-            case .accountShortThresholds: config.accounts[0].shortAlertThresholds = [90]
-            case .creditAllowance: config.accounts[0].creditAllowance = 300
             case .spendDisplay: config.menuBar.spendDisplay = .amount
             case .accountOrder: config.accountOrder = .tightestFirst
             case .dailyBudget: config.accounts[0].dailyBudget = DailyBudget(amount: 100)
@@ -259,11 +254,7 @@ struct ConfigStoreTests {
         /// leak shows in the saved file.
         var localOverride: [String: Any] {
             switch self {
-            case .shortThresholds: ["alerts": ["shortThresholds": [50]]]
             case .paceDays: ["paceDays": "workingDays"]
-            case .hotkey: ["hotkey": "control+U"]
-            case .accountShortThresholds: ["accounts": [["id": "claude", "shortAlertThresholds": [50]]]]
-            case .creditAllowance: ["accounts": [["id": "claude", "creditAllowance": 1500]]]
             case .spendDisplay: ["menuBar": ["spendDisplay": "amount"]]
             case .accountOrder: ["accountOrder": "byProvider"]
             case .dailyBudget: ["accounts": [["id": "claude", "dailyBudget": ["amount": 50]]]]
@@ -382,15 +373,38 @@ struct ConfigStoreTests {
         #expect(accounts.first?["dashboardURL"] == nil)
     }
 
+    /// Earlier builds wrote these keys to the same synced file, so this build must load it and leave them in place.
+    @Test func keysRemovedFromThisBuildStillLoadAndSurviveASave() throws {
+        let home = try tempHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = AppPaths(home: home)
+        try write(#"""
+            {"hotkey": "control+option+command+U", "alerts": {"thresholds": [70], "shortThresholds": [95]},
+             "accounts": [{"id": "claude", "provider": "claude", "label": "Personal", "shortAlertThresholds": [60], "creditAllowance": 1500}]}
+            """#, to: paths.configFile)
+        let store = ConfigStore(paths: paths)
+        let loaded = try #require(try store.load())
+        #expect(loaded.merged.alerts.thresholds == [70])
+        #expect(loaded.merged.accounts.map(\.label) == ["Personal"])
+
+        var edited = loaded.merged
+        edited.refreshMinutes = 5
+        try store.save(old: loaded.merged, new: edited, base: loaded.base)
+
+        let raw = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: paths.configFile)) as? [String: Any])
+        #expect(raw["refreshMinutes"] as? Int == 5)
+        #expect(raw["hotkey"] as? String == "control+option+command+U")
+        #expect((raw["alerts"] as? [String: Any])?["shortThresholds"] as? [Int] == [95])
+        let account = try #require((raw["accounts"] as? [[String: Any]])?.first)
+        #expect(account["shortAlertThresholds"] as? [Int] == [60])
+        #expect(account["creditAllowance"] as? Int == 1500)
+    }
+
     @Test func aConfigWithoutTheNewKeysLoadsTheDefaults() throws {
         let json = #"{"alerts": {"thresholds": [70]}, "accounts": [{"id": "copilot", "provider": "copilot"}]}"#
         let config = try JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
         #expect(config.alerts.thresholds == [70])
-        #expect(config.alerts.shortThresholds == [95])
         #expect(config.paceDays == .everyDay)
-        #expect(config.hotkey == nil)
-        #expect(config.accounts[0].shortAlertThresholds == nil)
-        #expect(config.accounts[0].creditAllowance == nil)
         #expect(config.accounts[0].dailyBudget == nil)
         #expect(config.accounts[0].monthlyBudget == nil)
         #expect(config.menuBar.spendDisplay == .percent)
