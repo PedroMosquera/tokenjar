@@ -1,8 +1,8 @@
 import Foundation
 
 /// What `Tokenjar --status` prints: each enabled account's last snapshot in config order, read without running a check,
-/// so a script such as a tmux or Claude Code status line shows what the menu bar shows. `version` changes only when a
-/// field changes meaning or goes away.
+/// for a script such as a tmux or Claude Code status line. It lists every enabled account, including those the menu bar
+/// leaves out, with the same tightest window and pace. `version` changes only when a field changes meaning or goes away.
 public struct StatusReport: Encodable, Equatable, Sendable {
     public var version = 1
     public var generatedAt: Date
