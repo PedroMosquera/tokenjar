@@ -4,9 +4,9 @@ import Testing
 @testable import Tokenjar
 import TokenjarCore
 
-private let now = Date(timeIntervalSince1970: 1_791_660_000)
+nonisolated private let now = Date(timeIntervalSince1970: 1_791_660_000)
 
-private func window(_ id: String, _ label: String, used: Double, minutes: Int = 300, resetIn: TimeInterval?, notStarted: Bool = false) -> UsageWindow {
+nonisolated private func window(_ id: String, _ label: String, used: Double, minutes: Int = 300, resetIn: TimeInterval?, notStarted: Bool = false) -> UsageWindow {
     UsageWindow(id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: resetIn.map { now.addingTimeInterval($0) }, notStarted: notStarted)
 }
 
@@ -16,16 +16,17 @@ private func snapshot(_ accountID: String, _ windows: [UsageWindow], plan: Strin
 
 @MainActor
 struct PaceVerdictTests {
-    @Test func evenUsageIsOnPace() throws {
-        let verdict = try #require(PaceVerdict.make(windows: [window("session", "5-hour", used: 52, resetIn: 150 * 60)], config: MenuBarConfig(), now: now))
-        #expect(verdict.kind == .onPace)
-        #expect(verdict.text == "On pace")
-    }
-
-    @Test func earlyOveruseBelowHalfIsAheadNotRunsOut() throws {
-        let verdict = try #require(PaceVerdict.make(windows: [window("session", "5-hour", used: 40, resetIn: 225 * 60)], config: MenuBarConfig(), now: now))
-        #expect(verdict.kind == .ahead(15))
-        #expect(verdict.text == "Ahead of pace +15%")
+    /// One 5-hour window on its own; `resetIn` is in minutes.
+    @Test(arguments: [
+        ("even usage is on pace", 52.0, 150.0, PaceVerdict.Kind.onPace, "On pace"),
+        ("early overuse below half is ahead, not runs out", 40, 225, .ahead(15), "Ahead of pace +15%"),
+        ("underuse is under pace", 20, 150, .under(30), "Under pace -30%"),
+        ("a full window says limit reached instead of a projection", 100, 25, .exhausted(25 * 60), "Limit reached, resets in 25m"),
+    ] as [(String, Double, Double, PaceVerdict.Kind, String)])
+    func aLoneWindowsVerdict(_ name: String, used: Double, resetIn: Double, kind: PaceVerdict.Kind, text: String) throws {
+        let verdict = try #require(PaceVerdict.make(windows: [window("session", "5-hour", used: used, resetIn: resetIn * 60)], config: MenuBarConfig(), now: now))
+        #expect(verdict.kind == kind)
+        #expect(verdict.text == text)
     }
 
     @Test func projectedExhaustionPastHalfReportsTheGap() throws {
@@ -40,12 +41,6 @@ struct PaceVerdictTests {
         #expect(verdict.window.label == "5-hour")
     }
 
-    @Test func fullWindowSaysLimitReachedInsteadOfAProjection() throws {
-        let verdict = try #require(PaceVerdict.make(windows: [window("session", "5-hour", used: 100, resetIn: 25 * 60)], config: MenuBarConfig(), now: now))
-        #expect(verdict.kind == .exhausted(25 * 60))
-        #expect(verdict.text == "Limit reached, resets in 25m")
-    }
-
     /// A spend limit can be passed: past 100 % it says how far over, not that the limit stops the work.
     @Test func aLimitThatAllowsOverageSaysOverNotReached() throws {
         let over = UsageWindow(
@@ -58,11 +53,6 @@ struct PaceVerdictTests {
         var atLimit = over
         atLimit.usedPercent = 100
         #expect(try #require(PaceVerdict.make(windows: [atLimit], config: MenuBarConfig(), now: now)).text == "At the limit")
-    }
-
-    @Test func underuseIsUnderPace() throws {
-        let verdict = try #require(PaceVerdict.make(windows: [window("session", "5-hour", used: 20, resetIn: 150 * 60)], config: MenuBarConfig(), now: now))
-        #expect(verdict.text == "Under pace -30%")
     }
 
     @Test func skipsWindowsTooEarlyOrIdleToProject() throws {
@@ -177,47 +167,25 @@ struct PopoverSummaryTests {
         AccountConfig(id: "work", provider: .claude, label: "Work"),
     ]
 
-    @Test func namesTheWorstAccountAndWindow() {
-        let statuses = [
-            "personal": AccountStatus(snapshot: snapshot("personal", [window("session", "5-hour", used: 42, resetIn: 130 * 60)])),
-            "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 88, resetIn: 50 * 60)])),
-        ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary == PopoverSummary(tone: .warning, text: "Claude · Work: 5-hour at 88%"))
-    }
-
-    @Test func criticalTone() {
-        let statuses = ["personal": AccountStatus(snapshot: snapshot("personal", [window("weekly", "Week", used: 96, minutes: 10_080, resetIn: 3 * 86_400)]))]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary == PopoverSummary(tone: .critical, text: "Claude · Personal: Week at 96%"))
-    }
-
-    @Test func severityOutranksAHigherPercent() {
-        // 75 % with a day left is under pace (ok); 60 % at half time projects exhaustion (warning).
-        let statuses = [
-            "personal": AccountStatus(snapshot: snapshot("personal", [window("weekly", "Week", used: 75, minutes: 10_080, resetIn: 86_400)])),
-            "work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 60, resetIn: 150 * 60)])),
-        ]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary == PopoverSummary(tone: .warning, text: "Claude · Work: 5-hour at 60%"))
-    }
-
-    @Test func fullWindowShowsTheResetCountdown() {
-        let statuses = ["work": AccountStatus(snapshot: snapshot("work", [window("session", "5-hour", used: 100, resetIn: 50 * 60)]))]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary.text == "Claude · Work: 5-hour full, resets in 50m")
-    }
-
-    /// Over a spend limit the work goes on, so the header gives the share and names no other account with room.
-    @Test func aLimitThatAllowsOverageIsNotCalledFull() {
-        let over = UsageWindow(
+    /// Windows by account id. 75 % of a week with a day left is under pace (ok) while 60 % of a 5-hour at half time
+    /// projects exhaustion (warning). Over a spend limit the work goes on, so that title gives the share, not "full".
+    @Test(arguments: [
+        ("names the worst account and window", [
+            "personal": [window("session", "5-hour", used: 42, resetIn: 130 * 60)], "work": [window("session", "5-hour", used: 88, resetIn: 50 * 60)],
+        ], PopoverSummary.Tone.warning, "Claude · Work: 5-hour at 88%"),
+        ("critical tone", ["personal": [window("weekly", "Week", used: 96, minutes: 10_080, resetIn: 3 * 86_400)]], .critical, "Claude · Personal: Week at 96%"),
+        ("severity outranks a higher percent", [
+            "personal": [window("weekly", "Week", used: 75, minutes: 10_080, resetIn: 86_400)], "work": [window("session", "5-hour", used: 60, resetIn: 150 * 60)],
+        ], .warning, "Claude · Work: 5-hour at 60%"),
+        ("a full window shows the reset countdown", ["work": [window("session", "5-hour", used: 100, resetIn: 50 * 60)]], .critical, "Claude · Work: 5-hour full, resets in 50m"),
+        ("a limit that allows overage is not called full", ["work": [UsageWindow(
             id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: 108, windowMinutes: 44_640, resetsAt: now.addingTimeInterval(18 * 86_400),
             limitStyle: .overage
-        )
-        let statuses = ["work": AccountStatus(snapshot: snapshot("work", [over]))]
-        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary.text == "Claude · Work: Spend limit at 108%")
-        #expect(summary.tone == .critical)
+        )]], .critical, "Claude · Work: Spend limit at 108%"),
+    ] as [(String, [String: [UsageWindow]], PopoverSummary.Tone, String)])
+    func theTitleNamesTheWorstWindow(_ name: String, windows: [String: [UsageWindow]], tone: PopoverSummary.Tone, text: String) {
+        let statuses = Dictionary(uniqueKeysWithValues: windows.map { ($0.key, AccountStatus(snapshot: snapshot($0.key, $0.value))) })
+        #expect(PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now) == PopoverSummary(tone: tone, text: text))
     }
 
     @Test func aWindowPastItsResetIsNotFull() {
@@ -602,18 +570,35 @@ struct RoomHintTests {
         #expect(summary.room == nil)
     }
 
-    @Test func twoAccountsOfOneProviderAreToldApartByLabel() {
-        let work = AccountConfig(id: "work", provider: .claude, label: "Work")
-        let statuses = ["claude": fullClaude, "work": using("work", 30, label: "Week", minutes: 10_080), "codex": using("codex", 40)]
-        let summary = PopoverSummary.make(accounts: [claude, work, codex], statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary.room?.contains("Claude · Work") == true)
-    }
-
-    /// Config order breaks ties only: an account with more room later in the list still wins.
-    @Test func theMostRoomWinsWhereverItSitsInConfigOrder() {
-        let statuses = ["claude": fullClaude, "copilot": using("copilot", 15, label: "Premium requests", minutes: 44_640), "codex": using("codex", 2)]
-        let summary = PopoverSummary.make(accounts: [claude, copilot, codex], statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary.room?.contains("Codex") == true)
+    /// Behind a full Claude, in config order after it. Config order breaks ties only, so a tie never depends on anything
+    /// the user cannot see. A window past its reset shows the cycle that ended, not the room left now.
+    @Test(arguments: [
+        ("two accounts of one provider are told apart by label", ["work", "codex"], [
+            "work": [window("main", "Week", used: 30, minutes: 10_080, resetIn: 2 * 3_600)], "codex": [window("main", "5-hour", used: 40, resetIn: 2 * 3_600)],
+        ], [], "Claude · Work"),
+        ("the most room wins wherever it sits in config order", ["copilot", "codex"], [
+            "copilot": [window("main", "Premium requests", used: 15, minutes: 44_640, resetIn: 2 * 3_600)], "codex": [window("main", "5-hour", used: 2, resetIn: 2 * 3_600)],
+        ], [], "Codex"),
+        ("a tie goes to config order", ["codex", "copilot"], [
+            "codex": [window("main", "5-hour", used: 10, resetIn: 2 * 3_600)], "copilot": [window("main", "Premium requests", used: 10, minutes: 44_640, resetIn: 2 * 3_600)],
+        ], [], "Codex"),
+        ("a tie goes to config order, swapped", ["copilot", "codex"], [
+            "codex": [window("main", "5-hour", used: 10, resetIn: 2 * 3_600)], "copilot": [window("main", "Premium requests", used: 10, minutes: 44_640, resetIn: 2 * 3_600)],
+        ], [], "GitHub Copilot"),
+        ("a window past its reset gives no room", ["codex", "copilot"], [
+            "codex": [window("session", "5-hour", used: 5, resetIn: -60)], "copilot": [window("main", "Premium requests", used: 10, minutes: 44_640, resetIn: 2 * 3_600)],
+        ], [], "GitHub Copilot"),
+        ("a provider in major outage is skipped", ["codex", "copilot"], [
+            "codex": [window("main", "5-hour", used: 2, resetIn: 2 * 3_600)], "copilot": [window("main", "Premium requests", used: 15, minutes: 44_640, resetIn: 2 * 3_600)],
+        ], [.codex], "GitHub Copilot"),
+    ] as [(String, [String], [String: [UsageWindow]], Set<ProviderID>, String)])
+    func theHintNamesTheLeastUsedCandidate(_ name: String, order: [String], windows: [String: [UsageWindow]], majorOutages: Set<ProviderID>, named: String) {
+        let byID = Dictionary(uniqueKeysWithValues: [codex, copilot, AccountConfig(id: "work", provider: .claude, label: "Work")].map { ($0.id, $0) })
+        var statuses = Dictionary(uniqueKeysWithValues: windows.map { ($0.key, AccountStatus(snapshot: snapshot($0.key, $0.value, fetchedAgo: 60), lastAttempt: now)) })
+        statuses["claude"] = fullClaude
+        let accounts = [claude] + order.compactMap { byID[$0] }
+        let summary = PopoverSummary.make(accounts: accounts, statuses: statuses, config: AppConfig(), now: now, majorOutages: majorOutages)
+        #expect(summary.room?.contains(named) == true)
     }
 
     /// Red, not only full: at the default Red at of 95 the named window is about to stop the work.
@@ -624,23 +609,6 @@ struct RoomHintTests {
         #expect(summary.room?.contains("Codex") == true)
     }
 
-    /// The user sets config order, so a tie never depends on anything they cannot see.
-    @Test func aTieGoesToConfigOrder() {
-        let statuses = ["claude": fullClaude, "codex": using("codex", 10), "copilot": using("copilot", 10, label: "Premium requests", minutes: 44_640)]
-        let first = PopoverSummary.make(accounts: [claude, codex, copilot], statuses: statuses, config: AppConfig(), now: now)
-        #expect(first.room?.contains("Codex") == true)
-        let swapped = PopoverSummary.make(accounts: [claude, copilot, codex], statuses: statuses, config: AppConfig(), now: now)
-        #expect(swapped.room?.contains("GitHub Copilot") == true)
-    }
-
-    /// A window past its reset still shows the cycle that ended, which says nothing about the room left now.
-    @Test func aWindowPastItsResetGivesNoRoom() {
-        let reset = AccountStatus(snapshot: snapshot("codex", [window("session", "5-hour", used: 5, resetIn: -60)]), lastAttempt: now)
-        let statuses = ["claude": fullClaude, "codex": reset, "copilot": using("copilot", 10, label: "Premium requests", minutes: 44_640)]
-        let summary = PopoverSummary.make(accounts: [claude, codex, copilot], statuses: statuses, config: AppConfig(), now: now)
-        #expect(summary.room?.contains("GitHub Copilot") == true)
-    }
-
     /// Red at can be hand-edited above 100, and a full window still stops the work.
     @Test func aFullWindowBelowRedAtStillGetsTheHint() {
         var config = AppConfig()
@@ -648,13 +616,6 @@ struct RoomHintTests {
         let summary = PopoverSummary.make(accounts: [claude, codex], statuses: ["claude": fullClaude, "codex": using("codex", 2)], config: config, now: now)
         #expect(summary.tone == .warning)
         #expect(summary.room?.contains("Codex") == true)
-    }
-
-    /// The seam provider status fills: a provider whose status page reports a major outage is not where to go.
-    @Test func aProviderInMajorOutageIsSkipped() {
-        let statuses = ["claude": fullClaude, "codex": using("codex", 2), "copilot": using("copilot", 15, label: "Premium requests", minutes: 44_640)]
-        let summary = PopoverSummary.make(accounts: [claude, codex, copilot], statuses: statuses, config: AppConfig(), now: now, majorOutages: [.codex])
-        #expect(summary.room?.contains("GitHub Copilot") == true)
     }
 }
 
