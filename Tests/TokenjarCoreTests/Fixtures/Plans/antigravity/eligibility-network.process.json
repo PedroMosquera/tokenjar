@@ -1,5 +1,0 @@
-{
-  "exitCode": 1,
-  "stdout": "",
-  "stderr": "Eligibility check failed: failed to get profile picture: Get \"https://example.invalid/a/placeholder\": EOF\n"
-}

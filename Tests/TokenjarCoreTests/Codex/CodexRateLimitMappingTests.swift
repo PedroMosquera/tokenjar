@@ -60,6 +60,24 @@ struct CodexRateLimitMappingTests {
         #expect(!s.windows.contains { $0.id.hasPrefix("codex:") })
     }
 
+    @Test func aRecordedModelLimitIdKeysItsWindowsAndItsNameLabelsThem() throws {
+        let s = try snapshot("rate-limits-plus-spark-recorded-id.json")
+        #expect(s.plan == "Plus")
+        #expect(s.windows.map(\.id) == ["session", "weekly", "gpt_5_3_codex_spark:session", "gpt_5_3_codex_spark:weekly"])
+        #expect(s.windows.map(\.label) == ["5-hour", "Week", "GPT-5.3-Codex-Spark · 5-hour", "GPT-5.3-Codex-Spark · Week"])
+        #expect(s.windows.map(\.usedPercent) == [20, 9, 100, 35])
+        #expect(s.notes.isEmpty, "a zero balance without credits is not a note")
+    }
+
+    /// A workspace that hides its limits still answers, so the account keeps its plan and shows no bars instead of failing.
+    @Test func aWorkspaceThatHidesItsLimitsIsAPlanWithoutWindows() throws {
+        let s = try snapshot("rate-limits-workspace-hidden.json")
+        #expect(s.plan == "Enterprise")
+        #expect(s.windows.isEmpty)
+        #expect(s.notes.isEmpty)
+        #expect(s.money.isEmpty)
+    }
+
     @Test func extraLimitWithoutNameFallsBackToItsId() {
         let limits = CodexRateLimitSnapshot(limitId: "codex_other", primary: .init(usedPercent: 5, windowDurationMins: 300, resetsAt: 1_791_670_000), secondary: nil)
         let windows = CodexRateLimitMapping.windows(limits, extraLimitID: "codex_other", now: now)

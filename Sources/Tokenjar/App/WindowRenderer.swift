@@ -10,8 +10,7 @@ import TokenjarCore
 /// Windows stay off every screen and the app never activates, so the frontmost app keeps keyboard focus. `CaptureWindow`
 /// stands in for the key window an activation would give: it draws as key and ends up with the focus the app leaves it.
 ///
-/// Data is `AppModel.preview()` and the `PreviewPlans` pages, or with `--real-data` the local config and a copy of its
-/// history (`RealDataLoader`).
+/// Data is `AppModel.preview()`, or with `--real-data` the local config and a copy of its history (`RealDataLoader`).
 enum WindowRenderer {
     static func run(_ options: WindowRenderOptions) {
         RenderSession(options: options).render()
@@ -54,9 +53,6 @@ private final class RenderSession {
         /// A seat billed per use, with its spend limit and a daily budget.
         var spendLimit: AppModel?
         var menuBar: [(name: String, state: MenuBarState)]
-        var plans: [(name: String, model: AppModel)] = []
-        /// Plan rows with usage history, the only ones whose dashboard page has more than All to show.
-        var planHistory: Set<String> = []
     }
 
     func render() {
@@ -122,14 +118,6 @@ private final class RenderSession {
             if let allClearOutage = data.allClearOutage {
                 renderPopover(allClearOutage, screen: "popover-all-clear-outage", appearance: appearance, suffix: suffix)
             }
-            for page in data.plans {
-                renderPopover(page.model, screen: "popover-\(page.name)", appearance: appearance, suffix: suffix)
-                renderSettingsAccounts(page.model, prefix: "settings-\(page.name)", appearance: appearance, suffix: suffix)
-                renderDashboard(
-                    page.model, prefix: "dashboard-\(page.name)", sizes: ["default"],
-                    accounts: page.model.accounts.filter { data.planHistory.contains($0.id) }, appearance: appearance, suffix: suffix
-                )
-            }
             renderMenuBar(data.menuBar, appearance: appearance, suffix: suffix)
         }
     }
@@ -153,8 +141,7 @@ private final class RenderSession {
         let limitHit = AppModel.previewLimitHit()
         let incident = AppModel.previewIncident(), allClearOutage = AppModel.previewAllClearOutage()
         let spendLimit = AppModel.previewSpendLimit()
-        let plans = PreviewPlans.pages(now: model.now)
-        for preview in [model, states, empty, configError, short, limitHit, incident, allClearOutage, spendLimit] + outages + plans.map(\.model) {
+        for preview in [model, states, empty, configError, short, limitHit, incident, allClearOutage, spendLimit] + outages {
             preview.secrets = SessionSecretStore(InMemorySecretStore())
         }
         let slots = SnapshotRenderer.slotStates(now: model.now).map { (name: "slot-\($0.name)", state: $0.state) }
@@ -166,8 +153,7 @@ private final class RenderSession {
             model: model, states: states, empty: empty, configError: configError, short: short,
             offline: offline, noAnswer: noAnswer, partialOutage: partialOutage, settingsUnloaded: settingsUnloaded, limitHit: limitHit,
             incident: incident, allClearOutage: allClearOutage, spendLimit: spendLimit,
-            menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + outageStrips + slots + plans.map { ($0.name, $0.model.menuBarState) },
-            plans: plans, planHistory: Set(PreviewPlans.rows.filter(\.history).map(\.id))
+            menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + outageStrips + slots
         )
     }
 

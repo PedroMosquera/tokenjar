@@ -7,7 +7,6 @@ import TokenjarCore
 struct PreviewDataTests {
     private static var previewModels: [AppModel] {
         [AppModel.preview(), .previewStates(), .previewEmpty(), .previewLimitHit(), .previewIncident(), .previewAllClearOutage(), .previewSpendLimit()]
-            + PreviewPlans.pages().map(\.model)
     }
 
     /// Preview renders end up in the README and in PRs, so no path in them may come from this Mac.
@@ -43,5 +42,17 @@ struct PreviewDataTests {
         let environment = ["XDG_DATA_HOME": "/Users/someone/.data"]
         #expect(AccountCredentialSection.keyFile(for: go, paths: paths, previewMode: true, environment: environment).path == "~/.local/share/opencode/auth.json")
         #expect(AccountCredentialSection.keyFile(for: go, paths: paths, previewMode: false, environment: environment).path == "/Users/someone/.data/opencode/auth.json")
+    }
+}
+
+@MainActor
+struct PlanSlotStateTests {
+    @Test func theSlotSheetHasAStaleCriticalState() throws {
+        let slot = try #require(SnapshotRenderer.slotStates(now: AppModel.preview().now).first { $0.name == "stale-critical" })
+        let entry = try #require(slot.state.entries.first)
+        #expect(entry.tightest?.usedPercent == 97)
+        #expect(entry.severity == .critical)
+        #expect(entry.isStale)
+        #expect(entry.attention == nil)
     }
 }

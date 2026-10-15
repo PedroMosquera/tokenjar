@@ -2,10 +2,7 @@ Redacted fixtures. Every string that could identify a person or account (emails,
 prompts) is replaced with a placeholder before it lands here. Field names and shapes come from real answers, and the
 numbers in them are made up. Where no real answer could be captured, the fixture is written by hand:
 
-- `Antigravity/`: no answer from a real agy account has been captured, so all five files are written by hand.
-  `usage-camel.json` and `usage-snake.json` follow the field names of CodexBar's agy test fixture.
-  `enterprise-no-quota.stdout.json`, `renamed-groups-envelope.stdout.json` and `model-turn.stdout.json` are copies of
-  the synthetic envelopes in `Plans/antigravity/`.
+- `Antigravity/`: no answer from a real agy account has been captured, so all five files are written by hand. `usage-camel.json` and `usage-snake.json` follow the field names of CodexBar's agy test fixture.
 - `Copilot/`: the fixtures follow the shape of gh's filtered answer. Most Copilot plans have not been checked against a
   real account, so their fields follow what VS Code's Copilot extension and CodexBar read.
 - `ProviderHealth/`: public status page answers, which hold no personal data. `claude-console-only.json` is
@@ -17,10 +14,5 @@ numbers in them are made up. Where no real answer could be captured, the fixture
   `claude-maintenance.json` are written by hand, since none has been captured. `openai-proxy.json` is
   status.openai.com's page data with the fields Tokenjar does not read left out; tests fill in its affected components,
   whose shape follows CodexBar's decoder because none were affected when it was saved.
-- `Plans/`: fixtures for each plan and account state a provider can report, all mocked. Each provider folder has a
-  `manifest.json` that lists its cases, and a `recorded` case reads its captures from the folders above. A case's
-  `confidence` is `recorded` when every input it names has the shape of a real answer, `documented` when its shape
-  comes from the provider's docs or source or from CodexBar, and `inferred` when nothing published shows it. Input
-  paths are relative to `Plans/`; a `fixtures:` prefix points into this folder instead. `blocked` names the capture a
-  case waits for, and `preview: false` marks a case with no account to show. Copilot's `raw/` files are
-  `copilot_internal/user` bodies, and each `filtered/` twin is that body after the fetcher's pinned jq filter.
+- `Claude/`: the `.settings.json`, `.managed-settings.json` and `.claude.json` files follow Claude Code's documented settings, one per way a login can be billed outside the plan (a gateway, a cloud provider, a key in the settings). `enterprise-usage-based-spend-cap.stream.jsonl` is inferred, since nothing published shows that answer.
+- `Codex/`: `rate-limits-workspace-hidden.json` is inferred, since no answer from a workspace that hides its limits has been captured.

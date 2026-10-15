@@ -282,6 +282,7 @@ final class CopilotUsageFetcherTests {
         (output("", stderr: "To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.\n", exitCode: 4), FetchError.notSignedIn),
         (output("", stderr: "gh: Bad credentials (HTTP 401)\n", exitCode: 1), FetchError.unauthorized),
         (output("", stderr: "gh: Resource not accessible by integration (HTTP 403)\n", exitCode: 1), FetchError.noSubscription("No Copilot access for this GitHub account")),
+        (output("", stderr: "gh: Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization. (HTTP 403)\n", exitCode: 1), FetchError.noSubscription("No Copilot access for this GitHub account")),
         (output("", stderr: "gh: Not Found (HTTP 404)\n", exitCode: 1), FetchError.noSubscription("No Copilot access for this GitHub account")),
         (output("", stderr: "gh: API rate limit exceeded for user ID 0. (HTTP 403)\n", exitCode: 1), FetchError.rateLimited(retryAfter: nil)),
         (output("", stderr: "gh: Too Many Requests (HTTP 429)\n", exitCode: 1), FetchError.rateLimited(retryAfter: nil)),

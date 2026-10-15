@@ -34,11 +34,9 @@ SOFTWARE.
 
 These test fixtures are adapted from the tests of [CodexBar](https://github.com/steipete/CodexBar):
 
-- `Tests/TokenjarCoreTests/Fixtures/Plans/copilot-devin/copilot/raw/user-business-credits-with-monthly-completions.json` and its twin under `filtered/` reproduce a `copilot_internal/user` body from CodexBar's `Tests/CodexBarTests/CopilotUsageModelsTests.swift`, with identity fields added as placeholders.
 - `Tests/TokenjarCoreTests/Fixtures/Copilot/user-pooled-unlimited.json` follows the body in the "decodes credits used counter from token billed business payload" test of that CodexBar file, with more fields and another reset date.
-- `Tests/TokenjarCoreTests/Fixtures/Plans/copilot-devin/copilot/raw/user-business-placeholder-credits.json`, its twin under `filtered/` and the body inline in `CopilotUsageFetcherTests.aTokenBilledPlaceholderWithoutTheUnlimitedFlagKeepsItsCreditsUsed` follow the body in the "keeps credit counter accessible without unlimited marker" test of that CodexBar file.
-- `Tests/TokenjarCoreTests/Fixtures/Antigravity/usage-camel.json` and `usage-snake.json` follow the field names of CodexBar's agy test fixture. The `.stdout.json` envelopes in `Tests/TokenjarCoreTests/Fixtures/Plans/antigravity/` that list quota groups use the same shape and its group and bucket labels, and `Fixtures/Antigravity/renamed-groups-envelope.stdout.json` is a copy of one of them.
-- `Tests/TokenjarCoreTests/Fixtures/Plans/opencode/go-usage-v2-console-meters.json` borrows its meter shape from a CodexBar fixture of `/console/api/go/status`.
+- The body inline in `CopilotUsageFetcherTests.aTokenBilledPlaceholderWithoutTheUnlimitedFlagKeepsItsCreditsUsed` follows the body in the "keeps credit counter accessible without unlimited marker" test of that CodexBar file.
+- `Tests/TokenjarCoreTests/Fixtures/Antigravity/usage-camel.json` and `usage-snake.json` follow the field names of CodexBar's agy test fixture. `Fixtures/Antigravity/renamed-groups-envelope.stdout.json` uses the same shape and its group and bucket labels.
 
 ```text
 MIT License

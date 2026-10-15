@@ -296,7 +296,7 @@ struct ClaudeUsageFetcherTests {
         let box = try Sandbox()
         defer { box.remove() }
         try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"}}"#, to: ".claude.json")
-        let runner = FakeClaude(stdout: try fixture("../Plans/claude/enterprise-usage-based-spend-cap.stream.jsonl"))
+        let runner = FakeClaude(stdout: try fixture("enterprise-usage-based-spend-cap.stream.jsonl"))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
@@ -377,7 +377,7 @@ struct ClaudeUsageFetcherTests {
         let box = try Sandbox()
         defer { box.remove() }
         try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"}}"#, to: ".claude.json")
-        let runner = FakeClaude(stdout: try fixture("../Plans/claude/enterprise-usage-based-spend-cap.stream.jsonl"))
+        let runner = FakeClaude(stdout: try fixture("enterprise-usage-based-spend-cap.stream.jsonl"))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: DateParsing.iso8601(at)!))
 
@@ -389,7 +389,7 @@ struct ClaudeUsageFetcherTests {
         let box = try Sandbox()
         defer { box.remove() }
         try box.write(#"{"oauthAccount":{"accountUuid":"ACCOUNT_UUID_C","organizationType":"claude_enterprise","seatTier":"enterprise_usage_based"}}"#, to: ".claude.json")
-        let stream = try String(decoding: fixture("../Plans/claude/enterprise-usage-based-spend-cap.stream.jsonl"), as: UTF8.self)
+        let stream = try String(decoding: fixture("enterprise-usage-based-spend-cap.stream.jsonl"), as: UTF8.self)
             .replacingOccurrences(of: #""monthly_limit":100000"#, with: #""monthly_limit":null"#)
         let runner = FakeClaude(stdout: Data(stream.utf8))
 
@@ -430,7 +430,7 @@ struct ClaudeUsageFetcherTests {
     func aLoginBilledOutsideThePlanIsNotMistakenForSignedOut(settings: String) async throws {
         let box = try Sandbox()
         defer { box.remove() }
-        try box.install("../Plans/claude/\(settings)", as: ".claude/settings.json")
+        try box.install("\(settings)", as: ".claude/settings.json")
         let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
@@ -465,7 +465,7 @@ struct ClaudeUsageFetcherTests {
     func managedSettingsRouteTheLoginToo(managed: String) async throws {
         let box = try Sandbox()
         defer { box.remove() }
-        try box.install("../Plans/claude/\(managed)", as: "Library/Application Support/ClaudeCode/managed-settings.json")
+        try box.install("\(managed)", as: "Library/Application Support/ClaudeCode/managed-settings.json")
         let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
@@ -476,8 +476,8 @@ struct ClaudeUsageFetcherTests {
     @Test func aGatewayWinsOverAnOldSubscriptionLogin() async throws {
         let box = try Sandbox()
         defer { box.remove() }
-        try box.install("../Plans/claude/bedrock-with-old-max-login.claude.json", as: ".claude.json")
-        try box.install("../Plans/claude/llm-gateway-auth-token.settings.json", as: ".claude/settings.json")
+        try box.install("bedrock-with-old-max-login.claude.json", as: ".claude.json")
+        try box.install("llm-gateway-auth-token.settings.json", as: ".claude/settings.json")
         let runner = FakeClaude(stdout: try fixture("stream-signed-out.jsonl"))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
@@ -505,8 +505,8 @@ struct ClaudeUsageFetcherTests {
     @Test func aGatewayNeverFallsBackToAnOldSubscriptionLoginsCache() async throws {
         let box = try Sandbox()
         defer { box.remove() }
-        try box.install("../Plans/claude/bedrock-with-old-max-login.claude.json", as: ".claude.json")
-        try box.install("../Plans/claude/llm-gateway-auth-token.settings.json", as: ".claude/settings.json")
+        try box.install("bedrock-with-old-max-login.claude.json", as: ".claude.json")
+        try box.install("llm-gateway-auth-token.settings.json", as: ".claude/settings.json")
 
         await #expect(throws: FetchError.timeout) {
             try await ClaudeUsageFetcher().fetch(account, context: box.context(FakeClaude(timedOut: true), now: now))

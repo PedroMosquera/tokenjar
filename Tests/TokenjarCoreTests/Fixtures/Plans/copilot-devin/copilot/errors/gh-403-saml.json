@@ -1,5 +1,0 @@
-{
-  "exitCode": 1,
-  "stdout": "",
-  "stderr": "gh: Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization. (HTTP 403)\n"
-}
