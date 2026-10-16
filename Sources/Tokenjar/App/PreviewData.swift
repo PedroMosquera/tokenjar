@@ -162,6 +162,22 @@ extension AppModel {
                 }
             }
         }
+        // Sparser history before that, with its own generator so the last 30 days stay as they were, for the activity calendar.
+        var older = PreviewRandom(seed: 11)
+        for day in 30..<330 {
+            let dayStart = Calendar.current.startOfDay(for: now).addingTimeInterval(-Double(day) * 86_400 + 10 * 3600)
+            let weekday = Calendar.current.component(.weekday, from: dayStart)
+            let busy = older.next()
+            guard busy < ((weekday == 1 || weekday == 7) ? 0.25 : 0.85) else { continue }
+            for r in 0..<(5 + Int(busy * busy * 90)) {
+                events.append(UsageEvent(
+                    dedupeKey: "preview:old:\(day):\(r)", timestamp: dayStart.addingTimeInterval(Double(r) * 120),
+                    accountID: r % 3 == 0 ? "codex" : "claude-personal", harness: r % 3 == 0 ? .codex : .claudeCode,
+                    model: r % 3 == 0 ? "gpt-5.5-codex" : "claude-opus-5-5", project: projects[(r + day) % projects.count],
+                    inputTokens: 3_000, outputTokens: 900, cacheReadTokens: 80_000, cacheWrite5mTokens: 1_500
+                ))
+            }
+        }
         try? store.upsert(events)
         model.store = store
         model.priceTable = PriceTable(prices: [

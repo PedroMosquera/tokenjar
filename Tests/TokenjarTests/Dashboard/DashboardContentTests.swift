@@ -117,6 +117,22 @@ struct DashboardContentLoadTests {
         #expect(load(model, account: zen, range: .week).hasUsage)
     }
 
+    /// The calendar covers about a year whatever the range, while the cost tiles still start where they did.
+    @Test func theActivityCalendarReachesBackAboutAYear() throws {
+        let model = model()
+        let zen = try #require(model.accounts.first { $0.id == "opencode-zen" })
+        try model.store?.upsert([UsageEvent(
+            dedupeKey: "zen:old", timestamp: now.addingTimeInterval(-300 * 86_400), accountID: "opencode-zen", harness: .opencode,
+            model: "kimi-k3", project: "tokenjar", inputTokens: 100, reportedCostUSD: 0.25
+        )])
+        let content = load(model, account: zen, range: .week)
+        #expect(content.activity.weeks.count == ActivityCalendar.weekCount)
+        #expect(content.activity.activeDays == 1)
+        #expect(content.activity.total == 0.25)
+        #expect(!content.hasUsage)
+        #expect(!content.costLastMonth.hasUsage)
+    }
+
     @Test func limitsStartNearTheFirstSampleWhenHistoryIsNew() {
         // The test store's samples start an hour ago, so a week-long axis would leave the lines in a sliver.
         let content = load(model(), range: .week)

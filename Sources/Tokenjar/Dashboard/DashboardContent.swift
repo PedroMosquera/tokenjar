@@ -65,6 +65,8 @@ nonisolated struct DashboardContent: Sendable {
     /// Tokens per day by `TokenKind` over the range on screen.
     var tokenMix = SpendBreakdown()
     var projects: [ProjectSummary] = []
+    /// The last 53 weeks whatever the range, so the calendar reads the same on every range.
+    var activity = ActivityCalendar()
     /// Keyed by the name the spend chart groups accounts by, so an account's bars match its limits line.
     var accountSlotByName: [String: Int] = [:]
     /// Any usage at all since `periods.loadStart` (about a month), whatever range is on screen. Last month does not count:
@@ -97,7 +99,8 @@ nonisolated struct DashboardContent: Sendable {
         let accounts = input.accounts
         let scope = input.account.map { [$0] } ?? accounts
 
-        let daily = (try? input.store?.dailyUsage(accountIDs: scope.map(\.id), since: periods.queryStart)) ?? []
+        let activityStart = ActivityCalendar.firstDay(today: periods.today, calendar: periods.calendar)
+        let daily = (try? input.store?.dailyUsage(accountIDs: scope.map(\.id), since: min(periods.queryStart, activityStart))) ?? []
         let rows = daily.map(input.priceTable.priced)
         content.hasUsage = rows.contains { $0.row.day >= periods.loadStart && $0.row.requests > 0 }
         content.costToday = DashboardMath.cost(rows, since: periods.today)
@@ -123,6 +126,7 @@ nonisolated struct DashboardContent: Sendable {
         }
         content.tokenMix = DashboardMath.tokenMix(rows, since: firstDay)
         content.projects = DashboardMath.topProjects(rows, since: firstDay, limit: projectLimit)
+        content.activity = ActivityCalendar.make(rows, today: periods.today, calendar: periods.calendar)
 
         // A day before the range shows whether history reaches back to its start, or begins inside it.
         let rangeStart = range == .day ? input.now.addingTimeInterval(-range.duration) : periods.firstDay(of: range)

@@ -61,7 +61,7 @@ nonisolated struct DashboardPeriods: Equatable, Sendable {
     var lastMonth: Date
     /// Earliest day the tiles and ranges need; `DashboardContent.hasUsage` covers this period.
     var loadStart: Date
-    /// Earliest day any section needs, last month included, so one query serves every tile and range.
+    /// Earliest day the tiles and ranges need, last month included. The load reaches back further for the activity calendar.
     var queryStart: Date
     private(set) var calendar: Calendar
 

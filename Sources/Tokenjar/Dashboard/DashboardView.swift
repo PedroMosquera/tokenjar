@@ -89,6 +89,7 @@ private struct DashboardDetail: View {
             if sections.history {
                 spendCard(emptyMessage: DashboardSections.spendEmptyMessage(account: account, content: content, breakdown: breakdown, range: range))
                 if noUsage == nil { projectsCard }
+                if content.activity.activeDays > 0 { activityCard }
             } else if let account, account.provider.isLinkOnly {
                 linkOnlyPanel(account)
             } else {
@@ -443,6 +444,19 @@ private struct DashboardDetail: View {
             if group == DashboardMath.otherGroup { return DashboardPalette.other }
             if grouping == .account { return DashboardPalette.series(content.accountSlotByName[group] ?? .max) }
             return DashboardPalette.spend(index)
+        }
+    }
+
+    /// Not tied to the range picker: the calendar always shows the last 53 weeks.
+    private var activityCard: some View {
+        let activity = content.activity
+        let subtitle = switch activity.metric {
+        case .cost: "API-equivalent cost per day, last 12 months" + (activity.isEstimate ? " · est. from public prices" : "")
+        case .tokens: "Tokens per day, last 12 months · none of this usage has a price"
+        }
+        return DashboardCard(title: "Activity", subtitle: subtitle) {
+            ActivityCalendarView(contentKey: content.key, activity: activity)
+                .equatable()
         }
     }
 
