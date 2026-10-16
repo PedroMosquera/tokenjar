@@ -154,8 +154,21 @@ private struct DashboardDetail: View {
             costTile("Today", content.costToday, caption: "since midnight")
             costTile("7 days", content.costLastSevenDays, caption: "including today")
             costTile("This month", content.costThisMonth, caption: content.periods.thisMonth.formatted(.dateTime.month(.wide)))
+            forecastTile
+            if let plan = content.planValue {
+                KPITile(
+                    title: "Plan value", value: plan.valueText(), caption: plan.caption(), isEstimate: plan.isEstimate, help: plan.help()
+                )
+            }
             KPITile(title: "Tokens", value: Format.tokens(content.totals.tokens), caption: range.dayCaption)
             KPITile(title: "Requests", value: content.totals.requests.formatted(), caption: range.dayCaption)
+            // Left out rather than shown as 0 % when no harness in scope reports cache tokens.
+            if let rate = content.cacheHitRates.overall {
+                KPITile(
+                    title: "Cache hit rate", value: Format.percent(rate * 100), caption: range.dayCaption,
+                    help: "Input read from cache, as a share of all input: uncached input, cache reads and cache writes"
+                )
+            }
         }
     }
 
@@ -174,6 +187,37 @@ private struct DashboardDetail: View {
             value = Format.money(0)
         }
         return KPITile(title: "Cost · \(title)", value: value, caption: detail, isEstimate: cost.isEstimate, valueStyle: style)
+    }
+
+    /// Says "estimate" wherever the cost tiles do, so a subscription's projection never reads as a bill.
+    private var forecastTile: some View {
+        let periods = content.periods
+        let month = periods.thisMonth.formatted(.dateTime.month(.wide))
+        let lastMonth = content.costLastMonth
+        let forecast = MonthForecast.make(
+            monthToDate: content.costThisMonth.amount, lastMonth: lastMonth.hasCost ? lastMonth.amount : nil,
+            now: periods.now, calendar: periods.calendar
+        )
+        var help = "API-equivalent estimate, not a bill: \(month)'s cost so far at its average daily rate, over the whole month"
+        // History that begins partway through last month makes the change look larger, so the base is named.
+        if lastMonth.hasCost {
+            help += ". \(periods.lastMonth.formatted(.dateTime.month(.wide))) in Tokenjar's history: \(Format.money(lastMonth.amount))"
+        }
+        let cost = content.costThisMonth
+        if cost.hasUsage, !cost.hasCost {
+            return KPITile(title: "Cost · Projected", value: "No prices", caption: "models unpriced", valueStyle: .secondary, help: help)
+        }
+        guard let projected = forecast.projected else {
+            return KPITile(title: "Cost · Projected", value: "Too early", caption: "after 5% of \(month)", valueStyle: .secondary, help: help)
+        }
+        let caption = forecast.change.map {
+            // Abbreviated: at the window's minimum width four tiles a row truncate "+49% vs September".
+            MonthForecast.changeText($0, lastMonthName: periods.lastMonth.formatted(.dateTime.month(.abbreviated)))
+        } ?? "\(month) at this pace"
+        return KPITile(
+            title: "Cost · Projected", value: "~" + Format.money(projected, currency: "USD", fractionDigits: 0, locale: .autoupdatingCurrent),
+            caption: caption, isEstimate: cost.isEstimate, help: help
+        )
     }
 
     @ViewBuilder
@@ -318,6 +362,12 @@ private struct DashboardDetail: View {
                     }
                 }
                 .frame(height: 210)
+                if emptyMessage == nil, grouping == .model, let line = content.cacheHitRates.modelLine(groups: breakdown.groups) {
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
                 if emptyMessage == nil, !breakdown.unpricedModels.isEmpty {
                     Text("Not priced: \(breakdown.unpricedModelNames)")
                         .font(.caption)

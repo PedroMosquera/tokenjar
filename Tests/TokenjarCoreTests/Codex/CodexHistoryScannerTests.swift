@@ -45,6 +45,36 @@ struct CodexHistoryScannerTests {
         #expect(events.map(\.timestamp) == [.codexFixture("2026-10-09T10:05:00Z"), .codexFixture("2026-10-09T10:10:00Z"), .codexFixture("2026-10-09T10:20:00.500Z")])
     }
 
+    /// codex's `input_tokens` already holds its cache reads and writes, so they count once: 700 of 1,000, not 700 of 1,800.
+    @Test func cacheHitRateDoesNotCountCachedInputTwice() throws {
+        let temp = TemporaryDirectory()
+        try temp.write([
+            #"{"timestamp":"2026-10-09T10:00:01Z","type":"turn_context","payload":{"model":"gpt-6.1-sol","cwd":"/x/p"}}"#,
+            #"{"timestamp":"2026-10-09T10:00:02Z","type":"token_usage_record","payload":{"response_id":"resp_hit","usage":{"input_tokens":1000,"cached_input_tokens":700,"cache_write_input_tokens":100,"output_tokens":5,"total_tokens":1005}}}"#,
+        ].joined(separator: "\n") + "\n", to: "codex-home/sessions/2026/10/09/rollout-h.jsonl")
+
+        var prompt = PromptTokens()
+        for event in try scan(temp).events { prompt.add(event) }
+
+        #expect(prompt == PromptTokens(uncached: 200, cacheRead: 700, cacheWrite: 100))
+        #expect(prompt.cacheHitRate == 0.7)
+    }
+
+    /// A rollout from a codex that logs no cached input reports no cache data, which is not a 0 % hit rate.
+    @Test func noCachedInputMeansNoHitRate() throws {
+        let temp = TemporaryDirectory()
+        try temp.write([
+            #"{"timestamp":"2026-10-09T10:00:01Z","type":"turn_context","payload":{"model":"gpt-6.1-sol","cwd":"/x/p"}}"#,
+            #"{"timestamp":"2026-10-09T10:00:02Z","type":"token_usage_record","payload":{"response_id":"resp_none","usage":{"input_tokens":1000,"output_tokens":5,"total_tokens":1005}}}"#,
+        ].joined(separator: "\n") + "\n", to: "codex-home/sessions/2026/10/09/rollout-n.jsonl")
+
+        var prompt = PromptTokens()
+        for event in try scan(temp).events { prompt.add(event) }
+
+        #expect(prompt.uncached == 1000)
+        #expect(prompt.cacheHitRate == nil)
+    }
+
     @Test func homeFolderIsStoredAsTildeNeverTheAccountName() throws {
         let temp = TemporaryDirectory()
         func rollout(cwd: String, response: String) -> String {

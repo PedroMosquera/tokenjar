@@ -94,6 +94,19 @@ struct ClaudeHistoryScannerTests {
         #expect(oneHour.cacheReadTokens == 20)
     }
 
+    /// Claude's `input_tokens` leaves out cache reads and writes, so the prompt is all three added up: 800 of 1,000.
+    @Test func cacheHitRateCountsReadsAgainstInputPlusCacheReadsAndWrites() throws {
+        let box = try TranscriptHome()
+        let line = #"{"type":"assistant","message":{"id":"msg_hit","model":"claude-opus-5-5","usage":{"input_tokens":100,"cache_creation_input_tokens":100,"cache_read_input_tokens":800,"output_tokens":5}},"requestId":"req_hit","timestamp":"2026-10-09T13:00:00.000Z","cwd":"/Users/PLACEHOLDER/work/demo","sessionId":"SESSION_H"}"#
+        try Data((line + "\n").utf8).write(to: box.projects.appending(path: "-Users-PLACEHOLDER-work-demo/SESSION_H.jsonl"))
+
+        var prompt = PromptTokens()
+        for event in try box.scan().events where event.dedupeKey == "claude:msg_hit:req_hit" { prompt.add(event) }
+
+        #expect(prompt == PromptTokens(uncached: 100, cacheRead: 800, cacheWrite: 100))
+        #expect(prompt.cacheHitRate == 0.8)
+    }
+
     /// Haiku 5.5 bills every token of a request whose prompt (input plus cache reads and writes) is over 100,000 tokens
     /// at a higher rate, so such a request is recorded under that tier's own price id.
     @Test(arguments: [

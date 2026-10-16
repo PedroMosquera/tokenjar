@@ -46,7 +46,12 @@ nonisolated struct DashboardContent: Sendable {
     var costToday = CostTotal()
     var costLastSevenDays = CostTotal()
     var costThisMonth = CostTotal()
+    var costLastMonth = CostTotal()
+    /// nil unless an account in scope is on a plan the price table prices.
+    var planValue: PlanValue?
     var totals = UsageTotals()
+    /// Over the range on screen, like `totals`.
+    var cacheHitRates = CacheHitRates()
     var series: [Series] = []
     var pointsBySeries: [String: [LimitPoint]] = [:]
     var resets: [ResetMarker] = []
@@ -60,7 +65,8 @@ nonisolated struct DashboardContent: Sendable {
     var projects: [ProjectSummary] = []
     /// Keyed by the name the spend chart groups accounts by, so an account's bars match its limits line.
     var accountSlotByName: [String: Int] = [:]
-    /// Any usage at all since `periods.loadStart` (about a month), whatever range is on screen.
+    /// Any usage at all since `periods.loadStart` (about a month), whatever range is on screen. Last month does not count:
+    /// it shows only as the comparison in the forecast tile.
     var hasUsage = false
 
     /// Every account in scope has a color slot, so these are all the names the account grouping can give.
@@ -89,14 +95,19 @@ nonisolated struct DashboardContent: Sendable {
         let accounts = input.accounts
         let scope = input.account.map { [$0] } ?? accounts
 
-        let daily = (try? input.store?.dailyUsage(accountIDs: scope.map(\.id), since: periods.loadStart)) ?? []
+        let daily = (try? input.store?.dailyUsage(accountIDs: scope.map(\.id), since: periods.queryStart)) ?? []
         let rows = daily.map(input.priceTable.priced)
-        content.hasUsage = rows.contains { $0.row.requests > 0 }
+        content.hasUsage = rows.contains { $0.row.day >= periods.loadStart && $0.row.requests > 0 }
         content.costToday = DashboardMath.cost(rows, since: periods.today)
         content.costLastSevenDays = DashboardMath.cost(rows, since: periods.lastSevenDays)
         content.costThisMonth = DashboardMath.cost(rows, since: periods.thisMonth)
+        content.costLastMonth = DashboardMath.cost(rows, since: periods.lastMonth, before: periods.thisMonth)
+        content.planValue = PlanValue.make(
+            rows: rows, since: periods.thisMonth, accounts: scope, snapshots: input.snapshots, table: input.priceTable
+        )
         let firstDay = periods.firstDay(of: range)
         content.totals = DashboardMath.totals(rows, since: firstDay)
+        content.cacheHitRates = DashboardMath.cacheHitRates(rows, since: firstDay)
         let names = input.names
         let snapshots = input.snapshots
         let slots = DashboardMath.colorSlots(

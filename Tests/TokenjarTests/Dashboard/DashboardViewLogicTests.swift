@@ -257,3 +257,15 @@ struct HeaderSubtitleTests {
             == FetchError.notSignedIn.userMessage(provider: .claude))
     }
 }
+
+struct TileRowsLayoutTests {
+    /// Two rows when one does not fit, the longer first, so the cost tiles share a row and no row ends in an empty cell.
+    @Test func tilesSplitIntoTwoRowsWithTheLongerFirst() {
+        let layout = TileRowsLayout()
+        #expect(layout.rows(width: 600, count: 5) == [0..<3, 3..<5])
+        #expect(layout.rows(width: 600, count: 7) == [0..<4, 4..<7])
+        #expect(layout.rows(width: 600, count: 8) == [0..<4, 4..<8])
+        #expect(layout.rows(width: 600, count: 3) == [0..<3])
+        #expect(layout.rows(width: 2_000, count: 7) == [0..<7])
+    }
+}

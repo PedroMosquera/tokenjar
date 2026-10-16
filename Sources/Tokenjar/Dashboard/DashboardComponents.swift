@@ -39,6 +39,7 @@ struct KPITile: View {
     var caption: String
     var isEstimate = false
     var valueStyle: Color?
+    var help: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -64,6 +65,7 @@ struct KPITile: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .dashboardSurface()
+        .help(help ?? "")
         .accessibilityElement(children: .combine)
     }
 }
@@ -73,16 +75,17 @@ extension PaceVerdict {
     var clause: String { text.prefix(1).lowercased() + text.dropFirst() }
 }
 
-/// Tiles in one row when each gets at least `minTileWidth`, else the first three over the rest, so no row ends in an
-/// empty cell. Tiles in a row share its width. Picks from the proposed width alone: ViewThatFits measured both
+/// Tiles in one row when each gets at least `minTileWidth`, else in two rows with the longer first (three over two,
+/// four over three), so no row ends in an empty cell. Tiles in a row share its width. Picks from the proposed width alone: ViewThatFits measured both
 /// arrangements, text scaling included, and added about 40 ms to every page switch.
 struct TileRowsLayout: Layout {
     var spacing: CGFloat = 10
     var minTileWidth: CGFloat = 126
 
-    private func rows(width: CGFloat, count: Int) -> [Range<Int>] {
+    func rows(width: CGFloat, count: Int) -> [Range<Int>] {
         let oneRow = CGFloat(count) * minTileWidth + CGFloat(count - 1) * spacing
-        return width >= oneRow || count <= 3 ? [0..<count] : [0..<3, 3..<count]
+        let top = (count + 1) / 2
+        return width >= oneRow || count <= 3 ? [0..<count] : [0..<top, top..<count]
     }
 
     private func tileWidth(_ row: Range<Int>, in width: CGFloat) -> CGFloat {

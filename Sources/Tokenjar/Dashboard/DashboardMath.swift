@@ -58,8 +58,11 @@ nonisolated struct DashboardPeriods: Equatable, Sendable {
     /// Today and the six days before it.
     var lastSevenDays: Date
     var thisMonth: Date
-    /// Earliest day any section needs, so one query serves every tile and range.
+    var lastMonth: Date
+    /// Earliest day the tiles and ranges need; `DashboardContent.hasUsage` covers this period.
     var loadStart: Date
+    /// Earliest day any section needs, last month included, so one query serves every tile and range.
+    var queryStart: Date
     private(set) var calendar: Calendar
 
     init(now: Date, calendar: Calendar = .current) {
@@ -70,6 +73,8 @@ nonisolated struct DashboardPeriods: Equatable, Sendable {
         thisMonth = calendar.dateInterval(of: .month, for: now)?.start ?? today
         let longest = calendar.date(byAdding: .day, value: -(DashboardRange.month.dayCount - 1), to: today) ?? today
         loadStart = min(thisMonth, longest)
+        lastMonth = calendar.date(byAdding: .month, value: -1, to: thisMonth) ?? thisMonth
+        queryStart = min(lastMonth, loadStart)
     }
 
     func firstDay(of range: DashboardRange) -> Date {
@@ -108,6 +113,19 @@ nonisolated struct CostTotal: Equatable, Sendable {
 nonisolated struct UsageTotals: Equatable, Sendable {
     var tokens = 0
     var requests = 0
+}
+
+nonisolated struct CacheHitRates: Equatable, Sendable {
+    var overall: Double?
+    var byModel: [String: Double] = [:]
+
+    /// The line under the spend chart grouped by model, in legend order; nil when no model in `groups` has a rate.
+    @MainActor func modelLine(groups: [String]) -> String? {
+        let parts = groups.compactMap { model in
+            byModel[model].map { "\(DashboardMath.displayName(model)) \(Format.percent($0 * 100))" }
+        }
+        return parts.isEmpty ? nil : "Cache hit rate: " + parts.joined(separator: ", ")
+    }
 }
 
 nonisolated struct SpendSegment: Identifiable, Equatable, Sendable {
@@ -178,9 +196,9 @@ nonisolated enum DashboardMath {
         row.inputTokens + row.outputTokens + row.cacheReadTokens + row.cacheWrite5mTokens + row.cacheWrite1hTokens
     }
 
-    static func cost(_ rows: [PricedUsageRow], since: Date) -> CostTotal {
+    static func cost(_ rows: [PricedUsageRow], since: Date, before end: Date? = nil) -> CostTotal {
         var total = CostTotal()
-        for priced in rows where priced.row.day >= since && priced.row.requests > 0 {
+        for priced in rows where priced.row.day >= since && priced.row.day < (end ?? .distantFuture) && priced.row.requests > 0 {
             if let cost = priced.costUSD {
                 total.amount += cost
                 total.pricedRows += 1
@@ -198,6 +216,21 @@ nonisolated enum DashboardMath {
             totals.tokens += tokens(priced.row)
             totals.requests += priced.row.requests
         }
+    }
+
+    /// Cache reads over the whole prompt (`PromptTokens`), overall and per model id. A harness with no cache tokens in
+    /// range is left out of both, so a provider that reports no caching neither shows 0 % nor dilutes the overall rate.
+    static func cacheHitRates(_ rows: [PricedUsageRow], since: Date) -> CacheHitRates {
+        let inRange = rows.map(\.row).filter { $0.day >= since }
+        var byHarness: [Harness: PromptTokens] = [:]
+        for row in inRange { byHarness[row.harness, default: PromptTokens()].add(row) }
+        let reporting = Set(byHarness.filter { $0.value.reportsCache }.keys)
+        var byModel: [String: PromptTokens] = [:]
+        for row in inRange where reporting.contains(row.harness) { byModel[row.model, default: PromptTokens()].add(row) }
+        return CacheHitRates(
+            overall: byModel.values.reduce(PromptTokens(), +).cacheHitRate,
+            byModel: byModel.compactMapValues(\.cacheHitRate)
+        )
     }
 
     static func groupKey(_ row: DailyUsageRow, by grouping: UsageGrouping, accountNames: [String: String]) -> String {
@@ -462,5 +495,83 @@ nonisolated enum DashboardMath {
                 usedPercent: min(100, max(0, sample.usedPercent)), index: index
             )
         }
+    }
+}
+
+/// Where this month's API-equivalent cost is headed, and how that compares with last month's total.
+nonisolated struct MonthForecast: Equatable, Sendable {
+    /// nil until 5% of the month has passed.
+    var projected: Double?
+    /// `projected` against last month's total: 0.12 is 12% more. nil without a projection or a cost last month.
+    var change: Double?
+
+    static func make(monthToDate: Double, lastMonth: Double?, now: Date, calendar: Calendar) -> MonthForecast {
+        guard let month = calendar.dateInterval(of: .month, for: now),
+              let projected = projection(of: monthToDate, month: month, now: now) else { return MonthForecast() }
+        let change = lastMonth.flatMap { $0 > 0 ? projected / $0 - 1 : nil }
+        return MonthForecast(projected: projected, change: change)
+    }
+
+    /// The month's total at its average rate so far, through `Pace` so it waits for the same share of the month to
+    /// pass as a bar's pace does.
+    static func projection(of amount: Double, month: DateInterval, now: Date) -> Double? {
+        let window = UsageWindow(id: "month", label: "Month", usedPercent: 1, windowMinutes: Int(month.duration / 60), resetsAt: month.end)
+        guard let pace = Pace.compute(window, now: now), pace.fractionElapsed > 0 else { return nil }
+        return amount / pace.fractionElapsed
+    }
+
+    /// "+12% vs September", with a hyphen for a drop as the pace verdicts write it.
+    static func changeText(_ change: Double, lastMonthName: String) -> String {
+        let percent = Int((change * 100).rounded())
+        guard percent != 0 else { return "Same as \(lastMonthName)" }
+        return "\(percent > 0 ? "+" : "")\(percent)% vs \(lastMonthName)"
+    }
+}
+
+/// This month's API-equivalent spend of the accounts on a plan the price table knows, against those plans' monthly list
+/// prices: what the subscriptions would have cost at API prices.
+nonisolated struct PlanValue: Equatable, Sendable {
+    var spend: Double
+    /// The sum of the plans' US monthly list prices.
+    var planPrice: Double
+    /// In account order, one entry per account.
+    var plans: [String]
+    var isEstimate: Bool
+
+    var multiple: Double { spend / planPrice }
+
+    /// nil when no account in `accounts` is on a priced plan, or nothing of theirs was priced since `since`.
+    static func make(rows: [PricedUsageRow], since: Date, accounts: [AccountConfig], snapshots: [String: UsageSnapshot], table: PriceTable) -> PlanValue? {
+        var prices: [String: Double] = [:]
+        var plans: [String] = []
+        for account in accounts {
+            guard let plan = snapshots[account.id]?.plan, let price = table.planPrice(provider: account.provider, plan: plan) else { continue }
+            prices[account.id] = price.monthlyUSD
+            plans.append(plan)
+        }
+        let cost = DashboardMath.cost(rows.filter { prices[$0.row.accountID] != nil }, since: since)
+        guard cost.hasCost, cost.amount > 0 else { return nil }
+        return PlanValue(spend: cost.amount, planPrice: prices.values.reduce(0, +), plans: plans, isEstimate: cost.isEstimate)
+    }
+
+    /// "5.7x", or "12x" from 10 up, where a decimal adds nothing.
+    @MainActor func valueText(locale: Locale = .autoupdatingCurrent) -> String {
+        multiple.formatted(.number.precision(.fractionLength(multiple < 10 ? 1 : 0)).locale(locale)) + "x"
+    }
+
+    /// "vs the $200 plan", "vs $220 in 2 plans". The spend stays in `help`: with it the caption truncates at four tiles a row.
+    @MainActor func caption(locale: Locale = .autoupdatingCurrent) -> String {
+        plans.count == 1 ? "vs the \(money(planPrice, locale)) plan" : "vs \(money(planPrice, locale)) in \(plans.count) plans"
+    }
+
+    @MainActor func help(locale: Locale = .autoupdatingCurrent) -> String {
+        let names = plans.count == 1 ? "\(plans[0]) plan" : "\(plans.dropLast().joined(separator: ", ")) and \(plans[plans.count - 1]) plans"
+        let base = plans.count == 1 ? "the \(money(planPrice, locale)) \(names)" : "the \(money(planPrice, locale)) of the \(names)"
+        return "Covered \(money(spend, locale)) of API usage this month, \(valueText(locale: locale)) \(base). "
+            + "API-equivalent estimate, not a bill; plan prices are US monthly list prices."
+    }
+
+    @MainActor private func money(_ amount: Double, _ locale: Locale) -> String {
+        Format.money(amount, currency: "USD", fractionDigits: 0, locale: locale)
     }
 }
