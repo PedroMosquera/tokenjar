@@ -25,7 +25,7 @@ enum MonthCostLine {
         // The budget bar shows the month's total and its pace already.
         if snapshot.spendLimitMoney != nil { return Lines(amounts: todayText, detail: capitalized(detail)) }
         let amounts = ["\(Format.money(total.amount, locale: locale)) this month", todayText].compactMap { $0 }.joined(separator: " · ")
-        if let projected = projection(of: total.amount, month: month, now: now) {
+        if let projected = MonthForecast.projection(of: total.amount, month: month, now: now) {
             detail = "On pace for ~\(Format.money(projected, currency: "USD", fractionDigits: 0, locale: locale)) this month, \(detail)"
         }
         return Lines(amounts: amounts, detail: capitalized(detail))
@@ -38,13 +38,5 @@ enum MonthCostLine {
     /// The cost line says the login is billed per use, so the note that it has no plan limits would repeat it.
     static func notes(_ notes: [String], besideCostLine: Bool) -> [String] {
         besideCostLine ? notes.filter { $0 != ClaudeUsageFetcher.noLimitsNote } : notes
-    }
-
-    /// The month's total at its average rate so far, through `Pace` so it waits for the same share of the month to
-    /// pass as a bar's pace does.
-    private static func projection(of amount: Double, month: DateInterval, now: Date) -> Double? {
-        let window = UsageWindow(id: "month", label: "Month", usedPercent: 1, windowMinutes: Int(month.duration / 60), resetsAt: month.end)
-        guard let pace = Pace.compute(window, now: now), pace.fractionElapsed > 0 else { return nil }
-        return amount / pace.fractionElapsed
     }
 }

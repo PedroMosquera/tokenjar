@@ -57,7 +57,34 @@ struct DashboardMathTests {
         #expect(periods.loadStart == Self.calendar.date(from: DateComponents(year: 2026, month: 3, day: 1))!)
     }
 
+    @Test func lastMonthIsTheCalendarMonthBeforeAndTheQueryReachesIt() {
+        func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
+            Self.calendar.date(from: DateComponents(year: year, month: month, day: day))!
+        }
+        let october = DashboardPeriods(now: now, calendar: Self.calendar)
+        #expect(october.lastMonth == date(2026, 9, 1))
+        #expect(october.queryStart == date(2026, 9, 1))
+        // Across a year boundary.
+        let january = DashboardPeriods(now: Self.calendar.date(from: DateComponents(year: 2027, month: 1, day: 15, hour: 8))!, calendar: Self.calendar)
+        #expect(january.lastMonth == date(2026, 12, 1))
+        // February is shorter than the 30-day range, which then starts before it.
+        let march = DashboardPeriods(now: Self.calendar.date(from: DateComponents(year: 2026, month: 3, day: 1, hour: 8))!, calendar: Self.calendar)
+        #expect(march.lastMonth == date(2026, 2, 1))
+        #expect(march.queryStart == date(2026, 1, 31))
+    }
+
     // MARK: Cost and totals
+
+    @Test func costCanEndBeforeADay() {
+        let rows = [
+            row(day: day(-12), model: "m1", cost: 4),
+            row(day: day(-10), model: "m1", cost: 2),
+            row(day: day(-9), model: "m1", cost: 100),
+        ]
+        let total = DashboardMath.cost(rows, since: day(-12), before: day(-9))
+        #expect(total.amount == 6)
+        #expect(total.pricedRows == 2)
+    }
 
     @Test func costSumsPricedRowsAndCountsUnpricedOnes() {
         // The estimated row comes first so a recorded row after it cannot clear the flag.

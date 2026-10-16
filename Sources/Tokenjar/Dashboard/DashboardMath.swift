@@ -58,8 +58,11 @@ nonisolated struct DashboardPeriods: Equatable, Sendable {
     /// Today and the six days before it.
     var lastSevenDays: Date
     var thisMonth: Date
-    /// Earliest day any section needs, so one query serves every tile and range.
+    var lastMonth: Date
+    /// Earliest day the tiles and ranges need; `DashboardContent.hasUsage` covers this period.
     var loadStart: Date
+    /// Earliest day any section needs, last month included, so one query serves every tile and range.
+    var queryStart: Date
     private(set) var calendar: Calendar
 
     init(now: Date, calendar: Calendar = .current) {
@@ -70,6 +73,8 @@ nonisolated struct DashboardPeriods: Equatable, Sendable {
         thisMonth = calendar.dateInterval(of: .month, for: now)?.start ?? today
         let longest = calendar.date(byAdding: .day, value: -(DashboardRange.month.dayCount - 1), to: today) ?? today
         loadStart = min(thisMonth, longest)
+        lastMonth = calendar.date(byAdding: .month, value: -1, to: thisMonth) ?? thisMonth
+        queryStart = min(lastMonth, loadStart)
     }
 
     func firstDay(of range: DashboardRange) -> Date {
@@ -191,9 +196,9 @@ nonisolated enum DashboardMath {
         row.inputTokens + row.outputTokens + row.cacheReadTokens + row.cacheWrite5mTokens + row.cacheWrite1hTokens
     }
 
-    static func cost(_ rows: [PricedUsageRow], since: Date) -> CostTotal {
+    static func cost(_ rows: [PricedUsageRow], since: Date, before end: Date? = nil) -> CostTotal {
         var total = CostTotal()
-        for priced in rows where priced.row.day >= since && priced.row.requests > 0 {
+        for priced in rows where priced.row.day >= since && priced.row.day < (end ?? .distantFuture) && priced.row.requests > 0 {
             if let cost = priced.costUSD {
                 total.amount += cost
                 total.pricedRows += 1
@@ -487,5 +492,35 @@ nonisolated enum DashboardMath {
                 usedPercent: min(100, max(0, sample.usedPercent)), index: index
             )
         }
+    }
+}
+
+/// Where this month's API-equivalent cost is headed, and how that compares with last month's total.
+nonisolated struct MonthForecast: Equatable, Sendable {
+    /// nil until 5% of the month has passed.
+    var projected: Double?
+    /// `projected` against last month's total: 0.12 is 12% more. nil without a projection or a cost last month.
+    var change: Double?
+
+    static func make(monthToDate: Double, lastMonth: Double?, now: Date, calendar: Calendar) -> MonthForecast {
+        guard let month = calendar.dateInterval(of: .month, for: now),
+              let projected = projection(of: monthToDate, month: month, now: now) else { return MonthForecast() }
+        let change = lastMonth.flatMap { $0 > 0 ? projected / $0 - 1 : nil }
+        return MonthForecast(projected: projected, change: change)
+    }
+
+    /// The month's total at its average rate so far, through `Pace` so it waits for the same share of the month to
+    /// pass as a bar's pace does.
+    static func projection(of amount: Double, month: DateInterval, now: Date) -> Double? {
+        let window = UsageWindow(id: "month", label: "Month", usedPercent: 1, windowMinutes: Int(month.duration / 60), resetsAt: month.end)
+        guard let pace = Pace.compute(window, now: now), pace.fractionElapsed > 0 else { return nil }
+        return amount / pace.fractionElapsed
+    }
+
+    /// "+12% vs September", with a hyphen for a drop as the pace verdicts write it.
+    static func changeText(_ change: Double, lastMonthName: String) -> String {
+        let percent = Int((change * 100).rounded())
+        guard percent != 0 else { return "Same as \(lastMonthName)" }
+        return "\(percent > 0 ? "+" : "")\(percent)% vs \(lastMonthName)"
     }
 }
