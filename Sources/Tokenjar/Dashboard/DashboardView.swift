@@ -5,13 +5,13 @@ struct DashboardView: View {
     @Environment(AppModel.self) private var model
     // Explicit State storage: the SDK's @State is a macro whose plugin ships only with Xcode.
     private let rangeState: State<DashboardRange>
-    private let groupingState: State<UsageGrouping>
+    private let splitState: State<DailySplit>
     private let weeklySpendState = State(initialValue: false)
     private let contentState = State(initialValue: DashboardContent())
 
-    init(range: DashboardRange = .week, grouping: UsageGrouping = .model) {
+    init(range: DashboardRange = .week, split: DailySplit = .cost(.model)) {
         rangeState = State(initialValue: range)
-        groupingState = State(initialValue: grouping)
+        splitState = State(initialValue: split)
     }
 
     /// Reads no clock: the pieces that count down are subviews that read `model.now`, so a tick does not rebuild the page.
@@ -29,7 +29,7 @@ struct DashboardView: View {
             ScrollView {
                 DashboardDetail(
                     account: account, accounts: accounts, content: contentState.wrappedValue,
-                    range: rangeState.projectedValue, groupingSelection: groupingState.projectedValue,
+                    range: rangeState.projectedValue, splitSelection: splitState.projectedValue,
                     weeklySpend: weeklySpendState.projectedValue
                 )
                 .padding(20)
@@ -54,18 +54,18 @@ private struct DashboardDetail: View {
     var accounts: [AccountConfig]
     var content: DashboardContent
     var rangeBinding: Binding<DashboardRange>
-    var groupingSelection: Binding<UsageGrouping>
+    var splitSelection: Binding<DailySplit>
     var weeklySpend: Binding<Bool>
 
     init(
         account: AccountConfig?, accounts: [AccountConfig], content: DashboardContent, range: Binding<DashboardRange>,
-        groupingSelection: Binding<UsageGrouping>, weeklySpend: Binding<Bool>
+        splitSelection: Binding<DailySplit>, weeklySpend: Binding<Bool>
     ) {
         self.account = account
         self.accounts = accounts
         self.content = content
         self.rangeBinding = range
-        self.groupingSelection = groupingSelection
+        self.splitSelection = splitSelection
         self.weeklySpend = weeklySpend
     }
 
@@ -323,24 +323,30 @@ private struct DashboardDetail: View {
         )
     }
 
-    private var groupingOptions: [UsageGrouping] {
-        account == nil ? UsageGrouping.allCases : UsageGrouping.allCases.filter { $0 != .account }
+    private var splitOptions: [DailySplit] {
+        let groupings = account == nil ? UsageGrouping.allCases : UsageGrouping.allCases.filter { $0 != .account }
+        return groupings.map(DailySplit.cost) + [.tokenType]
     }
 
-    private var grouping: UsageGrouping {
-        groupingOptions.contains(groupingSelection.wrappedValue) ? groupingSelection.wrappedValue : .model
+    private var split: DailySplit {
+        splitOptions.contains(splitSelection.wrappedValue) ? splitSelection.wrappedValue : .cost(.model)
+    }
+
+    /// nil while the card shows tokens by type.
+    private var grouping: UsageGrouping? {
+        if case .cost(let grouping) = split { grouping } else { nil }
     }
 
     private var breakdown: SpendBreakdown {
-        content.spend[grouping] ?? SpendBreakdown()
+        grouping.map { content.spend[$0] ?? SpendBreakdown() } ?? content.tokenMix
     }
 
     private func spendCard(emptyMessage: String?) -> some View {
-        DashboardCard(title: "Daily spend", subtitle: spendSubtitle) {
+        DashboardCard(title: grouping == nil ? "Daily tokens" : "Daily spend", subtitle: spendSubtitle) {
             // Regrouping an empty chart changes nothing, so the control would only invite a click that does nothing.
             if emptyMessage == nil {
-                Picker("Group by", selection: Binding(get: { grouping }, set: { groupingSelection.wrappedValue = $0 })) {
-                    ForEach(groupingOptions, id: \.self) { Text($0.title).tag($0) }
+                Picker("Group by", selection: Binding(get: { split }, set: { splitSelection.wrappedValue = $0 })) {
+                    ForEach(splitOptions, id: \.self) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -355,7 +361,7 @@ private struct DashboardDetail: View {
                         DashboardEmptyState(systemImage: "chart.bar.xaxis", message: emptyMessage)
                     } else {
                         SpendChart(
-                            contentKey: content.key, grouping: grouping, range: content.key?.range ?? range, breakdown: breakdown,
+                            contentKey: content.key, split: split, range: content.key?.range ?? range, breakdown: breakdown,
                             periods: content.periods, colors: spendColors, labels: spendLabels
                         )
                         .equatable()
@@ -368,7 +374,13 @@ private struct DashboardDetail: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
-                if emptyMessage == nil, !breakdown.unpricedModels.isEmpty {
+                if emptyMessage == nil, grouping == nil, let line = DashboardMath.tokenMixLine(breakdown) {
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                if emptyMessage == nil, grouping != nil, !breakdown.unpricedModels.isEmpty {
                     Text("Not priced: \(breakdown.unpricedModelNames)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -379,7 +391,9 @@ private struct DashboardDetail: View {
     }
 
     private var spendSubtitle: String {
-        breakdown.isEstimate
+        // Claude Code and Codex count reasoning as output and opencode's is added to it, so every harness reads alike.
+        if grouping == nil { return "Tokens per day, \(range.dayCaption) · output includes reasoning" }
+        return breakdown.isEstimate
             ? "API-equivalent cost per day, \(range.dayCaption) · est. from public prices"
             : "Cost per day, \(range.dayCaption)"
     }
@@ -411,12 +425,14 @@ private struct DashboardDetail: View {
     }
 
     private var spendLabels: [String] {
-        breakdown.groups.map { DashboardMath.displayGroup($0, by: grouping, accountNames: content.accountNames) }
+        guard let grouping else { return breakdown.groups.map { TokenKind(rawValue: $0)?.title ?? $0 } }
+        return breakdown.groups.map { DashboardMath.displayGroup($0, by: grouping, accountNames: content.accountNames) }
     }
 
     /// Accounts keep the color they have in the limits chart; other groupings color by rank in the legend.
     private var spendColors: [Color] {
         breakdown.groups.enumerated().map { index, group in
+            if grouping == nil { return TokenKind(rawValue: group).map(DashboardPalette.tokenKind) ?? DashboardPalette.other }
             if group == DashboardMath.otherGroup { return DashboardPalette.other }
             if grouping == .account { return DashboardPalette.series(content.accountSlotByName[group] ?? .max) }
             return DashboardPalette.spend(index)
@@ -552,13 +568,18 @@ private struct WindowTile: View {
     }
 }
 
-private extension UsageGrouping {
+/// What the daily card stacks: cost split by a usage grouping, or tokens split by kind.
+enum DailySplit: Hashable {
+    case cost(UsageGrouping)
+    case tokenType
+
     var title: String {
         switch self {
-        case .model: "Model"
-        case .harness: "Harness"
-        case .project: "Project"
-        case .account: "Account"
+        case .cost(.model): "Model"
+        case .cost(.harness): "Harness"
+        case .cost(.project): "Project"
+        case .cost(.account): "Account"
+        case .tokenType: "Tokens"
         }
     }
 }

@@ -179,8 +179,8 @@ struct DashboardMathTests {
         #expect(spend.groups == ["m8", "m7", "m6", DashboardMath.otherGroup])
         #expect(spend.segments.map(\.group) == ["m8", "m7", "m6", DashboardMath.otherGroup])
         let other = spend.segments.first { $0.group == DashboardMath.otherGroup }
-        #expect(other?.cost == 15)
-        #expect(spend.segments.reduce(0) { $0 + $1.cost } == 36)
+        #expect(other?.value == 15)
+        #expect(spend.segments.reduce(0) { $0 + $1.value } == 36)
     }
 
     @Test func spendDoesNotFoldASingleGroup() {
@@ -200,8 +200,8 @@ struct DashboardMathTests {
         let byProject = DashboardMath.dailySpend(rows, by: .project, since: day(-6), limit: 6)
         #expect(byProject.groups == ["api", DashboardMath.noProject])
         #expect(byProject.segments == [
-            SpendSegment(day: day(-1), group: "api", cost: 5),
-            SpendSegment(day: day(0), group: DashboardMath.noProject, cost: 2),
+            SpendSegment(day: day(-1), group: "api", value: 5),
+            SpendSegment(day: day(0), group: DashboardMath.noProject, value: 2),
         ])
         #expect(byProject.unpricedModels == ["glm"])
         #expect(byProject.hasUsage)

@@ -31,6 +31,17 @@ enum DashboardPalette {
 
     static let other = pair(0xA3A29C, 0x6B6A66)
 
+    /// One fixed spend slot per kind. Cache reads fill most of a bar in calm blue; output, usually the thinnest, gets
+    /// orange. Neighbours in the stack never get the two warm colors.
+    static func tokenKind(_ kind: TokenKind) -> Color {
+        switch kind {
+        case .cacheRead: spend[0]
+        case .output: spend[1]
+        case .input: spend[2]
+        case .cacheWrite: spend[3]
+        }
+    }
+
     static func series(_ index: Int) -> Color {
         series.indices.contains(index) ? series[index] : other
     }

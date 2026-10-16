@@ -62,6 +62,8 @@ nonisolated struct DashboardContent: Sendable {
     /// The selected account's spend-limit samples, for its spend chart; nil for All and for an account without one.
     var spendLimit: SpendLimitHistory?
     var spend: [UsageGrouping: SpendBreakdown] = [:]
+    /// Tokens per day by `TokenKind` over the range on screen.
+    var tokenMix = SpendBreakdown()
     var projects: [ProjectSummary] = []
     /// Keyed by the name the spend chart groups accounts by, so an account's bars match its limits line.
     var accountSlotByName: [String: Int] = [:]
@@ -119,6 +121,7 @@ nonisolated struct DashboardContent: Sendable {
         for grouping in UsageGrouping.allCases {
             content.spend[grouping] = DashboardMath.dailySpend(rows, by: grouping, since: firstDay, limit: spendGroupLimit, accountNames: names)
         }
+        content.tokenMix = DashboardMath.tokenMix(rows, since: firstDay)
         content.projects = DashboardMath.topProjects(rows, since: firstDay, limit: projectLimit)
 
         // A day before the range shows whether history reaches back to its start, or begins inside it.

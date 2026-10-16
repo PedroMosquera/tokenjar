@@ -217,7 +217,7 @@ struct DashboardSectionsTests {
 
         let unpriced = SpendBreakdown(unpricedModels: ["kimi-k3-20260101", "kimi-k3"], hasUsage: true)
         #expect(DashboardSections.spendEmptyMessage(account: go, content: content, breakdown: unpriced, range: .week) == "No prices for these models: kimi-k3.")
-        let charted = SpendBreakdown(groups: ["kimi-k3"], segments: [SpendSegment(day: now, group: "kimi-k3", cost: 0.5)], hasUsage: true)
+        let charted = SpendBreakdown(groups: ["kimi-k3"], segments: [SpendSegment(day: now, group: "kimi-k3", value: 0.5)], hasUsage: true)
         #expect(DashboardSections.spendEmptyMessage(account: go, content: content, breakdown: charted, range: .week) == nil)
     }
 

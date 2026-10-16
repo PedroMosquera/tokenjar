@@ -131,13 +131,32 @@ nonisolated struct CacheHitRates: Equatable, Sendable {
 nonisolated struct SpendSegment: Identifiable, Equatable, Sendable {
     var day: Date
     var group: String
-    var cost: Double
+    /// US dollars, or a token count in the token mix.
+    var value: Double
 
     var id: String { "\(day.timeIntervalSinceReferenceDate)|\(group)" }
 }
 
+/// What the token mix stacks, base of the stack first: cache reads usually dwarf the rest, so the small kinds sit on top
+/// where they stay visible.
+nonisolated enum TokenKind: String, CaseIterable, Sendable {
+    case cacheRead
+    case cacheWrite
+    case input
+    case output
+
+    var title: String {
+        switch self {
+        case .cacheRead: "Cache read"
+        case .cacheWrite: "Cache write"
+        case .input: "Input"
+        case .output: "Output"
+        }
+    }
+}
+
 nonisolated struct SpendBreakdown: Equatable, Sendable {
-    /// Legend order: highest total cost first, "Other" last.
+    /// Legend order: highest total cost first, "Other" last; in the token mix, stack order.
     var groups: [String] = []
     /// Sorted by day, then by legend order, so stacks put the largest group at the base.
     var segments: [SpendSegment] = []
@@ -191,9 +210,63 @@ nonisolated enum DashboardMath {
     static let otherGroup = "Other"
     static let noProject = "No project"
 
-    /// Same sum as `UsageEvent.totalTokens`; reasoning tokens are already part of output.
     static func tokens(_ row: DailyUsageRow) -> Int {
-        row.inputTokens + row.outputTokens + row.cacheReadTokens + row.cacheWrite5mTokens + row.cacheWrite1hTokens
+        TokenKind.allCases.reduce(0) { $0 + tokens(row, $1) }
+    }
+
+    /// Output with reasoning counted once: Claude Code and Codex include reasoning in output, while opencode stores it
+    /// beside output (its `tokens.total` is input, output, reasoning and cache), so only opencode's is added.
+    static func outputTokens(_ row: DailyUsageRow) -> Int {
+        row.outputTokens + (row.harness == .opencode ? row.reasoningTokens : 0)
+    }
+
+    static func tokens(_ row: DailyUsageRow, _ kind: TokenKind) -> Int {
+        switch kind {
+        case .cacheRead: row.cacheReadTokens
+        case .cacheWrite: row.cacheWrite5mTokens + row.cacheWrite1hTokens
+        case .input: row.inputTokens
+        case .output: outputTokens(row)
+        }
+    }
+
+    /// Daily tokens stacked by `TokenKind`, priced or not. Groups are `TokenKind` raw values in stack order, leaving out
+    /// kinds with no tokens in range.
+    static func tokenMix(_ rows: [PricedUsageRow], since: Date) -> SpendBreakdown {
+        struct Key: Hashable { var day: Date; var kind: TokenKind }
+        var sums: [Key: Int] = [:]
+        for priced in rows where priced.row.day >= since && priced.row.requests > 0 {
+            for kind in TokenKind.allCases {
+                let count = tokens(priced.row, kind)
+                if count > 0 { sums[Key(day: priced.row.day, kind: kind), default: 0] += count }
+            }
+        }
+        func rank(_ kind: TokenKind) -> Int { TokenKind.allCases.firstIndex(of: kind) ?? 0 }
+        var mix = SpendBreakdown()
+        mix.groups = TokenKind.allCases.filter { kind in sums.keys.contains { $0.kind == kind } }.map(\.rawValue)
+        mix.segments = sums
+            .sorted { a, b in a.key.day != b.key.day ? a.key.day < b.key.day : rank(a.key.kind) < rank(b.key.kind) }
+            .map { SpendSegment(day: $0.key.day, group: $0.key.kind.rawValue, value: Double($0.value)) }
+        mix.hasUsage = !mix.segments.isEmpty
+        return mix
+    }
+
+    /// Each kind's total and share of the range, output first: the totals keep a kind readable that is a sliver in the bars.
+    @MainActor static func tokenMixLine(_ mix: SpendBreakdown, locale: Locale = .autoupdatingCurrent) -> String? {
+        var totals: [String: Double] = [:]
+        for segment in mix.segments { totals[segment.group, default: 0] += segment.value }
+        let all = totals.values.reduce(0, +)
+        guard all > 0 else { return nil }
+        return mix.groups.reversed().compactMap { group in
+            guard let kind = TokenKind(rawValue: group), let total = totals[group] else { return nil }
+            return "\(kind.title) \(Format.tokens(Int(total), locale: locale)) (\(share(total / all, locale: locale)))"
+        }.joined(separator: " · ")
+    }
+
+    /// "0.4%" and "<0.1%" where a whole percent would read as nothing; whole percents from 10% up.
+    static func share(_ fraction: Double, locale: Locale = .autoupdatingCurrent) -> String {
+        let percent = fraction * 100
+        if percent > 0, percent < 0.1 { return "<" + 0.1.formatted(.number.locale(locale)) + "%" }
+        return percent.formatted(.number.precision(.fractionLength(percent < 10 ? 1 : 0)).locale(locale)) + "%"
     }
 
     static func cost(_ rows: [PricedUsageRow], since: Date, before end: Date? = nil) -> CostTotal {
@@ -314,7 +387,7 @@ nonisolated enum DashboardMath {
             let group = keptSet.contains(entry.group) ? entry.group : otherGroup
             sums[Key(day: entry.row.day, group: group), default: 0] += entry.cost
         }
-        breakdown.segments = sums.map { SpendSegment(day: $0.key.day, group: $0.key.group, cost: $0.value) }.sorted { a, b in
+        breakdown.segments = sums.map { SpendSegment(day: $0.key.day, group: $0.key.group, value: $0.value) }.sorted { a, b in
             a.day != b.day ? a.day < b.day : (order[a.group] ?? .max) < (order[b.group] ?? .max)
         }
         return breakdown

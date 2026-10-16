@@ -3,9 +3,9 @@ import SwiftUI
 import TokenjarCore
 
 struct SpendChart: View, Equatable {
-    /// With `grouping` and `range`, all that `breakdown`, `periods`, `colors` and `labels` are built from.
+    /// With `split` and `range`, all that `breakdown`, `periods`, `colors` and `labels` are built from.
     var contentKey: DashboardLoadKey?
-    var grouping: UsageGrouping
+    var split: DailySplit
     var range: DashboardRange
     var breakdown: SpendBreakdown
     var periods: DashboardPeriods
@@ -14,7 +14,7 @@ struct SpendChart: View, Equatable {
     var labels: [String]
 
     static func == (a: SpendChart, b: SpendChart) -> Bool {
-        a.contentKey == b.contentKey && a.grouping == b.grouping && a.range == b.range
+        a.contentKey == b.contentKey && a.split == b.split && a.range == b.range
     }
 
     /// Explicit State storage: the SDK's @State is a macro whose plugin ships only with Xcode.
@@ -28,7 +28,7 @@ struct SpendChart: View, Equatable {
             ForEach(breakdown.segments) { segment in
                 BarMark(
                     x: .value("Day", segment.day, unit: .day),
-                    y: .value("Cost", segment.cost),
+                    y: .value(split == .tokenType ? "Tokens" : "Cost", segment.value),
                     width: .ratio(days.count > 7 ? 0.7 : 0.5)
                 )
                 .foregroundStyle(by: .value("Group", label(for: segment.group)))
@@ -49,7 +49,7 @@ struct SpendChart: View, Equatable {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine().foregroundStyle(Color.primary.opacity(0.08))
                 AxisValueLabel {
-                    if let v = value.as(Double.self) { DashboardAxis.yLabel(Format.money(v)) }
+                    if let v = value.as(Double.self) { DashboardAxis.yLabel(text(v)) }
                 }
             }
         }
@@ -83,22 +83,24 @@ struct SpendChart: View, Equatable {
     }
 
     private func tooltip(for day: Date) -> some View {
-        var rows: [(label: String, color: Color, cost: Double)] = []
+        var rows: [(label: String, color: Color, value: Double)] = []
         for segment in breakdown.segments where segment.day == day {
             let name = label(for: segment.group)
             if let index = rows.firstIndex(where: { $0.label == name }) {
-                rows[index].cost += segment.cost
+                rows[index].value += segment.value
             } else {
-                rows.append((name, color(for: segment.group), segment.cost))
+                rows.append((name, color(for: segment.group), segment.value))
             }
         }
-        let total = rows.reduce(0) { $0 + $1.cost }
+        let total = rows.reduce(0) { $0 + $1.value }
+        // A token kind can be a sliver of its bar, so its share of the day says what the height cannot.
+        let showsShare = split == .tokenType && total > 0
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(day.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 8)
-                Text(Format.money(total)).monospacedDigit().fontWeight(.semibold)
+                Text(text(total)).monospacedDigit().fontWeight(.semibold)
             }
             .font(.caption)
             ForEach(rows.reversed(), id: \.label) { row in
@@ -106,7 +108,10 @@ struct SpendChart: View, Equatable {
                     Circle().fill(row.color).frame(width: 7, height: 7)
                     Text(row.label).lineLimit(1)
                     Spacer(minLength: 8)
-                    Text(Format.money(row.cost)).monospacedDigit()
+                    if showsShare {
+                        Text(DashboardMath.share(row.value / total)).monospacedDigit().foregroundStyle(.secondary)
+                    }
+                    Text(text(row.value)).monospacedDigit()
                 }
                 .font(.caption)
             }
@@ -115,6 +120,10 @@ struct SpendChart: View, Equatable {
         .frame(width: 220)
         .background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.1)))
+    }
+
+    private func text(_ value: Double) -> String {
+        split == .tokenType ? Format.tokens(Int(value.rounded())) : Format.money(value)
     }
 
     private func color(for group: String) -> Color {
