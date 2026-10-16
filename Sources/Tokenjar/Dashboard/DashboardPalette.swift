@@ -31,6 +31,29 @@ enum DashboardPalette {
 
     static let other = pair(0xA3A29C, 0x6B6A66)
 
+    /// One fixed spend slot per kind. Cache reads fill most of a bar in calm blue; output, usually the thinnest, gets
+    /// orange. Neighbours in the stack never get the two warm colors.
+    static func tokenKind(_ kind: TokenKind) -> Color {
+        switch kind {
+        case .cacheRead: spend[0]
+        case .output: spend[1]
+        case .input: spend[2]
+        case .cacheWrite: spend[3]
+        }
+    }
+
+    /// The activity calendar's four levels, lightest first: the default sequential blue ramp, steps 250, 350, 500 and 650
+    /// on light and 600, 450, 300 and 150 on dark, where more reads brighter. Both pass the dataviz validator's ordinal
+    /// checks, the faintest clearing 2:1 against the card.
+    static let activity: [Color] = [
+        pair(0x86B6EF, 0x184F95),
+        pair(0x5598E7, 0x2A78D6),
+        pair(0x256ABF, 0x6DA7EC),
+        pair(0x104281, 0xB7D3F6),
+    ]
+
+    static let activityEmpty = Color.primary.opacity(0.07)
+
     static func series(_ index: Int) -> Color {
         series.indices.contains(index) ? series[index] : other
     }
