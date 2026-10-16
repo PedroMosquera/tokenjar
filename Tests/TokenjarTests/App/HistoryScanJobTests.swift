@@ -46,6 +46,7 @@ private nonisolated final class CountingStore: UsageStore, @unchecked Sendable {
     }
     func samples(accountID: String, windowID: String?, since: Date) throws -> [WindowSample] { try inner.samples(accountID: accountID, windowID: windowID, since: since) }
     func dailyUsage(accountIDs: [String]?, since: Date) throws -> [DailyUsageRow] { try inner.dailyUsage(accountIDs: accountIDs, since: since) }
+    func usage(accountIDs: [String]?, in interval: DateInterval) throws -> [DailyUsageRow] { try inner.usage(accountIDs: accountIDs, in: interval) }
     func latestSnapshots() throws -> [UsageSnapshot] { try inner.latestSnapshots() }
 }
 
@@ -65,6 +66,7 @@ private nonisolated final class RejectingStore: UsageStore, @unchecked Sendable 
     }
     func samples(accountID: String, windowID: String?, since: Date) throws -> [WindowSample] { try inner.samples(accountID: accountID, windowID: windowID, since: since) }
     func dailyUsage(accountIDs: [String]?, since: Date) throws -> [DailyUsageRow] { try inner.dailyUsage(accountIDs: accountIDs, since: since) }
+    func usage(accountIDs: [String]?, in interval: DateInterval) throws -> [DailyUsageRow] { try inner.usage(accountIDs: accountIDs, in: interval) }
     func latestSnapshots() throws -> [UsageSnapshot] { try inner.latestSnapshots() }
 }
 

@@ -95,6 +95,30 @@ struct UsageStoreContractTests {
         #expect(rows.map(\.day) == [nov1, nov2])
     }
 
+    /// A limit cycle resets at any hour, so its usage is cut at the reset itself, never at a local day.
+    @Test(arguments: StoreKind.allCases)
+    func usageInAnIntervalIsCutAtItsBoundsInsideADay(kind: StoreKind) throws {
+        let store = try kind.make(in: temp.url, calendar: tokyo)
+        let start = noon.addingTimeInterval(-3 * 3600)
+        let end = noon.addingTimeInterval(3 * 3600)
+        try store.upsert([
+            usageEvent("before", at: start.addingTimeInterval(-1), input: 1),
+            usageEvent("first", at: start, input: 10),
+            usageEvent("other-account", at: noon, account: "other", input: 1_000),
+            usageEvent("other-model", at: noon, model: "claude-sonnet-5", input: 100),
+            usageEvent("last", at: end.addingTimeInterval(-1), output: 20),
+            usageEvent("end", at: end, input: 10_000),
+        ])
+
+        let rows = canonical(try store.usage(accountIDs: ["acct"], in: DateInterval(start: start, end: end)))
+        #expect(rows.map(\.model) == ["claude-opus-5-5", "claude-sonnet-5"])
+        #expect(rows.map(\.requests) == [2, 1])
+        #expect(rows.map(\.inputTokens) == [10, 100])
+        #expect(rows.map(\.outputTokens) == [20, 0])
+        #expect(rows.map(\.unpricedOutputTokens) == [20, 0])
+        #expect(rows.allSatisfy { $0.day == start && $0.accountID == "acct" })
+    }
+
     @Test(arguments: StoreKind.allCases)
     func splitsReportedAndUnpricedTokensWithinARow(kind: StoreKind) throws {
         let store = try kind.make(in: temp.url, calendar: tokyo)

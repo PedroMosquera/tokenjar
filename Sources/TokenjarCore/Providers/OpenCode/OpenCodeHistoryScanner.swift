@@ -23,6 +23,10 @@ public struct OpenCodeHistoryScanner: HistoryScanner {
         OpenCodeLocalData.databaseFile(in: OpenCodeLocalData.dataDirectory(for: account, paths: paths, environment: environment))
     }
 
+    public func sharedSourceKey(for account: AccountConfig, paths: AppPaths) -> String? {
+        sha256Hex(databaseFile(for: account, paths: paths).standardizedFileURL.path)
+    }
+
     /// Checkpoints: the largest `time_updated` seen per table, keyed by `sha256Hex("<database path>#<table>")`. opencode
     /// rewrites a message row when cost and tokens land on completion, so `time_updated` is what moves.
     /// A missing database is not an error: opencode may not be used on this Mac.

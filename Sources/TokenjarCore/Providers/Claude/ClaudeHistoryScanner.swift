@@ -42,6 +42,11 @@ public struct ClaudeHistoryScanner: HistoryScanner {
         return ScanResult(events: events, checkpoints: next)
     }
 
+    /// The profile folder as Settings resolves it, so a default account and one naming `~/.claude` match.
+    public func sharedSourceKey(for account: AccountConfig, paths: AppPaths) -> String? {
+        SettingsLogic.resolvedProfile(account, paths: paths).map(sha256Hex)
+    }
+
     static func roots(_ account: AccountConfig, paths: AppPaths) -> [URL] {
         if let profileDir = account.profileDir { return [paths.expand(profileDir).appending(path: "projects")] }
         return [paths.home.appending(path: ".claude/projects"), paths.home.appending(path: ".config/claude/projects")]

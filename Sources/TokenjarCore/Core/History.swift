@@ -55,6 +55,9 @@ public protocol UsageStore: Sendable {
     /// One row per (local day, account, harness, model, project). Callers price rows per model first,
     /// then regroup with `UsageGrouping`, because a row that mixes models cannot be priced.
     func dailyUsage(accountIDs: [String]?, since: Date) throws -> [DailyUsageRow]
+    /// Usage from `interval.start` up to but not including `interval.end`, one row per (account, harness, model,
+    /// project), each with `day` set to `interval.start`. For spans that do not fall on local days, such as a limit's cycle.
+    func usage(accountIDs: [String]?, in interval: DateInterval) throws -> [DailyUsageRow]
     /// Latest stored snapshot per account, used to show last-known values right after launch.
     func latestSnapshots() throws -> [UsageSnapshot]
 }

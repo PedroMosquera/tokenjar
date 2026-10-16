@@ -130,6 +130,22 @@ struct DashboardContentLoadTests {
         #expect(content.series.map(\.id) == ["session", "weekly"])
         #expect(content.series.map(\.peaksOnly) == [true, false])
     }
+
+    @Test func oneAccountGetsWhatAPercentOfItsWeekBoughtAndAllGetsNothing() throws {
+        let model = model()
+        func event(_ key: String, _ offset: TimeInterval, tokens: Int) -> UsageEvent {
+            UsageEvent(
+                dedupeKey: key, timestamp: now.addingTimeInterval(offset), accountID: "claude-work", harness: .claudeCode,
+                model: "claude-opus-5-5", project: "tokenjar", inputTokens: tokens
+            )
+        }
+        // The week resets in 3 days, so its cycle began 4 days ago; the older event belongs to the cycle before.
+        try model.store?.upsert([event("in", -2 * 86_400, tokens: 7_000), event("before", -5 * 86_400, tokens: 1_000_000)])
+        let content = load(model, account: model.accounts.first, range: .week)
+        #expect(content.percentWorth.map(\.windowID) == ["weekly"])
+        #expect(content.percentWorth.first?.rows.map(\.tokensPerPercent) == [100])
+        #expect(load(model, range: .week).percentWorth.isEmpty)
+    }
 }
 
 struct DashboardDimTests {
