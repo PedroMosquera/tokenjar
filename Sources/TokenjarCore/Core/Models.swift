@@ -452,13 +452,15 @@ public struct UsageEvent: Codable, Hashable, Sendable {
     public var cacheWrite5mTokens: Int
     public var cacheWrite1hTokens: Int
     public var reasoningTokens: Int
+    /// Server-side web searches, billed per request on top of tokens.
+    public var webSearchRequests: Int
     /// Cost the harness itself recorded (opencode). nil means price it with `PriceTable`.
     public var reportedCostUSD: Double?
 
     public init(
         dedupeKey: String, timestamp: Date, accountID: String, harness: Harness, model: String, project: String?,
         inputTokens: Int = 0, outputTokens: Int = 0, cacheReadTokens: Int = 0, cacheWrite5mTokens: Int = 0,
-        cacheWrite1hTokens: Int = 0, reasoningTokens: Int = 0, reportedCostUSD: Double? = nil
+        cacheWrite1hTokens: Int = 0, reasoningTokens: Int = 0, webSearchRequests: Int = 0, reportedCostUSD: Double? = nil
     ) {
         self.dedupeKey = dedupeKey
         self.timestamp = timestamp
@@ -472,6 +474,7 @@ public struct UsageEvent: Codable, Hashable, Sendable {
         self.cacheWrite5mTokens = cacheWrite5mTokens
         self.cacheWrite1hTokens = cacheWrite1hTokens
         self.reasoningTokens = reasoningTokens
+        self.webSearchRequests = webSearchRequests
         self.reportedCostUSD = reportedCostUSD
     }
 
@@ -525,12 +528,13 @@ public struct DailyUsageRow: Codable, Hashable, Sendable {
     public var unpricedCacheReadTokens: Int
     public var unpricedCacheWrite5mTokens: Int
     public var unpricedCacheWrite1hTokens: Int
+    public var unpricedWebSearchRequests: Int
 
     public init(
         day: Date, accountID: String, harness: Harness, model: String, project: String?, requests: Int,
         inputTokens: Int, outputTokens: Int, cacheReadTokens: Int, cacheWrite5mTokens: Int, cacheWrite1hTokens: Int,
         reasoningTokens: Int, reportedCostUSD: Double?, unpricedInputTokens: Int, unpricedOutputTokens: Int,
-        unpricedCacheReadTokens: Int, unpricedCacheWrite5mTokens: Int, unpricedCacheWrite1hTokens: Int
+        unpricedCacheReadTokens: Int, unpricedCacheWrite5mTokens: Int, unpricedCacheWrite1hTokens: Int, unpricedWebSearchRequests: Int = 0
     ) {
         self.day = day
         self.accountID = accountID
@@ -550,5 +554,6 @@ public struct DailyUsageRow: Codable, Hashable, Sendable {
         self.unpricedCacheReadTokens = unpricedCacheReadTokens
         self.unpricedCacheWrite5mTokens = unpricedCacheWrite5mTokens
         self.unpricedCacheWrite1hTokens = unpricedCacheWrite1hTokens
+        self.unpricedWebSearchRequests = unpricedWebSearchRequests
     }
 }

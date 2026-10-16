@@ -1,26 +1,32 @@
 import Foundation
 
-/// USD per million tokens.
+/// USD per million tokens, and per 1,000 server-side web searches.
 public struct ModelPrice: Codable, Hashable, Sendable {
     public var input: Double
     public var output: Double
     public var cacheRead: Double
     public var cacheWrite5m: Double
     public var cacheWrite1h: Double
+    /// nil leaves a row's web searches unpriced.
+    public var webSearchPer1k: Double?
     public var source: String
     public var asOf: String
 
-    public init(input: Double, output: Double, cacheRead: Double, cacheWrite5m: Double, cacheWrite1h: Double, source: String, asOf: String) {
+    public init(
+        input: Double, output: Double, cacheRead: Double, cacheWrite5m: Double, cacheWrite1h: Double, webSearchPer1k: Double? = nil,
+        source: String, asOf: String
+    ) {
         self.input = input
         self.output = output
         self.cacheRead = cacheRead
         self.cacheWrite5m = cacheWrite5m
         self.cacheWrite1h = cacheWrite1h
+        self.webSearchPer1k = webSearchPer1k
         self.source = source
         self.asOf = asOf
     }
 
-    /// `source` and `asOf` are optional so a hand-written override entry needs only the five prices.
+    /// `webSearchPer1k`, `source` and `asOf` are optional so a hand-written override entry needs only the five token prices.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         input = try c.decode(Double.self, forKey: .input)
@@ -28,6 +34,7 @@ public struct ModelPrice: Codable, Hashable, Sendable {
         cacheRead = try c.decode(Double.self, forKey: .cacheRead)
         cacheWrite5m = try c.decode(Double.self, forKey: .cacheWrite5m)
         cacheWrite1h = try c.decode(Double.self, forKey: .cacheWrite1h)
+        webSearchPer1k = try c.decodeIfPresent(Double.self, forKey: .webSearchPer1k)
         source = try c.decodeIfPresent(String.self, forKey: .source) ?? ""
         asOf = try c.decodeIfPresent(String.self, forKey: .asOf) ?? ""
     }
@@ -77,9 +84,11 @@ public struct PriceTable: Sendable {
     }
 
     /// The model id to record for one request, so that a daily row never mixes two rates of one model.
-    /// Returns `model` unchanged unless the model bills every token of a request at a higher rate once its prompt is
-    /// over a length; such a request gets that tier's own price table id. `promptTokens` is input plus cache reads and writes.
-    public static func billedModel(_ model: String, promptTokens: Int) -> String {
+    /// A fast mode request becomes `<normalized id>+fast`, since fast mode has its own rates across the whole context window.
+    /// Otherwise returns `model` unchanged unless the model bills every token of a request at a higher rate once its prompt
+    /// is over a length; such a request gets that tier's own price table id. `promptTokens` is input plus cache reads and writes.
+    public static func billedModel(_ model: String, promptTokens: Int, fast: Bool = false) -> String {
+        if fast { return normalize(model) + fastModeSuffix }
         guard let tier = promptLengthTiers[normalize(model)], promptTokens > tier.over else { return model }
         return tier.model
     }
@@ -89,17 +98,21 @@ public struct PriceTable: Sendable {
         "claude-haiku-5-5": (over: 100_000, model: "claude-haiku-5-5>100k"),
     ]
 
+    /// https://platform.claude.com/docs/en/about-claude/pricing#fast-mode-pricing
+    static let fastModeSuffix = "+fast"
+
     public func priced(_ row: DailyUsageRow) -> PricedUsageRow {
         guard let price = price(for: row.model) else {
             return PricedUsageRow(row: row, costUSD: row.reportedCostUSD, isEstimate: false)
         }
-        let estimate = (
+        let tokens = (
             Double(row.unpricedInputTokens) * price.input
                 + Double(row.unpricedOutputTokens) * price.output
                 + Double(row.unpricedCacheReadTokens) * price.cacheRead
                 + Double(row.unpricedCacheWrite5mTokens) * price.cacheWrite5m
                 + Double(row.unpricedCacheWrite1hTokens) * price.cacheWrite1h
         ) / 1_000_000
+        let estimate = tokens + Double(row.unpricedWebSearchRequests) * (price.webSearchPer1k ?? 0) / 1_000
         return PricedUsageRow(row: row, costUSD: (row.reportedCostUSD ?? 0) + estimate, isEstimate: estimate != 0)
     }
 

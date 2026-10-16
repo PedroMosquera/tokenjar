@@ -131,6 +131,7 @@ struct DashboardMathTests {
     @Test func modelIdsReadWithoutTheirDateOrPriceTierSuffix() {
         #expect(DashboardMath.displayName("claude-haiku-4-5-20251001") == "claude-haiku-4-5")
         #expect(DashboardMath.displayName("claude-haiku-5-5>100k") == "claude-haiku-5-5 (long prompts)")
+        #expect(DashboardMath.displayName("claude-opus-5-5+fast") == "claude-opus-5-5 (fast mode)")
         #expect(DashboardMath.displayName("gpt-5.5-codex") == "gpt-5.5-codex")
         // Only an 8-digit date is a release suffix; a version number stays.
         #expect(DashboardMath.displayName("model-2025") == "model-2025")

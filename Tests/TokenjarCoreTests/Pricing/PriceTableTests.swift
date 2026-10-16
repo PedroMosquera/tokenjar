@@ -79,12 +79,16 @@ struct PriceTableTests {
 
     // MARK: Cost
 
-    func row(model: String = "claude-opus-5-5", reported: Double? = nil, input: Int = 0, output: Int = 0, cacheRead: Int = 0, cacheWrite5m: Int = 0, cacheWrite1h: Int = 0) -> DailyUsageRow {
+    func row(
+        model: String = "claude-opus-5-5", reported: Double? = nil, input: Int = 0, output: Int = 0, cacheRead: Int = 0, cacheWrite5m: Int = 0,
+        cacheWrite1h: Int = 0, webSearches: Int = 0
+    ) -> DailyUsageRow {
         DailyUsageRow(
             day: Date(timeIntervalSince1970: 0), accountID: "acct", harness: .claudeCode, model: model, project: nil, requests: 1,
             inputTokens: input, outputTokens: output, cacheReadTokens: cacheRead, cacheWrite5mTokens: cacheWrite5m, cacheWrite1hTokens: cacheWrite1h,
             reasoningTokens: 0, reportedCostUSD: reported, unpricedInputTokens: input, unpricedOutputTokens: output,
-            unpricedCacheReadTokens: cacheRead, unpricedCacheWrite5mTokens: cacheWrite5m, unpricedCacheWrite1hTokens: cacheWrite1h
+            unpricedCacheReadTokens: cacheRead, unpricedCacheWrite5mTokens: cacheWrite5m, unpricedCacheWrite1hTokens: cacheWrite1h,
+            unpricedWebSearchRequests: webSearches
         )
     }
 
@@ -114,6 +118,22 @@ struct PriceTableTests {
         let priced = table.priced(row(model: "glm-5.2", input: 1_000))
         #expect(priced.costUSD == nil)
         #expect(!priced.isEstimate)
+    }
+
+    @Test func webSearchesArePricedPerThousandOnTopOfTokens() throws {
+        var withSearch = table
+        withSearch.prices["claude-opus-5-5"]?.webSearchPer1k = 10
+
+        let priced = withSearch.priced(row(output: 1_000_000, webSearches: 3))
+
+        #expect(abs(try #require(priced.costUSD) - (20 + 0.03)) < 1e-9)
+        let searchesOnly = withSearch.priced(row(webSearches: 1))
+        #expect(abs(try #require(searchesOnly.costUSD) - 0.01) < 1e-12)
+        #expect(searchesOnly.isEstimate)
+    }
+
+    @Test func webSearchesWithoutAPublishedRateAddNothing() {
+        #expect(table.priced(row(output: 1_000_000, webSearches: 3)).costUSD == 20)
     }
 
     @Test func knownModelWithNoTokensCostsZero() {
@@ -148,7 +168,8 @@ struct PriceTableTests {
     @Test func bundledCacheReadsKeepThePublishedMultipliers() throws {
         let file = try PriceFile.decode(Data(contentsOf: Self.bundled))
         let published: [String: Double] = [
-            "claude-fable-5-1": 0.025, "claude-opus-5-5": 0.05, "claude-sonnet-5-5": 0.05, "gpt-6.1-sol": 0.05, "gpt-5.5-pro": 1,
+            "claude-fable-5-1": 0.025, "claude-opus-5-5": 0.05, "claude-opus-5-5+fast": 0.05, "claude-sonnet-5-5": 0.05, "gpt-6.1-sol": 0.05,
+            "gpt-5.5-pro": 1,
         ]
         for (id, price) in file.models {
             let expected = published[id] ?? 0.1
@@ -174,6 +195,35 @@ struct PriceTableTests {
     ])
     func billedModelSplitsOnlyModelsPricedByPromptLength(model: String, promptTokens: Int, expected: String) {
         #expect(PriceTable.billedModel(model, promptTokens: promptTokens) == expected)
+    }
+
+    @Test(arguments: [
+        ("claude-opus-5-5", true, "claude-opus-5-5+fast"),
+        ("claude-opus-5-5[1m]", true, "claude-opus-5-5+fast"),
+        ("claude-opus-5-20261001", true, "claude-opus-5+fast"),
+        ("claude-opus-5-5", false, "claude-opus-5-5"),
+        ("glm-5.2", true, "glm-5.2+fast"),
+    ])
+    func billedModelSplitsFastModeRequests(model: String, fast: Bool, expected: String) {
+        #expect(PriceTable.billedModel(model, promptTokens: 1_000, fast: fast) == expected)
+    }
+
+    /// Fast mode publishes its own input and output rates, and prompt caching multipliers apply on top of them.
+    @Test(arguments: [("claude-opus-5-5", 8.0, 40.0), ("claude-opus-5", 10.0, 50.0)])
+    func bundledTablePricesFastModeAtItsPublishedRates(model: String, input: Double, output: Double) throws {
+        let loaded = PriceTable.load(bundled: Self.bundled, override: nil)
+        let standard = try #require(loaded.price(for: model))
+        let fast = try #require(loaded.price(for: PriceTable.billedModel(model, promptTokens: 1_000, fast: true)))
+        #expect([fast.input, fast.output] == [input, output])
+        #expect(abs(fast.cacheRead / fast.input - standard.cacheRead / standard.input) < 1e-12)
+        #expect(fast.cacheWrite5m == input * 1.25 && fast.cacheWrite1h == input * 2)
+    }
+
+    @Test func bundledTablePricesWebSearchForEveryClaudeModel() throws {
+        let file = try PriceFile.decode(Data(contentsOf: Self.bundled))
+        for (id, price) in file.models {
+            #expect(price.webSearchPer1k == (id.hasPrefix("claude-") ? 10 : nil), "\(id) web search is \(String(describing: price.webSearchPer1k))")
+        }
     }
 
     @Test func bundledTableBillsLongHaiku55PromptsAtFiveTimesEveryRate() throws {

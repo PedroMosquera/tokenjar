@@ -210,13 +210,16 @@ nonisolated enum DashboardMath {
     }
 
     /// A model id as the spend legend, tooltip and "Not priced" line show it: no release date, and a price tier
-    /// (`PriceTable.billedModel`'s `>100k`) in words. Grouping keys keep the raw id.
+    /// (`PriceTable.billedModel`'s `>100k` or `+fast`) in words. Grouping keys keep the raw id.
     static func displayName(_ model: String) -> String {
         var base = model
         var tier = ""
         if let marker = base.firstIndex(of: ">") {
             tier = " (long prompts)"
             base = String(base[..<marker])
+        } else if base.hasSuffix("+fast") {
+            tier = " (fast mode)"
+            base = String(base.dropLast("+fast".count))
         }
         if let date = base.range(of: #"-\d{8}$"#, options: .regularExpression) {
             base.removeSubrange(date)

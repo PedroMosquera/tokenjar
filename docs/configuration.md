@@ -29,7 +29,7 @@ Tokenjar does not use your shell `PATH`. It looks in `~/.local/bin`, `/opt/homeb
 
 ## Model prices
 
-Costs are API-equivalent estimates from the prices in `Resources/pricing.json`, which records a source URL and date for each model. To change a price, or to price a model the bundled file does not know, put a `pricing.json` next to `config.json`. Each model there replaces the bundled entry with the same id. [design.md](design.md#pricing) describes the format and how model ids are matched.
+Costs are API-equivalent estimates from the prices in `Resources/pricing.json`, which records a source URL and date for each model. To change a price, or to price a model the bundled file does not know, put a `pricing.json` next to `config.json`. Each model there replaces the bundled entry with the same id, so copy `webSearchPer1k` into it if you want that model's web searches priced too. [design.md](design.md#pricing) describes the format and how model ids are matched.
 
 ## Several Macs
 

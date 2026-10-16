@@ -14,10 +14,10 @@ struct UsageStoreContractTests {
     @Test(arguments: StoreKind.allCases)
     func upsertKeepsTheLargerValuePerField(kind: StoreKind) throws {
         let store = try kind.make(in: temp.url, calendar: tokyo)
-        try store.upsert([usageEvent("k", at: noon, input: 100, output: 10, cacheRead: 7, cacheWrite5m: 5, cacheWrite1h: 1, reasoning: 3)])
-        try store.upsert([usageEvent("k", at: noon, input: 90, output: 40, cacheRead: 2, cacheWrite5m: 9, cacheWrite1h: 0, reasoning: 8)])
-        try store.upsert([usageEvent("k", at: noon, input: 120, output: 1, cacheRead: 9, cacheWrite5m: 1, cacheWrite1h: 2, reasoning: 1)])
-        try store.upsert([usageEvent("k", at: noon, input: 1, output: 1, cacheRead: 1, cacheWrite5m: 1, cacheWrite1h: 0, reasoning: 1)])
+        try store.upsert([usageEvent("k", at: noon, input: 100, output: 10, cacheRead: 7, cacheWrite5m: 5, cacheWrite1h: 1, reasoning: 3, webSearches: 1)])
+        try store.upsert([usageEvent("k", at: noon, input: 90, output: 40, cacheRead: 2, cacheWrite5m: 9, cacheWrite1h: 0, reasoning: 8, webSearches: 4)])
+        try store.upsert([usageEvent("k", at: noon, input: 120, output: 1, cacheRead: 9, cacheWrite5m: 1, cacheWrite1h: 2, reasoning: 1, webSearches: 2)])
+        try store.upsert([usageEvent("k", at: noon, input: 1, output: 1, cacheRead: 1, cacheWrite5m: 1, cacheWrite1h: 0, reasoning: 1, webSearches: 0)])
 
         let row = try #require(store.dailyUsage(accountIDs: nil, since: .distantPast).first)
         #expect(row.requests == 1)
@@ -27,6 +27,7 @@ struct UsageStoreContractTests {
         #expect(row.cacheWrite5mTokens == 9)
         #expect(row.cacheWrite1hTokens == 2)
         #expect(row.reasoningTokens == 8)
+        #expect(row.unpricedWebSearchRequests == 4)
     }
 
     /// Claude Code writes one transcript line per content block of a streamed response, each carrying the usage so far.
@@ -100,10 +101,13 @@ struct UsageStoreContractTests {
         try store.upsert([
             usageEvent(
                 "reported-1", at: noon, harness: .opencode, model: "glm-5.2", input: 100, output: 10, cacheRead: 1_000, cacheWrite5m: 19, cacheWrite1h: 23,
-                cost: 0.25
+                webSearches: 5, cost: 0.25
             ),
             usageEvent("reported-2", at: noon, harness: .opencode, model: "glm-5.2", input: 200, output: 20, cost: 0.5),
-            usageEvent("unpriced", at: noon, harness: .opencode, model: "glm-5.2", input: 7, output: 3, cacheRead: 11, cacheWrite5m: 13, cacheWrite1h: 17),
+            usageEvent(
+                "unpriced", at: noon, harness: .opencode, model: "glm-5.2", input: 7, output: 3, cacheRead: 11, cacheWrite5m: 13, cacheWrite1h: 17,
+                webSearches: 2
+            ),
             usageEvent("other-model", at: noon, harness: .opencode, model: "kimi-k3", input: 1),
         ])
 
@@ -122,6 +126,7 @@ struct UsageStoreContractTests {
         #expect(mixed.unpricedCacheReadTokens == 11)
         #expect(mixed.unpricedCacheWrite5mTokens == 13)
         #expect(mixed.unpricedCacheWrite1hTokens == 17)
+        #expect(mixed.unpricedWebSearchRequests == 2)
 
         let unreported = try #require(rows.first { $0.model == "kimi-k3" })
         #expect(unreported.reportedCostUSD == nil)
