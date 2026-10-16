@@ -707,6 +707,41 @@ struct BurnUpChartTests {
         #expect(BurnUpChart.isWorthDrawing([point(start, 0), point(end, 97)], start: start, end: end))
     }
 
+    @Test func aWindowAtItsLimitIsBlockedFromTheLiveValueToTheReset() {
+        let start = now.addingTimeInterval(-4 * 86_400)
+        let points = [BurnUpChart.Point(date: start, used: 0), BurnUpChart.Point(date: now, used: 100)]
+        let capped = window("weekly", "Week", used: 100, minutes: 10_080, resetIn: 3 * 86_400)
+        #expect(BurnUpChart.blockedSpan(window: capped, points: points) == now...capped.resetsAt!)
+        let nearly = window("weekly", "Week", used: 99, minutes: 10_080, resetIn: 3 * 86_400)
+        #expect(BurnUpChart.blockedSpan(window: nearly, points: points) == nil)
+    }
+
+    @Test func aWeekNamesEveryDayAndAMonthOnlyEnoughToFit() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+        let start = Date(timeIntervalSince1970: 1_791_590_400 + 9 * 3600)
+        let week = BurnUpChart.timeAxis(start: start, end: start.addingTimeInterval(7 * 86_400), calendar: calendar)
+        #expect(week.grid == LimitsTimeAxis(start...start.addingTimeInterval(7 * 86_400), calendar: calendar).grid)
+        // The part-days at either end are too narrow for a centred name at popover width, so only whole days are named.
+        #expect(week.labels.map(\.date) == (1...6).map { calendar.startOfDay(for: start).addingTimeInterval(Double($0) * 86_400 + 12 * 3600) })
+
+        let month = BurnUpChart.timeAxis(start: start, end: start.addingTimeInterval(30 * 86_400), calendar: calendar)
+        #expect(month.labels.count <= BurnUpChart.maxAxisLabels)
+        #expect(month.labels.count >= BurnUpChart.maxAxisLabels - 1)
+        // A grid line starts each named day, so no label sits apart from the day it names.
+        #expect(month.grid == month.labels.map { calendar.startOfDay(for: $0.date) }.filter { $0 > start })
+    }
+
+    @Test func theReadoutTakesTheLastValueAtOrBeforeThePointer() {
+        let start = now.addingTimeInterval(-4 * 86_400)
+        let points = [BurnUpChart.Point(date: start, used: 0), BurnUpChart.Point(date: start.addingTimeInterval(86_400), used: 60), BurnUpChart.Point(date: now, used: 100)]
+        #expect(BurnUpChart.used(at: start.addingTimeInterval(86_400 + 60), in: points) == 60)
+        #expect(BurnUpChart.used(at: now, in: points) == 100)
+        // Past the live value nothing has been measured yet.
+        #expect(BurnUpChart.used(at: now.addingTimeInterval(60), in: points) == nil)
+        #expect(BurnUpChart.used(at: start.addingTimeInterval(-60), in: points) == nil)
+    }
+
     @Test func prefersTheWeeklyWindowElseTheLongest() {
         let session = window("session", "5-hour", used: 10, resetIn: 3600)
         let weekly = window("weekly", "Week", used: 10, minutes: 10_080, resetIn: 86_400)
