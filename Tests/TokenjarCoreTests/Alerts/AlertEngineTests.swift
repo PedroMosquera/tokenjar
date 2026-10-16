@@ -13,6 +13,7 @@ struct AlertEngineTests {
     var thresholdsOnly: AppConfig {
         var config = AppConfig()
         config.alerts.projectedExhaustion = false
+        config.alerts.earlyResets = false
         return config
     }
 
@@ -219,6 +220,163 @@ struct AlertEngineTests {
         _ = run(&low, ok(session(10, resetsAt: resetsAt)), config: config)
         _ = run(&low, ok(session(79.9, resetsAt: resetsAt)), config: config)
         #expect(run(&low, ok(session(3, resetsAt: next)), config: config, at: resetsAt.addingTimeInterval(60)).events.isEmpty)
+    }
+
+    // MARK: Early resets
+
+    func weekly(_ used: Double, resetsAt: Date?) -> UsageWindow {
+        UsageWindow(id: "weekly", label: "Week", usedPercent: used, windowMinutes: 10_080, resetsAt: resetsAt)
+    }
+
+    var withEarlyResets: AppConfig {
+        var config = thresholdsOnly
+        config.alerts.earlyResets = true
+        return config
+    }
+
+    /// One poll an hour from `start`; the first poll of a fresh state is the launch baseline.
+    func pollHourly(_ state: inout AlertState, _ windows: [UsageWindow], config: AppConfig? = nil, from start: Date? = nil) -> [AlertOutcome] {
+        windows.enumerated().map { index, window in
+            run(&state, ok(window), config: config ?? withEarlyResets, at: (start ?? now).addingTimeInterval(Double(index) * 3600))
+        }
+    }
+
+    func earlyResetEvents(_ outcomes: [AlertOutcome]) -> [AlertEvent] {
+        outcomes.flatMap(\.events).filter { $0.kind == .earlyReset }
+    }
+
+    @Test func aCycleStartingDaysBeforeItsResetIsAnnouncedOnceTheNextPollAgrees() throws {
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(3 * 86_400), next = now.addingTimeInterval(2 * 3600 + 7 * 86_400)
+        let outcomes = pollHourly(&state, [
+            weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt), weekly(2, resetsAt: next), weekly(3, resetsAt: next), weekly(4, resetsAt: next),
+        ])
+        #expect(earlyResetEvents(Array(outcomes[..<3])).isEmpty, "one sample is not enough")
+        let event = try #require(earlyResetEvents([outcomes[3]]).first)
+        #expect(event.body == "Week limit reset early · now at 3% · next reset Fri 10:00")
+        #expect(event.title == "Claude · Work")
+        #expect(event.id == "claude-work|weekly|\(AlertEngine.cycleID(next))|early")
+        #expect(event.windowID == "weekly")
+        #expect(earlyResetEvents([outcomes[4]]).isEmpty)
+    }
+
+    @Test func usageClearedWhileTheResetTimeStaysPutIsAnEarlyReset() {
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(3 * 86_400)
+        let outcomes = pollHourly(&state, [
+            weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt),
+            weekly(1, resetsAt: resetsAt.addingTimeInterval(-120)), weekly(2, resetsAt: resetsAt.addingTimeInterval(90)),
+        ])
+        #expect(earlyResetEvents(outcomes).map(\.body) == ["Week limit reset early · now at 2% · next reset Mon 08:01"])
+    }
+
+    @Test func anOnScheduleResetIsNotEarly() {
+        var config = withEarlyResets
+        config.alerts.windowResets = true
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(2 * 3600), next = resetsAt.addingTimeInterval(7 * 86_400)
+        let outcomes = pollHourly(&state, [
+            weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt), weekly(2, resetsAt: next), weekly(3, resetsAt: next),
+        ], config: config)
+        #expect(outcomes[2].events.map(\.kind) == [.windowReset])
+        #expect(earlyResetEvents(outcomes).isEmpty)
+    }
+
+    /// The Mac's clock a few minutes behind the provider's makes a scheduled reset look early; reset times that wobble
+    /// by minutes are not a reset at all.
+    @Test func clockSkewAndResetTimeJitterAreNotEarly() {
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(4 * 3600), next = resetsAt.addingTimeInterval(7 * 86_400)
+        var outcomes = pollHourly(&state, [
+            weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt.addingTimeInterval(240)),
+            weekly(90, resetsAt: resetsAt.addingTimeInterval(-240)), weekly(91, resetsAt: resetsAt),
+        ])
+        outcomes.append(run(&state, ok(weekly(1, resetsAt: next)), config: withEarlyResets, at: resetsAt.addingTimeInterval(-3 * 60)))
+        outcomes.append(run(&state, ok(weekly(2, resetsAt: next)), config: withEarlyResets, at: resetsAt.addingTimeInterval(57 * 60)))
+        #expect(earlyResetEvents(outcomes).isEmpty)
+    }
+
+    @Test func earlyMeansAtLeastAnHourBeforeTheScheduledReset() {
+        func events(seenBefore lead: TimeInterval) -> [AlertEvent] {
+            var state = AlertState()
+            let resetsAt = now.addingTimeInterval(5 * 3600), next = resetsAt.addingTimeInterval(7 * 86_400)
+            var outcomes = pollHourly(&state, [weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt)])
+            let seen = resetsAt.addingTimeInterval(-lead)
+            outcomes.append(run(&state, ok(weekly(1, resetsAt: next)), config: withEarlyResets, at: seen))
+            outcomes.append(run(&state, ok(weekly(2, resetsAt: next)), config: withEarlyResets, at: seen.addingTimeInterval(600)))
+            return earlyResetEvents(outcomes)
+        }
+        #expect(events(seenBefore: 3600).count == 1)
+        #expect(events(seenBefore: 3599).isEmpty)
+    }
+
+    /// A lagging replica or a zero read that the next poll takes back.
+    @Test func aSampleThatBouncesBackIsNotAnEarlyReset() {
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(3 * 86_400)
+        let outcomes = pollHourly(&state, [
+            weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt), weekly(0, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt),
+            weekly(0, resetsAt: resetsAt.addingTimeInterval(7 * 86_400)), weekly(91, resetsAt: resetsAt), weekly(92, resetsAt: resetsAt),
+        ])
+        #expect(earlyResetEvents(outcomes).isEmpty)
+    }
+
+    @Test func anAnnouncedEarlyResetIsNotRepeatedAfterARelaunch() throws {
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(3 * 86_400), next = now.addingTimeInterval(7 * 86_400)
+        let first = pollHourly(&state, [weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt), weekly(2, resetsAt: next), weekly(3, resetsAt: next)])
+        #expect(earlyResetEvents(first).count == 1)
+
+        var restored = try JSONDecoder().decode(AlertState.self, from: JSONEncoder().encode(state))
+        let later = pollHourly(&restored, [weekly(3, resetsAt: next), weekly(4, resetsAt: next), weekly(5, resetsAt: next)], from: now.addingTimeInterval(4 * 3600))
+        #expect(earlyResetEvents(later).isEmpty)
+        #expect(earlyResetEvents(pollHourly(&state, [weekly(4, resetsAt: next), weekly(5, resetsAt: next)], from: now.addingTimeInterval(4 * 3600))).isEmpty)
+    }
+
+    /// Like every other alert, what the launch baseline sees is recorded, not announced.
+    @Test func anEarlyResetFirstSeenOnTheBaselinePollStaysQuiet() throws {
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(3 * 86_400), next = now.addingTimeInterval(7 * 86_400)
+        _ = pollHourly(&state, [weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt)])
+
+        var restored = try JSONDecoder().decode(AlertState.self, from: JSONEncoder().encode(state))
+        let later = pollHourly(&restored, [weekly(2, resetsAt: next), weekly(3, resetsAt: next)], from: now.addingTimeInterval(2 * 3600))
+        #expect(earlyResetEvents(later).isEmpty)
+    }
+
+    /// A provider's saved copy can hold an earlier, lower reading of the same cycle.
+    @Test func aSavedCopyNeverStartsAnEarlyReset() {
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(3 * 86_400)
+        _ = pollHourly(&state, [weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt)])
+        let saved = Result<UsageSnapshot, FetchError>.success(UsageSnapshot(
+            accountID: account.id, provider: .claude, windows: [weekly(20, resetsAt: resetsAt)], fetchedAt: now, source: "cache", liveCheckFailure: .network
+        ))
+        let outcomes = (2...3).map { run(&state, saved, config: withEarlyResets, at: now.addingTimeInterval(Double($0) * 3600)) }
+        #expect(earlyResetEvents(outcomes).isEmpty)
+    }
+
+    @Test func earlyResetAlertsCanBeTurnedOff() {
+        for change in [{ (config: inout AppConfig) in config.alerts.earlyResets = false }, { $0.alerts.enabled = false }] {
+            var config = withEarlyResets
+            change(&config)
+            var state = AlertState()
+            let resetsAt = now.addingTimeInterval(3 * 86_400), next = now.addingTimeInterval(7 * 86_400)
+            let outcomes = pollHourly(&state, [weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt), weekly(2, resetsAt: next), weekly(3, resetsAt: next)], config: config)
+            #expect(earlyResetEvents(outcomes).isEmpty)
+        }
+    }
+
+    /// With the plain reset alert on too, the early one replaces it rather than stacking a second notice for one reset.
+    @Test func anEarlyResetReplacesThePlainResetNotice() throws {
+        var config = withEarlyResets
+        config.alerts.windowResets = true
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(3 * 86_400), next = now.addingTimeInterval(7 * 86_400)
+        let outcomes = pollHourly(&state, [weekly(10, resetsAt: resetsAt), weekly(90, resetsAt: resetsAt), weekly(2, resetsAt: next), weekly(3, resetsAt: next)], config: config)
+        let plain = try #require(outcomes[2].events.first { $0.kind == .windowReset })
+        #expect(outcomes[3].events.map(\.kind) == [.earlyReset])
+        #expect(outcomes[3].withdrawals == [plain.id])
     }
 
     // MARK: Projection

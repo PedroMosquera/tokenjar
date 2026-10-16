@@ -53,7 +53,7 @@ struct ConfigStoreTests {
         try write(#"""
             {"version": 2, "refreshMinutes": 2, "launchAtLogin": true, "cliPaths": {"claude": "/opt/claude"},
              "menuBar": {"mode": "bars", "icon": "symbol:cpu", "warnAt": 60, "criticalAt": 90, "showResetCountdownWhenFull": false},
-             "alerts": {"enabled": false, "thresholds": [50], "projectedExhaustion": false, "windowResets": true, "sourceProblems": false},
+             "alerts": {"enabled": false, "thresholds": [50], "projectedExhaustion": false, "windowResets": true, "earlyResets": false, "sourceProblems": false},
              "accounts": [{"id": "claude", "label": "Work", "enabled": false, "profileDir": "~/.claude-alt",
                            "credential": {"keychain": {"account": "x"}}, "showInMenuBar": false, "refreshMinutes": 1,
                            "alertThresholds": [50], "dashboardURL": "https://x.example"}]}
@@ -102,7 +102,7 @@ struct ConfigStoreTests {
         new.launchAtLogin = true
         new.cliPaths = ["claude": "/opt/claude"]
         new.menuBar = MenuBarConfig(mode: .icon, icon: .logoClaude, warnAt: 60, criticalAt: 90, showResetCountdownWhenFull: false)
-        new.alerts = AlertConfig(enabled: false, thresholds: [70], projectedExhaustion: false, windowResets: true, sourceProblems: false)
+        new.alerts = AlertConfig(enabled: false, thresholds: [70], projectedExhaustion: false, windowResets: true, earlyResets: false, sourceProblems: false)
 
         #expect(ConfigStore.apply(from: old, to: new, onto: old) == new)
     }
@@ -226,7 +226,7 @@ struct ConfigStoreTests {
     }
 
     enum NewLeaf: String, CaseIterable, Sendable {
-        case paceDays, spendDisplay, accountOrder, dailyBudget, monthlyBudget
+        case paceDays, spendDisplay, accountOrder, dailyBudget, monthlyBudget, earlyResets
 
         func edit(_ config: inout AppConfig) {
             switch self {
@@ -235,6 +235,7 @@ struct ConfigStoreTests {
             case .accountOrder: config.accountOrder = .tightestFirst
             case .dailyBudget: config.accounts[0].dailyBudget = DailyBudget(amount: 100)
             case .monthlyBudget: config.accounts[0].monthlyBudget = 200
+            case .earlyResets: config.alerts.earlyResets = false
             }
         }
 
@@ -247,6 +248,7 @@ struct ConfigStoreTests {
             case .accountOrder: ["accountOrder": "byProvider"]
             case .dailyBudget: ["accounts": [["id": "claude", "dailyBudget": ["amount": 50]]]]
             case .monthlyBudget: ["accounts": [["id": "claude", "monthlyBudget": 500]]]
+            case .earlyResets: ["alerts": ["earlyResets": false]]
             }
         }
     }
@@ -430,6 +432,7 @@ struct ConfigStoreTests {
         let json = #"{"alerts": {"thresholds": [70]}, "accounts": [{"id": "copilot", "provider": "copilot"}]}"#
         let config = try JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
         #expect(config.alerts.thresholds == [70])
+        #expect(config.alerts.earlyResets)
         #expect(config.paceDays == .everyDay)
         #expect(config.accounts[0].dailyBudget == nil)
         #expect(config.accounts[0].monthlyBudget == nil)

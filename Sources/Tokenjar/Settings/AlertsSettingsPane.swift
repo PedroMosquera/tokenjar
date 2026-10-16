@@ -48,6 +48,10 @@ struct AlertsSettingsPane: View {
                     Text("A window resets")
                     Text("When a limit window starts over after reaching 80% or more.")
                 }
+                Toggle(isOn: model.configBinding(\.alerts.earlyResets)) {
+                    Text("A provider resets a window early")
+                    Text("When a limit window starts over an hour or more before its scheduled reset, so there is room again sooner than planned. Once per reset.")
+                }
                 Toggle(isOn: model.configBinding(\.alerts.sourceProblems)) {
                     Text("An account stops updating")
                     Text("Its command is missing or out of date, it is signed out, or its key or subscription stops working. Network hiccups never alert. Once per problem.")
