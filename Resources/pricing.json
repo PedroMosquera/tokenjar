@@ -4,42 +4,52 @@
   "unit": "per_million_tokens",
   "models": {
     "claude-fable-5-1": {
-      "input": 10, "output": 50, "cacheRead": 0.25, "cacheWrite5m": 12.5, "cacheWrite1h": 20,
-      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+      "input": 10, "output": 50, "cacheRead": 0.25, "cacheWrite5m": 12.5, "cacheWrite1h": 20, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-16"
     },
     "claude-fable-5": {
-      "input": 10, "output": 50, "cacheRead": 1, "cacheWrite5m": 12.5, "cacheWrite1h": 20,
-      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+      "input": 10, "output": 50, "cacheRead": 1, "cacheWrite5m": 12.5, "cacheWrite1h": 20, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-16"
     },
     "claude-opus-5-5": {
-      "input": 4, "output": 20, "cacheRead": 0.2, "cacheWrite5m": 5, "cacheWrite1h": 8,
-      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+      "input": 4, "output": 20, "cacheRead": 0.2, "cacheWrite5m": 5, "cacheWrite1h": 8, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-16"
+    },
+    "claude-opus-5-5+fast": {
+      "input": 8, "output": 40, "cacheRead": 0.4, "cacheWrite5m": 10, "cacheWrite1h": 16, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing#fast-mode-pricing", "asOf": "2026-10-16",
+      "note": "Claude Opus 5.5 requests whose usage.speed is fast. Input and output are the published fast mode rates; cache rates apply Opus 5.5's prompt caching multipliers on top, as the page says."
     },
     "claude-opus-5": {
-      "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite5m": 6.25, "cacheWrite1h": 10,
-      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+      "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite5m": 6.25, "cacheWrite1h": 10, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-16"
+    },
+    "claude-opus-5+fast": {
+      "input": 10, "output": 50, "cacheRead": 1, "cacheWrite5m": 12.5, "cacheWrite1h": 20, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing#fast-mode-pricing", "asOf": "2026-10-16",
+      "note": "Claude Opus 5 requests whose usage.speed is fast (research preview). Input and output are the published fast mode rates; cache rates apply the standard prompt caching multipliers on top, as the page says."
     },
     "claude-sonnet-5-5": {
-      "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite5m": 2.5, "cacheWrite1h": 4,
-      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+      "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite5m": 2.5, "cacheWrite1h": 4, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-16"
     },
     "claude-sonnet-5": {
-      "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite5m": 2.5, "cacheWrite1h": 4,
-      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+      "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite5m": 2.5, "cacheWrite1h": 4, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-16"
     },
     "claude-haiku-5-5": {
-      "input": 0.1, "output": 0.5, "cacheRead": 0.01, "cacheWrite5m": 0.125, "cacheWrite1h": 0.2,
-      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10",
+      "input": 0.1, "output": 0.5, "cacheRead": 0.01, "cacheWrite5m": 0.125, "cacheWrite1h": 0.2, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-16",
       "note": "Rate for prompts up to 100,000 tokens. A longer request bills every token at the claude-haiku-5-5>100k rates, which apply only to usage recorded under that id."
     },
     "claude-haiku-5-5>100k": {
-      "input": 0.5, "output": 2.5, "cacheRead": 0.05, "cacheWrite5m": 0.625, "cacheWrite1h": 1,
-      "source": "https://platform.claude.com/docs/en/about-claude/pricing#long-context-pricing", "asOf": "2026-10-10",
+      "input": 0.5, "output": 2.5, "cacheRead": 0.05, "cacheWrite5m": 0.625, "cacheWrite1h": 1, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing#long-context-pricing", "asOf": "2026-10-16",
       "note": "Claude Haiku 5.5 requests whose prompt (input plus cache reads and writes) is over 100,000 tokens. PriceTable.billedModel gives a request this id."
     },
     "claude-haiku-4-5": {
-      "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite5m": 1.25, "cacheWrite1h": 2,
-      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-10"
+      "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite5m": 1.25, "cacheWrite1h": 2, "webSearchPer1k": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing", "asOf": "2026-10-16"
     },
     "gpt-6-astra": {
       "input": 10, "output": 50, "cacheRead": 1, "cacheWrite5m": 12.5, "cacheWrite1h": 12.5,

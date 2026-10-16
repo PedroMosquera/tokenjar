@@ -160,7 +160,7 @@ public struct ClaudeHistoryScanner: HistoryScanner {
         var description: String { "\(inode):\(offset)" }
     }
 
-    /// Only counts, ids, model, timestamp and the working directory. Message content is never decoded.
+    /// Only counts, ids, model, speed, timestamp and the working directory. Message content is never decoded.
     private struct TranscriptLine: Decodable {
         var type: String?
         var timestamp: String?
@@ -181,6 +181,8 @@ public struct ClaudeHistoryScanner: HistoryScanner {
             var cacheReadInputTokens: Int?
             var cacheCreationInputTokens: Int?
             var cacheCreation: CacheCreation?
+            var serverToolUse: ServerToolUse?
+            var speed: String?
 
             enum CodingKeys: String, CodingKey {
                 case inputTokens = "input_tokens"
@@ -188,6 +190,16 @@ public struct ClaudeHistoryScanner: HistoryScanner {
                 case cacheReadInputTokens = "cache_read_input_tokens"
                 case cacheCreationInputTokens = "cache_creation_input_tokens"
                 case cacheCreation = "cache_creation"
+                case serverToolUse = "server_tool_use"
+                case speed
+            }
+        }
+
+        struct ServerToolUse: Decodable {
+            var webSearchRequests: Int?
+
+            enum CodingKeys: String, CodingKey {
+                case webSearchRequests = "web_search_requests"
             }
         }
 
@@ -217,10 +229,12 @@ public struct ClaudeHistoryScanner: HistoryScanner {
             let input = usage.inputTokens ?? 0, cacheRead = usage.cacheReadInputTokens ?? 0
             return UsageEvent(
                 dedupeKey: "claude:\(id):\(requestId ?? sessionId ?? "")", timestamp: timestamp, accountID: accountID,
-                harness: .claudeCode, model: PriceTable.billedModel(model, promptTokens: input + cacheRead + write5m + write1h),
+                harness: .claudeCode,
+                model: PriceTable.billedModel(model, promptTokens: input + cacheRead + write5m + write1h, fast: usage.speed == "fast"),
                 project: UsageEvent.project(fromWorkingDirectory: cwd, home: home),
                 inputTokens: input, outputTokens: usage.outputTokens ?? 0,
-                cacheReadTokens: cacheRead, cacheWrite5mTokens: write5m, cacheWrite1hTokens: write1h
+                cacheReadTokens: cacheRead, cacheWrite5mTokens: write5m, cacheWrite1hTokens: write1h,
+                webSearchRequests: usage.serverToolUse?.webSearchRequests ?? 0
             )
         }
     }

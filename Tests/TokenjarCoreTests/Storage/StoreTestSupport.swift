@@ -22,12 +22,12 @@ func fixedCalendar(_ zone: String) -> Calendar {
 func usageEvent(
     _ key: String, at timestamp: Date, account: String = "acct", harness: Harness = .claudeCode, model: String = "claude-opus-5-5",
     project: String? = "tokenjar", input: Int = 0, output: Int = 0, cacheRead: Int = 0, cacheWrite5m: Int = 0, cacheWrite1h: Int = 0,
-    reasoning: Int = 0, cost: Double? = nil
+    reasoning: Int = 0, webSearches: Int = 0, cost: Double? = nil
 ) -> UsageEvent {
     UsageEvent(
         dedupeKey: key, timestamp: timestamp, accountID: account, harness: harness, model: model, project: project,
         inputTokens: input, outputTokens: output, cacheReadTokens: cacheRead, cacheWrite5mTokens: cacheWrite5m,
-        cacheWrite1hTokens: cacheWrite1h, reasoningTokens: reasoning, reportedCostUSD: cost
+        cacheWrite1hTokens: cacheWrite1h, reasoningTokens: reasoning, webSearchRequests: webSearches, reportedCostUSD: cost
     )
 }
 

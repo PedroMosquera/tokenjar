@@ -41,6 +41,7 @@ public final class InMemoryUsageStore: UsageStore, @unchecked Sendable {
                 existing.cacheWrite5mTokens = max(existing.cacheWrite5mTokens, event.cacheWrite5mTokens)
                 existing.cacheWrite1hTokens = max(existing.cacheWrite1hTokens, event.cacheWrite1hTokens)
                 existing.reasoningTokens = max(existing.reasoningTokens, event.reasoningTokens)
+                existing.webSearchRequests = max(existing.webSearchRequests, event.webSearchRequests)
                 if let cost = event.reportedCostUSD { existing.reportedCostUSD = max(existing.reportedCostUSD ?? 0, cost) }
                 events[event.dedupeKey] = existing
             }
@@ -91,6 +92,7 @@ public final class InMemoryUsageStore: UsageStore, @unchecked Sendable {
                 row.unpricedCacheReadTokens += e.cacheReadTokens
                 row.unpricedCacheWrite5mTokens += e.cacheWrite5mTokens
                 row.unpricedCacheWrite1hTokens += e.cacheWrite1hTokens
+                row.unpricedWebSearchRequests += e.webSearchRequests
             }
             rows[key] = row
         }

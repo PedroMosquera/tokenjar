@@ -151,8 +151,8 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                     """
                     INSERT INTO usage_events (
                         dedupe_key, ts, account_id, harness, model, project,
-                        input, output, cache_read, cache_write_5m, cache_write_1h, reasoning, reported_cost
-                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                        input, output, cache_read, cache_write_5m, cache_write_1h, reasoning, web_search_requests, reported_cost
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
                     ON CONFLICT(dedupe_key) DO UPDATE SET
                         input = max(input, excluded.input),
                         output = max(output, excluded.output),
@@ -160,6 +160,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                         cache_write_5m = max(cache_write_5m, excluded.cache_write_5m),
                         cache_write_1h = max(cache_write_1h, excluded.cache_write_1h),
                         reasoning = max(reasoning, excluded.reasoning),
+                        web_search_requests = max(web_search_requests, excluded.web_search_requests),
                         reported_cost = CASE
                             WHEN excluded.reported_cost IS NULL THEN reported_cost
                             ELSE max(coalesce(reported_cost, 0), excluded.reported_cost)
@@ -171,7 +172,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                         .text(sha256Hex(e.dedupeKey)), .real(e.timestamp.timeIntervalSince1970), .text(e.accountID), .text(e.harness.rawValue),
                         .text(e.model), e.project.map(SQLValue.text) ?? .null,
                         .int(e.inputTokens), .int(e.outputTokens), .int(e.cacheReadTokens), .int(e.cacheWrite5mTokens),
-                        .int(e.cacheWrite1hTokens), .int(e.reasoningTokens), e.reportedCostUSD.map(SQLValue.real) ?? .null,
+                        .int(e.cacheWrite1hTokens), .int(e.reasoningTokens), .int(e.webSearchRequests), e.reportedCostUSD.map(SQLValue.real) ?? .null,
                     ])
                     try statement.run()
                 }
@@ -251,7 +252,8 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                     sum(CASE WHEN reported_cost IS NULL THEN output ELSE 0 END),
                     sum(CASE WHEN reported_cost IS NULL THEN cache_read ELSE 0 END),
                     sum(CASE WHEN reported_cost IS NULL THEN cache_write_5m ELSE 0 END),
-                    sum(CASE WHEN reported_cost IS NULL THEN cache_write_1h ELSE 0 END)
+                    sum(CASE WHEN reported_cost IS NULL THEN cache_write_1h ELSE 0 END),
+                    sum(CASE WHEN reported_cost IS NULL THEN web_search_requests ELSE 0 END)
                 FROM usage_events
                 WHERE ts >= ?1 AND (?2 IS NULL OR account_id IN (SELECT value FROM json_each(?2)))
                 GROUP BY day, account_id, harness, model, project
@@ -269,7 +271,8 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                     cacheWrite5mTokens: statement.int(9), cacheWrite1hTokens: statement.int(10), reasoningTokens: statement.int(11),
                     reportedCostUSD: statement.optionalDouble(12),
                     unpricedInputTokens: statement.int(13), unpricedOutputTokens: statement.int(14), unpricedCacheReadTokens: statement.int(15),
-                    unpricedCacheWrite5mTokens: statement.int(16), unpricedCacheWrite1hTokens: statement.int(17)
+                    unpricedCacheWrite5mTokens: statement.int(16), unpricedCacheWrite1hTokens: statement.int(17),
+                    unpricedWebSearchRequests: statement.int(18)
                 ))
             }
             return out
@@ -363,6 +366,11 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         """
         UPDATE usage_events SET dedupe_key = tokenjar_sha256(dedupe_key);
         DELETE FROM scan_state;
+        """,
+        // Rescanning Claude transcripts still on disk merges their web search counts into the events already stored.
+        """
+        ALTER TABLE usage_events ADD COLUMN web_search_requests INTEGER NOT NULL DEFAULT 0;
+        DELETE FROM scan_state WHERE scanner = 'claude-transcripts';
         """,
     ]
 

@@ -77,6 +77,42 @@ struct SQLiteUsageStoreTests {
         #expect(try query(url, "SELECT version FROM schema_version") == allVersions)
     }
 
+    @Test func webSearchMigrationKeepsEventsAndRescansOnlyClaudeTranscripts() throws {
+        let url = temp.url.appending(path: "tokenjar.sqlite")
+        do {
+            let other = try OtherConnection(url)
+            try other.exec("""
+                CREATE TABLE schema_version (version INTEGER NOT NULL);
+                \(SQLiteUsageStore.migrations[0]);
+                INSERT INTO schema_version (version) VALUES (1);
+                INSERT INTO schema_version (version) VALUES (2);
+                INSERT INTO usage_events (dedupe_key, ts, account_id, harness, model, project, input, output, cache_read,
+                    cache_write_5m, cache_write_1h, reasoning, reported_cost)
+                VALUES ('\(sha256Hex("claude:msg_A:req_A"))', \(now.timeIntervalSince1970), 'acct', 'claude-code', 'claude-opus-5-5', 'tokenjar',
+                    5, 1, 2, 3, 4, 0, NULL),
+                    ('\(sha256Hex("opencode:msg_O"))', \(now.timeIntervalSince1970), 'acct', 'opencode', 'glm-5.2', NULL, 7, 0, 0, 0, 0, 0, 0.5);
+                INSERT INTO scan_state (scanner, account_id, path, value)
+                VALUES ('claude-transcripts', 'acct', 'p1', '1:10'), ('codex-rollouts', 'acct', 'p2', '{}');
+                """)
+        }
+
+        let store = try SQLiteUsageStore(url: url)
+
+        let rows = canonical(try store.dailyUsage(accountIDs: nil, since: .distantPast))
+        #expect(rows.map(\.model) == ["claude-opus-5-5", "glm-5.2"])
+        #expect(rows.map(\.inputTokens) == [5, 7])
+        #expect(rows.map(\.cacheWrite1hTokens) == [4, 0])
+        #expect(rows.map(\.reportedCostUSD) == [nil, 0.5])
+        #expect(rows.map(\.unpricedWebSearchRequests) == [0, 0])
+        #expect(try store.checkpoints(scanner: "claude-transcripts", accountID: "acct").isEmpty)
+        #expect(try store.checkpoints(scanner: "codex-rollouts", accountID: "acct") == ["p2": "{}"])
+        // The rescan merges web searches into the row it already holds.
+        try store.upsert([usageEvent("claude:msg_A:req_A", at: now, input: 5, webSearches: 2)])
+        let merged = try store.dailyUsage(accountIDs: nil, since: .distantPast).filter { $0.harness == .claudeCode }
+        #expect(merged.map(\.requests) == [1])
+        #expect(merged.map(\.unpricedWebSearchRequests) == [2])
+    }
+
     @Test func refusesASchemaNewerThanThisBuild() throws {
         let url = temp.url.appending(path: "tokenjar.sqlite")
         _ = try SQLiteUsageStore(url: url)

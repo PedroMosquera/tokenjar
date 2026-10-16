@@ -111,6 +111,27 @@ struct ClaudeHistoryScannerTests {
         #expect(events.map(\.cacheReadTokens) == [cacheRead])
     }
 
+    /// The usage object's shape as Claude Code wrote it to local transcripts on 2026-10-16, with the values changed.
+    private func usageLine(speed: String, webSearches: Int) -> String {
+        #"{"type":"assistant","message":{"id":"msg_F","model":"claude-opus-5-5","usage":{"input_tokens":20,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":5,"server_tool_use":{"web_search_requests":\#(webSearches),"web_fetch_requests":0},"service_tier":"standard","speed":"\#(speed)"}},"requestId":"req_F","timestamp":"2026-10-09T13:00:00.000Z","sessionId":"SESSION_A"}"#
+    }
+
+    private func parse(_ line: String) -> [UsageEvent] {
+        var events: [UsageEvent] = []
+        _ = ClaudeHistoryScanner.parse(Data((line + "\n").utf8), accountID: "a", home: URL(fileURLWithPath: "/Users/PLACEHOLDER"), decoder: JSONDecoder(), into: &events)
+        return events
+    }
+
+    @Test(arguments: [("fast", "claude-opus-5-5+fast"), ("standard", "claude-opus-5-5")])
+    func fastModeRequestsUseTheFastModeId(speed: String, expected: String) {
+        #expect(parse(usageLine(speed: speed, webSearches: 0)).map(\.model) == [expected])
+    }
+
+    @Test func readsWebSearchRequests() {
+        #expect(parse(usageLine(speed: "standard", webSearches: 3)).map(\.webSearchRequests) == [3])
+        #expect(parse(assistantLine(id: "msg_N", request: "req_N", output: 1)).map(\.webSearchRequests) == [0])
+    }
+
     @Test func streamingChunksCollapseToTheLargestCountsInTheStore() throws {
         let box = try TranscriptHome()
         let store = InMemoryUsageStore(calendar: Calendar(identifier: .gregorian).with(timeZone: .gmt))
