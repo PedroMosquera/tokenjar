@@ -47,6 +47,8 @@ nonisolated struct DashboardContent: Sendable {
     var costLastSevenDays = CostTotal()
     var costThisMonth = CostTotal()
     var totals = UsageTotals()
+    /// Over the range on screen, like `totals`.
+    var cacheHitRates = CacheHitRates()
     var series: [Series] = []
     var pointsBySeries: [String: [LimitPoint]] = [:]
     var resets: [ResetMarker] = []
@@ -97,6 +99,7 @@ nonisolated struct DashboardContent: Sendable {
         content.costThisMonth = DashboardMath.cost(rows, since: periods.thisMonth)
         let firstDay = periods.firstDay(of: range)
         content.totals = DashboardMath.totals(rows, since: firstDay)
+        content.cacheHitRates = DashboardMath.cacheHitRates(rows, since: firstDay)
         let names = input.names
         let snapshots = input.snapshots
         let slots = DashboardMath.colorSlots(

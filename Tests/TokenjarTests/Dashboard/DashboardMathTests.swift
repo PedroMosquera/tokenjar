@@ -87,6 +87,62 @@ struct DashboardMathTests {
         #expect(DashboardMath.totals(rows, since: day(-1)) == UsageTotals(tokens: 1_500, requests: 5))
     }
 
+    // MARK: Cache hit rate
+
+    func cacheRow(day: Date, harness: Harness = .claudeCode, model: String, input: Int, read: Int, write: Int = 0) -> PricedUsageRow {
+        let daily = DailyUsageRow(
+            day: day, accountID: "a", harness: harness, model: model, project: "p", requests: 1,
+            inputTokens: input, outputTokens: 10, cacheReadTokens: read, cacheWrite5mTokens: write, cacheWrite1hTokens: 0,
+            reasoningTokens: 0, reportedCostUSD: nil, unpricedInputTokens: input, unpricedOutputTokens: 10,
+            unpricedCacheReadTokens: read, unpricedCacheWrite5mTokens: write, unpricedCacheWrite1hTokens: 0
+        )
+        return PricedUsageRow(row: daily, costUSD: 1, isEstimate: true)
+    }
+
+    @Test func cacheHitRateIsReadsOverTheWholePromptPerModelAndOverall() {
+        let rows = [
+            cacheRow(day: day(0), model: "opus", input: 100, read: 800, write: 100),
+            cacheRow(day: day(-1), model: "opus", input: 100, read: 900),
+            cacheRow(day: day(0), harness: .codex, model: "gpt", input: 500, read: 500),
+            cacheRow(day: day(-9), model: "opus", input: 1_000, read: 0),
+        ]
+        let rates = DashboardMath.cacheHitRates(rows, since: day(-6))
+        #expect(rates.byModel == ["opus": 0.85, "gpt": 0.5])
+        #expect(rates.overall == 2_200.0 / 3_000)
+    }
+
+    /// A harness that logged no cache tokens in range says nothing about caching, so it neither shows 0 % nor drags
+    /// the overall rate down.
+    @Test func aHarnessWithNoCacheDataGetsNoRateAndStaysOutOfTheOverall() {
+        let rows = [
+            cacheRow(day: day(0), model: "opus", input: 200, read: 800),
+            cacheRow(day: day(0), harness: .opencode, model: "glm", input: 5_000, read: 0),
+            cacheRow(day: day(0), harness: .opencode, model: "opus", input: 5_000, read: 0),
+        ]
+        let rates = DashboardMath.cacheHitRates(rows, since: day(-6))
+        #expect(rates.byModel == ["opus": 0.8])
+        #expect(rates.overall == 0.8)
+
+        let none = DashboardMath.cacheHitRates([cacheRow(day: day(0), harness: .opencode, model: "glm", input: 5_000, read: 0)], since: day(-6))
+        #expect(none.overall == nil)
+        #expect(none.byModel.isEmpty)
+    }
+
+    /// Writes alone are cache data: the cache was used and nothing was read back yet, which is a real 0 %.
+    @Test func cacheWritesWithoutReadsAreZeroPercent() {
+        let rates = DashboardMath.cacheHitRates([cacheRow(day: day(0), model: "opus", input: 100, read: 0, write: 900)], since: day(-6))
+        #expect(rates.overall == 0)
+        #expect(rates.byModel == ["opus": 0])
+    }
+
+    /// Follows the legend, names models as the legend does, and skips "Other" and models without cache data.
+    @Test @MainActor func modelCacheLineFollowsTheLegend() {
+        let rates = CacheHitRates(overall: 0.9, byModel: ["claude-opus-5-5-20261001": 0.924, "gpt-6": 0.5])
+        #expect(rates.modelLine(groups: ["gpt-6", "glm", "claude-opus-5-5-20261001", DashboardMath.otherGroup])
+            == "Cache hit rate: gpt-6 50%, claude-opus-5-5 92%")
+        #expect(rates.modelLine(groups: ["glm"]) == nil)
+    }
+
     // MARK: Daily spend
 
     @Test func spendKeepsTopGroupsAndFoldsTheRestIntoOther() {

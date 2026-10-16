@@ -47,6 +47,35 @@ struct OpenCodeHistoryScannerTests {
         #expect(Set(both.events.map(\.dedupeKey)) == ["opencode:msg_go_1", "opencode:msg_zen_1"])
     }
 
+    /// opencode stores `tokens.input` without the cached part (its `nonCachedInputTokens`), so reads count against
+    /// input plus cache reads and writes: 750 of 1,000.
+    @Test func cacheHitRateCountsReadsAgainstInputPlusCacheReadsAndWrites() throws {
+        let dir = TemporaryDirectory()
+        let db = try OpenCodeFixtureDatabase(at: database(dir))
+        try db.createV1Tables()
+        try db.insertV1(id: "msg_hit", provider: "opencode-go", input: 200, cacheRead: 750, cacheWrite: 50, created: t0)
+
+        var prompt = PromptTokens()
+        for event in try scan(dir).events { prompt.add(event) }
+
+        #expect(prompt == PromptTokens(uncached: 200, cacheRead: 750, cacheWrite: 50))
+        #expect(prompt.cacheHitRate == 0.75)
+    }
+
+    /// A provider behind opencode that reports no cache use at all gets no hit rate rather than 0 %.
+    @Test func noCacheTokensMeansNoHitRate() throws {
+        let dir = TemporaryDirectory()
+        let db = try OpenCodeFixtureDatabase(at: database(dir))
+        try db.createV1Tables()
+        try db.insertV1(id: "msg_none", provider: "opencode-go", input: 200, cacheRead: 0, cacheWrite: 0, created: t0)
+
+        var prompt = PromptTokens()
+        for event in try scan(dir).events { prompt.add(event) }
+
+        #expect(prompt.uncached == 200)
+        #expect(prompt.cacheHitRate == nil)
+    }
+
     @Test func integerCostIsReadAsDollars() throws {
         let dir = TemporaryDirectory()
         let db = try OpenCodeFixtureDatabase(at: database(dir))

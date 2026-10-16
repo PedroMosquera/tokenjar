@@ -156,6 +156,13 @@ private struct DashboardDetail: View {
             costTile("This month", content.costThisMonth, caption: content.periods.thisMonth.formatted(.dateTime.month(.wide)))
             KPITile(title: "Tokens", value: Format.tokens(content.totals.tokens), caption: range.dayCaption)
             KPITile(title: "Requests", value: content.totals.requests.formatted(), caption: range.dayCaption)
+            // Left out rather than shown as 0 % when no harness in scope reports cache tokens.
+            if let rate = content.cacheHitRates.overall {
+                KPITile(
+                    title: "Cache hit rate", value: Format.percent(rate * 100), caption: range.dayCaption,
+                    help: "Input read from cache, as a share of all input: uncached input, cache reads and cache writes"
+                )
+            }
         }
     }
 
@@ -318,6 +325,12 @@ private struct DashboardDetail: View {
                     }
                 }
                 .frame(height: 210)
+                if emptyMessage == nil, grouping == .model, let line = content.cacheHitRates.modelLine(groups: breakdown.groups) {
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
                 if emptyMessage == nil, !breakdown.unpricedModels.isEmpty {
                     Text("Not priced: \(breakdown.unpricedModelNames)")
                         .font(.caption)

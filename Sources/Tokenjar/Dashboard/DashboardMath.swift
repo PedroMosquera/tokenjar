@@ -110,6 +110,19 @@ nonisolated struct UsageTotals: Equatable, Sendable {
     var requests = 0
 }
 
+nonisolated struct CacheHitRates: Equatable, Sendable {
+    var overall: Double?
+    var byModel: [String: Double] = [:]
+
+    /// The line under the spend chart grouped by model, in legend order; nil when no model in `groups` has a rate.
+    @MainActor func modelLine(groups: [String]) -> String? {
+        let parts = groups.compactMap { model in
+            byModel[model].map { "\(DashboardMath.displayName(model)) \(Format.percent($0 * 100))" }
+        }
+        return parts.isEmpty ? nil : "Cache hit rate: " + parts.joined(separator: ", ")
+    }
+}
+
 nonisolated struct SpendSegment: Identifiable, Equatable, Sendable {
     var day: Date
     var group: String
@@ -198,6 +211,21 @@ nonisolated enum DashboardMath {
             totals.tokens += tokens(priced.row)
             totals.requests += priced.row.requests
         }
+    }
+
+    /// Cache reads over the whole prompt (`PromptTokens`), overall and per model id. A harness with no cache tokens in
+    /// range is left out of both, so a provider that reports no caching neither shows 0 % nor dilutes the overall rate.
+    static func cacheHitRates(_ rows: [PricedUsageRow], since: Date) -> CacheHitRates {
+        let inRange = rows.map(\.row).filter { $0.day >= since }
+        var byHarness: [Harness: PromptTokens] = [:]
+        for row in inRange { byHarness[row.harness, default: PromptTokens()].add(row) }
+        let reporting = Set(byHarness.filter { $0.value.reportsCache }.keys)
+        var byModel: [String: PromptTokens] = [:]
+        for row in inRange where reporting.contains(row.harness) { byModel[row.model, default: PromptTokens()].add(row) }
+        return CacheHitRates(
+            overall: byModel.values.reduce(PromptTokens(), +).cacheHitRate,
+            byModel: byModel.compactMapValues(\.cacheHitRate)
+        )
     }
 
     static func groupKey(_ row: DailyUsageRow, by grouping: UsageGrouping, accountNames: [String: String]) -> String {

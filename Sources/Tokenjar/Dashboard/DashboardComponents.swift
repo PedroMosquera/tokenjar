@@ -39,6 +39,7 @@ struct KPITile: View {
     var caption: String
     var isEstimate = false
     var valueStyle: Color?
+    var help: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -64,6 +65,7 @@ struct KPITile: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .dashboardSurface()
+        .help(help ?? "")
         .accessibilityElement(children: .combine)
     }
 }
