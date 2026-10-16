@@ -39,6 +39,8 @@ nonisolated struct DashboardContent: Sendable {
         var range: DashboardRange
         var now: Date
         var key: DashboardLoadKey
+        /// Whether `account` scans the same logs as another account (`PercentWorth.sharesLocalSource`).
+        var sharesLocalSource = false
     }
 
     var key: DashboardLoadKey?
@@ -61,6 +63,8 @@ nonisolated struct DashboardContent: Sendable {
     var limitsSince: Date?
     /// The selected account's spend-limit samples, for its spend chart; nil for All and for an account without one.
     var spendLimit: SpendLimitHistory?
+    /// One per window of the selected account that qualifies (`PercentWorth.windows`); empty for All.
+    var percentWorth: [PercentWorth] = []
     var spend: [UsageGrouping: SpendBreakdown] = [:]
     var projects: [ProjectSummary] = []
     /// Keyed by the name the spend chart groups accounts by, so an account's bars match its limits line.
@@ -143,6 +147,18 @@ nonisolated struct DashboardContent: Sendable {
             let samples = (try? input.store?.samples(accountID: account.id, windowID: UsageWindow.spendCapID, since: since)) ?? []
             content.spendLimit = SpendLimitHistory(samples: samples, limit: limit, currency: money.currency)
         }
+        if let account = input.account {
+            for window in PercentWorth.windows(account: account, snapshot: snapshots[account.id], sharesLocalSource: input.sharesLocalSource) {
+                let length = PercentWorth.cycleLength(of: window)
+                // Two cycles more than are shown, since cycles under the floor drop out.
+                let since = input.now.addingTimeInterval(-Double(PercentWorth.cycleLimit + 2) * length(input.now))
+                let samples = (try? input.store?.samples(accountID: account.id, windowID: window.id, since: since)) ?? []
+                let rows = PercentWorth.rows(cycles: PercentWorth.cycles(samples: samples, length: length), now: input.now) { interval in
+                    ((try? input.store?.usage(accountIDs: [account.id], in: interval)) ?? []).map(input.priceTable.priced)
+                }
+                content.percentWorth.append(PercentWorth(windowID: window.id, label: window.label, rows: rows))
+            }
+        }
         var earliest: Date?
         var reachesBack = false
         for entry in wanted {
@@ -177,7 +193,8 @@ extension DashboardContent.Input {
             store: model.store, priceTable: model.priceTable, accounts: accounts, account: account,
             snapshots: Dictionary(accounts.compactMap { account in model.status(for: account).snapshot.map { (account.id, $0) } }, uniquingKeysWith: { a, _ in a }),
             names: Dictionary(accounts.map { ($0.id, AccountTitle(provider: $0.provider, label: $0.label).name) }, uniquingKeysWith: { a, _ in a }),
-            range: range, now: now, key: key
+            range: range, now: now, key: key,
+            sharesLocalSource: account.map { PercentWorth.sharesLocalSource($0, among: accounts, paths: model.paths) } ?? false
         )
     }
 }

@@ -37,6 +37,10 @@ public struct CodexHistoryScanner: HistoryScanner {
         return ScanResult(events: events, checkpoints: next)
     }
 
+    public func sharedSourceKey(for account: AccountConfig, paths: AppPaths) -> String? {
+        SettingsLogic.resolvedProfile(account, paths: paths).map(sha256Hex)
+    }
+
     /// Where the next scan of a rollout resumes: the byte offset after the last complete line, plus what the
     /// lines before it established, so only the tail is read. A changed inode or a file shorter than `offset`
     /// means codex replaced or truncated the rollout, and the scan starts over.

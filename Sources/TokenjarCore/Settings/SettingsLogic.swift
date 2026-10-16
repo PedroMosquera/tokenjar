@@ -100,15 +100,16 @@ public enum SettingsLogic {
 
     /// Another enabled account of the same provider reading the same profile, which would show the same login twice.
     public static func profileTwin(of account: AccountConfig, in accounts: [AccountConfig], paths: AppPaths) -> AccountConfig? {
-        guard let variable = SignInCommand.profileVariable(for: account.provider) else { return nil }
-        let mine = resolvedProfile(account, fallback: variable.defaultPath, paths: paths)
+        guard let mine = resolvedProfile(account, paths: paths) else { return nil }
         return accounts.first {
-            $0.id != account.id && $0.provider == account.provider && $0.enabled && resolvedProfile($0, fallback: variable.defaultPath, paths: paths) == mine
+            $0.id != account.id && $0.provider == account.provider && $0.enabled && resolvedProfile($0, paths: paths) == mine
         }
     }
 
-    private static func resolvedProfile(_ account: AccountConfig, fallback: String, paths: AppPaths) -> String {
-        paths.expand(profileDir(from: account.profileDir ?? "") ?? fallback).standardizedFileURL.path
+    /// The folder the account's CLI reads, its default when none is set; nil for a provider without a profile variable.
+    static func resolvedProfile(_ account: AccountConfig, paths: AppPaths) -> String? {
+        guard let variable = SignInCommand.profileVariable(for: account.provider) else { return nil }
+        return paths.expand(profileDir(from: account.profileDir ?? "") ?? variable.defaultPath).standardizedFileURL.path
     }
 
     /// Plain-language lines for a confirmation sheet, so an import never changes anything the user has not seen.

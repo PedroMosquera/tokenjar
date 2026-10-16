@@ -240,12 +240,21 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
     }
 
     public func dailyUsage(accountIDs: [String]?, since: Date) throws -> [DailyUsageRow] {
+        try usageRows(accountIDs: accountIDs, since: since, before: nil)
+    }
+
+    public func usage(accountIDs: [String]?, in interval: DateInterval) throws -> [DailyUsageRow] {
+        try usageRows(accountIDs: accountIDs, since: interval.start, before: interval.end)
+    }
+
+    /// Rows per local day without `end`; with it, one row per key over the whole span, its day the span's start.
+    private func usageRows(accountIDs: [String]?, since: Date, before end: Date?) throws -> [DailyUsageRow] {
         let accountFilter = try accountIDs.map { SQLValue.text(String(decoding: try JSONEncoder().encode($0), as: UTF8.self)) } ?? .null
         return try locked {
             // sum() over no non-NULL values is NULL, which is exactly a nil reportedCostUSD.
             let statement = try prepare(
                 """
-                SELECT tokenjar_local_day(ts) AS day, account_id, harness, model, project, count(*),
+                SELECT \(end == nil ? "tokenjar_local_day(ts)" : "?1") AS day, account_id, harness, model, project, count(*),
                     sum(input), sum(output), sum(cache_read), sum(cache_write_5m), sum(cache_write_1h), sum(reasoning),
                     sum(reported_cost),
                     sum(CASE WHEN reported_cost IS NULL THEN input ELSE 0 END),
@@ -255,12 +264,12 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
                     sum(CASE WHEN reported_cost IS NULL THEN cache_write_1h ELSE 0 END),
                     sum(CASE WHEN reported_cost IS NULL THEN web_search_requests ELSE 0 END)
                 FROM usage_events
-                WHERE ts >= ?1 AND (?2 IS NULL OR account_id IN (SELECT value FROM json_each(?2)))
+                WHERE ts >= ?1 AND (?3 IS NULL OR ts < ?3) AND (?2 IS NULL OR account_id IN (SELECT value FROM json_each(?2)))
                 GROUP BY day, account_id, harness, model, project
                 ORDER BY day, model, account_id, harness, project
                 """
             )
-            try statement.bind([.real(since.timeIntervalSince1970), accountFilter])
+            try statement.bind([.real(since.timeIntervalSince1970), accountFilter, end.map { .real($0.timeIntervalSince1970) } ?? .null])
             var out: [DailyUsageRow] = []
             while try statement.step() {
                 guard let harness = Harness(rawValue: statement.text(2)) else { continue }

@@ -86,6 +86,8 @@ private struct DashboardDetail: View {
                     limitsCard
                 }
             }
+            // Empty for All: each account's % is its own, so pooled usage has no one % to divide by.
+            if !content.percentWorth.isEmpty { percentWorthCard }
             if sections.history {
                 spendCard(emptyMessage: DashboardSections.spendEmptyMessage(account: account, content: content, breakdown: breakdown, range: range))
                 if noUsage == nil { projectsCard }
@@ -298,6 +300,29 @@ private struct DashboardDetail: View {
             }
             .frame(height: 210)
         }
+    }
+
+    private var percentWorthCard: some View {
+        let shown = content.percentWorth.filter { !$0.rows.isEmpty }
+        return DashboardCard(title: "What 1% buys", subtitle: "Tokens and API-equivalent cost per 1% of the limit, each cycle") {
+            VStack(alignment: .leading, spacing: 12) {
+                if shown.isEmpty {
+                    DashboardEmptyState(
+                        systemImage: "percent", message: "Appears once a cycle passes \(Int(PercentWorth.floorPercent))% used with usage in this Mac's logs."
+                    )
+                    .frame(height: 90)
+                } else {
+                    ForEach(shown, id: \.windowID) { worth in
+                        PercentWorthTable(worth: worth, showsLabel: content.percentWorth.count > 1)
+                    }
+                }
+                Text(PercentWorth.caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .help(PercentWorth.help)
     }
 
     private var limitsSubtitle: String {

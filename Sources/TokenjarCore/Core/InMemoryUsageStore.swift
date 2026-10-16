@@ -65,12 +65,20 @@ public final class InMemoryUsageStore: UsageStore, @unchecked Sendable {
     }
 
     public func dailyUsage(accountIDs: [String]?, since: Date) throws -> [DailyUsageRow] {
+        rows(accountIDs: accountIDs, since: since, before: .distantFuture) { calendar.startOfDay(for: $0) }
+    }
+
+    public func usage(accountIDs: [String]?, in interval: DateInterval) throws -> [DailyUsageRow] {
+        rows(accountIDs: accountIDs, since: interval.start, before: interval.end) { _ in interval.start }
+    }
+
+    private func rows(accountIDs: [String]?, since: Date, before end: Date, day: (Date) -> Date) -> [DailyUsageRow] {
         struct Key: Hashable { var day: Date; var account: String; var harness: Harness; var model: String; var project: String? }
         let selected = lock.withLock { Array(events.values) }
-            .filter { $0.timestamp >= since && (accountIDs == nil || accountIDs!.contains($0.accountID)) }
+            .filter { $0.timestamp >= since && $0.timestamp < end && (accountIDs == nil || accountIDs!.contains($0.accountID)) }
         var rows: [Key: DailyUsageRow] = [:]
         for e in selected {
-            let key = Key(day: calendar.startOfDay(for: e.timestamp), account: e.accountID, harness: e.harness, model: e.model, project: e.project)
+            let key = Key(day: day(e.timestamp), account: e.accountID, harness: e.harness, model: e.model, project: e.project)
             var row = rows[key] ?? DailyUsageRow(
                 day: key.day, accountID: e.accountID, harness: e.harness, model: e.model, project: e.project, requests: 0,
                 inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWrite5mTokens: 0, cacheWrite1hTokens: 0, reasoningTokens: 0,
