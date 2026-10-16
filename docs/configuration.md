@@ -31,6 +31,21 @@ Tokenjar does not use your shell `PATH`. It looks in `~/.local/bin`, `/opt/homeb
 
 Costs are API-equivalent estimates from the prices in `Resources/pricing.json`, which records a source URL and date for each model. To change a price, or to price a model the bundled file does not know, put a `pricing.json` next to `config.json`. Each model there replaces the bundled entry with the same id. [design.md](design.md#pricing) describes the format and how model ids are matched.
 
+## Plan prices
+
+The dashboard's Plan value tile compares this month's API-equivalent spend with the monthly list price of the account's plan. The same `pricing.json` sets those prices under `plans`, keyed by provider and then by the plan name the plan pill shows. Each plan there replaces the bundled entry of the same name, and a file may hold only `plans`:
+
+```json
+{
+  "plans": {
+    "claude": { "Max": { "monthlyUSD": 200 } },
+    "codex": { "Pro": { "monthlyUSD": 200 } }
+  }
+}
+```
+
+The bundled prices are US prices for monthly billing, read from each provider's own pricing page on the date recorded with them. A plan billed yearly, priced in another region or with a discount costs a different amount, so set your own. The bundle leaves out a plan name that stands for more than one price, such as Claude's Max without its tier or Codex's Pro, which covers every Pro tier, and plans with no list price, such as Enterprise. Add those yourself to see the tile for them.
+
 ## Several Macs
 
 `config.json` holds no secrets, so it can live in a dotfiles repo and be shared by every Mac.

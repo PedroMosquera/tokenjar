@@ -169,6 +169,9 @@ extension AppModel {
             "claude-fable-5-1": ModelPrice(input: 10, output: 50, cacheRead: 1, cacheWrite5m: 12.5, cacheWrite1h: 20, source: "preview placeholder", asOf: "preview"),
             "claude-sonnet-5-5": ModelPrice(input: 3, output: 15, cacheRead: 0.3, cacheWrite5m: 3.75, cacheWrite1h: 6, source: "preview placeholder", asOf: "preview"),
             "gpt-5.5-codex": ModelPrice(input: 1.25, output: 10, cacheRead: 0.125, cacheWrite5m: 1.25, cacheWrite1h: 1.25, source: "preview placeholder", asOf: "preview"),
+        ], plans: [
+            "claude": ["Max 5x": PlanPrice(monthlyUSD: 100, source: "preview placeholder", asOf: "preview")],
+            "opencode-go": ["Go": PlanPrice(monthlyUSD: 10, source: "preview placeholder", asOf: "preview")],
         ])
         return model
     }

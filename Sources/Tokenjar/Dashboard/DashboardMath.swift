@@ -524,3 +524,51 @@ nonisolated struct MonthForecast: Equatable, Sendable {
         return "\(percent > 0 ? "+" : "")\(percent)% vs \(lastMonthName)"
     }
 }
+
+/// This month's API-equivalent spend of the accounts on a plan the price table knows, against those plans' monthly list
+/// prices: what the subscriptions would have cost at API prices.
+nonisolated struct PlanValue: Equatable, Sendable {
+    var spend: Double
+    /// The sum of the plans' US monthly list prices.
+    var planPrice: Double
+    /// In account order, one entry per account.
+    var plans: [String]
+    var isEstimate: Bool
+
+    var multiple: Double { spend / planPrice }
+
+    /// nil when no account in `accounts` is on a priced plan, or nothing of theirs was priced since `since`.
+    static func make(rows: [PricedUsageRow], since: Date, accounts: [AccountConfig], snapshots: [String: UsageSnapshot], table: PriceTable) -> PlanValue? {
+        var prices: [String: Double] = [:]
+        var plans: [String] = []
+        for account in accounts {
+            guard let plan = snapshots[account.id]?.plan, let price = table.planPrice(provider: account.provider, plan: plan) else { continue }
+            prices[account.id] = price.monthlyUSD
+            plans.append(plan)
+        }
+        let cost = DashboardMath.cost(rows.filter { prices[$0.row.accountID] != nil }, since: since)
+        guard cost.hasCost, cost.amount > 0 else { return nil }
+        return PlanValue(spend: cost.amount, planPrice: prices.values.reduce(0, +), plans: plans, isEstimate: cost.isEstimate)
+    }
+
+    /// "5.7x", or "12x" from 10 up, where a decimal adds nothing.
+    @MainActor func valueText(locale: Locale = .autoupdatingCurrent) -> String {
+        multiple.formatted(.number.precision(.fractionLength(multiple < 10 ? 1 : 0)).locale(locale)) + "x"
+    }
+
+    /// "vs the $200 plan", "vs $220 in 2 plans". The spend stays in `help`: with it the caption truncates at four tiles a row.
+    @MainActor func caption(locale: Locale = .autoupdatingCurrent) -> String {
+        plans.count == 1 ? "vs the \(money(planPrice, locale)) plan" : "vs \(money(planPrice, locale)) in \(plans.count) plans"
+    }
+
+    @MainActor func help(locale: Locale = .autoupdatingCurrent) -> String {
+        let names = plans.count == 1 ? "\(plans[0]) plan" : "\(plans.dropLast().joined(separator: ", ")) and \(plans[plans.count - 1]) plans"
+        let base = plans.count == 1 ? "the \(money(planPrice, locale)) \(names)" : "the \(money(planPrice, locale)) of the \(names)"
+        return "Covered \(money(spend, locale)) of API usage this month, \(valueText(locale: locale)) \(base). "
+            + "API-equivalent estimate, not a bill; plan prices are US monthly list prices."
+    }
+
+    @MainActor private func money(_ amount: Double, _ locale: Locale) -> String {
+        Format.money(amount, currency: "USD", fractionDigits: 0, locale: locale)
+    }
+}

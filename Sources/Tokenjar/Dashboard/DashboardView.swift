@@ -155,6 +155,11 @@ private struct DashboardDetail: View {
             costTile("7 days", content.costLastSevenDays, caption: "including today")
             costTile("This month", content.costThisMonth, caption: content.periods.thisMonth.formatted(.dateTime.month(.wide)))
             forecastTile
+            if let plan = content.planValue {
+                KPITile(
+                    title: "Plan value", value: plan.valueText(), caption: plan.caption(), isEstimate: plan.isEstimate, help: plan.help()
+                )
+            }
             KPITile(title: "Tokens", value: Format.tokens(content.totals.tokens), caption: range.dayCaption)
             KPITile(title: "Requests", value: content.totals.requests.formatted(), caption: range.dayCaption)
             // Left out rather than shown as 0 % when no harness in scope reports cache tokens.
@@ -206,7 +211,8 @@ private struct DashboardDetail: View {
             return KPITile(title: "Cost · Projected", value: "Too early", caption: "after 5% of \(month)", valueStyle: .secondary, help: help)
         }
         let caption = forecast.change.map {
-            MonthForecast.changeText($0, lastMonthName: periods.lastMonth.formatted(.dateTime.month(.wide)))
+            // Abbreviated: at the window's minimum width four tiles a row truncate "+49% vs September".
+            MonthForecast.changeText($0, lastMonthName: periods.lastMonth.formatted(.dateTime.month(.abbreviated)))
         } ?? "\(month) at this pace"
         return KPITile(
             title: "Cost · Projected", value: "~" + Format.money(projected, currency: "USD", fractionDigits: 0, locale: .autoupdatingCurrent),

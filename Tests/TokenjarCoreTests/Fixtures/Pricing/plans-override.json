@@ -1,0 +1,10 @@
+{
+  "plans": {
+    "claude": {
+      "Max 20x": { "monthlyUSD": 180 }
+    },
+    "codex": {
+      "Pro": { "monthlyUSD": 200, "source": "my invoice", "asOf": "2026-10-01" }
+    }
+  }
+}

@@ -67,6 +67,23 @@ struct PriceTableTests {
         #expect(loaded.price(for: "b-legacy")?.input == 0.5)
     }
 
+    /// An override that holds only plans still loads, and each plan in it replaces the bundled one of the same name.
+    @Test func overrideReplacesAndAddsPlansPlanByPlan() throws {
+        let loaded = PriceTable.load(bundled: Self.fixtures.appending(path: "base.json"), override: Self.fixtures.appending(path: "plans-override.json"))
+
+        #expect(loaded.planPrice(provider: .claude, plan: "Pro") == PlanPrice(monthlyUSD: 20, source: "https://example.test/pro", asOf: "2026-01-01"))
+        #expect(loaded.planPrice(provider: .claude, plan: "Max 20x") == PlanPrice(monthlyUSD: 180, source: "", asOf: ""))
+        #expect(loaded.planPrice(provider: .codex, plan: "Pro")?.source == "my invoice")
+        #expect(loaded.price(for: "model-a")?.input == 1)
+    }
+
+    @Test func unknownPlansHaveNoPrice() {
+        let loaded = PriceTable.load(bundled: Self.fixtures.appending(path: "base.json"), override: nil)
+        #expect(loaded.planPrice(provider: .claude, plan: "Pro")?.monthlyUSD == 20)
+        #expect(loaded.planPrice(provider: .claude, plan: "Enterprise") == nil)
+        #expect(loaded.planPrice(provider: .codex, plan: "Pro") == nil)
+    }
+
     @Test func missingOrInvalidFilesContributeNothing() {
         let base = Self.fixtures.appending(path: "base.json")
         let missing = Self.fixtures.appending(path: "does-not-exist.json")
@@ -140,6 +157,40 @@ struct PriceTableTests {
         for (alias, target) in file.aliases ?? [:] {
             #expect(file.models[target] != nil, "alias \(alias) points at missing \(target)")
         }
+    }
+
+    @Test func bundledPlansAreSourcedAndDated() throws {
+        let file = try PriceFile.decode(Data(contentsOf: Self.bundled))
+        let plans = try #require(file.plans)
+        #expect(!plans.isEmpty)
+        for (provider, entries) in plans {
+            #expect(ProviderID(rawValue: provider) != nil, "\(provider) is not a provider id")
+            for (plan, price) in entries {
+                #expect(price.monthlyUSD > 0, "\(provider) \(plan) has no price")
+                #expect(price.source.hasPrefix("https://"), "\(provider) \(plan) has no source URL")
+                #expect(price.asOf.wholeMatch(of: #/\d{4}-\d{2}-\d{2}/#) != nil, "\(provider) \(plan) has no asOf date")
+            }
+        }
+    }
+
+    /// US monthly list prices read from the providers' own pages. A label that stands for more than one price (Claude's
+    /// "Max" without its tier, Codex's "Pro" for every Pro tier, a Business seat of either kind) or for no list price at
+    /// all is left out, so the dashboard shows nothing rather than a wrong multiple.
+    @Test(arguments: [
+        (ProviderID.claude, "Pro", 20.0), (.claude, "Max 5x", 100), (.claude, "Max 20x", 200), (.claude, "Team", 25),
+        (.claude, "Team Premium", 125), (.codex, "Go", 8), (.codex, "Plus", 20), (.opencodeGo, "Go", 10),
+    ])
+    func bundledPlanPrices(provider: ProviderID, plan: String, monthlyUSD: Double) {
+        let table = PriceTable.load(bundled: Self.bundled, override: nil)
+        #expect(table.planPrice(provider: provider, plan: plan)?.monthlyUSD == monthlyUSD)
+    }
+
+    @Test(arguments: [
+        (ProviderID.claude, "Max"), (.claude, "Enterprise"), (.claude, "Enterprise (usage-based)"), (.codex, "Free"),
+        (.codex, "Pro"), (.codex, "Business"), (.codex, "Edu"), (.codex, "Enterprise"), (.copilot, "Pro"),
+    ])
+    func bundledTableLeavesOutPlansWithoutOneListPrice(provider: ProviderID, plan: String) {
+        #expect(PriceTable.load(bundled: Self.bundled, override: nil).planPrice(provider: provider, plan: plan) == nil)
     }
 
     /// Anthropic's footnotes under the model table at platform.claude.com/docs/en/about-claude/pricing set cache reads at

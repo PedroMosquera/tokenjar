@@ -47,6 +47,8 @@ nonisolated struct DashboardContent: Sendable {
     var costLastSevenDays = CostTotal()
     var costThisMonth = CostTotal()
     var costLastMonth = CostTotal()
+    /// nil unless an account in scope is on a plan the price table prices.
+    var planValue: PlanValue?
     var totals = UsageTotals()
     /// Over the range on screen, like `totals`.
     var cacheHitRates = CacheHitRates()
@@ -100,6 +102,9 @@ nonisolated struct DashboardContent: Sendable {
         content.costLastSevenDays = DashboardMath.cost(rows, since: periods.lastSevenDays)
         content.costThisMonth = DashboardMath.cost(rows, since: periods.thisMonth)
         content.costLastMonth = DashboardMath.cost(rows, since: periods.lastMonth, before: periods.thisMonth)
+        content.planValue = PlanValue.make(
+            rows: rows, since: periods.thisMonth, accounts: scope, snapshots: input.snapshots, table: input.priceTable
+        )
         let firstDay = periods.firstDay(of: range)
         content.totals = DashboardMath.totals(rows, since: firstDay)
         content.cacheHitRates = DashboardMath.cacheHitRates(rows, since: firstDay)

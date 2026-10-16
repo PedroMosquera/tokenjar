@@ -33,6 +33,27 @@ public struct ModelPrice: Codable, Hashable, Sendable {
     }
 }
 
+/// A subscription plan's monthly list price in USD.
+public struct PlanPrice: Codable, Hashable, Sendable {
+    public var monthlyUSD: Double
+    public var source: String
+    public var asOf: String
+
+    public init(monthlyUSD: Double, source: String, asOf: String) {
+        self.monthlyUSD = monthlyUSD
+        self.source = source
+        self.asOf = asOf
+    }
+
+    /// `source` and `asOf` are optional so a hand-written override entry needs only the price.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        monthlyUSD = try c.decode(Double.self, forKey: .monthlyUSD)
+        source = try c.decodeIfPresent(String.self, forKey: .source) ?? ""
+        asOf = try c.decodeIfPresent(String.self, forKey: .asOf) ?? ""
+    }
+}
+
 public struct PricedUsageRow: Hashable, Sendable {
     public var row: DailyUsageRow
     /// Reported cost plus priced tokens; nil when the model has no price and nothing was reported.
@@ -52,13 +73,16 @@ public struct PricedUsageRow: Hashable, Sendable {
 public struct PriceTable: Sendable {
     public var prices: [String: ModelPrice]
     public var aliases: [String: String]
+    /// Keyed by `ProviderID` raw value, then by the plan name the plan pill shows.
+    public var plans: [String: [String: PlanPrice]]
 
-    public init(prices: [String: ModelPrice] = [:], aliases: [String: String] = [:]) {
+    public init(prices: [String: ModelPrice] = [:], aliases: [String: String] = [:], plans: [String: [String: PlanPrice]] = [:]) {
         self.prices = prices
         self.aliases = aliases
+        self.plans = plans
     }
 
-    /// The bundled table overlaid with the user's override file: each model or alias in the override replaces
+    /// The bundled table overlaid with the user's override file: each model, alias or plan in the override replaces
     /// the bundled entry of the same id whole. A missing or unreadable file contributes nothing.
     public static func load(bundled: URL?, override: URL?) -> PriceTable {
         var table = PriceTable()
@@ -66,8 +90,16 @@ public struct PriceTable: Sendable {
             guard let data = try? Data(contentsOf: url), let file = try? PriceFile.decode(data) else { continue }
             table.prices.merge(file.models) { _, new in new }
             table.aliases.merge(file.aliases ?? [:]) { _, new in new }
+            for (provider, plans) in file.plans ?? [:] {
+                table.plans[provider, default: [:]].merge(plans) { _, new in new }
+            }
         }
         return table
+    }
+
+    /// The US monthly list price of `plan` as the plan pill names it; nil for a plan the table does not price.
+    public func planPrice(provider: ProviderID, plan: String) -> PlanPrice? {
+        plans[provider.rawValue]?[plan]
     }
 
     /// Exact id, then alias, then the normalized id (and its alias). Any other spelling is unpriced: sharing a priced
@@ -122,13 +154,29 @@ public struct PriceTable: Sendable {
     }
 }
 
-/// The on-disk format of Resources/pricing.json and the user's override. Unknown keys, such as an entry's `note`, are ignored.
+/// The on-disk format of Resources/pricing.json and the user's override. Unknown keys, such as an entry's `note`, are ignored,
+/// and `models` may be left out of an override that only sets plan prices.
 struct PriceFile: Decodable {
     var version: Int?
     var currency: String?
     var unit: String?
     var models: [String: ModelPrice]
     var aliases: [String: String]?
+    var plans: [String: [String: PlanPrice]]?
+
+    enum CodingKeys: String, CodingKey {
+        case version, currency, unit, models, aliases, plans
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        version = try c.decodeIfPresent(Int.self, forKey: .version)
+        currency = try c.decodeIfPresent(String.self, forKey: .currency)
+        unit = try c.decodeIfPresent(String.self, forKey: .unit)
+        models = try c.decodeIfPresent([String: ModelPrice].self, forKey: .models) ?? [:]
+        aliases = try c.decodeIfPresent([String: String].self, forKey: .aliases)
+        plans = try c.decodeIfPresent([String: [String: PlanPrice]].self, forKey: .plans)
+    }
 
     enum FormatError: Error {
         case unsupported

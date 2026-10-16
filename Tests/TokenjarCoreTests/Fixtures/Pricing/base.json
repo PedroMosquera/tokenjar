@@ -9,5 +9,11 @@
   "aliases": {
     "a-legacy": "model-a",
     "b-legacy": "model-b"
+  },
+  "plans": {
+    "claude": {
+      "Pro": { "monthlyUSD": 20, "source": "https://example.test/pro", "asOf": "2026-01-01" },
+      "Max 20x": { "monthlyUSD": 200, "source": "https://example.test/max", "asOf": "2026-01-01" }
+    }
   }
 }

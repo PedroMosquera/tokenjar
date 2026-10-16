@@ -69,5 +69,44 @@
   },
   "aliases": {
     "claude-haiku-4-5-20251001": "claude-haiku-4-5"
+  },
+  "plans": {
+    "claude": {
+      "Pro": {
+        "monthlyUSD": 20, "source": "https://claude.com/pricing", "asOf": "2026-10-16",
+        "note": "US price billed monthly."
+      },
+      "Max 5x": {
+        "monthlyUSD": 100, "source": "https://support.claude.com/en/articles/11049741-what-is-the-max-plan", "asOf": "2026-10-16",
+        "note": "Web subscription; Max is sold monthly only."
+      },
+      "Max 20x": {
+        "monthlyUSD": 200, "source": "https://support.claude.com/en/articles/11049741-what-is-the-max-plan", "asOf": "2026-10-16",
+        "note": "Web subscription; Max is sold monthly only."
+      },
+      "Team": {
+        "monthlyUSD": 25, "source": "https://claude.com/pricing", "asOf": "2026-10-16",
+        "note": "Standard seat, per seat, billed monthly."
+      },
+      "Team Premium": {
+        "monthlyUSD": 125, "source": "https://claude.com/pricing", "asOf": "2026-10-16",
+        "note": "Premium seat, per seat, billed monthly."
+      }
+    },
+    "codex": {
+      "Go": {
+        "monthlyUSD": 8, "source": "https://learn.chatgpt.com/docs/pricing", "asOf": "2026-10-16",
+        "note": "ChatGPT Go, monthly."
+      },
+      "Plus": {
+        "monthlyUSD": 20, "source": "https://learn.chatgpt.com/docs/pricing", "asOf": "2026-10-16",
+        "note": "ChatGPT Plus, monthly."
+      }
+    },
+    "opencode-go": {
+      "Go": {
+        "monthlyUSD": 10, "source": "https://opencode.ai/go", "asOf": "2026-10-16"
+      }
+    }
   }
 }
