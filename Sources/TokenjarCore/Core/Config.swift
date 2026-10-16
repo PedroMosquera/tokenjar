@@ -128,16 +128,18 @@ public struct AlertConfig: Codable, Equatable, Sendable {
     public var thresholds: [Int]
     public var projectedExhaustion: Bool
     public var windowResets: Bool
+    public var earlyResets: Bool
     public var sourceProblems: Bool
 
     public init(
         enabled: Bool = true, thresholds: [Int] = [80, 95], projectedExhaustion: Bool = true,
-        windowResets: Bool = false, sourceProblems: Bool = true
+        windowResets: Bool = false, earlyResets: Bool = true, sourceProblems: Bool = true
     ) {
         self.enabled = enabled
         self.thresholds = thresholds
         self.projectedExhaustion = projectedExhaustion
         self.windowResets = windowResets
+        self.earlyResets = earlyResets
         self.sourceProblems = sourceProblems
     }
 
@@ -148,6 +150,7 @@ public struct AlertConfig: Codable, Equatable, Sendable {
         thresholds = try c.decodeIfPresent([Int].self, forKey: .thresholds) ?? d.thresholds
         projectedExhaustion = try c.decodeIfPresent(Bool.self, forKey: .projectedExhaustion) ?? d.projectedExhaustion
         windowResets = try c.decodeIfPresent(Bool.self, forKey: .windowResets) ?? d.windowResets
+        earlyResets = try c.decodeIfPresent(Bool.self, forKey: .earlyResets) ?? d.earlyResets
         sourceProblems = try c.decodeIfPresent(Bool.self, forKey: .sourceProblems) ?? d.sourceProblems
     }
 }
@@ -311,6 +314,7 @@ public struct ConfigStore: Sendable {
         copyIfEdited(\.alerts.thresholds)
         copyIfEdited(\.alerts.projectedExhaustion)
         copyIfEdited(\.alerts.windowResets)
+        copyIfEdited(\.alerts.earlyResets)
         copyIfEdited(\.alerts.sourceProblems)
         for name in Set(old.cliPaths.keys).union(new.cliPaths.keys) where old.cliPaths[name] != new.cliPaths[name] {
             out.cliPaths[name] = new.cliPaths[name]

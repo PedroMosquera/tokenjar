@@ -4,6 +4,7 @@ public enum AlertKind: Codable, Hashable, Sendable {
     case threshold(Int)
     case projectedExhaustion
     case windowReset
+    case earlyReset
     case sourceProblem
     case dailyBudget
     case overLimit
@@ -58,6 +59,9 @@ public struct AlertState: Codable, Equatable, Sendable {
     /// Cycle id per "accountID|windowID": the reset time, rounded to 10 minutes, when the cycle was first seen.
     /// Held for the whole cycle so jitter across a rounding boundary cannot re-arm alerts.
     public var cycles: [String: Int]
+    /// Not persisted: a new cycle that began well before the old reset, per "accountID|windowID", waiting for the next
+    /// sample of this launch to confirm it.
+    public var earlyResetCandidates: [String: EarlyResetCandidate]
 
     public init() {
         firedKeys = []
@@ -66,6 +70,7 @@ public struct AlertState: Codable, Equatable, Sendable {
         lastResetsAt = [:]
         lastUsedPercent = [:]
         cycles = [:]
+        earlyResetCandidates = [:]
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -83,8 +88,19 @@ public struct AlertState: Codable, Equatable, Sendable {
     }
 }
 
+/// The old cycle's last reading before a sample showed it starting over early.
+public struct EarlyResetCandidate: Equatable, Sendable {
+    public var usedPercent: Double
+    public var resetsAt: Date
+    /// Seen while the poll was silent, so confirming it records the alert without posting it.
+    public var silent: Bool
+}
+
 public enum AlertEngine {
     static let cycleRounding: TimeInterval = 600
+    /// How far ahead the old reset must still be for a new cycle to count as early. It absorbs clock skew between the
+    /// Mac and the provider and reset times rounded to the hour, and a reset less than an hour early is not news.
+    static let earlyResetMargin: TimeInterval = 3600
     static let resetDropPoints = 30.0
     static let resetAlertMinimumUsed = 80.0
     static let projectionMinimumUsed = 50.0
@@ -119,7 +135,8 @@ public enum AlertEngine {
             state.baselinedAccounts.insert(account.id)
             for window in snapshot.windows {
                 evaluate(
-                    window, account: account, config: config, silent: silent, state: &state, now: now, clock: clock,
+                    window, account: account, config: config, silent: silent, savedCopy: snapshot.liveCheckFailure != nil,
+                    state: &state, now: now, clock: clock,
                     money: window.id == UsageWindow.spendCapID ? snapshot.spendLimitMoney : nil, locale: locale, into: &outcome
                 )
             }
@@ -146,14 +163,14 @@ public enum AlertEngine {
     }
 
     private static func evaluate(
-        _ window: UsageWindow, account: AccountConfig, config: AppConfig, silent: Bool,
+        _ window: UsageWindow, account: AccountConfig, config: AppConfig, silent: Bool, savedCopy: Bool,
         state: inout AlertState, now: Date, clock: Date.FormatStyle, money: MoneyLine?, locale: Locale, into outcome: inout AlertOutcome
     ) {
         // A finished cycle's numbers, e.g. from a stale fallback snapshot, would fire into the current cycle.
         if let resetsAt = window.resetsAt, resetsAt <= now { return }
         let windowKey = "\(account.id)|\(window.id)"
-        let previousUsed = state.lastUsedPercent[windowKey]
-        let isReset = previousUsed.map { isNewCycle(window, previousUsed: $0, previousReset: state.lastResetsAt[windowKey]) } ?? false
+        let previousUsed = state.lastUsedPercent[windowKey], previousReset = state.lastResetsAt[windowKey]
+        let isReset = previousUsed.map { isNewCycle(window, previousUsed: $0, previousReset: previousReset) } ?? false
         state.lastUsedPercent[windowKey] = window.usedPercent
         if let resetsAt = window.resetsAt { state.lastResetsAt[windowKey] = resetsAt }
 
@@ -170,6 +187,27 @@ public enum AlertEngine {
             state.firedKeys.insert(key)
             if !silent {
                 outcome.events.append(event(key, account, window, .windowReset, "\(limitName(window)) reset · now at \(percent(window.usedPercent))"))
+            }
+        }
+
+        // Early: a new cycle while the old reset was still `earlyResetMargin` ahead, announced only if the next sample
+        // still reads as a new cycle against the old one. A saved copy can hold an earlier, lower reading of this cycle.
+        if !savedCopy {
+            if let candidate = state.earlyResetCandidates.removeValue(forKey: windowKey),
+               isNewCycle(window, previousUsed: candidate.usedPercent, previousReset: candidate.resetsAt) {
+                if config.alerts.earlyResets {
+                    let key = prefix + "early"
+                    state.firedKeys.insert(key)
+                    if !silent, !candidate.silent {
+                        // The plain reset notice describes the same reset with less.
+                        outcome.withdrawals += [prefix + "reset"].filter(state.firedKeys.contains)
+                        var body = "\(limitName(window)) reset early · now at \(percent(window.usedPercent))"
+                        if let resetsAt = window.resetsAt { body += " · next reset \(resetsAt.formatted(clock.weekday(.abbreviated)))" }
+                        outcome.events.append(event(key, account, window, .earlyReset, body))
+                    }
+                }
+            } else if isReset, let previousUsed, let previousReset, previousReset.timeIntervalSince(now) >= earlyResetMargin {
+                state.earlyResetCandidates[windowKey] = EarlyResetCandidate(usedPercent: previousUsed, resetsAt: previousReset, silent: silent)
             }
         }
 
