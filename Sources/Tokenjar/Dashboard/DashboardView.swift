@@ -342,7 +342,8 @@ private struct DashboardDetail: View {
     }
 
     private func spendCard(emptyMessage: String?) -> some View {
-        DashboardCard(title: grouping == nil ? "Daily tokens" : "Daily spend", subtitle: spendSubtitle) {
+        let reference = DailyReference.make(breakdown, days: content.periods.days(of: content.key?.range ?? range))
+        return DashboardCard(title: grouping == nil ? "Daily tokens" : "Daily spend", subtitle: spendSubtitle) {
             // Regrouping an empty chart changes nothing, so the control would only invite a click that does nothing.
             if emptyMessage == nil {
                 Picker("Group by", selection: Binding(get: { split }, set: { splitSelection.wrappedValue = $0 })) {
@@ -362,12 +363,18 @@ private struct DashboardDetail: View {
                     } else {
                         SpendChart(
                             contentKey: content.key, split: split, range: content.key?.range ?? range, breakdown: breakdown,
-                            periods: content.periods, colors: spendColors, labels: spendLabels
+                            periods: content.periods, colors: spendColors, labels: spendLabels, reference: reference
                         )
                         .equatable()
                     }
                 }
                 .frame(height: 210)
+                if emptyMessage == nil, let note = reference.flatMap({ DailyReference.idleNote($0.idleDays) }) {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
                 if emptyMessage == nil, grouping == .model, let line = content.cacheHitRates.modelLine(groups: breakdown.groups) {
                     Text(line)
                         .font(.caption)

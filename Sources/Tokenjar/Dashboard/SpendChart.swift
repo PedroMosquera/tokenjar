@@ -12,6 +12,8 @@ struct SpendChart: View, Equatable {
     var colors: [Color]
     /// What the legend and tooltip call each of `breakdown.groups`, in the same order. Two groups may share one.
     var labels: [String]
+    /// Built from `breakdown`, so it needs no place in `==`.
+    var reference: DailyReference?
 
     static func == (a: SpendChart, b: SpendChart) -> Bool {
         a.contentKey == b.contentKey && a.split == b.split && a.range == b.range
@@ -33,6 +35,17 @@ struct SpendChart: View, Equatable {
                 )
                 .foregroundStyle(by: .value("Group", label(for: segment.group)))
                 .opacity(hoveredDay == nil || hoveredDay == segment.day ? 1 : 0.45)
+            }
+            // After the bars, so a bar under a rule cannot hide it; before the tooltip, which covers both.
+            if let reference {
+                referenceRule(
+                    reference.average, label: "Avg \(text(reference.average))", below: reference.averageLabelBelow,
+                    accessibilityLabel: "Average per day, \(text(reference.average))"
+                )
+                referenceRule(
+                    reference.peak, label: "Peak \(text(reference.peak))", below: false,
+                    accessibilityLabel: "Peak day, \(reference.peakDay.formatted(.dateTime.weekday(.wide).month(.wide).day())), \(text(reference.peak))"
+                )
             }
             if let day = hoveredDay {
                 RuleMark(x: .value("Day", day, unit: .day))
@@ -120,6 +133,24 @@ struct SpendChart: View, Equatable {
         .frame(width: 220)
         .background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.1)))
+    }
+
+    /// Faint and labelled inside the plot at the leading edge, as the limits chart labels its thresholds. The label takes
+    /// the card's background so the bar it sits on does not swallow it.
+    private func referenceRule(_ value: Double, label: String, below: Bool, accessibilityLabel: String) -> some ChartContent {
+        RuleMark(y: .value("Reference", value))
+            .foregroundStyle(Color.secondary.opacity(0.6))
+            .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+            .accessibilityLabel(accessibilityLabel)
+            .annotation(position: below ? .bottom : .top, alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 3)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.85), in: RoundedRectangle(cornerRadius: 3))
+                    .padding(.leading, 2)
+            }
     }
 
     private func text(_ value: Double) -> String {

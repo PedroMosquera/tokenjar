@@ -571,6 +571,41 @@ nonisolated enum DashboardMath {
     }
 }
 
+/// The daily chart's average and peak rules.
+nonisolated struct DailyReference: Equatable, Sendable {
+    var average: Double
+    var peak: Double
+    var peakDay: Date
+    /// Days in the range without usage, which count as zero in `average`.
+    var idleDays: Int
+
+    /// nil when fewer than two of `days` have anything charted: one bar is its own peak and says nothing about a rate.
+    static func make(_ breakdown: SpendBreakdown, days: [Date]) -> DailyReference? {
+        let inRange = Set(days)
+        var totals: [Date: Double] = [:]
+        for segment in breakdown.segments where inRange.contains(segment.day) {
+            totals[segment.day, default: 0] += segment.value
+        }
+        let active = totals.filter { $0.value > 0 }
+        guard active.count >= 2, let peak = active.max(by: { $0.value != $1.value ? $0.value < $1.value : $0.key > $1.key }) else { return nil }
+        return DailyReference(
+            average: active.values.reduce(0, +) / Double(days.count), peak: peak.value, peakDay: peak.key,
+            idleDays: days.count - active.count
+        )
+    }
+
+    /// Within an eighth of the peak the two labels would overlap, so the average's hangs under its rule.
+    var averageLabelBelow: Bool { peak - average < peak / 8 }
+
+    static func idleNote(_ idleDays: Int) -> String? {
+        switch idleDays {
+        case 0: nil
+        case 1: "The average counts the day without usage as zero."
+        default: "The average counts the \(idleDays) days without usage as zero."
+        }
+    }
+}
+
 /// Where this month's API-equivalent cost is headed, and how that compares with last month's total.
 nonisolated struct MonthForecast: Equatable, Sendable {
     /// nil until 5% of the month has passed.
