@@ -39,4 +39,20 @@ package.targets += [
         swiftSettings: [.defaultIsolation(MainActor.self)]
     ),
 ]
+#else
+// A console `tokenjar` for checks and scripts, and on Windows a tray app beside it.
+package.products.append(.executable(name: "tokenjar", targets: ["TokenjarCLI"]))
+package.targets.append(.executableTarget(name: "TokenjarCLI", dependencies: ["TokenjarCore"]))
+#if os(Windows)
+package.products.append(.executable(name: "TokenjarTray", targets: ["TokenjarTray"]))
+package.targets.append(.executableTarget(
+    name: "TokenjarTray",
+    dependencies: ["TokenjarCore"],
+    linkerSettings: [
+        // A GUI program, so starting it opens no console. Swift's entry point is still main, which the C runtime calls.
+        .unsafeFlags(["-Xlinker", "/SUBSYSTEM:WINDOWS", "-Xlinker", "/ENTRY:mainCRTStartup"]),
+        .linkedLibrary("user32"), .linkedLibrary("gdi32"), .linkedLibrary("shell32"), .linkedLibrary("advapi32"),
+    ]
+))
+#endif
 #endif

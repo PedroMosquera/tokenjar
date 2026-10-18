@@ -86,10 +86,12 @@ public struct CLILocator: Sendable {
         "HOMEPATH", "APPDATA", "LOCALAPPDATA", "ProgramData", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432",
         "CommonProgramFiles", "TEMP", "TMP", "OS", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS", "LANG",
     ]
+    /// One spelling each, since Windows has one variable whatever its case.
+    static let proxyVariables = ["HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY"]
     #else
     static let inheritedVariables = ["HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL"]
-    #endif
     static let proxyVariables = ["HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy"]
+    #endif
 
     /// Environment for spawned CLIs: only `inheritedVariables` and `proxyVariables` that are set in `inherited`, a PATH
     /// covering the search directories, and NO_COLOR. Nothing else passes through, so a launch environment's API keys or

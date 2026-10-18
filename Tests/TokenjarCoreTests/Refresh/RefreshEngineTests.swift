@@ -104,6 +104,7 @@ struct RefreshEngineTests {
 
         #expect(fetcher.count == 1)
         #expect(await engine.accounts.map(\.id) == ["claude"])
+        #expect(await engine.summary().sections.map(\.accountID) == ["claude"])
     }
 
     @Test func theFirstRunWritesTheAccountsFoundHere() async throws {

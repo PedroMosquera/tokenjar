@@ -1,12 +1,11 @@
 import Foundation
-import TokenjarCore
 
 /// `Tokenjar --status`: the last numbers of each enabled account as one line of JSON (`StatusReport`), for scripts such as
 /// a tmux or Claude Code status line. Runs no check and writes nothing, so it is safe to call every few seconds while the
 /// app runs. Handled before AppKit starts, which keeps it quick.
-enum StatusCommand {
+public enum StatusCommand {
     /// The exit status, or nil when `args` do not ask for it.
-    static func run(_ args: [String], paths: AppPaths, now: Date, output: (String) -> Void, errorOutput: (String) -> Void) -> Int32? {
+    public static func run(_ args: [String], paths: AppPaths, now: Date, output: (String) -> Void, errorOutput: (String) -> Void) -> Int32? {
         guard args.dropFirst().contains("--status") else { return nil }
         let config: AppConfig
         do {

@@ -49,7 +49,7 @@ jobs:
         run: docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/src" -w /src tokenjar-linux swift test
 
   windows-core:
-    # Only TokenjarCore and its tests build on Windows; the app is AppKit.
+    # The core, its tests, the tray and the console tokenjar. The Mac app is AppKit and does not build here.
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
@@ -67,3 +67,28 @@ jobs:
 
       - name: Test
         run: swift test
+
+      - name: Build the tray and tokenjar
+        run: swift build -c release
+
+      # A folder that runs on a PC with no Swift installed: both programs, the Swift runtime beside them, and the Visual
+      # C++ runtime, which Microsoft allows apps to carry.
+      - name: Package
+        shell: pwsh
+        run: |
+          $bin = swift build -c release --show-bin-path
+          $runtime = Split-Path (where.exe swiftCore.dll | Select-Object -First 1)
+          New-Item -ItemType Directory -Force tokenjar-windows | Out-Null
+          Copy-Item "$bin\TokenjarTray.exe", "$bin\tokenjar.exe" tokenjar-windows
+          Copy-Item "$runtime\*.dll" tokenjar-windows
+          Copy-Item "$env:SystemRoot\System32\vcruntime140.dll", "$env:SystemRoot\System32\vcruntime140_1.dll", "$env:SystemRoot\System32\msvcp140.dll" tokenjar-windows
+          # With only Windows on the PATH, the DLLs can come from nowhere but the folder.
+          $env:Path = "$env:SystemRoot\System32;$env:SystemRoot"
+          ./tokenjar-windows/tokenjar.exe --status
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tokenjar-windows
+          path: tokenjar-windows
+          retention-days: 14

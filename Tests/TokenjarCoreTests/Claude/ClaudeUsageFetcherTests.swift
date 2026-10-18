@@ -420,7 +420,11 @@ struct ClaudeUsageFetcherTests {
         ])
         #expect(calls[0].environment["CLAUDE_CONFIG_DIR"] == box.url.appending(path: ".claude-work").path)
         #expect(calls[1].environment["CLAUDE_CONFIG_DIR"] == nil)
+        #if os(Windows)
+        #expect(calls[0].environment["HOME"] == nil)
+        #else
         #expect(calls[0].environment["HOME"] == box.url.path)
+        #endif
         #expect(calls[0].currentDirectory?.path == probe.path)
         #expect(FileManager.default.fileExists(atPath: probe.path))
         #expect(calls[0].stdin == nil)

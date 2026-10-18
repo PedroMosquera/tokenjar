@@ -503,8 +503,9 @@ public struct UsageEvent: Codable, Hashable, Sendable {
             // directly under home (~/.config/nvim) are projects of their own.
             let parts = url.pathComponents
             if let hidden = parts.indices.dropFirst().first(where: { parts[$0].hasPrefix(".") }), hidden > 1 {
-                let parent = NSString.path(withComponents: Array(parts[..<hidden]))
-                if !same(parent, homePath) { url = URL(fileURLWithPath: parent) }
+                var parent = url
+                for _ in hidden..<parts.count { parent.deleteLastPathComponent() }
+                if !same(parent.path, homePath) { url = parent }
             }
         }
         if same(url.path, homePath) { return "~" }

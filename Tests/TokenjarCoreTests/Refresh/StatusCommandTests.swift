@@ -1,7 +1,6 @@
 import Foundation
 import Testing
-import TokenjarCore
-@testable import Tokenjar
+@testable import TokenjarCore
 
 struct StatusCommandTests {
     let home = FileManager.default.temporaryDirectory.appending(path: "tokenjar-status-\(UUID().uuidString)")

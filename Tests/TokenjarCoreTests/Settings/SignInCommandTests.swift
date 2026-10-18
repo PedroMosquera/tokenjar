@@ -59,6 +59,8 @@ struct SignInCommandTests {
         #expect(command(account) { "/Applications/My Tools/\($0)" } == "'/Applications/My Tools/claude' auth login")
     }
 
+    #if !os(Windows)
+    // These run the command through /bin/sh, the shell Terminal hands it to on the Mac.
     @Test(arguments: ["plain", "with space", "it's", "$(echo injected)", "`echo injected`", "a\"b", #"back\slash"#, "new\nline", "*", "~", "", "; echo injected"])
     func quotedWordReachesTheShellUnchanged(word: String) throws {
         let process = Process()
@@ -71,6 +73,8 @@ struct SignInCommandTests {
         let printed = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
         #expect(printed == word)
     }
+
+    #endif
 
     @Test func theShownCommandWritesHomePathsWithTilde() {
         let account = AccountConfig(id: "claude-work", provider: .claude, label: "Work", profileDir: "~/.claude-work")
@@ -87,6 +91,7 @@ struct SignInCommandTests {
         }
     }
 
+    #if !os(Windows)
     /// Only the part after ~/ is quoted, so a shell still expands the shown path to the one Terminal runs.
     @Test(arguments: ["~/Claude's work", "~/.claude-work", "~/Library/Application Support/claude"])
     func aShownProfilePathExpandsToTheRealOne(profileDir: String) throws {
@@ -104,6 +109,7 @@ struct SignInCommandTests {
         let printed = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
         #expect(printed == paths.expand(profileDir).path + "\n")
     }
+    #endif
 
     @Test func safeWordsStayBare() {
         #expect(SignInCommand.shellQuote("/Users/tester/.claude-work") == "/Users/tester/.claude-work")

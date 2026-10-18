@@ -12,7 +12,7 @@ struct CLILocatorTests {
         let locator = CLILocator(home: URL(fileURLWithPath: #"C:\Users\placeholder"#), searchDirectories: [URL(fileURLWithPath: #"C:\tools"#)])
         let env = locator.baseEnvironment(inherited: [
             "SystemRoot": #"C:\Windows"#, "appdata": #"C:\Users\placeholder\AppData\Roaming"#, "Path": #"C:\evil"#,
-            "HOME": #"C:\elsewhere"#, "ANTHROPIC_API_KEY": "x", "CLAUDE_CONFIG_DIR": #"C:\x"#, "HTTPS_PROXY": "p",
+            "HOME": #"C:\elsewhere"#, "ANTHROPIC_API_KEY": "x", "CLAUDE_CONFIG_DIR": #"C:\x"#, "https_proxy": "p",
         ])
 
         #expect(Set(env.keys) == ["SystemRoot", "APPDATA", "PATH", "NO_COLOR", "HTTPS_PROXY"])

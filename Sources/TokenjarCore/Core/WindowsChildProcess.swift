@@ -232,7 +232,7 @@ final class WindowsChildProcess: @unchecked Sendable {
 }
 
 /// The path in the form Windows APIs take: drive letter first, backslashes.
-func windowsPath(_ url: URL) -> String {
+public func windowsPath(_ url: URL) -> String {
     url.withUnsafeFileSystemRepresentation { $0.map { String(cString: $0) } } ?? url.path
 }
 

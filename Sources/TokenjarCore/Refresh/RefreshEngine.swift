@@ -57,6 +57,18 @@ public actor RefreshEngine {
     /// Whether `accountID` is held back because its probe started a model turn. Only `retry(accountID:)` lifts that.
     public func isLatched(_ accountID: String) -> Bool { latch.isLatched(accountID) }
 
+    /// What a tray shows now for the accounts this machine checks: their stored snapshots, last checks and latch.
+    public func summary() -> TraySummary {
+        var checked = config
+        checked.accounts = accounts
+        let snapshots = (try? store.latestSnapshots()) ?? []
+        let latched = Dictionary(uniqueKeysWithValues: latch.accountIDs.compactMap { id in latch.cli(of: id).map { (id, $0) } })
+        return TraySummary.make(
+            report: StatusReport.make(config: checked, snapshots: snapshots, now: clock()), config: checked, checks: checks,
+            latched: latched, configProblem: configProblem, now: clock()
+        )
+    }
+
     /// Reads config.json and config.local.json. The first time, when nothing at all is at config.json's path (not even
     /// a dangling link), the accounts found on this machine are written there. A failed read keeps the last settings.
     public func loadConfig() {
