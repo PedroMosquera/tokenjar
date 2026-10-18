@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml)
 
-Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot. Devin shares no usage yet, so it only gets a link to its usage page in Settings.
+Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. A smaller Windows tray app and a Linux command are in preview; see [Windows and Linux](#windows-and-linux-preview). It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot. Devin shares no usage yet, so it only gets a link to its usage page in Settings.
 
 I built it because I did not want a third-party app handling my AI logins. Tokenjar asks each provider's own CLI for the numbers, except for OpenCode, where it reads opencode's key and local database. History stays on your Mac. There is no prebuilt download: you build it from source with the Command Line Tools, by hand or through Homebrew.
 
@@ -134,6 +134,41 @@ Tokenjar has no Dock icon, except while the dashboard or Settings is open. Launc
 Turn off Launch at login, quit Tokenjar and delete `~/Applications/Tokenjar.app`. If you installed with Homebrew, also run `brew uninstall tokenjar`, which removes Homebrew's copy and the `tokenjar-install-app` command. If you use nothing else from that tap, `brew untap PedroMosquera/tap` removes the tap too, so `brew update` stops fetching it.
 
 To clear its data as well, delete `~/Library/Application Support/Tokenjar` (history), run `defaults delete com.pedromosquera.tokenjar` (window sizes and positions), and remove any "Tokenjar API key" item in Keychain Access. Delete settings with `rm -r ~/.config/tokenjar` (or `$XDG_CONFIG_HOME/tokenjar` if Tokenjar runs with that variable set), typed out with no trailing slash, which tab completion can add. If that folder or its `config.json` is a link into a dotfiles repository, this removes only the link. If the folder that holds it, such as `~/.config`, is itself a link into a repository, this deletes the `tokenjar` folder inside that repository. [docs/privacy.md](docs/privacy.md#what-it-writes) lists everything Tokenjar writes. These steps have not been tested on a clean Mac.
+
+## Windows and Linux (preview)
+
+The checks and the history are shared code, so the numbers are the same as on a Mac. What is missing is most of the app around them: there is no popover, dashboard, Settings window or alerts yet, so settings are edited in `config.json` by hand. There is no download either. You build it from source with Swift 6.2 or later.
+
+| | Windows | Linux |
+|---|---|---|
+| What you get | `TokenjarTray.exe`, a tray icon with the tightest limit's percent, and a menu listing each account's limits and resets, with Refresh now, Start at login and Open settings folder. `tokenjar.exe --check` and `--status` in a terminal. | `tokenjar --check` checks every account once and prints the menu as text; `tokenjar --status` prints the JSON described in [In scripts](#in-scripts). No tray and no timer yet. |
+| Checked so far | Claude Code, Codex and GitHub Copilot, signed out, on every CI run on Windows Server 2025, and Claude Pro and Codex Plus on one Windows 11 PC. Windows 10 has not been tried. OpenCode and Antigravity have not run on Windows. | Claude Code with a recorded answer. No signed-in account yet. |
+| Settings | `%USERPROFILE%\.config\tokenjar\config.json` | `~/.config/tokenjar/config.json` |
+| History | `%LOCALAPPDATA%\Tokenjar` | `~/.local/share/tokenjar` |
+| Not there yet | Saving an API key (Credential Manager), Sign in from the app, Devin | The same, plus a tray |
+
+### Building on Windows
+
+Install Swift and the Visual Studio components it needs by following [swift.org/install/windows](https://www.swift.org/install/windows/). Then, in a new terminal:
+
+```powershell
+git clone https://github.com/PedroMosquera/tokenjar.git
+cd tokenjar
+swift build -c release
+.build\release\TokenjarTray.exe
+```
+
+No window opens. The icon goes to the tray next to the clock, and Windows 11 first puts it under the `^` arrow; drag it onto the taskbar to keep it in view. Clicking it opens the menu. The build runs on the PC that built it, because it uses the Swift runtime the installer put on the `PATH`. Copying it to another PC needs those DLLs next to it, which is what the `windows-core` job in [the CI workflow](.github/workflows/ci.yml) packages.
+
+### Building on Linux
+
+```sh
+sudo apt install libsqlite3-dev   # or your distribution's SQLite headers
+git clone https://github.com/PedroMosquera/tokenjar.git
+cd tokenjar
+swift build -c release --product tokenjar
+.build/release/tokenjar --check
+```
 
 ## First run
 
