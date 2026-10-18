@@ -62,7 +62,8 @@ struct CLILocatorTests {
     }
 
     /// Proxy setups often export only the lowercase spelling, and curl reads `http_proxy` only in lowercase, so each
-    /// form passes as it was set, with no case folding.
+    /// form passes as it was set, with no case folding. Windows has one variable whatever its case, which every program
+    /// there reads whatever case it asks for, so it passes under one name.
     @Test func lowercaseProxyFormsPass() {
         let locator = CLILocator(home: URL(fileURLWithPath: "/Users/placeholder"))
 
@@ -70,9 +71,15 @@ struct CLILocatorTests {
             "https_proxy": "http://proxy.example.invalid:8080", "http_proxy": "http://proxy.example.invalid:8081", "no_proxy": "localhost",
         ])
 
+        #if os(Windows)
+        #expect(env["HTTPS_PROXY"] == "http://proxy.example.invalid:8080")
+        #expect(env["HTTP_PROXY"] == "http://proxy.example.invalid:8081")
+        #expect(env["NO_PROXY"] == "localhost")
+        #else
         #expect(env["https_proxy"] == "http://proxy.example.invalid:8080")
         #expect(env["http_proxy"] == "http://proxy.example.invalid:8081")
         #expect(env["no_proxy"] == "localhost")
+        #endif
     }
 
     /// Only the HTTP proxy variables were decided. `ALL_PROXY` can route a CLI through a SOCKS proxy and a replaced

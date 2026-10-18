@@ -68,7 +68,9 @@ jobs:
       - name: Test
         run: swift test
 
+      # Also after a failed test run, so one round reports both. Packaging still needs everything to pass.
       - name: Build the tray and tokenjar
+        if: ${{ !cancelled() }}
         run: swift build -c release
 
       # A folder that runs on a PC with no Swift installed: both programs, the Swift runtime beside them, and the Visual

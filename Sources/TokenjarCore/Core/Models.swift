@@ -511,7 +511,8 @@ public struct UsageEvent: Codable, Hashable, Sendable {
         if same(url.path, homePath) { return "~" }
         let last = url.lastPathComponent
         #if os(Windows)
-        if url.pathComponents.count <= 2 { return nil }
+        // A drive root ends in "C:", and no folder name can hold a colon.
+        if last.hasSuffix(":") { return nil }
         #endif
         return last == "/" ? nil : last
     }
