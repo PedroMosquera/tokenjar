@@ -359,10 +359,10 @@ struct SQLiteUsageStoreTests {
         let deadline = Date().addingTimeInterval(10)
         while try posixMode(url) != 0o600 {
             try #require(Date() < deadline, "the store never started opening")
-            usleep(1_000)
+            Thread.sleep(forTimeInterval: 0.001)
         }
         // From 0600 to the lock is a few calls.
-        usleep(100_000)
+        Thread.sleep(forTimeInterval: 0.1)
         return {
             try #require(done.wait(timeout: .now() + 10) == .success, "the store never finished opening")
             if let failure { throw failure }

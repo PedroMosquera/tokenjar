@@ -5,6 +5,15 @@ enum TestPaths {
     static let target = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
     static let fixtures = target.appending(path: "Fixtures")
     static let repository = target.deletingLastPathComponent().deletingLastPathComponent()
+
+    /// `AppPaths.claudeManagedSettingsFile` below the system root, for writing one under a test's own root.
+    #if os(macOS)
+    static let managedSettings = "Library/Application Support/ClaudeCode/managed-settings.json"
+    #elseif os(Windows)
+    static let managedSettings = "Program Files/ClaudeCode/managed-settings.json"
+    #else
+    static let managedSettings = "etc/claude-code/managed-settings.json"
+    #endif
 }
 
 /// 2027-01-15 08:00 UTC, for suites that only need some fixed instant. Named apart from `now` so that a suite opts in.

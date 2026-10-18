@@ -8,20 +8,38 @@ public struct AppPaths: Sendable {
     /// Where machine-wide files such as an MDM profile's managed settings live.
     public var systemRoot: URL
     private var xdgConfigHome: String?
+    private var xdgDataHome: String?
+    private var localAppData: String?
 
     /// `environment` and `systemRoot` are seams for tests, so a test never reads the real managed settings.
     public init(
         home: URL = FileManager.default.homeDirectoryForCurrentUser, environment: [String: String] = ProcessInfo.processInfo.environment,
-        systemRoot: URL = URL(fileURLWithPath: "/")
+        systemRoot: URL = AppPaths.defaultSystemRoot
     ) {
         self.home = home
         self.systemRoot = systemRoot
-        xdgConfigHome = environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+        func nonEmpty(_ key: String) -> String? { environment[key].flatMap { $0.isEmpty ? nil : $0 } }
+        xdgConfigHome = nonEmpty("XDG_CONFIG_HOME")
+        xdgDataHome = nonEmpty("XDG_DATA_HOME")
+        localAppData = nonEmpty("LOCALAPPDATA")
     }
 
-    /// Claude Code's machine-wide settings, written by an administrator or an MDM profile.
+    #if os(Windows)
+    public static let defaultSystemRoot = URL(fileURLWithPath: (ProcessInfo.processInfo.environment["SystemDrive"] ?? "C:") + "\\")
+    #else
+    public static let defaultSystemRoot = URL(fileURLWithPath: "/")
+    #endif
+
+    /// Claude Code's machine-wide settings, written by an administrator or an MDM profile, in the folder its docs name
+    /// for each OS.
     public var claudeManagedSettingsFile: URL {
+        #if os(macOS)
         systemRoot.appending(path: "Library/Application Support/ClaudeCode/managed-settings.json")
+        #elseif os(Windows)
+        systemRoot.appending(path: "Program Files/ClaudeCode/managed-settings.json")
+        #else
+        systemRoot.appending(path: "etc/claude-code/managed-settings.json")
+        #endif
     }
 
     /// ~/.config/tokenjar. Honors XDG_CONFIG_HOME only when it is set in the app's own environment.
@@ -34,7 +52,17 @@ public struct AppPaths: Sendable {
     public var localConfigFile: URL { configDirectory.appending(path: "config.local.json") }
     public var pricingOverrideFile: URL { configDirectory.appending(path: "pricing.json") }
 
-    public var supportDirectory: URL { home.appending(path: "Library/Application Support/Tokenjar") }
+    /// Where the database and app state live: Application Support on macOS, `%LOCALAPPDATA%` on Windows, and the XDG
+    /// data folder elsewhere. Unlike the config folder this never syncs, so each machine keeps its own history.
+    public var supportDirectory: URL {
+        #if os(macOS)
+        home.appending(path: "Library/Application Support/Tokenjar")
+        #elseif os(Windows)
+        (localAppData.map { URL(fileURLWithPath: $0) } ?? home.appending(path: "AppData/Local")).appending(path: "Tokenjar")
+        #else
+        (xdgDataHome.map { URL(fileURLWithPath: $0) } ?? home.appending(path: ".local/share")).appending(path: "tokenjar")
+        #endif
+    }
     public var databaseFile: URL { supportDirectory.appending(path: "tokenjar.sqlite") }
 
     /// Fixed, empty working directory for CLI probes, so probes never create per-run folders in a CLI's project list.

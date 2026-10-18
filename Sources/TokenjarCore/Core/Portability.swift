@@ -107,6 +107,9 @@ func autoreleasepool<Result>(invoking body: () throws -> Result) rethrows -> Res
 #endif
 
 #if os(Windows)
+/// The C runtime on Windows has rmdir only under a deprecated name.
+func rmdir(_ path: String) -> Int32 { _rmdir(path) }
+
 /// The C runtime on Windows has no memmem.
 func memmem(_ haystack: UnsafeRawPointer, _ haystackCount: Int, _ needle: UnsafeRawPointer, _ needleCount: Int) -> UnsafeRawPointer? {
     guard needleCount > 0 else { return haystack }

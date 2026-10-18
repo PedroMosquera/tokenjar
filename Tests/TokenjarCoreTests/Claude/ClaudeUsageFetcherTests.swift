@@ -361,7 +361,7 @@ struct ClaudeUsageFetcherTests {
 
     @Test(arguments: ["bedrock-managed.managed-settings.json", "gateway.managed-settings.json"])
     func managedSettingsRouteTheLoginToo(managed: String) async throws {
-        try box.copyFixture("Claude/\(managed)", to: "Library/Application Support/ClaudeCode/managed-settings.json")
+        try box.copyFixture("Claude/\(managed)", to: TestPaths.managedSettings)
         let runner = FakeRunner(output(stdout: try fixture("Claude/stream-signed-out.jsonl")))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
@@ -412,7 +412,7 @@ struct ClaudeUsageFetcherTests {
 
         let calls = runner.calls
         try #require(calls.count == 2)
-        let probe = box.url.appending(path: "Library/Application Support/Tokenjar/probe")
+        let probe = AppPaths(home: box.url, environment: [:]).probeDirectory
         #expect(calls[0].executable.path == "/bin/sh")
         #expect(calls[0].arguments == [
             "-p", "/usage", "--output-format", "stream-json", "--verbose", "--no-session-persistence",

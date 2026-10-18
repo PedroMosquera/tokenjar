@@ -27,7 +27,7 @@ struct CaptureCommandTests {
          "hasExtraUsageEnabled": false, "userID": "placeholder-user", "projects": {"/Users/placeholder/secret-project": {}}}
         """#)
         try write(".claude/settings.json", #"{"env": {"ANTHROPIC_BASE_URL": "https://gateway.example.invalid", "CLAUDE_CODE_USE_BEDROCK": "1", "OTHER_SETTING": "x"}}"#)
-        try write("Library/Application Support/ClaudeCode/managed-settings.json", #"{"env": {"ANTHROPIC_AUTH_TOKEN": "sk-ant-placeholder-token", "CLAUDE_CODE_USE_VERTEX": "1"}, "forceLoginMethod": "console"}"#, under: systemRoot)
+        try write(TestPaths.managedSettings, #"{"env": {"ANTHROPIC_AUTH_TOKEN": "sk-ant-placeholder-token", "CLAUDE_CODE_USE_VERTEX": "1"}, "forceLoginMethod": "console"}"#, under: systemRoot)
 
         let text = try document(await capture(.claude))
 

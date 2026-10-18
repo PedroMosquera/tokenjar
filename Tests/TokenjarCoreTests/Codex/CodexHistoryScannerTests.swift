@@ -221,8 +221,8 @@ struct CodexHistoryScannerTests {
         let file = try temp.copyFixture("Codex/rollout-token-count.jsonl", to: path)
         let first = try scan(temp)
 
-        try FileManager.default.removeItem(at: file)
-        try temp.copyFixture("Codex/rollout-token-count.jsonl", to: path)
+        // Renamed over the old file rather than deleted and recreated, which on ext4 can reuse the inode.
+        try Data(contentsOf: file).write(to: file, options: .atomic)
         let second = try scan(temp, first.checkpoints)
 
         #expect(second.events == first.events)

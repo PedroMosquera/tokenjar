@@ -41,8 +41,8 @@ public struct FoundationProcessRunner: ProcessRunning {
         process.standardError = errPipe
         process.standardInput = inPipe
 
-        // Output is read only on the readability handlers, each until its own EOF. A second read from this thread
-        // after exit could land before a handler's last chunk and reorder stdout.
+        // Output is read only by readUntilEOF, each stream until its own EOF. A second read from this thread after
+        // exit could land before the reader's last chunk and reorder stdout.
         let out = LimitedBuffer(limit: outputLimit), err = LimitedBuffer(limit: outputLimit)
         let drained = DispatchGroup(), exited = DispatchGroup()
         Self.collect(outPipe.fileHandleForReading, into: out, until: drained)

@@ -12,10 +12,14 @@ private struct TranscriptHome {
 
     init() throws {
         try FileManager.default.createDirectory(at: directory.url.appending(path: ".claude"), withIntermediateDirectories: true)
+        #if os(Windows)
+        home = directory.url
+        #else
         // The enumerator reports /var/folders as /private/var/folders, and resolvingSymlinksInPath strips /private again.
         let real = try #require(realpath(directory.url.path, nil))
         defer { free(real) }
         home = URL(fileURLWithPath: String(cString: real))
+        #endif
         try FileManager.default.copyItem(at: TestPaths.fixtures.appending(path: "Claude/projects"), to: projects)
     }
 
@@ -221,10 +225,10 @@ struct ClaudeHistoryScannerTests {
         let box = try TranscriptHome()
         let first = try box.scan()
 
-        // Same bytes under a new inode: the offset would say "nothing new", the inode says it is another file.
+        // Same bytes under a new inode: the offset would say "nothing new", the inode says it is another file. Written
+        // beside the old file and renamed over it, because ext4 can hand a deleted file's inode straight to the next one.
         let original = try Data(contentsOf: box.subagent)
-        try FileManager.default.removeItem(at: box.subagent)
-        try original.write(to: box.subagent)
+        try original.write(to: box.subagent, options: .atomic)
         let replaced = try box.scan(first.checkpoints)
         #expect(replaced.events.map(\.dedupeKey) == ["claude:msg_E:req_E"])
 

@@ -2,6 +2,8 @@ import Foundation
 import Testing
 @testable import TokenjarCore
 
+// Headroom, the old name, only ever shipped for macOS, so its folders are only ever in Application Support.
+#if os(macOS)
 struct LegacyMigrationTests {
     private let home: TempHome
     private let paths: AppPaths
@@ -167,7 +169,6 @@ struct LegacyMigrationTests {
         #expect(!exists(".config/tokenjar"))
     }
 
-    #if canImport(Darwin)
     /// The match the app uses for a Headroom with no bundle id, such as one started from `.build`.
     @Test func findsARunningProcessByItsExactName() throws {
         let child = Process()
@@ -180,7 +181,6 @@ struct LegacyMigrationTests {
         #expect(!LegacyMigration.isProcessRunning(named: "slee"))
         #expect(!LegacyMigration.isProcessRunning(named: "no-such-\(UUID().uuidString.prefix(8))"))
     }
-    #endif
 
     @Test func aHeadroomFolderWhoseTokenjarNameIsFreeIsLeftToMove() throws {
         #expect(!LegacyMigration.hasDataToMove(paths: paths))
@@ -229,10 +229,8 @@ struct LegacyMigrationTests {
         #expect(!exists(newSupport))
     }
 
-    #if canImport(Darwin)
     /// SQLite pairs the database with its -wal by name, and the -wal holds transactions not yet in the database, so a
-    /// rename that cannot finish puts the files it already renamed back. The immutable flag that blocks the rename is
-    /// macOS only; Linux needs root for it.
+    /// rename that cannot finish puts the files it already renamed back.
     @Test func aDatabaseThatCannotBeRenamedWholeKeepsItsOldNames() throws {
         try home.write("\(oldSupport)/headroom.sqlite", "db")
         try home.write("\(oldSupport)/headroom.sqlite-wal", "wal")
@@ -252,5 +250,5 @@ struct LegacyMigrationTests {
         #expect(read("\(newSupport)/headroom.sqlite-wal") == "wal")
         #expect(!exists("\(newSupport)/tokenjar.sqlite"))
     }
-    #endif
 }
+#endif
