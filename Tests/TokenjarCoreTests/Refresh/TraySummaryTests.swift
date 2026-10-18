@@ -62,6 +62,14 @@ struct TraySummaryTests {
         #expect(result.sections.first?.problem == FetchError.timeout.userMessage(provider: .codex))
     }
 
+    @Test func numbersTheCLISavedSayWhyAndHowOldTheyAre() {
+        var cached = snapshot(claude, used: 11, fetchedAt: now.addingTimeInterval(-45_900))
+        cached.notes = ["Can't find the claude command. Showing the last values Claude Code saved."]
+        let result = summary([claude], [cached])
+
+        #expect(result.sections.first?.problem == "Can't find the claude command. Showing the last values Claude Code saved. These numbers are 12h 45m old.")
+    }
+
     @Test func aLatchedAccountSaysItsProbeStartedAModelTurn() {
         let result = summary([claude], [snapshot(claude, used: 10)], checks: ["claude": RefreshEngine.Check(at: now, error: .timeout)], latched: ["claude": .claude])
 

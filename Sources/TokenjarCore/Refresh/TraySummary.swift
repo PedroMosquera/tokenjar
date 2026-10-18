@@ -10,7 +10,8 @@ public struct TraySummary: Equatable, Sendable {
         public var title: String
         /// One per window: "5-hour: 42% · resets in 2h 10m".
         public var lines: [String]
-        /// Why the numbers are missing or old, in the words the Mac app uses; nil when the last check answered.
+        /// Why the numbers are missing or old, in the words the Mac app uses, plus any note the fetcher left; nil when the
+        /// last check answered with nothing to add.
         public var problem: String?
         /// Its probe started a model turn, so only an explicit retry checks it again.
         public var isLatched: Bool
@@ -55,10 +56,15 @@ public struct TraySummary: Equatable, Sendable {
                 problem = cli.modelTurnError.userMessage
             } else if let error = checks[entry.id]?.error {
                 problem = error.userMessage(provider: account.provider)
-            } else if entry.stale, let fetchedAt = entry.fetchedAt {
-                problem = "Last checked \(countdown(from: fetchedAt, to: now)) ago."
-            } else if entry.fetchedAt == nil, checks[entry.id] == nil {
-                problem = "Not checked yet."
+            } else {
+                // A fetcher that falls back to what the CLI saved says so, and why, only in its notes.
+                var parts = entry.notes
+                if entry.stale, let fetchedAt = entry.fetchedAt {
+                    parts.append("These numbers are \(countdown(from: fetchedAt, to: now)) old.")
+                } else if entry.fetchedAt == nil, checks[entry.id] == nil {
+                    parts.append("Not checked yet.")
+                }
+                problem = parts.isEmpty ? nil : parts.joined(separator: " ")
             }
             sections.append(Section(
                 accountID: entry.id, title: account.displayName + plan, lines: lines, problem: problem,
