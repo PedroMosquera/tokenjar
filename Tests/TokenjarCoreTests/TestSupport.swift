@@ -16,6 +16,22 @@ enum TestPaths {
     #endif
 }
 
+/// A CLI's file name as `CLILocator` looks for it: `claude`, or `claude.exe` on Windows, which runs programs by extension.
+func cliFileName(_ name: String) -> String {
+    #if os(Windows)
+    name + ".exe"
+    #else
+    name
+    #endif
+}
+
+/// A program present on every machine that runs the tests, for a fake CLI that is located but never run.
+#if os(Windows)
+let anyProgram = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SystemRoot"] ?? #"C:\Windows"#).appending(path: "System32/cmd.exe")
+#else
+let anyProgram = URL(fileURLWithPath: "/bin/sh")
+#endif
+
 /// 2027-01-15 08:00 UTC, for suites that only need some fixed instant. Named apart from `now` so that a suite opts in.
 let fixedNow = Date(timeIntervalSince1970: 1_800_000_000)
 

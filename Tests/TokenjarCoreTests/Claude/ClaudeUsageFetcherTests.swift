@@ -19,7 +19,7 @@ private enum FailedRun: CustomTestStringConvertible, Sendable {
 
 private extension TemporaryDirectory {
     /// Uses this directory as home and system root, so nothing touches the real ~/.claude.json or ~/Library.
-    func context(_ runner: FakeRunner, cli: String = "/bin/sh", now: Date) -> FetchContext {
+    func context(_ runner: FakeRunner, cli: String = anyProgram.path, now: Date) -> FetchContext {
         FetchContext(
             process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: url, overrides: ["claude": cli], searchDirectories: []),
             paths: AppPaths(home: url, environment: [:], systemRoot: url), now: { now }
@@ -413,7 +413,7 @@ struct ClaudeUsageFetcherTests {
         let calls = runner.calls
         try #require(calls.count == 2)
         let probe = AppPaths(home: box.url, environment: [:]).probeDirectory
-        #expect(calls[0].executable.path == "/bin/sh")
+        #expect(calls[0].executable.path == anyProgram.path)
         #expect(calls[0].arguments == [
             "-p", "/usage", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
             "--strict-mcp-config", "--settings", #"{"disableAllHooks":true}"#,
@@ -529,7 +529,7 @@ struct ClaudeUsageFetcherTests {
     fileprivate func aSavedCopyRecordsWhyTheLiveCheckFailed(_ run: FailedRun, _ expected: LiveCheckFailure) async throws {
         try box.copyFixture("Claude/claude-json-max.json", to: ".claude.json")
 
-        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(run.runner, cli: run == .missingCLI ? "/nonexistent/claude" : "/bin/sh", now: now))
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(run.runner, cli: run == .missingCLI ? "/nonexistent/claude" : anyProgram.path, now: now))
 
         #expect(snapshot.source == ClaudeUsageFetcher.cacheSource)
         #expect(snapshot.liveCheckFailure == expected)

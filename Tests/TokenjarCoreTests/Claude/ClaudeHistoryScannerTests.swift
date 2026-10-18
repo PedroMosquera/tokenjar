@@ -241,6 +241,8 @@ struct ClaudeHistoryScannerTests {
         #expect(truncated.events.map(\.dedupeKey) == ["claude:msg_H:req_H"])
     }
 
+    // chmod cannot make a file unreadable on Windows.
+    #if !os(Windows)
     /// Dropping it would only cost a full rescan of that file later, but the scan should resume where it left off.
     @Test func keepsTheCheckpointOfAFileItCannotRead() throws {
         let box = try TranscriptHome()
@@ -254,6 +256,7 @@ struct ClaudeHistoryScannerTests {
         #expect(blocked.events.isEmpty)
         #expect(blocked.checkpoints[sha256Hex(box.main.path)] == first.checkpoints[sha256Hex(box.main.path)])
     }
+    #endif
 
     @Test func dropsCheckpointsOfDeletedFiles() throws {
         let box = try TranscriptHome()

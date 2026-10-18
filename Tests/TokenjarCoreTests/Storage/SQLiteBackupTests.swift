@@ -44,6 +44,8 @@ struct SQLiteBackupTests {
     }
     #endif
 
+    // Windows ignores a folder's read-only flag, so nothing there stops SQLite writing beside the database.
+    #if !os(Windows)
     @Test func copyReadsADatabaseWhoseFilesAndFolderAreReadOnly() throws {
         try SQLiteUsageStore(url: live).record(snapshot("opencode-go"))
         let folder = live.deletingLastPathComponent()
@@ -56,7 +58,10 @@ struct SQLiteBackupTests {
         #expect(try copiedSnapshotIDs() == ["opencode-go"])
         #expect(try fileState(files + [folder.path]) == before)
     }
+    #endif
 
+    // Windows ignores a folder's read-only flag, so nothing there stops SQLite writing beside the database.
+    #if !os(Windows)
     /// A SQLite build without persistent WAL deletes the -shm file on close, and a folder it cannot write in stops
     /// SQLite from making a new one.
     @Test func copyReadsAClosedDatabaseWithoutAShmFileInAReadOnlyFolder() throws {
@@ -71,6 +76,7 @@ struct SQLiteBackupTests {
         #expect(try copiedSnapshotIDs() == ["antigravity"])
         #expect(try fileState([live.path, folder.path]) == before)
     }
+    #endif
 
     /// Modification date and permissions, the two things a stray write or chmod would change.
     private func fileState(_ paths: [String]) throws -> [String] {

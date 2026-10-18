@@ -23,7 +23,7 @@ enum CodexFixtures {
 extension TemporaryDirectory {
     /// An executable placeholder the CLI locator accepts. It is never run: tests inject a fake launcher.
     func fakeCodexBinary() throws -> URL {
-        let file = try write("#!/bin/sh\nexit 1\n", to: "bin/codex")
+        let file = try write("#!/bin/sh\nexit 1\n", to: "bin/\(cliFileName("codex"))")
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
         return file
     }

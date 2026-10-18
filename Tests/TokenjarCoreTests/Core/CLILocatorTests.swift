@@ -5,6 +5,21 @@ import Testing
 struct CLILocatorTests {
     let temp = TemporaryDirectory()
 
+    #if os(Windows)
+    /// docs/privacy.md lists this environment. Windows spells some names its own way, such as Path, so the match ignores
+    /// case; HOME is left out, since Windows programs find the home folder in USERPROFILE.
+    @Test func baseEnvironmentPassesOnlyTheListedVariables() {
+        let locator = CLILocator(home: URL(fileURLWithPath: #"C:\Users\placeholder"#), searchDirectories: [URL(fileURLWithPath: #"C:\tools"#)])
+        let env = locator.baseEnvironment(inherited: [
+            "SystemRoot": #"C:\Windows"#, "appdata": #"C:\Users\placeholder\AppData\Roaming"#, "Path": #"C:\evil"#,
+            "HOME": #"C:\elsewhere"#, "ANTHROPIC_API_KEY": "x", "CLAUDE_CONFIG_DIR": #"C:\x"#, "HTTPS_PROXY": "p",
+        ])
+
+        #expect(Set(env.keys) == ["SystemRoot", "APPDATA", "PATH", "NO_COLOR", "HTTPS_PROXY"])
+        #expect(env["APPDATA"] == #"C:\Users\placeholder\AppData\Roaming"#)
+        #expect(env["PATH"] == #"C:\tools;C:\Windows\System32;C:\Windows;C:\Windows\System32\WindowsPowerShell\v1.0"#)
+    }
+    #else
     /// docs/privacy.md lists this environment. Provider keys and config dirs in the app's own environment must not
     /// reach a CLI, or it could report another login's limits.
     @Test func baseEnvironmentPassesOnlyTheListedVariables() {
@@ -27,6 +42,7 @@ struct CLILocatorTests {
         #expect(env["PATH"] == (locator.searchDirectories.map(\.path) + ["/bin", "/usr/sbin", "/sbin"]).joined(separator: ":"))
         #expect(env["NO_COLOR"] == "1")
     }
+    #endif
 
     /// A CLI behind a proxy connects from Tokenjar as it would from a terminal, and only with the proxy Tokenjar itself
     /// was started with.
@@ -73,20 +89,20 @@ struct CLILocatorTests {
     /// A `cliPaths` entry is how a user picks one install over another found earlier in the search folders.
     @Test func anExistingOverrideStillWins() throws {
         let home = temp.url
-        try makeExecutable(home.appending(path: ".local/bin/claude"))
-        try makeExecutable(home.appending(path: "tools/claude"))
+        try makeExecutable(home.appending(path: ".local/bin/\(cliFileName("claude"))"))
+        try makeExecutable(home.appending(path: "tools/\(cliFileName("claude"))"))
 
         let locator = CLILocator(
-            home: home, overrides: ["claude": home.appending(path: "tools/claude").path], searchDirectories: [home.appending(path: ".local/bin")]
+            home: home, overrides: ["claude": home.appending(path: "tools/\(cliFileName("claude"))").path], searchDirectories: [home.appending(path: ".local/bin")]
         )
 
-        #expect(locator.locate("claude")?.path == home.appending(path: "tools/claude").path)
+        #expect(locator.locate("claude")?.path == home.appending(path: "tools/\(cliFileName("claude"))").path)
     }
 
     /// config.json syncs between Macs, so a `cliPaths` entry set on one Mac can name a path that does not exist here.
     @Test func aMissingOverrideFallsBackToTheSearch() throws {
         let home = temp.url
-        let found = home.appending(path: "fake-bin/claude")
+        let found = home.appending(path: "fake-bin/\(cliFileName("claude"))")
         try makeExecutable(found)
 
         let locator = CLILocator(
@@ -101,9 +117,9 @@ struct CLILocatorTests {
     @Test func aFakeSearchFolderIsHonored() throws {
         let home = temp.url
         let fake = home.appending(path: "fake-bin")
-        try makeExecutable(fake.appending(path: "gh"))
+        try makeExecutable(fake.appending(path: cliFileName("gh")))
 
-        #expect(CLILocator(home: home, searchDirectories: [fake]).locate("gh")?.path == fake.appending(path: "gh").path)
+        #expect(CLILocator(home: home, searchDirectories: [fake]).locate("gh")?.path == fake.appending(path: cliFileName("gh")).path)
         #expect(CLILocator(home: home, searchDirectories: [fake]).locate("env") == nil)
         #expect(CLILocator(home: home, searchDirectories: []).locate("env") == nil)
     }

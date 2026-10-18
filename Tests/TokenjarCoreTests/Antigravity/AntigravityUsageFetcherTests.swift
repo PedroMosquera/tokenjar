@@ -81,7 +81,7 @@ final class AntigravityUsageFetcherTests {
         #expect(try posixMode(context.paths.probeDirectory) == 0o700)
         #expect(runner.calls.map(\.arguments) == [["--version"], ["-p", "/usage", "--output-format", "json"]])
         let usage = try #require(runner.calls.last)
-        #expect(usage.executable.path == home.appending(path: "bin/agy").path)
+        #expect(usage.executable.path == home.appending(path: "bin/\(cliFileName("agy"))").path)
         #expect(usage.currentDirectory == context.paths.probeDirectory)
         #expect(FileManager.default.fileExists(atPath: context.paths.probeDirectory.path))
         #expect(usage.environment == context.cli.baseEnvironment())
@@ -239,7 +239,7 @@ final class AntigravityUsageFetcherTests {
     // MARK: Helpers
 
     private func context(_ runner: FakeRunner, agyPath: String? = nil) throws -> FetchContext {
-        let agy = home.appending(path: "bin/agy")
+        let agy = home.appending(path: "bin/\(cliFileName("agy"))")
         try Data().write(to: agy)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: agy.path)
         let now = self.now

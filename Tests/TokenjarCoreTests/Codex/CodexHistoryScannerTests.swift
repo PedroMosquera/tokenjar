@@ -241,6 +241,8 @@ struct CodexHistoryScannerTests {
         #expect(second.events.map(\.dedupeKey) == ["codex:rollout-t.jsonl:10500"])
     }
 
+    // chmod cannot make a file unreadable on Windows.
+    #if !os(Windows)
     @Test func keepsTheCheckpointOfAFileItCannotRead() throws {
         let temp = TemporaryDirectory()
         let lines = try CodexFixtures.lines("rollout-token-count.jsonl")
@@ -257,6 +259,7 @@ struct CodexHistoryScannerTests {
         #expect(!first.checkpoints.isEmpty)
         #expect(blocked.checkpoints == first.checkpoints)
     }
+    #endif
 
     @Test func checkpointsForDeletedFilesAreDropped() throws {
         let temp = TemporaryDirectory()

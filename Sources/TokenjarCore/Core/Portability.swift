@@ -3,13 +3,14 @@ import Foundation
 import WinSDK
 #endif
 
+#if !os(Windows)
+// Windows has no signals, and starts its CLIs through WindowsChildProcess rather than Process.
+
 /// Stops a write to `handle` after its reader exits from raising SIGPIPE, which would kill the whole process.
 /// Linux has no per-descriptor flag, so there it ignores SIGPIPE for the entire process: writes fail with EPIPE instead.
-/// Windows has no SIGPIPE.
 func preventSIGPIPE(writingTo handle: FileHandle) {
     #if canImport(Darwin)
     _ = fcntl(handle.fileDescriptor, F_SETNOSIGPIPE, 1)
-    #elseif os(Windows)
     #else
     _ = signal(SIGPIPE, SIG_IGN)
     #endif
@@ -18,7 +19,7 @@ func preventSIGPIPE(writingTo handle: FileHandle) {
 /// Starts `process`. On Linux a child keeps the signal mask of the thread that spawns it, even across exec, and GCD and
 /// Swift concurrency threads block nearly every signal there, so the CLI would never see a timeout's SIGTERM.
 func launch(_ process: Process) throws {
-    #if canImport(Darwin) || os(Windows)
+    #if canImport(Darwin)
     try process.run()
     #else
     var none = sigset_t(), saved = sigset_t()
@@ -28,6 +29,7 @@ func launch(_ process: Process) throws {
     try process.run()
     #endif
 }
+#endif
 
 /// Hands each chunk read from `handle` to `onData` in order, then calls `atEOF` once.
 /// On Linux a readabilityHandler was seen to miss a pipe's EOF, so a process run never finished; Linux reads on a thread
@@ -91,13 +93,6 @@ func fileIdentity(atPath path: String) -> (inode: UInt64, size: UInt64)? {
     var info = stat()
     guard stat(path, &info) == 0 else { return nil }
     return (UInt64(info.st_ino), UInt64(info.st_size))
-    #endif
-}
-
-/// Stops `process` for good once `terminate()` has had its chance. On Windows `terminate()` already is the hard stop.
-func forceKill(_ process: Process) {
-    #if !os(Windows)
-    if process.isRunning { kill(process.processIdentifier, SIGKILL) }
     #endif
 }
 

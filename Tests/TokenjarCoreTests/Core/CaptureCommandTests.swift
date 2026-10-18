@@ -33,7 +33,7 @@ struct CaptureCommandTests {
 
         let call = try #require(runner.calls.first)
         #expect(runner.calls.count == 1)
-        #expect(call.executable.path == home.appending(path: "bin/claude").path)
+        #expect(call.executable.path == home.appending(path: "bin/\(cliFileName("claude"))").path)
         #expect(call.arguments == ClaudeUsageFetcher.arguments)
         #expect(call.currentDirectory == context().paths.probeDirectory)
         #expect(call.environment["CLAUDE_CONFIG_DIR"] == nil)
@@ -278,7 +278,7 @@ struct CaptureCommandTests {
     private func context(transport: OpenCodeFakeTransport = OpenCodeFakeTransport(HTTPResponse(status: 500, body: Data()))) -> FetchContext {
         var overrides: [String: String] = [:]
         for name in ["claude", "codex", "gh", "agy"] {
-            let file = home.appending(path: "bin/\(name)")
+            let file = home.appending(path: "bin/\(cliFileName(name))")
             try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             if !FileManager.default.fileExists(atPath: file.path) {
                 try? Data("#!/bin/sh\nexit 1\n".utf8).write(to: file)

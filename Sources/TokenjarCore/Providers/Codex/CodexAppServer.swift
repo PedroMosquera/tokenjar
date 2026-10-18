@@ -74,7 +74,11 @@ final class ProcessCodexAppServerConnection: CodexAppServerConnection, @unchecke
 
     let lines: AsyncStream<Data>
     private let continuation: AsyncStream<Data>.Continuation
+    #if os(Windows)
+    private let child: WindowsChildProcess
+    #else
     private let process = Process()
+    #endif
     private let input: FileHandle
     private let output: FileHandle
     private let lock = NSLock()
@@ -82,6 +86,22 @@ final class ProcessCodexAppServerConnection: CodexAppServerConnection, @unchecke
     private var terminated = false
 
     init(executable: URL, arguments: [String], environment: [String: String], currentDirectory: URL) throws {
+        #if os(Windows)
+        let (stream, continuation) = AsyncStream.makeStream(of: Data.self)
+        do {
+            child = try WindowsChildProcess(
+                executable: executable, arguments: arguments, environment: environment, currentDirectory: currentDirectory,
+                captureErrors: false
+            )
+        } catch {
+            continuation.finish()
+            throw error
+        }
+        (lines, self.continuation) = (stream, continuation)
+        input = child.input
+        output = child.output
+        readUntilEOF(output, onData: { [weak self] in self?.receive($0) }, atEOF: { [weak self] in self?.finish() })
+        #else
         (lines, continuation) = AsyncStream.makeStream(of: Data.self)
         let inPipe = Pipe(), outPipe = Pipe()
         input = inPipe.fileHandleForWriting
@@ -105,6 +125,7 @@ final class ProcessCodexAppServerConnection: CodexAppServerConnection, @unchecke
             continuation.finish()
             throw error
         }
+        #endif
     }
 
     func send(_ message: Data) throws {
@@ -119,13 +140,17 @@ final class ProcessCodexAppServerConnection: CodexAppServerConnection, @unchecke
         guard !alreadyTerminated else { return }
         output.readabilityHandler = nil
         try? input.close()
+        #if os(Windows)
+        child.terminate()
+        #else
         if process.isRunning {
             process.terminate()
             let process = self.process
             DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
-                forceKill(process)
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
             }
         }
+        #endif
         continuation.finish()
     }
 

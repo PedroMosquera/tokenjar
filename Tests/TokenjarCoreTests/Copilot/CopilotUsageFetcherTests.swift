@@ -26,7 +26,7 @@ final class CopilotUsageFetcherTests {
 
         let call = try #require(runner.calls.first)
         #expect(runner.calls.count == 1)
-        #expect(call.executable.path == home.appending(path: "bin/gh").path)
+        #expect(call.executable.path == home.appending(path: "bin/\(cliFileName("gh"))").path)
         #expect(call.arguments == [
             "api", "--method", "GET", "-H", "X-GitHub-Api-Version: 2025-04-01", "copilot_internal/user", "--jq",
             #"{copilot_plan, access_type_sku, token_based_billing, quota_reset_date, quota_reset_date_utc, quota_snapshots: ((.quota_snapshots // {}) | map_values({entitlement, remaining, quota_remaining, percent_remaining, unlimited, has_quota, overage_count, overage_permitted, credits_used, token_based_billing})), monthly_quotas: (.monthly_quotas | if type == "object" then {chat, completions} else null end), limited_user_quotas: (.limited_user_quotas | if type == "object" then {chat, completions} else null end)}"#,
@@ -302,7 +302,7 @@ final class CopilotUsageFetcherTests {
     // MARK: Helpers
 
     private func context(_ runner: FakeRunner, ghPath: String? = nil) throws -> FetchContext {
-        let gh = home.appending(path: "bin/gh")
+        let gh = home.appending(path: "bin/\(cliFileName("gh"))")
         try Data().write(to: gh)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: gh.path)
         let now = self.now

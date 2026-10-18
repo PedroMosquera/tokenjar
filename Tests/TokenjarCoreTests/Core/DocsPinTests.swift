@@ -8,7 +8,7 @@ struct DocsPinTests {
     @Test func privacyNamesEveryCLICall() async throws {
         let commands = try Self.privacySection("## Commands it runs")
         let calls = try await Self.recordedCalls()
-        #expect(calls.map(\.executable.lastPathComponent) == ["claude", "codex", "agy", "agy", "gh"])
+        #expect(calls.map { $0.executable.deletingPathExtension().lastPathComponent } == ["claude", "codex", "agy", "agy", "gh"])
 
         let passed = CLILocator.inheritedVariables + CLILocator.proxyVariables
         let everyInherited = Dictionary(uniqueKeysWithValues: passed.map { ($0, "set") })
@@ -29,7 +29,7 @@ struct DocsPinTests {
     /// The page shows gh's jq program once in its own block and `<filter>` in the command line.
     private static func commandLine(_ call: Call) -> String {
         let words = call.arguments.map { $0 == CopilotUsageFetcher.filter ? "<filter>" : $0 }
-        return ([call.executable.lastPathComponent] + words.map(shellQuoted)).joined(separator: " ")
+        return ([call.executable.deletingPathExtension().lastPathComponent] + words.map(shellQuoted)).joined(separator: " ")
     }
 
     private static func shellQuoted(_ word: String) -> String {
@@ -50,7 +50,7 @@ struct DocsPinTests {
         let home = temp.url
         var overrides: [String: String] = [:]
         for cli in ["claude", "codex", "agy", "gh"] {
-            let binary = home.appending(path: "bin/\(cli)")
+            let binary = home.appending(path: "bin/\(cliFileName(cli))")
             try FileManager.default.createDirectory(at: binary.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data().write(to: binary)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)

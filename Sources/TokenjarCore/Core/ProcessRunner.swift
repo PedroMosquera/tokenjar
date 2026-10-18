@@ -30,6 +30,12 @@ public struct FoundationProcessRunner: ProcessRunning {
         _ executable: URL, arguments: [String], environment: [String: String],
         currentDirectory: URL?, stdin: Data?, timeout: TimeInterval, outputLimit: Int
     ) async throws -> ProcessResult {
+        #if os(Windows)
+        return try await runWithoutConsole(
+            executable, arguments: arguments, environment: environment, currentDirectory: currentDirectory, stdin: stdin,
+            timeout: timeout, outputLimit: outputLimit
+        )
+        #else
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
@@ -80,7 +86,7 @@ public struct FoundationProcessRunner: ProcessRunning {
             if first, process.isRunning {
                 process.terminate()
                 DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
-                    forceKill(process)
+                    if process.isRunning { kill(process.processIdentifier, SIGKILL) }
                 }
             }
             group.cancelAll()
@@ -89,6 +95,7 @@ public struct FoundationProcessRunner: ProcessRunning {
         await drained.done()
 
         return ProcessResult(exitCode: process.terminationStatus, stdout: out.data, stderr: err.data, timedOut: timedOut)
+        #endif
     }
 
     private static func collect(_ handle: FileHandle, into buffer: LimitedBuffer, until drained: DispatchGroup) {
@@ -97,7 +104,7 @@ public struct FoundationProcessRunner: ProcessRunning {
     }
 }
 
-private extension DispatchGroup {
+extension DispatchGroup {
     func done() async {
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in notify(queue: .global()) { c.resume() } }
     }

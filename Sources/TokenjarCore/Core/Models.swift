@@ -484,8 +484,15 @@ public struct UsageEvent: Codable, Hashable, Sendable {
 
     /// The working directory's last path component, with the home folder itself mapped to "~" so the user's account
     /// name is never stored. nil for a relative path, the root, or no path. Every history scanner goes through this.
+    /// On Windows a CLI records a drive path such as `C:\Users\x\repo`, and paths match whatever their case.
     static func project(fromWorkingDirectory cwd: String?, home: URL) -> String? {
+        #if os(Windows)
+        guard let cwd, cwd.hasPrefix("/") || cwd.dropFirst().hasPrefix(":") else { return nil }
+        func same(_ a: String, _ b: String) -> Bool { a.caseInsensitiveCompare(b) == .orderedSame }
+        #else
         guard let cwd, cwd.hasPrefix("/") else { return nil }
+        func same(_ a: String, _ b: String) -> Bool { a == b }
+        #endif
         var url = URL(fileURLWithPath: cwd).standardizedFileURL
         let homePath = home.standardizedFileURL.path
         // Claude Code runs subagents and parallel sessions in <repo>/.claude/worktrees/<name>; the work belongs to <repo>.
@@ -497,11 +504,14 @@ public struct UsageEvent: Codable, Hashable, Sendable {
             let parts = url.pathComponents
             if let hidden = parts.indices.dropFirst().first(where: { parts[$0].hasPrefix(".") }), hidden > 1 {
                 let parent = NSString.path(withComponents: Array(parts[..<hidden]))
-                if parent != homePath { url = URL(fileURLWithPath: parent) }
+                if !same(parent, homePath) { url = URL(fileURLWithPath: parent) }
             }
         }
-        if url.path == homePath { return "~" }
+        if same(url.path, homePath) { return "~" }
         let last = url.lastPathComponent
+        #if os(Windows)
+        if url.pathComponents.count <= 2 { return nil }
+        #endif
         return last == "/" ? nil : last
     }
 }

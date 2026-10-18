@@ -2,6 +2,9 @@ import Foundation
 import Testing
 @testable import TokenjarCore
 
+// Shell scripts and /bin tools; Windows runs its own programs in WindowsProcessTests.
+#if !os(Windows)
+
 /// Drives the real pipe plumbing with a tiny shell stand-in for `codex app-server`.
 struct CodexProcessConnectionTests {
     private static let fakeServer = """
@@ -54,3 +57,4 @@ struct CodexProcessConnectionTests {
         }
     }
 }
+#endif

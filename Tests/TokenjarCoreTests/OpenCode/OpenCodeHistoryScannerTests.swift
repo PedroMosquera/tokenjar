@@ -224,6 +224,19 @@ struct OpenCodeHistoryScannerTests {
         #expect(UsageEvent.project(fromWorkingDirectory: "relative/dir", home: home) == nil)
         #expect(UsageEvent.project(fromWorkingDirectory: nil, home: home) == nil)
     }
+
+    #if os(Windows)
+    @Test func aWindowsDrivePathGivesItsProjectAndHomeMatchesWhateverItsCase() {
+        let home = URL(fileURLWithPath: #"C:\Users\Placeholder"#)
+        #expect(UsageEvent.project(fromWorkingDirectory: #"C:\Users\Placeholder\work\tokenjar"#, home: home) == "tokenjar")
+        #expect(UsageEvent.project(fromWorkingDirectory: #"c:\users\placeholder"#, home: home) == "~")
+        #expect(UsageEvent.project(fromWorkingDirectory: #"C:\Users\Placeholder\"#, home: home) == "~")
+        #expect(UsageEvent.project(fromWorkingDirectory: #"c:\users\placeholder\.config\nvim"#, home: home) == "nvim")
+        #expect(UsageEvent.project(fromWorkingDirectory: #"C:\Users\Placeholder\work\site\.claude\worktrees\agent-1"#, home: home) == "site")
+        #expect(UsageEvent.project(fromWorkingDirectory: #"C:\"#, home: home) == nil)
+        #expect(UsageEvent.project(fromWorkingDirectory: #"work\tokenjar"#, home: home) == nil)
+    }
+    #endif
 }
 
 struct OpenCodeZenUsageFetcherTests {

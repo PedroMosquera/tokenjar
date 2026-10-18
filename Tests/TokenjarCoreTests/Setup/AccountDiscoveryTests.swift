@@ -5,8 +5,8 @@ import Testing
 struct AccountDiscoveryTests {
     /// A locator that searches only the temp home's bin, so a CLI installed on the Mac running the tests never leaks in.
     func locator(_ home: TempHome, agy: Bool, gh: Bool) throws -> CLILocator {
-        if agy { try home.write("bin/agy", "#!/bin/sh\n", permissions: 0o755) }
-        if gh { try home.write("bin/gh", "#!/bin/sh\n", permissions: 0o755) }
+        if agy { try home.write("bin/\(cliFileName("agy"))", "#!/bin/sh\n", permissions: 0o755) }
+        if gh { try home.write("bin/\(cliFileName("gh"))", "#!/bin/sh\n", permissions: 0o755) }
         return CLILocator(home: home.url, searchDirectories: [home.url.appending(path: "bin")])
     }
 
@@ -68,7 +68,7 @@ struct AccountDiscoveryTests {
     @Test func ghOnThePathProposesCopilot() throws {
         let home = TempHome()
         try home.write(".config/gh/hosts.yml", "unreadable on purpose", permissions: 0o000)
-        try home.write("bin/gh", "#!/bin/sh\ntouch \"$0.ran\"\n", permissions: 0o755)
+        try home.write("bin/\(cliFileName("gh"))", "#!/bin/sh\ntouch \"$0.ran\"\n", permissions: 0o755)
         #expect(try discover(home) == [AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")])
         #expect(!FileManager.default.fileExists(atPath: home.url.appending(path: "bin/gh.ran").path))
     }

@@ -2,6 +2,9 @@ import Foundation
 import Testing
 @testable import TokenjarCore
 
+// Shell scripts and /bin tools; Windows runs its own programs in WindowsProcessTests.
+#if !os(Windows)
+
 /// Runs real /bin tools. `.timeLimit` only backstops a hang; elapsed-time bounds are asserted with a clock.
 /// A test can only lower it, not raise it, so it outlasts ten slow launches plus one 30 s process timeout.
 @Suite(.timeLimit(.minutes(3)))
@@ -69,3 +72,4 @@ struct ProcessRunnerTests {
         }
     }
 }
+#endif

@@ -1,7 +1,6 @@
 import Foundation
 import Testing
-@testable import Tokenjar
-import TokenjarCore
+@testable import TokenjarCore
 
 struct RefreshSchedulerTests {
     private let t0 = Date(timeIntervalSince1970: 1_791_660_000)
