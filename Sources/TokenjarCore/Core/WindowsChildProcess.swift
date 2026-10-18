@@ -65,9 +65,20 @@ final class WindowsChildProcess: @unchecked Sendable {
 
         self.job = job
         process = started.hProcess
-        input = FileHandle(handle: stdin.parent, closeOnDealloc: true)
-        output = FileHandle(handle: stdout.parent, closeOnDealloc: true)
-        errorOutput = stderr.map { FileHandle(handle: $0.parent, closeOnDealloc: true) }
+        input = try Self.fileHandle(owning: stdin.parent)
+        output = try Self.fileHandle(owning: stdout.parent)
+        errorOutput = try stderr.map { try Self.fileHandle(owning: $0.parent) }
+    }
+
+    /// FileHandle takes a HANDLE only internally. A C runtime descriptor is the public way in, and FileHandle takes the
+    /// handle over from it, closing it when released.
+    private static func fileHandle(owning handle: HANDLE) throws -> FileHandle {
+        let descriptor = _open_osfhandle(Int(bitPattern: handle), Int32(_O_BINARY))
+        guard descriptor != -1 else {
+            CloseHandle(handle)
+            throw WindowsProcessError.call("_open_osfhandle", DWORD(GetLastError()))
+        }
+        return FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
     }
 
     deinit {

@@ -1,9 +1,8 @@
 import Foundation
 import Testing
-@testable import Tokenjar
-import TokenjarCore
+@testable import TokenjarCore
 
-private nonisolated struct StubScanner: HistoryScanner {
+private struct StubScanner: HistoryScanner {
     var name: String
     var fails = false
 
@@ -18,7 +17,7 @@ private nonisolated struct StubScanner: HistoryScanner {
 }
 
 /// Finds nothing new, so it hands back the checkpoints it was given.
-private nonisolated struct IdleScanner: HistoryScanner {
+private struct IdleScanner: HistoryScanner {
     var name = "s"
 
     func scan(_ account: AccountConfig, checkpoints: ScanCheckpoints, paths: AppPaths) throws -> ScanResult {
@@ -27,7 +26,7 @@ private nonisolated struct IdleScanner: HistoryScanner {
 }
 
 /// Records the order of the writes a scan makes.
-private nonisolated final class CountingStore: UsageStore, @unchecked Sendable {
+private final class CountingStore: UsageStore, @unchecked Sendable {
     let inner = InMemoryUsageStore()
     private let lock = NSLock()
     private var log: [String] = []
@@ -51,7 +50,7 @@ private nonisolated final class CountingStore: UsageStore, @unchecked Sendable {
 }
 
 /// Stores everything except events, to stand in for a database that rejects a write.
-private nonisolated final class RejectingStore: UsageStore, @unchecked Sendable {
+private final class RejectingStore: UsageStore, @unchecked Sendable {
     let inner = InMemoryUsageStore()
     var rejectsEvents = false
 
