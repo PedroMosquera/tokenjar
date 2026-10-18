@@ -110,13 +110,24 @@ jobs:
           "took $([int]$time.TotalSeconds)s"
           if ($report -match "Can't find the") { exit 1 }
 
-      - name: Tray starts, and a second copy steps aside
+      - name: Tray, used as a person would
+        shell: pwsh
+        run: ./.github/scripts/windows-tray-check.ps1
+
+      - name: A second tray steps aside
         shell: pwsh
         run: |
           $tray = Start-Process ./tokenjar-windows/TokenjarTray.exe -PassThru
-          Start-Sleep -Seconds 20
-          if ($tray.HasExited) { "the tray exited with $($tray.ExitCode)"; exit 1 }
+          Start-Sleep -Seconds 10
           $second = Start-Process ./tokenjar-windows/TokenjarTray.exe -PassThru
-          if (-not $second.WaitForExit(10000)) { "a second copy kept running"; Stop-Process $second; Stop-Process $tray; exit 1 }
+          $stepped = $second.WaitForExit(10000)
+          if (-not $stepped) { Stop-Process $second }
           Stop-Process $tray
-          ./tokenjar-windows/tokenjar.exe --status
+          if (-not $stepped) { "a second copy kept running"; exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: tray-screenshots
+          path: shots
+          retention-days: 7
