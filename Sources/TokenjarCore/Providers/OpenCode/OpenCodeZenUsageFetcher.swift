@@ -20,7 +20,7 @@ public struct OpenCodeZenUsageFetcher: UsageFetcher {
     public func fetch(_ account: AccountConfig, context: FetchContext) async throws -> UsageSnapshot {
         let scanner = OpenCodeHistoryScanner(providerIDs: [Self.zenProviderID], environment: environment)
         guard FileManager.default.fileExists(atPath: scanner.databaseFile(for: account, paths: context.paths).path) else {
-            throw FetchError.unsupported("OpenCode has not been used on this Mac")
+            throw FetchError.unsupported("OpenCode has not been used on \(thisMachine)")
         }
         let events: [UsageEvent]
         do {
@@ -35,7 +35,7 @@ public struct OpenCodeZenUsageFetcher: UsageFetcher {
             .reduce(0) { $0 + ($1.reportedCostUSD ?? 0) }
         return UsageSnapshot(
             accountID: account.id, provider: account.provider, plan: "Pay as you go",
-            money: [MoneyLine(label: "Spent this month (this Mac)", amount: spent)],
+            money: [MoneyLine(label: "Spent this month (\(thisMachine))", amount: spent)],
             fetchedAt: now, source: "opencode.db",
             notes: ["Balance needs a console sign-in; showing local spend only."]
         )

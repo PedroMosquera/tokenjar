@@ -94,3 +94,29 @@ jobs:
           name: tokenjar-windows
           path: tokenjar-windows
           retention-days: 14
+
+      # The real CLIs, none signed in, so no credential goes anywhere: Tokenjar must find and start each one, claude and
+      # codex through their npm shims, and read a signed-out answer rather than fail to launch or time out.
+      - name: Real CLIs, signed out
+        shell: pwsh
+        run: |
+          npm install --global --no-fund --no-audit @anthropic-ai/claude-code @openai/codex
+          Get-Command claude, codex, gh | Format-Table Name, Source -AutoSize
+          New-Item -ItemType Directory -Force "$HOME\.claude", "$HOME\.codex", "$env:APPDATA\GitHub CLI", "$HOME\.config\tokenjar" | Out-Null
+          '{"accounts":[{"id":"claude","provider":"claude","label":"CI"},{"id":"codex","provider":"codex","label":"CI"},{"id":"copilot","provider":"copilot","label":"CI"}]}' |
+            Set-Content -Encoding utf8NoBOM "$HOME\.config\tokenjar\config.json"
+          $time = Measure-Command { $script:report = ./tokenjar-windows/tokenjar.exe --check 2>&1 | Out-String }
+          $report
+          "took $([int]$time.TotalSeconds)s"
+          if ($report -match "Can't find the") { exit 1 }
+
+      - name: Tray starts, and a second copy steps aside
+        shell: pwsh
+        run: |
+          $tray = Start-Process ./tokenjar-windows/TokenjarTray.exe -PassThru
+          Start-Sleep -Seconds 20
+          if ($tray.HasExited) { "the tray exited with $($tray.ExitCode)"; exit 1 }
+          $second = Start-Process ./tokenjar-windows/TokenjarTray.exe -PassThru
+          if (-not $second.WaitForExit(10000)) { "a second copy kept running"; Stop-Process $second; Stop-Process $tray; exit 1 }
+          Stop-Process $tray
+          ./tokenjar-windows/tokenjar.exe --status

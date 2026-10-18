@@ -267,7 +267,7 @@ struct OpenCodeZenUsageFetcherTests {
         let account = AccountConfig(id: "zen", provider: .opencodeZen, label: "Zen", profileDir: dir.url.path)
         let now = DateParsing.iso8601("2026-10-10T12:00:00Z")!
         let s = try await OpenCodeZenUsageFetcher(environment: [:], calendar: utc).fetch(account, context: context(dir, now: now))
-        #expect(s.money == [MoneyLine(label: "Spent this month (this Mac)", amount: 4)])
+        #expect(s.money == [MoneyLine(label: "Spent this month (\(thisMachine))", amount: 4)])
         #expect(s.plan == "Pay as you go")
         #expect(s.source == "opencode.db")
         #expect(s.notes == ["Balance needs a console sign-in; showing local spend only."])
@@ -278,7 +278,7 @@ struct OpenCodeZenUsageFetcherTests {
     @Test func noDatabaseIsUnsupported() async throws {
         let dir = TemporaryDirectory()
         let account = AccountConfig(id: "zen", provider: .opencodeZen, label: "Zen", profileDir: dir.url.path)
-        await #expect(throws: FetchError.unsupported("OpenCode has not been used on this Mac")) {
+        await #expect(throws: FetchError.unsupported("OpenCode has not been used on \(thisMachine)")) {
             try await OpenCodeZenUsageFetcher(environment: [:], calendar: utc).fetch(account, context: context(dir, now: Date()))
         }
     }

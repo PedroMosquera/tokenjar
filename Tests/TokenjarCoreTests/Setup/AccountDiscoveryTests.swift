@@ -213,6 +213,19 @@ struct AccountDiscoveryTests {
         #expect(AccountDiscovery.isAvailable(work, paths: paths, environment: [:]))
     }
 
+    #if os(Windows)
+    @Test func copilotOnWindowsLooksWhereGhKeepsItsConfig() throws {
+        let home = TempHome()
+        let paths = AppPaths(home: home.url)
+        let copilot = AccountConfig(id: "copilot", provider: .copilot, label: "GitHub")
+        let environment = ["AppData": home.url.appending(path: "AppData/Roaming").path]
+        try home.makeDirectory(".config/gh")
+        #expect(!AccountDiscovery.isAvailable(copilot, paths: paths, environment: environment))
+        try home.makeDirectory("AppData/Roaming/GitHub CLI")
+        #expect(AccountDiscovery.isAvailable(copilot, paths: paths, environment: environment))
+    }
+    #endif
+
     @Test func antigravityIsAlwaysAvailable() throws {
         let home = TempHome()
         let account = AccountConfig(id: "antigravity", provider: .antigravity, label: "Google")

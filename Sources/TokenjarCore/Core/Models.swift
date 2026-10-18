@@ -353,6 +353,17 @@ public struct UsageSnapshot: Codable, Hashable, Sendable {
     }
 }
 
+/// What user-facing text calls the machine Tokenjar runs on.
+public let thisMachine: String = {
+    #if os(macOS)
+    "this Mac"
+    #elseif os(Windows)
+    "this PC"
+    #else
+    "this computer"
+    #endif
+}()
+
 public enum FetchError: Error, Codable, Hashable, Sendable {
     case cliNotFound(String)
     case notSignedIn
@@ -390,7 +401,7 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
     /// Safe for display and notifications: no ids, emails, tokens or raw bodies.
     public var userMessage: String {
         switch self {
-        case .cliNotFound(let name): "Can't find the \(name) command on this Mac."
+        case .cliNotFound(let name): "Can't find the \(name) command on \(thisMachine)."
         case .notSignedIn: "Signed out. Sign in again to see limits."
         case .noSubscription(let detail): detail
         case .unauthorized: "The sign-in or API key was rejected."

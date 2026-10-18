@@ -68,7 +68,7 @@ public enum AccountDiscovery {
         case .codex:
             account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".codex")
         case .copilot:
-            account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".config/gh")
+            account.profileDir.map(paths.expand) ?? ghConfigDirectory(paths: paths, environment: environment)
         case .opencodeZen:
             // First run gives Zen an auth.json credential that its fetcher never reads.
             OpenCodeLocalData.databaseFile(in: OpenCodeLocalData.dataDirectory(for: account, paths: paths, environment: environment))
@@ -81,6 +81,17 @@ public enum AccountDiscovery {
         case .antigravity, .devin:
             nil
         }
+    }
+
+    /// The folder gh uses when Tokenjar starts it. GH_CONFIG_DIR and XDG_CONFIG_HOME never reach it, and on Windows
+    /// APPDATA does, which gh reads before ~/.config/gh.
+    static func ghConfigDirectory(paths: AppPaths, environment: [String: String]) -> URL {
+        #if os(Windows)
+        if let appData = environment.first(where: { $0.key.caseInsensitiveCompare("APPDATA") == .orderedSame })?.value, !appData.isEmpty {
+            return URL(fileURLWithPath: appData).appending(path: "GitHub CLI")
+        }
+        #endif
+        return paths.home.appending(path: ".config/gh")
     }
 
     public static func openCodeAuthFile(paths: AppPaths, environment: [String: String]) -> URL {

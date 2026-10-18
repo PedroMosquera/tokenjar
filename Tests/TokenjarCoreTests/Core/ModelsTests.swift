@@ -117,9 +117,19 @@ struct ModelsTests {
         #expect(error.attention == attention)
     }
 
+    @Test func messagesNameTheMachineAsItsOwnersDo() {
+        #if os(macOS)
+        #expect(thisMachine == "this Mac")
+        #elseif os(Windows)
+        #expect(thisMachine == "this PC")
+        #else
+        #expect(thisMachine == "this computer")
+        #endif
+    }
+
     /// Each message names the cause and what happens next, as one or two whole sentences.
     @Test(arguments: [
-        (FetchError.cliNotFound("claude"), "Can't find the claude command on this Mac."),
+        (FetchError.cliNotFound("claude"), "Can't find the claude command on \(thisMachine)."),
         (.notSignedIn, "Signed out. Sign in again to see limits."),
         (.unauthorized, "The sign-in or API key was rejected."),
         (.network("URLError"), "Can't reach the server. Tokenjar tries again at the next refresh."),
