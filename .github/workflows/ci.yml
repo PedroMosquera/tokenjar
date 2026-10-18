@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # wip/ branches run CI without a PR, for platforms there is no local machine to test on.
+    branches: [main, "wip/**"]
   pull_request:
 
 permissions:
@@ -46,3 +47,23 @@ jobs:
       # Not as root: root reads files a test made unreadable, so those tests would fail.
       - name: Test
         run: docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/src" -w /src tokenjar-linux swift test
+
+  windows-core:
+    # Only TokenjarCore and its tests build on Windows; the app is AppKit.
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      # Fixtures are compared byte for byte, so they must keep their LF line endings.
+      - run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v5
+
+      - uses: SwiftyLab/setup-swift@v1
+        with:
+          swift-version: "6.2.4"
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Test
+        run: swift test

@@ -1,10 +1,15 @@
 import Foundation
+#if os(Windows)
+import WinSDK
+#endif
 
 /// Stops a write to `handle` after its reader exits from raising SIGPIPE, which would kill the whole process.
 /// Linux has no per-descriptor flag, so there it ignores SIGPIPE for the entire process: writes fail with EPIPE instead.
+/// Windows has no SIGPIPE.
 func preventSIGPIPE(writingTo handle: FileHandle) {
     #if canImport(Darwin)
     _ = fcntl(handle.fileDescriptor, F_SETNOSIGPIPE, 1)
+    #elseif os(Windows)
     #else
     _ = signal(SIGPIPE, SIG_IGN)
     #endif
@@ -13,7 +18,7 @@ func preventSIGPIPE(writingTo handle: FileHandle) {
 /// Starts `process`. On Linux a child keeps the signal mask of the thread that spawns it, even across exec, and GCD and
 /// Swift concurrency threads block nearly every signal there, so the CLI would never see a timeout's SIGTERM.
 func launch(_ process: Process) throws {
-    #if canImport(Darwin)
+    #if canImport(Darwin) || os(Windows)
     try process.run()
     #else
     var none = sigset_t(), saved = sigset_t()
@@ -34,6 +39,16 @@ func readUntilEOF(_ handle: FileHandle, onData: @escaping @Sendable (Data) -> Vo
         guard chunk.isEmpty else { return onData(chunk) }
         // At EOF the handler fires again and again until removed.
         handle.readabilityHandler = nil
+        atEOF()
+    }
+    #elseif os(Windows)
+    // ReadFile on a pipe returns once any bytes arrive. A broken pipe, the writer closing its end, is the pipe's EOF.
+    Thread.detachNewThread {
+        var bytes = [UInt8](repeating: 0, count: 1 << 16)
+        var count: DWORD = 0
+        while ReadFile(handle._handle, &bytes, DWORD(bytes.count), &count, nil), count > 0 {
+            onData(Data(bytes[..<Int(count)]))
+        }
         atEOF()
     }
     #else
@@ -65,7 +80,40 @@ func isJSONBoolean(_ number: NSNumber) -> Bool {
     #endif
 }
 
+/// The file's inode and size, or nil when it cannot be read. Windows has no inodes; there the file index stands in, which
+/// Foundation reports only the low 32 bits of.
+func fileIdentity(atPath path: String) -> (inode: UInt64, size: UInt64)? {
+    #if os(Windows)
+    guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+          let index = attributes[.systemFileNumber] as? UInt, let size = attributes[.size] as? UInt64 else { return nil }
+    return (UInt64(index), size)
+    #else
+    var info = stat()
+    guard stat(path, &info) == 0 else { return nil }
+    return (UInt64(info.st_ino), UInt64(info.st_size))
+    #endif
+}
+
+/// Stops `process` for good once `terminate()` has had its chance. On Windows `terminate()` already is the hard stop.
+func forceKill(_ process: Process) {
+    #if !os(Windows)
+    if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+    #endif
+}
+
 #if !canImport(ObjectiveC)
 /// Without the Objective-C runtime nothing is autoreleased, so there is no pool to drain.
 func autoreleasepool<Result>(invoking body: () throws -> Result) rethrows -> Result { try body() }
+#endif
+
+#if os(Windows)
+/// The C runtime on Windows has no memmem.
+func memmem(_ haystack: UnsafeRawPointer, _ haystackCount: Int, _ needle: UnsafeRawPointer, _ needleCount: Int) -> UnsafeRawPointer? {
+    guard needleCount > 0 else { return haystack }
+    guard haystackCount >= needleCount else { return nil }
+    for offset in 0...(haystackCount - needleCount) where memcmp(haystack + offset, needle, needleCount) == 0 {
+        return haystack + offset
+    }
+    return nil
+}
 #endif

@@ -5,12 +5,16 @@ let package = Package(
     name: "Tokenjar",
     platforms: [.macOS(.v14)],
     targets: [
-        // Linux has no SQLite3 module in its SDK; macOS uses the SDK's and never builds this one.
+        // Only macOS has an SQLite3 module in its SDK; elsewhere this wraps the system library. Windows 10 and later
+        // ship theirs as winsqlite3.
         .systemLibrary(name: "CSQLite", path: "Sources/CSQLite"),
         .target(
             name: "TokenjarCore",
-            dependencies: [.target(name: "CSQLite", condition: .when(platforms: [.linux]))],
-            linkerSettings: [.linkedLibrary("sqlite3")]
+            dependencies: [.target(name: "CSQLite", condition: .when(platforms: [.linux, .windows]))],
+            linkerSettings: [
+                .linkedLibrary("sqlite3", .when(platforms: [.macOS, .linux])),
+                .linkedLibrary("winsqlite3", .when(platforms: [.windows])),
+            ]
         ),
         .testTarget(
             name: "TokenjarCoreTests",

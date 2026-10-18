@@ -4,6 +4,9 @@ import SQLite3
 #else
 import CSQLite
 #endif
+#if os(Windows)
+import WinSDK
+#endif
 
 public struct SQLiteError: Error, CustomStringConvertible {
     public var code: Int32
@@ -45,8 +48,9 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
     /// Opens or creates the database (mode 0600, WAL) and applies pending migrations. Several processes may open
     /// the same path at once, including for the first time. `calendar` decides which local day an event falls on in `dailyUsage`.
     public init(url: URL, calendar: Calendar = .current) throws {
-        let fm = FileManager.default
         try AppPaths.createOwnerOnlyDirectory(url.deletingLastPathComponent())
+        // Windows files have no mode bits to copy, so there SQLite creates the file itself.
+        #if !os(Windows)
         // SQLite creates new files 0644 and gives the -wal and -shm files the main file's mode, so create it 0600 first.
         // O_EXCL rather than FileManager.createFile, which replaces the path and so orphans a concurrent opener's file.
         let fd = open(url.path, O_CREAT | O_EXCL | O_RDWR, 0o600)
@@ -56,7 +60,8 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         } else if createError != EEXIST {
             throw SQLiteError(code: SQLITE_CANTOPEN, message: "cannot create the database file (errno \(createError))")
         }
-        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        #endif
 
         var handle: OpaquePointer?
         let rc = sqlite3_open_v2(url.path, &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, nil)
@@ -394,7 +399,7 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
         while true {
             let rc = sqlite3_exec(db, "PRAGMA journal_mode = WAL", nil, nil, nil)
             guard rc == SQLITE_BUSY, Date() < deadline else { return try check(rc) }
-            usleep(10_000)
+            Thread.sleep(forTimeInterval: 0.01)
         }
     }
 
@@ -496,6 +501,16 @@ public final class SQLiteUsageStore: UsageStore, @unchecked Sendable {
 /// A mutex that hands itself to the longest waiter. NSLock lets the thread that just unlocked take it straight back,
 /// so a scan committing chunk after chunk kept a main-thread read waiting through several of them.
 private final class FairLock: @unchecked Sendable {
+    #if os(Windows)
+    // Windows has no fair lock to ask for; an SRW lock is the light exclusive one.
+    private let srw = UnsafeMutablePointer<SRWLOCK>.allocate(capacity: 1)
+
+    init() { InitializeSRWLock(srw) }
+    deinit { srw.deallocate() }
+
+    func lock() { AcquireSRWLockExclusive(srw) }
+    func unlock() { ReleaseSRWLockExclusive(srw) }
+    #else
     private let mutex = UnsafeMutablePointer<pthread_mutex_t>.allocate(capacity: 1)
 
     init() {
@@ -515,6 +530,7 @@ private final class FairLock: @unchecked Sendable {
 
     func lock() { pthread_mutex_lock(mutex) }
     func unlock() { pthread_mutex_unlock(mutex) }
+    #endif
 }
 
 /// Closes the handle exactly once, including when `SQLiteUsageStore.init` throws after opening it.

@@ -80,7 +80,7 @@ public struct FoundationProcessRunner: ProcessRunning {
             if first, process.isRunning {
                 process.terminate()
                 DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
-                    if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                    forceKill(process)
                 }
             }
             group.cancelAll()

@@ -123,7 +123,7 @@ final class ProcessCodexAppServerConnection: CodexAppServerConnection, @unchecke
             process.terminate()
             let process = self.process
             DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
-                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                forceKill(process)
             }
         }
         continuation.finish()

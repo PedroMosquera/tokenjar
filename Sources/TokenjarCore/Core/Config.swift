@@ -286,9 +286,19 @@ public struct ConfigStore: Sendable {
     static func writeTarget(_ file: URL) throws -> URL {
         let type = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.type] as? FileAttributeType
         guard type == .typeSymbolicLink else { return file }
+        #if os(Windows)
+        // No realpath here, so the first hop is resolved against the link's folder by hand.
+        guard let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: file.path) else {
+            throw ConfigError.brokenLink(file: file.lastPathComponent)
+        }
+        let target = URL(fileURLWithPath: destination, relativeTo: file.deletingLastPathComponent()).standardizedFileURL
+        guard FileManager.default.fileExists(atPath: target.path) else { throw ConfigError.brokenLink(file: file.lastPathComponent) }
+        return target.resolvingSymlinksInPath()
+        #else
         guard let resolved = realpath(file.path, nil) else { throw ConfigError.brokenLink(file: file.lastPathComponent) }
         defer { free(resolved) }
         return URL(fileURLWithPath: String(cString: resolved))
+        #endif
     }
 
     /// Copies leaf fields one by one: the merge is deep, so a local override can sit beside a field the user edits in

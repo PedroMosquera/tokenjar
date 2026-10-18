@@ -20,9 +20,8 @@ public struct ClaudeHistoryScanner: HistoryScanner {
             // whole first scan returns, which is the size of the projects folder.
             autoreleasepool {
                 let path = file.path, key = sha256Hex(path)
-                var info = stat()
-                guard stat(path, &info) == 0 else { return }
-                let inode = UInt64(info.st_ino), size = UInt64(info.st_size)
+                guard let identity = fileIdentity(atPath: path) else { return }
+                let inode = identity.inode, size = identity.size
                 var offset: UInt64 = 0
                 if let previous = checkpoints[key].flatMap(Checkpoint.init), previous.inode == inode, previous.offset <= size {
                     offset = previous.offset
