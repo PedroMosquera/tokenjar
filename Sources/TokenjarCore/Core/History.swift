@@ -1,4 +1,6 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#endif
 import Foundation
 
 /// Opaque per-source progress markers (byte offsets, inode, last row id), keyed by `sha256Hex` of the file path so the
@@ -7,7 +9,11 @@ public typealias ScanCheckpoints = [String: String]
 
 /// Lowercase hex SHA-256 of the UTF-8 bytes, for identifiers the store keeps only to recognize a file or response again.
 func sha256Hex(_ text: String) -> String {
+    #if canImport(CryptoKit)
     SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+    #else
+    SHA256.hash(text.utf8).map { String(format: "%02x", $0) }.joined()
+    #endif
 }
 
 public struct ScanResult: Sendable {

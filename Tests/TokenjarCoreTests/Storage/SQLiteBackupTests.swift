@@ -30,7 +30,9 @@ struct SQLiteBackupTests {
         withExtendedLifetime(writer) {}
     }
 
-    /// With no other connection open, a plain read-only open rebuilds the wal-index in a writable -shm file.
+    #if canImport(Darwin)
+    /// With no other connection open, a plain read-only open rebuilds the wal-index in a writable -shm file. macOS's
+    /// SQLite keeps the -shm after the last connection closes; Linux's deletes it, so there is nothing to leave untouched.
     @Test func copyLeavesTheShmFileOfAClosedDatabaseUntouched() throws {
         try SQLiteUsageStore(url: live).record(snapshot("codex"))
         let shm = live.path + "-shm"
@@ -40,6 +42,7 @@ struct SQLiteBackupTests {
         #expect(try copiedSnapshotIDs() == ["codex"])
         #expect(try fileState([live.path, live.path + "-wal", shm, live.deletingLastPathComponent().path]) == before)
     }
+    #endif
 
     @Test func copyReadsADatabaseWhoseFilesAndFolderAreReadOnly() throws {
         try SQLiteUsageStore(url: live).record(snapshot("opencode-go"))

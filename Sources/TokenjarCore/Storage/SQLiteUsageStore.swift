@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(SQLite3)
 import SQLite3
+#else
+import CSQLite
+#endif
 
 public struct SQLiteError: Error, CustomStringConvertible {
     public var code: Int32
@@ -497,7 +501,9 @@ private final class FairLock: @unchecked Sendable {
     init() {
         var attributes = pthread_mutexattr_t()
         pthread_mutexattr_init(&attributes)
+        #if canImport(Darwin)
         pthread_mutexattr_setpolicy_np(&attributes, PTHREAD_MUTEX_POLICY_FAIRSHARE_NP)
+        #endif
         pthread_mutex_init(mutex, &attributes)
         pthread_mutexattr_destroy(&attributes)
     }

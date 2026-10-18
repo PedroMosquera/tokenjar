@@ -112,7 +112,8 @@ struct PriceTableTests {
     @Test func pricesEveryTokenKindPerMillion() throws {
         let priced = table.priced(row(input: 1_000_000, output: 500_000, cacheRead: 2_000_000, cacheWrite5m: 100_000, cacheWrite1h: 10_000))
         let cost = try #require(priced.costUSD)
-        #expect(abs(cost - (1 * 4 + 0.5 * 20 + 2 * 0.2 + 0.1 * 5 + 0.01 * 8)) < 1e-9)
+        let expected = ([1 * 4, 0.5 * 20, 2 * 0.2, 0.1 * 5, 0.01 * 8] as [Double]).reduce(0, +)
+        #expect(abs(cost - expected) < 1e-9)
         #expect(priced.isEstimate)
     }
 

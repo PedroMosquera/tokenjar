@@ -22,6 +22,8 @@ There are two Swift Testing targets. `TokenjarCoreTests` runs the fetchers again
 
 `make test` passes the plugin and framework paths that Swift Testing needs under the Command Line Tools. Run it with `XDG_CONFIG_HOME` unset: `AppPaths` honors that variable, so some config tests would write into your real config folder. Tests never touch the real Keychain, notifications or login items.
 
+`TokenjarCore` and its tests also build on Linux, where the manifest leaves out the app and its tests. CI runs them in the `swift:6.2.4-noble` image with `libsqlite3-dev` added. Locally, with Docker, build that image (the Dockerfile is in the `linux-core` job of `.github/workflows/ci.yml`) and run `swift test` in it as a non-root user with `--scratch-path` outside the checkout, so the Linux build does not overwrite the Mac's `.build`. Run as root, the tests that make a file unreadable fail. The Keychain tests, the Headroom process check, the immutable-flag rename and the `-shm` case that only macOS's SQLite leaves behind are macOS only.
+
 ## Developer flags
 
 The binary takes five flags that do one job and exit:

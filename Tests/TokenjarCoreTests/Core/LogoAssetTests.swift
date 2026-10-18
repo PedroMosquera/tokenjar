@@ -1,3 +1,4 @@
+#if canImport(AppKit)
 import AppKit
 import Foundation
 import Testing
@@ -16,3 +17,4 @@ struct LogoAssetTests {
         #expect(image.size == NSSize(width: 16, height: 16))
     }
 }
+#endif

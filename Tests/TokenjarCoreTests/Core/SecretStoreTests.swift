@@ -1,3 +1,4 @@
+#if canImport(Security)
 import Foundation
 import Security
 import Testing
@@ -219,3 +220,4 @@ final class CountingSecretStore: SecretStore, @unchecked Sendable {
 
     func delete(account: String) throws { _ = lock.withLock { values.removeValue(forKey: account) } }
 }
+#endif

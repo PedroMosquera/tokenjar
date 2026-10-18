@@ -98,10 +98,18 @@ struct ClaudeRateLimits: Decodable, Sendable {
 
     /// ISO 4217 minor-unit digits (USD 2, JPY 0, KWD 3). Amounts arrive in minor units of their currency.
     static func minorUnitDigits(_ currency: String) -> Int {
+        #if canImport(Darwin)
         var digits: Int32 = 2
         var rounding: Double = 0
         guard CFNumberFormatterGetDecimalInfoForCurrencyCode(currency as CFString, &digits, &rounding) else { return 2 }
         return Int(digits)
+        #else
+        // swift-corelibs-foundation's NumberFormatter reports 2 digits for every currency, but its formatted output
+        // follows ICU's per-currency digits, so count them there.
+        let zero = Decimal(0).formatted(.currency(code: currency).locale(Locale(identifier: "en_US")))
+        guard let point = zero.lastIndex(of: ".") else { return 0 }
+        return zero[zero.index(after: point)...].prefix(while: \.isNumber).count
+        #endif
     }
 
     private struct RawLimit: Decodable {

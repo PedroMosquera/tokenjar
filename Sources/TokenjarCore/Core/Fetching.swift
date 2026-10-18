@@ -10,7 +10,7 @@ public struct FetchContext: Sendable {
 
     public init(
         process: any ProcessRunning = FoundationProcessRunner(), http: HTTPClient = HTTPClient(),
-        secrets: any SecretStore = KeychainSecretStore(), cli: CLILocator = CLILocator(), paths: AppPaths = AppPaths(),
+        secrets: any SecretStore = PlatformSecretStore(), cli: CLILocator = CLILocator(), paths: AppPaths = AppPaths(),
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.process = process

@@ -149,7 +149,7 @@ extension CopilotUsageFetcher {
 
     /// JSON numbers, or numbers sent as strings. JSON booleans also arrive as NSNumber and are refused.
     fileprivate static func number(_ value: Any?) -> Double? {
-        if let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(), number.doubleValue.isFinite { return number.doubleValue }
+        if let number = value as? NSNumber, !isJSONBoolean(number), number.doubleValue.isFinite { return number.doubleValue }
         if let text = value as? String, let number = Double(text.trimmingCharacters(in: .whitespaces)), number.isFinite { return number }
         return nil
     }

@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(SQLite3)
 import SQLite3
+#else
+import CSQLite
+#endif
 
 /// Consistent copies of a database another process may be writing, for tools that must leave it untouched.
 public enum SQLiteBackup {

@@ -9,6 +9,7 @@ public enum LegacyMigration {
 
     /// Whether a process whose kernel name is exactly `name` runs, the match `pgrep -x` makes in install.sh. A Headroom
     /// started from `.build` has no bundle id, so a bundle id lookup misses it while it holds the database open.
+    #if canImport(Darwin)
     public static func isProcessRunning(named name: String) -> Bool {
         let count = proc_listallpids(nil, 0)
         guard count > 0 else { return false }
@@ -21,6 +22,7 @@ public enum LegacyMigration {
             return length > 0 && String(decoding: buffer.prefix(Int(length)), as: UTF8.self) == name
         }
     }
+    #endif
 
     public enum Event: Equatable, Sendable {
         case skippedWhileLegacyAppRuns

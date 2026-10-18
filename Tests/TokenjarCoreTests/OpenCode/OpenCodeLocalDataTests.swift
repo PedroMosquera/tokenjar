@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(Security)
 import Security
+#endif
 import Testing
 @testable import TokenjarCore
 
@@ -63,6 +65,7 @@ struct OpenCodeLocalDataTests {
         #expect(throws: FetchError.notSignedIn) { try key(account(.keychain(account: "other")), in: dir, secrets: secrets) }
     }
 
+    #if canImport(Security)
     /// Signed out would send the user to paste a key they already have.
     @Test func aRefusedKeychainReadIsDeniedNotSignedOut() throws {
         let dir = TemporaryDirectory()
@@ -73,6 +76,7 @@ struct OpenCodeLocalDataTests {
         keychain.refuse(with: errSecDecode)
         #expect(throws: FetchError.notSignedIn) { try key(account(.keychain(account: "go")), in: dir, secrets: keychain) }
     }
+    #endif
 
     @Test func noAuthFileIsNotSignedIn() throws {
         let dir = TemporaryDirectory()

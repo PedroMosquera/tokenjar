@@ -52,7 +52,7 @@ public struct FoundationProcessRunner: ProcessRunning {
         process.terminationHandler = { _ in exited.leave() }
 
         do {
-            try process.run()
+            try launch(process)
         } catch {
             outPipe.fileHandleForReading.readabilityHandler = nil
             errPipe.fileHandleForReading.readabilityHandler = nil
@@ -63,7 +63,7 @@ public struct FoundationProcessRunner: ProcessRunning {
             throw error
         }
         // A CLI that exits before reading stdin would otherwise raise SIGPIPE and kill the whole menu bar app.
-        _ = fcntl(inPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+        preventSIGPIPE(writingTo: inPipe.fileHandleForWriting)
         if let stdin { try? inPipe.fileHandleForWriting.write(contentsOf: stdin) }
         try? inPipe.fileHandleForWriting.close()
 
@@ -93,13 +93,7 @@ public struct FoundationProcessRunner: ProcessRunning {
 
     private static func collect(_ handle: FileHandle, into buffer: LimitedBuffer, until drained: DispatchGroup) {
         drained.enter()
-        handle.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            guard chunk.isEmpty else { return buffer.append(chunk) }
-            // At EOF the handler fires again and again until removed.
-            handle.readabilityHandler = nil
-            if buffer.finish() { drained.leave() }
-        }
+        readUntilEOF(handle, onData: buffer.append) { if buffer.finish() { drained.leave() } }
     }
 }
 

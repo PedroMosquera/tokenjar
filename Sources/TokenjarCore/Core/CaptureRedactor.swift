@@ -158,7 +158,7 @@ public enum CaptureRedactor {
             return pinned && !looksSecret(string) ? string : placeholder
         }
         if let number = value as? NSNumber {
-            if CFGetTypeID(number) == CFBooleanGetTypeID() { return number }
+            if isJSONBoolean(number) { return number }
             return isIDKey(key) ? placeholder : number
         }
         return value is NSNull ? value : placeholder

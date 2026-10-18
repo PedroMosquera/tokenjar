@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(Security)
 import Security
+#endif
 
 /// Storage for API keys the user pastes in Settings. Only the app's own Keychain service is ever touched.
 public protocol SecretStore: Sendable {
@@ -8,6 +10,7 @@ public protocol SecretStore: Sendable {
     func delete(account: String) throws
 }
 
+#if canImport(Security)
 public enum SecretStoreError: Error {
     case keychain(OSStatus)
 
@@ -20,6 +23,14 @@ public enum SecretStoreError: Error {
         }
     }
 }
+#else
+public enum SecretStoreError: Error {
+    /// This platform has no secret store Tokenjar can use, so a pasted key cannot be kept.
+    case unavailable
+
+    public var isRefusal: Bool { false }
+}
+#endif
 
 extension SecretStore {
     /// The key stored under `account`, or nil when there is none or it could not be read. A refusal throws
@@ -35,6 +46,7 @@ extension SecretStore {
     }
 }
 
+#if canImport(Security)
 public struct KeychainSecretStore: SecretStore {
     public let service: String
 
@@ -84,6 +96,20 @@ public struct KeychainSecretStore: SecretStore {
         guard status == errSecSuccess || status == errSecItemNotFound else { throw SecretStoreError.keychain(status) }
     }
 }
+
+public typealias PlatformSecretStore = KeychainSecretStore
+#else
+public typealias PlatformSecretStore = UnavailableSecretStore
+
+/// Holds no keys: reads find none and writes throw `SecretStoreError.unavailable`.
+public struct UnavailableSecretStore: SecretStore {
+    public init() {}
+
+    public func read(account: String) throws -> String? { nil }
+    public func write(_ secret: String, account: String) throws { throw SecretStoreError.unavailable }
+    public func delete(account: String) throws {}
+}
+#endif
 
 public final class InMemorySecretStore: SecretStore, @unchecked Sendable {
     private let lock = NSLock()

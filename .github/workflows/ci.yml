@@ -28,3 +28,21 @@ jobs:
 
       - name: Build app bundle
         run: make app
+
+  linux-core:
+    # Only TokenjarCore and its tests build on Linux; the app is AppKit.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Toolchain image
+        run: |
+          docker build -t tokenjar-linux - <<'EOF'
+          FROM swift:6.2.4-noble
+          RUN apt-get update && apt-get install -y --no-install-recommends libsqlite3-dev && rm -rf /var/lib/apt/lists/*
+          EOF
+
+      # Not as root: root reads files a test made unreadable, so those tests would fail.
+      - name: Test
+        run: docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/src" -w /src tokenjar-linux swift test

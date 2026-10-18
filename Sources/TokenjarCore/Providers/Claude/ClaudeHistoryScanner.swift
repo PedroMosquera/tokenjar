@@ -79,7 +79,7 @@ public struct ClaudeHistoryScanner: HistoryScanner {
                 let end = base.distance(to: UnsafeRawPointer(newline))
                 let line = UnsafeRawBufferPointer(rebasing: buffer[start..<end])
                 // Most lines are prompts and tool output; skipping them before JSON decoding keeps a full scan fast.
-                if memmem(line.baseAddress, line.count, marker, marker.count) != nil,
+                if memmem(base + start, line.count, marker, marker.count) != nil,
                    let entry = try? decoder.decode(TranscriptLine.self, from: Data(line)),
                    let event = entry.event(accountID: accountID, home: home) {
                     events.append(event)

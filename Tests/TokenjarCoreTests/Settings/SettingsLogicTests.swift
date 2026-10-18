@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(Security)
 import Security
+#endif
 import Testing
 @testable import TokenjarCore
 
@@ -155,7 +157,13 @@ struct SettingsLogicTests {
 }
 
 private struct RefusingSecretStore: SecretStore {
+    #if canImport(Security)
+    private let failure = SecretStoreError.keychain(errSecAuthFailed)
+    #else
+    private let failure = SecretStoreError.unavailable
+    #endif
+
     func read(account: String) throws -> String? { nil }
-    func write(_ secret: String, account: String) throws { throw SecretStoreError.keychain(errSecAuthFailed) }
-    func delete(account: String) throws { throw SecretStoreError.keychain(errSecAuthFailed) }
+    func write(_ secret: String, account: String) throws { throw failure }
+    func delete(account: String) throws { throw failure }
 }

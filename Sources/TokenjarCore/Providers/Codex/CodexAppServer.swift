@@ -87,7 +87,7 @@ final class ProcessCodexAppServerConnection: CodexAppServerConnection, @unchecke
         input = inPipe.fileHandleForWriting
         output = outPipe.fileHandleForReading
         // Without this, writing after the server exits raises SIGPIPE and kills the whole app.
-        _ = fcntl(input.fileDescriptor, F_SETNOSIGPIPE, 1)
+        preventSIGPIPE(writingTo: input)
 
         process.executableURL = executable
         process.arguments = arguments
@@ -97,17 +97,9 @@ final class ProcessCodexAppServerConnection: CodexAppServerConnection, @unchecke
         process.standardOutput = outPipe
         process.standardError = FileHandle.nullDevice
 
-        output.readabilityHandler = { [weak self] handle in
-            let chunk = handle.availableData
-            if chunk.isEmpty {
-                handle.readabilityHandler = nil
-                self?.finish()
-            } else {
-                self?.receive(chunk)
-            }
-        }
+        readUntilEOF(output, onData: { [weak self] in self?.receive($0) }, atEOF: { [weak self] in self?.finish() })
         do {
-            try process.run()
+            try launch(process)
         } catch {
             output.readabilityHandler = nil
             continuation.finish()
