@@ -104,20 +104,27 @@ struct CostSectionView: View {
                         .foregroundStyle(Color.accentColor.opacity(day.date == today ? 1 : day.date == hovered?.date ? 0.7 : 0.4))
                         .cornerRadius(1.5)
                 }
+                RuleMark(y: .value("Zero", 0))
+                    .foregroundStyle(Color(nsColor: .separatorColor))
+                    .lineStyle(StrokeStyle(lineWidth: 0.5))
                 RuleMark(y: .value("Average", content.average))
                     .foregroundStyle(Color.secondary.opacity(0.7))
                     .lineStyle(StrokeStyle(lineWidth: 0.75, dash: [2, 2]))
             }
             .chartXAxis(.hidden)
-            .chartYAxis(.hidden)
+            .chartYAxis {
+                // Opposite sides, so the two labels never collide on a sparse month whose average sits just off zero.
+                AxisMarks(position: .leading, values: [0]) { _ in
+                    AxisValueLabel("0")
+                }
+                AxisMarks(position: .trailing, values: [content.average]) { _ in
+                    AxisValueLabel("avg")
+                }
+            }
             .chartLegend(.hidden)
             .chartYScale(domain: 0...max(content.peak, content.average, 0.01))
             .chartPlotStyle { plot in
-                plot
-                    .frame(height: 48)
-                    .overlay(alignment: .bottom) {
-                        Rectangle().fill(Color(nsColor: .separatorColor)).frame(height: 0.5)
-                    }
+                plot.frame(height: 48)
             }
             .chartHoverDate(hoverState.projectedValue)
             .accessibilityElement(children: .ignore)
