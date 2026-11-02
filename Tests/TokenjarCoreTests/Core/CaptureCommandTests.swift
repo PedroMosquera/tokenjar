@@ -267,7 +267,7 @@ struct CaptureCommandTests {
 
     @Test func glmCaptureKeepsLimitTypesAndRedactsTheRest() async throws {
         try write("keys.json", #"{"glm": {"type": "api", "key": "glm-placeholderkey1234567890"}}"#)
-        let body = #"{"code":200,"msg":"hello person@example.com","success":true,"data":{"planName":"Lite","limits":[{"type":"CREDIT_LIMIT","unit":3,"number":5,"percentage":42,"nextResetTime":1793628000000}]}}"#
+        let body = #"{"code":200,"msg":"Insufficient balance","success":true,"data":{"planName":"Lite","owner":"person@example.com","limits":[{"type":"CREDIT_LIMIT","unit":3,"number":5,"percentage":42,"nextResetTime":1793628000000}]}}"#
         let transport = OpenCodeFakeTransport(HTTPResponse(status: 200, body: Data(body.utf8)))
 
         let credential = CredentialRef.file(path: home.appending(path: "keys.json").path, key: "glm")
@@ -278,6 +278,7 @@ struct CaptureCommandTests {
         #expect(request.value(forHTTPHeaderField: "Authorization") == "glm-placeholderkey1234567890")
         #expect(text.contains(#""type" : "CREDIT_LIMIT""#))
         #expect(text.contains(#""planName" : "Lite""#))
+        #expect(text.contains(#""msg" : "Insufficient balance""#))
         #expect(!text.contains("glm-placeholder"))
         #expect(!text.contains("example.com"))
     }
@@ -290,7 +291,7 @@ struct CaptureCommandTests {
 
     @Test func minimaxCaptureKeepsModelNamesAndRedactsTheRest() async throws {
         try write("keys.json", #"{"minimax": {"type": "api", "key": "sk-cp-placeholderkey1234567890"}}"#)
-        let body = #"{"base_resp":{"status_code":0,"status_msg":"hi person@example.com"},"model_remains":[{"model_name":"MiniMax-M2","current_interval_total_count":600}]}"#
+        let body = #"{"base_resp":{"status_code":2056,"status_msg":"no active token plan"},"owner":"person@example.com","model_remains":[{"model_name":"MiniMax-M2","current_interval_total_count":600}]}"#
         let transport = OpenCodeFakeTransport(HTTPResponse(status: 200, body: Data(body.utf8)))
 
         let credential = CredentialRef.file(path: home.appending(path: "keys.json").path, key: "minimax")
@@ -300,6 +301,7 @@ struct CaptureCommandTests {
         #expect(request.url == MiniMaxUsageFetcher.usageURL)
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-cp-placeholderkey1234567890")
         #expect(text.contains(#""model_name" : "MiniMax-M2""#))
+        #expect(text.contains(#""status_msg" : "no active token plan""#))
         #expect(text.contains(#""current_interval_total_count" : 600"#))
         #expect(!text.contains("sk-cp-"))
         #expect(!text.contains("example.com"))

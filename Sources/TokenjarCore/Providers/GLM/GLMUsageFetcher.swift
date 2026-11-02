@@ -36,8 +36,13 @@ public struct GLMUsageFetcher: UsageFetcher {
         guard let json = try? JSONSerialization.jsonObject(with: response.body) as? [String: Any] else {
             throw FetchError.network("z.ai answered with something other than JSON")
         }
-        // Z.ai answers a rejected key with HTTP 200 and `success: false`. Unverified against a live answer.
-        if json["success"] as? Bool == false { throw FetchError.unauthorized }
+        // Z.ai answers errors with HTTP 200 and `success: false`. Only the bad-key code reads as a rejected key, so an
+        // expired plan or a spent quota never sends the user to change a working one. 1001 is unverified.
+        if json["success"] as? Bool == false {
+            let code = (json["code"] as? NSNumber)?.intValue
+            if code == 1001 || code == 401 { throw FetchError.unauthorized }
+            throw FetchError.network("z.ai API error \(code.map(String.init) ?? "without a code")")
+        }
         let data = json["data"] as? [String: Any] ?? [:]
         guard let limits = data["limits"] as? [[String: Any]] else { throw FetchError.parse("quota body has no data.limits") }
         // Only personal-scope requests are sent, so an empty list means the key has no Coding Plan.

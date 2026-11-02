@@ -77,6 +77,12 @@ struct GLMUsageFetcherTests {
         #expect(try error(fixture, status: status, headers: headers) == expected)
     }
 
+    /// Only the bad-key code means the key was rejected: an expired plan or a spent quota must not send the user to change a
+    /// working key.
+    @Test func otherErrorCodesAreNotARejectedKey() throws {
+        #expect(try error("glm-error-other.json", status: 200) == .network("z.ai API error 1113"))
+    }
+
     /// The work laptop this was built on serves an HTML block page for api.z.ai.
     @Test func nonJSONAnswerIsANetworkError() throws {
         guard case .network = try error("glm-block-page.html", status: 200) else {

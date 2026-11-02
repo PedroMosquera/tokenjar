@@ -42,9 +42,9 @@ public enum CaptureRedactor {
             .antigravity: ["capture"]
                 + ["name", "displayName", "display_name", "label", "title"].map { "\(agyGroup).\($0)" }
                 + ["\(agyGroup).buckets[].window", "usage.stderr.phrases[]"],
-            .glm: ["capture", "error", "response.data.limits[].type"]
+            .glm: ["capture", "error", "response.msg", "response.data.limits[].type"]
                 + ["planName", "plan", "plan_type", "packageName", "level"].map { "response.data.\($0)" },
-            .minimax: ["capture", "error", "response.model_remains[].model_name"],
+            .minimax: ["capture", "error", "response.base_resp.status_msg", "response.base_resp.status_message", "response.model_remains[].model_name"],
             .opencodeGo: ["capture", "error", "response._tag", "response.error.type", "response.**.currency"]
                 + goWindows.map { "response.\($0).status" }
                 + goWindows.map { "response.usage.\($0).status" },

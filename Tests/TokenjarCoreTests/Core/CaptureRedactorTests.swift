@@ -42,10 +42,10 @@ struct CaptureRedactorTests {
                 "usage.stderr.phrases[]",
             ],
             .glm: [
-                "capture", "error", "response.data.limits[].type", "response.data.planName", "response.data.plan",
+                "capture", "error", "response.msg", "response.data.limits[].type", "response.data.planName", "response.data.plan",
                 "response.data.plan_type", "response.data.packageName", "response.data.level",
             ],
-            .minimax: ["capture", "error", "response.model_remains[].model_name"],
+            .minimax: ["capture", "error", "response.base_resp.status_msg", "response.base_resp.status_message", "response.model_remains[].model_name"],
             .opencodeGo: [
                 "capture", "error",
                 "response._tag", "response.error.type", "response.**.currency",
