@@ -233,7 +233,7 @@ struct AccountDetailView: View {
                         guard amount != nil || text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                         model.updateAccount(account.id) { $0.dailyBudget = DailyBudget(amount: amount) }
                     }
-                    Text(snapshot.spendLimitMoney?.currency ?? "USD").foregroundStyle(.secondary)
+                    Text(MonthlyBudget.applies(to: snapshot) ? account.budgetCurrency ?? "USD" : snapshot.spendLimitMoney?.currency ?? "USD").foregroundStyle(.secondary)
                 }
                 Text("Leave it empty for the recommended amount: what is left this month spread over the days left, so a heavy day lowers the next.")
                     .font(.caption)

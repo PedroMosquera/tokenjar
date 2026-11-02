@@ -152,12 +152,6 @@ struct SettingsLogicTests {
             try SettingsLogic.removingPastedKey(from: .keychain(account: "opencode-go"), secrets: RefusingSecretStore())
         }
     }
-}
-
-private struct RefusingSecretStore: SecretStore {
-    func read(account: String) throws -> String? { nil }
-    func write(_ secret: String, account: String) throws { throw SecretStoreError.keychain(errSecAuthFailed) }
-    func delete(account: String) throws { throw SecretStoreError.keychain(errSecAuthFailed) }
 
     @Test func aNewBudgetTakesTheDisplayCurrency() {
         #expect(SettingsLogic.budgetCurrency(before: nil, after: 150, current: nil, display: "EUR") == "EUR")
@@ -165,4 +159,10 @@ private struct RefusingSecretStore: SecretStore {
         #expect(SettingsLogic.budgetCurrency(before: 150, after: 200, current: "EUR", display: "USD") == "EUR")
         #expect(SettingsLogic.budgetCurrency(before: 150, after: nil, current: "EUR", display: "EUR") == nil)
     }
+}
+
+private struct RefusingSecretStore: SecretStore {
+    func read(account: String) throws -> String? { nil }
+    func write(_ secret: String, account: String) throws { throw SecretStoreError.keychain(errSecAuthFailed) }
+    func delete(account: String) throws { throw SecretStoreError.keychain(errSecAuthFailed) }
 }
