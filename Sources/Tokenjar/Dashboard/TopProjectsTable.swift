@@ -3,11 +3,12 @@ import SwiftUI
 /// A Grid rather than Table, which is NSTableView-backed and may not draw in offscreen snapshot renders.
 struct TopProjectsTable: View {
     var projects: [ProjectSummary]
+    var currency = "USD"
 
     private var anyEstimate: Bool { projects.contains(where: \.isEstimate) }
 
     var body: some View {
-        let costs = Self.costColumn(projects.map(\.cost))
+        let costs = Self.costColumn(projects.map(\.cost), currency: currency)
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 0) {
             GridRow {
                 Text("Project")

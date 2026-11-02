@@ -26,7 +26,7 @@ struct TokenMixTests {
             reasoningTokens: reasoning, reportedCostUSD: nil, unpricedInputTokens: input, unpricedOutputTokens: output,
             unpricedCacheReadTokens: read, unpricedCacheWrite5mTokens: write5m, unpricedCacheWrite1hTokens: write1h
         )
-        return PricedUsageRow(row: daily, costUSD: nil, isEstimate: false)
+        return PricedUsageRow(row: daily, cost: nil, isEstimate: false)
     }
 
     /// Codex's output already holds its reasoning; opencode stores reasoning beside output, so only there is it added.

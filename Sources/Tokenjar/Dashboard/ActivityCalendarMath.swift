@@ -27,6 +27,8 @@ nonisolated struct ActivityCalendar: Equatable, Sendable {
     var activeDays = 0
     var total = 0.0
     var isEstimate = false
+    /// The code `total` and each day's cost are in; set by the caller after `make`.
+    var currency = "USD"
 
     /// The first day of the first column: the start of the week `weeks - 1` weeks before this one.
     static func firstDay(today: Date, calendar: Calendar, weeks: Int = weekCount) -> Date {
@@ -44,7 +46,7 @@ nonisolated struct ActivityCalendar: Equatable, Sendable {
             var day = byDay[priced.row.day] ?? Day(date: priced.row.day)
             day.requests += priced.row.requests
             day.tokens += DashboardMath.tokens(priced.row)
-            if let cost = priced.costUSD {
+            if let cost = priced.cost {
                 day.cost = (day.cost ?? 0) + cost
                 activity.isEstimate = activity.isEstimate || priced.isEstimate
             }
@@ -101,13 +103,13 @@ nonisolated struct ActivityCalendar: Equatable, Sendable {
         guard day.hasUsage else { return "\(date): no usage" }
         let tokens = "\(Format.tokens(day.tokens, locale: locale)) tokens"
         guard metric == .cost else { return "\(date): \(tokens)" }
-        return "\(date): " + (day.cost.map { Format.money($0, locale: locale) } ?? "\(tokens), no price")
+        return "\(date): " + (day.cost.map { Format.money($0, currency: currency, locale: locale) } ?? "\(tokens), no price")
     }
 
     /// "$4,120 over 214 days with usage", or in tokens when nothing is priced.
     @MainActor func summary(locale: Locale = .autoupdatingCurrent) -> String {
         guard activeDays > 0 else { return "No usage in the last 12 months" }
-        let amount = metric == .cost ? Format.money(total, locale: locale) : "\(Format.tokens(Int(total), locale: locale)) tokens"
+        let amount = metric == .cost ? Format.money(total, currency: currency, locale: locale) : "\(Format.tokens(Int(total), locale: locale)) tokens"
         return "\(amount) over \(activeDays) day\(activeDays == 1 ? "" : "s") with usage"
     }
 }

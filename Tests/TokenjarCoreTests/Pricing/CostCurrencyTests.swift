@@ -12,7 +12,7 @@ struct CostCurrencyTests {
             reasoningTokens: 0, reportedCostUSD: nil, unpricedInputTokens: 100, unpricedOutputTokens: 0,
             unpricedCacheReadTokens: 0, unpricedCacheWrite5mTokens: 0, unpricedCacheWrite1hTokens: 0
         )
-        return PricedUsageRow(row: daily, costUSD: cost, isEstimate: cost != nil)
+        return PricedUsageRow(row: daily, cost: cost, isEstimate: cost != nil)
     }
 
     @Test func aMissingRateFallsBackToUSD() {
@@ -35,8 +35,8 @@ struct CostCurrencyTests {
         let eur = CostCurrency.resolve("EUR", rates: Self.rates)
         let input = [Self.row(cost: 10), Self.row(cost: nil)]
         let out = eur.converted(input)
-        #expect(abs(out[0].costUSD! - 9.19963) < 1e-5)
-        #expect(out[1].costUSD == nil)
+        #expect(abs(out[0].cost! - 9.19963) < 1e-5)
+        #expect(out[1].cost == nil)
         #expect(out[0].isEstimate == input[0].isEstimate)
         #expect(out[0].row == input[0].row)
     }

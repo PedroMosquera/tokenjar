@@ -272,7 +272,7 @@ nonisolated enum DashboardMath {
     static func cost(_ rows: [PricedUsageRow], since: Date, before end: Date? = nil) -> CostTotal {
         var total = CostTotal()
         for priced in rows where priced.row.day >= since && priced.row.day < (end ?? .distantFuture) && priced.row.requests > 0 {
-            if let cost = priced.costUSD {
+            if let cost = priced.cost {
                 total.amount += cost
                 total.pricedRows += 1
                 total.isEstimate = total.isEstimate || priced.isEstimate
@@ -362,7 +362,7 @@ nonisolated enum DashboardMath {
         var inRange: [(row: DailyUsageRow, group: String, cost: Double)] = []
         for priced in rows where priced.row.day >= since && priced.row.requests > 0 {
             breakdown.hasUsage = true
-            guard let cost = priced.costUSD else {
+            guard let cost = priced.cost else {
                 unpriced.insert(priced.row.model)
                 continue
             }
@@ -401,7 +401,7 @@ nonisolated enum DashboardMath {
             var summary = byProject[name] ?? ProjectSummary(project: name, requests: 0, tokens: 0, cost: nil, isEstimate: false)
             summary.requests += priced.row.requests
             summary.tokens += tokens(priced.row)
-            if let cost = priced.costUSD {
+            if let cost = priced.cost {
                 summary.cost = (summary.cost ?? 0) + cost
                 summary.isEstimate = summary.isEstimate || priced.isEstimate
             }
@@ -645,21 +645,24 @@ nonisolated struct PlanValue: Equatable, Sendable {
     /// In account order, one entry per account.
     var plans: [String]
     var isEstimate: Bool
+    /// The code `spend` and `planPrice` are in.
+    var currency = "USD"
 
     var multiple: Double { spend / planPrice }
 
-    /// nil when no account in `accounts` is on a priced plan, or nothing of theirs was priced since `since`.
-    static func make(rows: [PricedUsageRow], since: Date, accounts: [AccountConfig], snapshots: [String: UsageSnapshot], table: PriceTable) -> PlanValue? {
+    /// `rows` are in USD as priced; both sides are converted here. nil when no account in `accounts` is on a priced plan, or
+    /// nothing of theirs was priced since `since`.
+    static func make(rows: [PricedUsageRow], since: Date, accounts: [AccountConfig], snapshots: [String: UsageSnapshot], table: PriceTable, currency: CostCurrency = .usd) -> PlanValue? {
         var prices: [String: Double] = [:]
         var plans: [String] = []
         for account in accounts {
             guard let plan = snapshots[account.id]?.plan, let price = table.planPrice(provider: account.provider, plan: plan) else { continue }
-            prices[account.id] = price.monthlyUSD
+            prices[account.id] = currency.amount(price.monthlyUSD)
             plans.append(plan)
         }
-        let cost = DashboardMath.cost(rows.filter { prices[$0.row.accountID] != nil }, since: since)
+        let cost = DashboardMath.cost(currency.converted(rows.filter { prices[$0.row.accountID] != nil }), since: since)
         guard cost.hasCost, cost.amount > 0 else { return nil }
-        return PlanValue(spend: cost.amount, planPrice: prices.values.reduce(0, +), plans: plans, isEstimate: cost.isEstimate)
+        return PlanValue(spend: cost.amount, planPrice: prices.values.reduce(0, +), plans: plans, isEstimate: cost.isEstimate, currency: currency.code)
     }
 
     /// "5.7x", or "12x" from 10 up, where a decimal adds nothing.
@@ -680,6 +683,6 @@ nonisolated struct PlanValue: Equatable, Sendable {
     }
 
     @MainActor private func money(_ amount: Double, _ locale: Locale) -> String {
-        Format.money(amount, currency: "USD", fractionDigits: 0, locale: locale)
+        Format.money(amount, currency: currency, fractionDigits: 0, locale: locale)
     }
 }

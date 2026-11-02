@@ -111,7 +111,7 @@ struct PriceTableTests {
 
     @Test func pricesEveryTokenKindPerMillion() throws {
         let priced = table.priced(row(input: 1_000_000, output: 500_000, cacheRead: 2_000_000, cacheWrite5m: 100_000, cacheWrite1h: 10_000))
-        let cost = try #require(priced.costUSD)
+        let cost = try #require(priced.cost)
         #expect(abs(cost - (1 * 4 + 0.5 * 20 + 2 * 0.2 + 0.1 * 5 + 0.01 * 8)) < 1e-9)
         #expect(priced.isEstimate)
     }
@@ -120,20 +120,20 @@ struct PriceTableTests {
         var mixed = row(reported: 1.5, input: 1_000_000)
         mixed.inputTokens = 3_000_000
         let priced = table.priced(mixed)
-        #expect(abs(try #require(priced.costUSD) - 5.5) < 1e-9)
+        #expect(abs(try #require(priced.cost) - 5.5) < 1e-9)
         #expect(priced.isEstimate)
     }
 
     @Test func reportedCostAloneIsNotAnEstimate() {
         var reportedOnly = row(reported: 2.25)
         reportedOnly.inputTokens = 1_000_000
-        #expect(table.priced(reportedOnly) == PricedUsageRow(row: reportedOnly, costUSD: 2.25, isEstimate: false))
-        #expect(table.priced(row(model: "glm-5.2", reported: 2.25)).costUSD == 2.25)
+        #expect(table.priced(reportedOnly) == PricedUsageRow(row: reportedOnly, cost: 2.25, isEstimate: false))
+        #expect(table.priced(row(model: "glm-5.2", reported: 2.25)).cost == 2.25)
     }
 
     @Test func noPriceAndNothingReportedHasNoCost() {
         let priced = table.priced(row(model: "glm-5.2", input: 1_000))
-        #expect(priced.costUSD == nil)
+        #expect(priced.cost == nil)
         #expect(!priced.isEstimate)
     }
 
@@ -143,19 +143,19 @@ struct PriceTableTests {
 
         let priced = withSearch.priced(row(output: 1_000_000, webSearches: 3))
 
-        #expect(abs(try #require(priced.costUSD) - (20 + 0.03)) < 1e-9)
+        #expect(abs(try #require(priced.cost) - (20 + 0.03)) < 1e-9)
         let searchesOnly = withSearch.priced(row(webSearches: 1))
-        #expect(abs(try #require(searchesOnly.costUSD) - 0.01) < 1e-12)
+        #expect(abs(try #require(searchesOnly.cost) - 0.01) < 1e-12)
         #expect(searchesOnly.isEstimate)
     }
 
     @Test func webSearchesWithoutAPublishedRateAddNothing() {
-        #expect(table.priced(row(output: 1_000_000, webSearches: 3)).costUSD == 20)
+        #expect(table.priced(row(output: 1_000_000, webSearches: 3)).cost == 20)
     }
 
     @Test func knownModelWithNoTokensCostsZero() {
         let priced = table.priced(row())
-        #expect(priced.costUSD == 0)
+        #expect(priced.cost == 0)
         #expect(!priced.isEstimate)
     }
 

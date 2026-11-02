@@ -27,7 +27,7 @@ struct DashboardMathTests {
             reasoningTokens: 0, reportedCostUSD: nil, unpricedInputTokens: tokens, unpricedOutputTokens: 0,
             unpricedCacheReadTokens: 0, unpricedCacheWrite5mTokens: 0, unpricedCacheWrite1hTokens: 0
         )
-        return PricedUsageRow(row: daily, costUSD: cost, isEstimate: cost != nil && estimate)
+        return PricedUsageRow(row: daily, cost: cost, isEstimate: cost != nil && estimate)
     }
 
     func sample(_ minutes: Double, _ used: Double, resetsAt: Double?) -> WindowSample {
@@ -123,7 +123,7 @@ struct DashboardMathTests {
             reasoningTokens: 0, reportedCostUSD: nil, unpricedInputTokens: input, unpricedOutputTokens: 10,
             unpricedCacheReadTokens: read, unpricedCacheWrite5mTokens: write, unpricedCacheWrite1hTokens: 0
         )
-        return PricedUsageRow(row: daily, costUSD: 1, isEstimate: true)
+        return PricedUsageRow(row: daily, cost: 1, isEstimate: true)
     }
 
     @Test func cacheHitRateIsReadsOverTheWholePromptPerModelAndOverall() {

@@ -6,6 +6,8 @@ nonisolated struct DashboardLoadKey: Hashable, Sendable {
     var range: DashboardRange
     /// Bumped by the model after a refresh records samples or a scan stores usage rows.
     var historyRevision: Int
+    /// A new display currency or rate reloads the page in place.
+    var currency: CostCurrency = .usd
 
     /// Content for another page is dimmed until its own lands. New history for the page on screen swaps in at full
     /// opacity, so a refresh in the background never makes the window flicker.
@@ -41,10 +43,13 @@ nonisolated struct DashboardContent: Sendable {
         var key: DashboardLoadKey
         /// Whether `account` scans the same logs as another account (`PercentWorth.sharesLocalSource`).
         var sharesLocalSource = false
+        var currency: CostCurrency = .usd
     }
 
     var key: DashboardLoadKey?
     var periods = DashboardPeriods(now: Date())
+    /// What every estimate in this content is expressed in. Spend-limit and provider-reported money carry their own.
+    var currency = CostCurrency.usd
     var costToday = CostTotal()
     var costLastSevenDays = CostTotal()
     var costThisMonth = CostTotal()
@@ -105,14 +110,17 @@ nonisolated struct DashboardContent: Sendable {
 
         let activityStart = ActivityCalendar.firstDay(today: periods.today, calendar: periods.calendar)
         let daily = (try? input.store?.dailyUsage(accountIDs: scope.map(\.id), since: min(periods.queryStart, activityStart))) ?? []
-        let rows = daily.map(input.priceTable.priced)
+        let usdRows = daily.map(input.priceTable.priced)
+        let rows = input.currency.converted(usdRows)
+        content.currency = input.currency
         content.hasUsage = rows.contains { $0.row.day >= periods.loadStart && $0.row.requests > 0 }
         content.costToday = DashboardMath.cost(rows, since: periods.today)
         content.costLastSevenDays = DashboardMath.cost(rows, since: periods.lastSevenDays)
         content.costThisMonth = DashboardMath.cost(rows, since: periods.thisMonth)
         content.costLastMonth = DashboardMath.cost(rows, since: periods.lastMonth, before: periods.thisMonth)
         content.planValue = PlanValue.make(
-            rows: rows, since: periods.thisMonth, accounts: scope, snapshots: input.snapshots, table: input.priceTable
+            rows: usdRows, since: periods.thisMonth, accounts: scope, snapshots: input.snapshots, table: input.priceTable,
+            currency: input.currency
         )
         let firstDay = periods.firstDay(of: range)
         content.totals = DashboardMath.totals(rows, since: firstDay)
@@ -131,6 +139,7 @@ nonisolated struct DashboardContent: Sendable {
         content.tokenMix = DashboardMath.tokenMix(rows, since: firstDay)
         content.projects = DashboardMath.topProjects(rows, since: firstDay, limit: projectLimit)
         content.activity = ActivityCalendar.make(rows, today: periods.today, calendar: periods.calendar)
+        content.activity.currency = input.currency.code
 
         // A day before the range shows whether history reaches back to its start, or begins inside it.
         let rangeStart = range == .day ? input.now.addingTimeInterval(-range.duration) : periods.firstDay(of: range)
@@ -161,7 +170,7 @@ nonisolated struct DashboardContent: Sendable {
                 let since = input.now.addingTimeInterval(-Double(PercentWorth.cycleLimit + 2) * length(input.now))
                 let samples = (try? input.store?.samples(accountID: account.id, windowID: window.id, since: since)) ?? []
                 let rows = PercentWorth.rows(cycles: PercentWorth.cycles(samples: samples, length: length), now: input.now) { interval in
-                    ((try? input.store?.usage(accountIDs: [account.id], in: interval)) ?? []).map(input.priceTable.priced)
+                    input.currency.converted(((try? input.store?.usage(accountIDs: [account.id], in: interval)) ?? []).map(input.priceTable.priced))
                 }
                 content.percentWorth.append(PercentWorth(windowID: window.id, label: window.label, rows: rows))
             }
@@ -201,7 +210,8 @@ extension DashboardContent.Input {
             snapshots: Dictionary(accounts.compactMap { account in model.status(for: account).snapshot.map { (account.id, $0) } }, uniquingKeysWith: { a, _ in a }),
             names: Dictionary(accounts.map { ($0.id, AccountTitle(provider: $0.provider, label: $0.label).name) }, uniquingKeysWith: { a, _ in a }),
             range: range, now: now, key: key,
-            sharesLocalSource: account.map { PercentWorth.sharesLocalSource($0, among: accounts, paths: model.paths) } ?? false
+            sharesLocalSource: account.map { PercentWorth.sharesLocalSource($0, among: accounts, paths: model.paths) } ?? false,
+            currency: model.costCurrency
         )
     }
 }

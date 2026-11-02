@@ -21,7 +21,7 @@ struct DashboardView: View {
         // nil for All, and for a selection that is no longer shown on this Mac.
         let account = model.dashboardSelection.flatMap { id in accounts.first { $0.id == id } }
         let range = rangeState.wrappedValue
-        let key = DashboardLoadKey(accountIDs: account.map { [$0.id] } ?? accounts.map(\.id), range: range, historyRevision: model.historyRevision)
+        let key = DashboardLoadKey(accountIDs: account.map { [$0.id] } ?? accounts.map(\.id), range: range, historyRevision: model.historyRevision, currency: model.costCurrency)
         HStack(spacing: 0) {
             DashboardSidebar()
                 .frame(width: 230)
@@ -180,14 +180,14 @@ private struct DashboardDetail: View {
         var detail = caption
         var style: Color?
         if cost.hasCost {
-            value = Format.money(cost.amount)
+            value = Format.money(cost.amount, currency: content.currency.code)
             if cost.unpricedRows > 0 { detail = "partly unpriced" }
         } else if cost.hasUsage {
             value = "No prices"
             detail = "models unpriced"
             style = .secondary
         } else {
-            value = Format.money(0)
+            value = Format.money(0, currency: content.currency.code)
         }
         return KPITile(title: "Cost · \(title)", value: value, caption: detail, isEstimate: cost.isEstimate, valueStyle: style)
     }
@@ -204,7 +204,7 @@ private struct DashboardDetail: View {
         var help = "API-equivalent estimate, not a bill: \(month)'s cost so far at its average daily rate, over the whole month"
         // History that begins partway through last month makes the change look larger, so the base is named.
         if lastMonth.hasCost {
-            help += ". \(periods.lastMonth.formatted(.dateTime.month(.wide))) in Tokenjar's history: \(Format.money(lastMonth.amount))"
+            help += ". \(periods.lastMonth.formatted(.dateTime.month(.wide))) in Tokenjar's history: \(Format.money(lastMonth.amount, currency: content.currency.code))"
         }
         let cost = content.costThisMonth
         if cost.hasUsage, !cost.hasCost {
@@ -218,7 +218,7 @@ private struct DashboardDetail: View {
             MonthForecast.changeText($0, lastMonthName: periods.lastMonth.formatted(.dateTime.month(.abbreviated)))
         } ?? "\(month) at this pace"
         return KPITile(
-            title: "Cost · Projected", value: "~" + Format.money(projected, currency: "USD", fractionDigits: 0, locale: .autoupdatingCurrent),
+            title: "Cost · Projected", value: "~" + Format.money(projected, currency: content.currency.code, fractionDigits: 0, locale: .autoupdatingCurrent),
             caption: caption, isEstimate: cost.isEstimate, help: help
         )
     }
@@ -314,7 +314,7 @@ private struct DashboardDetail: View {
                     .frame(height: 90)
                 } else {
                     ForEach(shown, id: \.windowID) { worth in
-                        PercentWorthTable(worth: worth, showsLabel: content.percentWorth.count > 1)
+                        PercentWorthTable(worth: worth, showsLabel: content.percentWorth.count > 1, currency: content.currency.code)
                     }
                 }
                 Text(PercentWorth.caption)
@@ -389,7 +389,7 @@ private struct DashboardDetail: View {
                     } else {
                         SpendChart(
                             contentKey: content.key, split: split, range: content.key?.range ?? range, breakdown: breakdown,
-                            periods: content.periods, colors: spendColors, labels: spendLabels, reference: reference
+                            periods: content.periods, colors: spendColors, labels: spendLabels, reference: reference, currency: content.currency.code
                         )
                         .equatable()
                     }
@@ -491,7 +491,7 @@ private struct DashboardDetail: View {
                 DashboardEmptyState(systemImage: "folder", message: "No project activity \(range.inRangePhrase).")
                     .frame(height: 90)
             } else {
-                TopProjectsTable(projects: content.projects)
+                TopProjectsTable(projects: content.projects, currency: content.currency.code)
             }
         }
     }

@@ -5,9 +5,10 @@ import TokenjarCore
 struct PercentWorthTable: View {
     var worth: PercentWorth
     var showsLabel: Bool
+    var currency = "USD"
 
     var body: some View {
-        let costs = TopProjectsTable.costColumn(worth.rows.map(\.costPerPercent))
+        let costs = TopProjectsTable.costColumn(worth.rows.map(\.costPerPercent), currency: currency)
         VStack(alignment: .leading, spacing: 6) {
             if showsLabel {
                 Text(worth.label).font(.subheadline.weight(.medium))

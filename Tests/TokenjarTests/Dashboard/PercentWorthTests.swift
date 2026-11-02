@@ -21,7 +21,7 @@ struct PercentWorthTests {
             reasoningTokens: 0, reportedCostUSD: nil, unpricedInputTokens: tokens, unpricedOutputTokens: 0,
             unpricedCacheReadTokens: 0, unpricedCacheWrite5mTokens: 0, unpricedCacheWrite1hTokens: 0
         )
-        return PricedUsageRow(row: row, costUSD: cost, isEstimate: cost != nil)
+        return PricedUsageRow(row: row, cost: cost, isEstimate: cost != nil)
     }
 
     private func cycle(start: Double, reset: Double, peak: Double, peakAt: Double) -> PercentWorth.Cycle {

@@ -144,7 +144,7 @@ enum DevCommands {
             var unpriced = Set<String>()
             for row in rows {
                 let priced = prices.priced(row)
-                if let cost = priced.costUSD { costByModel[row.model, default: 0] += cost } else { unpriced.insert(row.model) }
+                if let cost = priced.cost { costByModel[row.model, default: 0] += cost } else { unpriced.insert(row.model) }
             }
             print("API-equivalent cost, last \(days)d: \(String(format: "%.2f", costByModel.values.reduce(0, +))) USD")
             for (model, cost) in costByModel.sorted(by: { $0.value > $1.value }) { print("  \(model): \(String(format: "%.2f", cost))") }

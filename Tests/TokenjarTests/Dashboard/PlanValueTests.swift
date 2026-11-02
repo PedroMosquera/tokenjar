@@ -37,7 +37,7 @@ struct PlanValueTests {
             reasoningTokens: 0, reportedCostUSD: nil, unpricedInputTokens: 1, unpricedOutputTokens: 0, unpricedCacheReadTokens: 0,
             unpricedCacheWrite5mTokens: 0, unpricedCacheWrite1hTokens: 0
         )
-        return PricedUsageRow(row: daily, costUSD: cost, isEstimate: cost != nil)
+        return PricedUsageRow(row: daily, cost: cost, isEstimate: cost != nil)
     }
 
     func value(_ rows: [PricedUsageRow], accounts: [AccountConfig]? = nil) -> PlanValue? {
@@ -68,6 +68,16 @@ struct PlanValueTests {
         #expect(value([row("claude", cost: nil)]) == nil)
         #expect(value([]) == nil)
         #expect(value([row("codex-pro", cost: 500), row("zen", cost: 30)]) == nil)
+    }
+
+    @Test @MainActor func inEurosBothSidesConvertAndTheMultipleStays() throws {
+        let euro = CostCurrency.resolve("EUR", rates: ExchangeRates(date: "2026-10-30", perEUR: ["USD": 1 / 0.92]))
+        let plan = try #require(PlanValue.make(
+            rows: [row("claude", cost: 570)], since: monthStart, accounts: [accounts[0]], snapshots: snapshots, table: table, currency: euro
+        ))
+        #expect(abs(plan.planPrice - 184) < 1e-6)
+        #expect(abs(plan.multiple - 2.85) < 1e-9)
+        #expect(plan.caption(locale: locale) == "vs the €184 plan")
     }
 
     @Test @MainActor func textSaysWhatThePlanCovered() throws {

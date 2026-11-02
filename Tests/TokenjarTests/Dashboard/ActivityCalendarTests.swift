@@ -23,7 +23,7 @@ struct ActivityCalendarTests {
             reasoningTokens: 0, reportedCostUSD: nil, unpricedInputTokens: tokens, unpricedOutputTokens: 0,
             unpricedCacheReadTokens: 0, unpricedCacheWrite5mTokens: 0, unpricedCacheWrite1hTokens: 0
         )
-        return PricedUsageRow(row: daily, costUSD: cost, isEstimate: cost != nil)
+        return PricedUsageRow(row: daily, cost: cost, isEstimate: cost != nil)
     }
 
     /// Saturday 2026-10-10 sits in the week from Sunday the 4th; 52 weeks before that is Sunday 2025-10-05.

@@ -63,14 +63,15 @@ public struct PlanPrice: Codable, Hashable, Sendable {
 
 public struct PricedUsageRow: Hashable, Sendable {
     public var row: DailyUsageRow
-    /// Reported cost plus priced tokens; nil when the model has no price and nothing was reported.
-    public var costUSD: Double?
+    /// Reported cost plus priced tokens, in USD as priced and in the display currency after `CostCurrency.converted`.
+    /// Nil when the model has no price and nothing was reported.
+    public var cost: Double?
     /// True when any part of the cost came from the price table rather than the harness.
     public var isEstimate: Bool
 
-    public init(row: DailyUsageRow, costUSD: Double?, isEstimate: Bool) {
+    public init(row: DailyUsageRow, cost: Double?, isEstimate: Bool) {
         self.row = row
-        self.costUSD = costUSD
+        self.cost = cost
         self.isEstimate = isEstimate
     }
 }
@@ -135,7 +136,7 @@ public struct PriceTable: Sendable {
 
     public func priced(_ row: DailyUsageRow) -> PricedUsageRow {
         guard let price = price(for: row.model) else {
-            return PricedUsageRow(row: row, costUSD: row.reportedCostUSD, isEstimate: false)
+            return PricedUsageRow(row: row, cost: row.reportedCostUSD, isEstimate: false)
         }
         let tokens = (
             Double(row.unpricedInputTokens) * price.input
@@ -145,7 +146,7 @@ public struct PriceTable: Sendable {
                 + Double(row.unpricedCacheWrite1hTokens) * price.cacheWrite1h
         ) / 1_000_000
         let estimate = tokens + Double(row.unpricedWebSearchRequests) * (price.webSearchPer1k ?? 0) / 1_000
-        return PricedUsageRow(row: row, costUSD: (row.reportedCostUSD ?? 0) + estimate, isEstimate: estimate != 0)
+        return PricedUsageRow(row: row, cost: (row.reportedCostUSD ?? 0) + estimate, isEstimate: estimate != 0)
     }
 
     /// Lowercases and strips what providers and clouds wrap around a model id: a `vendor/` path,

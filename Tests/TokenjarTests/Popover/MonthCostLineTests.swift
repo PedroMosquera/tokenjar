@@ -25,15 +25,15 @@ struct MonthCostLineTests {
             reasoningTokens: 0, reportedCostUSD: nil, unpricedInputTokens: 100, unpricedOutputTokens: 0,
             unpricedCacheReadTokens: 0, unpricedCacheWrite5mTokens: 0, unpricedCacheWrite1hTokens: 0
         )
-        return PricedUsageRow(row: daily, costUSD: cost, isEstimate: cost != nil)
+        return PricedUsageRow(row: daily, cost: cost, isEstimate: cost != nil)
     }
 
     func snapshot(billing: Billing?) -> UsageSnapshot {
         UsageSnapshot(accountID: "claude", provider: .claude, billing: billing, fetchedAt: now, source: "test")
     }
 
-    func text(_ billing: Billing?, _ rows: [PricedUsageRow], now: Date? = nil) -> MonthCostLine.Lines? {
-        MonthCostLine.text(snapshot: snapshot(billing: billing), rows: rows, now: now ?? self.now, calendar: Self.calendar, locale: locale)
+    func text(_ billing: Billing?, _ rows: [PricedUsageRow], now: Date? = nil, currency: CostCurrency = .usd) -> MonthCostLine.Lines? {
+        MonthCostLine.text(snapshot: snapshot(billing: billing), rows: rows, now: now ?? self.now, calendar: Self.calendar, locale: locale, currency: currency)
     }
 
     @Test func aPayAsYouGoLoginShowsThisMonthTodayAndWhereTheMonthIsHeaded() {
@@ -42,6 +42,14 @@ struct MonthCostLineTests {
         #expect(text(.payAsYouGo, rows) == MonthCostLine.Lines(
             amounts: "$12.40 this month · $7.90 today", detail: "On pace for ~$40 this month, estimate at list price"
         ))
+    }
+
+    @Test func inEurosTheLineUsesEuros() {
+        let euro = CostCurrency.resolve("EUR", rates: ExchangeRates(date: "2026-10-30", perEUR: ["USD": 1 / 0.92]))
+        let rows = [row(day(10, 1), cost: 4.5), row(day(10, 10), cost: 7.9)]
+        let lines = text(.payAsYouGo, rows, currency: euro)
+        #expect(lines?.amounts?.hasPrefix("€") == true)
+        #expect(lines?.detail?.hasPrefix("On pace for ~€") == true)
     }
 
     @Test func aDayWithoutUsageLeavesTodayOut() {

@@ -14,9 +14,11 @@ struct SpendChart: View, Equatable {
     var labels: [String]
     /// Built from `breakdown`, so it needs no place in `==`.
     var reference: DailyReference?
+    /// The code the estimates in `breakdown` are in.
+    var currency = "USD"
 
     static func == (a: SpendChart, b: SpendChart) -> Bool {
-        a.contentKey == b.contentKey && a.split == b.split && a.range == b.range
+        a.contentKey == b.contentKey && a.currency == b.currency && a.split == b.split && a.range == b.range
     }
 
     /// Explicit State storage: the SDK's @State is a macro whose plugin ships only with Xcode.
@@ -154,7 +156,7 @@ struct SpendChart: View, Equatable {
     }
 
     private func text(_ value: Double) -> String {
-        split == .tokenType ? Format.tokens(Int(value.rounded())) : Format.money(value)
+        split == .tokenType ? Format.tokens(Int(value.rounded())) : Format.money(value, currency: currency)
     }
 
     private func color(for group: String) -> Color {

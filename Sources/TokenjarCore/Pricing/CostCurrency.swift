@@ -23,7 +23,7 @@ public struct CostCurrency: Hashable, Sendable {
     public func converted(_ rows: [PricedUsageRow]) -> [PricedUsageRow] {
         rows.map { row in
             var copy = row
-            copy.costUSD = row.costUSD.map(amount)
+            copy.cost = row.cost.map(amount)
             return copy
         }
     }
