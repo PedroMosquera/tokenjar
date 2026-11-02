@@ -1,0 +1,17 @@
+{
+  "base_resp": { "status_code": 0, "status_msg": "success" },
+  "model_remains": [
+    {
+      "model_name": "MiniMax-M2",
+      "current_interval_total_count": 600,
+      "current_interval_usage_count": 450,
+      "end_time": 1793631600000
+    },
+    {
+      "model_name": "MiniMax-M2-her",
+      "current_interval_total_count": 0,
+      "current_interval_usage_count": 0,
+      "current_interval_status": 3
+    }
+  ]
+}

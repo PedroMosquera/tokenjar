@@ -61,7 +61,7 @@ public enum AccountDiscovery {
         guard let location = location(of: account, paths: paths, environment: environment) else { return true }
         switch account.provider {
         case .claude, .codex, .copilot: return isDirectory(location)
-        case .opencodeGo, .opencodeZen, .antigravity, .glm, .devin, .cursor: return FileManager.default.fileExists(atPath: location.path)
+        case .opencodeGo, .opencodeZen, .antigravity, .glm, .minimax, .devin, .cursor: return FileManager.default.fileExists(atPath: location.path)
         }
     }
 
@@ -85,7 +85,7 @@ public enum AccountDiscovery {
             case .keychain: nil
             case nil: openCodeAuthFile(paths: paths, environment: environment)
             }
-        case .glm:
+        case .glm, .minimax:
             if case .file(let path, _) = account.credential { paths.expand(path) } else { nil }
         case .antigravity, .devin, .cursor:
             nil

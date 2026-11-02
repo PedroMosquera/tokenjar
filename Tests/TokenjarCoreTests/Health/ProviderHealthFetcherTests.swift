@@ -27,7 +27,7 @@ struct ProviderHealthFetcherTests {
         #expect(request.timeoutInterval == 10)
     }
 
-    @Test(arguments: [ProviderID.opencodeGo, .opencodeZen, .antigravity, .glm, .devin, .cursor])
+    @Test(arguments: [ProviderID.opencodeGo, .opencodeZen, .antigravity, .glm, .minimax, .devin, .cursor])
     func providersWithoutAFeedSendNothing(provider: ProviderID) async {
         let transport = HealthFakeTransport(HTTPResponse(status: 200, body: Data()))
         await #expect(throws: FetchError.unsupported("\(provider.displayName) has no status feed")) { try await fetch(provider, transport) }
@@ -39,6 +39,7 @@ struct ProviderHealthFetcherTests {
     @Test func feedsAreTheOnlyOtherAllowedEndpointsAndPagesAreNeverFetched() {
         var expected: [String: Set<String>] = [
             "opencode.ai": [OpenCodeGoUsageFetcher.usageURL.path()], "api.z.ai": [GLMUsageFetcher.usageURL.path()],
+            "api.minimax.io": [MiniMaxUsageFetcher.usageURL.path()],
         ]
         for url in ProviderID.allCases.compactMap(\.statusFeedURL) { expected[url.host()!, default: []].insert(url.path()) }
         #expect(HTTPClient.allowedEndpoints == expected)

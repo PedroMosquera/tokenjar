@@ -282,6 +282,29 @@ struct CaptureCommandTests {
         #expect(!text.contains("example.com"))
     }
 
+    @Test func minimaxWithoutAKeyStopsAndSendsNothing() async {
+        let transport = OpenCodeFakeTransport(HTTPResponse(status: 200, body: Data()))
+        #expect(await capture(.minimax, transport: transport) == .stopped("No MiniMax key was found in the --credential-file entry."))
+        #expect(transport.requests.isEmpty)
+    }
+
+    @Test func minimaxCaptureKeepsModelNamesAndRedactsTheRest() async throws {
+        try write("keys.json", #"{"minimax": {"type": "api", "key": "sk-cp-placeholderkey1234567890"}}"#)
+        let body = #"{"base_resp":{"status_code":0,"status_msg":"hi person@example.com"},"model_remains":[{"model_name":"MiniMax-M2","current_interval_total_count":600}]}"#
+        let transport = OpenCodeFakeTransport(HTTPResponse(status: 200, body: Data(body.utf8)))
+
+        let credential = CredentialRef.file(path: home.appending(path: "keys.json").path, key: "minimax")
+        let text = try document(await capture(.minimax, credential: credential, transport: transport))
+
+        let request = try #require(transport.requests.first)
+        #expect(request.url == MiniMaxUsageFetcher.usageURL)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-cp-placeholderkey1234567890")
+        #expect(text.contains(#""model_name" : "MiniMax-M2""#))
+        #expect(text.contains(#""current_interval_total_count" : 600"#))
+        #expect(!text.contains("sk-cp-"))
+        #expect(!text.contains("example.com"))
+    }
+
     @Test func linkOnlyProvidersAndZenHaveNothingToCapture() async {
         for provider in [ProviderID.devin, .cursor, .opencodeZen] {
             guard case .nothingToCapture = await capture(provider) else {

@@ -20,6 +20,7 @@ struct ModelsTests {
             .antigravity: "https://antigravity.google/docs/plans",
             .copilot: "https://github.com/settings/copilot",
             .glm: "https://z.ai/manage-apikey/coding-plan/personal/my-plan",
+            .minimax: "https://platform.minimax.io/user-center/payment/coding-plan",
             // The quota sits on Usage & limits; Settings > Plans only lists plans.
             .devin: "https://app.devin.ai/settings/usage",
             .cursor: "https://cursor.com/dashboard/usage",
@@ -63,15 +64,20 @@ struct ModelsTests {
         #expect(ProviderID.glm.logoName == "zai")
         #expect(ProviderID.glm.harness == nil)
         #expect(ProviderID.glm.statusFeedURL == nil)
+        #expect(ProviderID(rawValue: "minimax") == .minimax)
+        #expect(ProviderID.minimax.displayName == "MiniMax")
+        #expect(ProviderID.minimax.logoName == "minimax")
+        #expect(ProviderID.minimax.harness == nil)
     }
 
-    @Test func aMissingGLMKeyIsNotCalledASignOut() {
+    @Test func aMissingGLMOrMiniMaxKeyIsNotCalledASignOut() {
         #expect(FetchError.notSignedIn.userMessage(provider: .glm) == "No GLM Coding Plan key on this Mac. Paste one in Settings to see limits.")
+        #expect(FetchError.notSignedIn.userMessage(provider: .minimax) == "No MiniMax key on this Mac. Paste one in Settings to see limits.")
     }
 
     /// The providers whose only key is one pasted in Settings, stored in Tokenjar's own Keychain item.
-    @Test func pastedKeyProvidersAreGoAndGLM() {
-        #expect(ProviderID.allCases.filter(\.usesPastedKey) == [.opencodeGo, .glm])
+    @Test func pastedKeyProvidersAreGoGLMAndMiniMax() {
+        #expect(ProviderID.allCases.filter(\.usesPastedKey) == [.opencodeGo, .glm, .minimax])
     }
 
     @Test func linkOnlyProvidersAreDevinAndCursor() {
@@ -81,7 +87,7 @@ struct ModelsTests {
     @Test func zenDevinAndCursorReportNoWindows() {
         let expected: [ProviderID: Bool] = [
             .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
-            .cursor: false, .glm: true,
+            .cursor: false, .glm: true, .minimax: true,
         ]
         for provider in ProviderID.allCases {
             #expect(provider.reportsWindows == expected[provider], "\(provider)")
@@ -181,7 +187,7 @@ struct ModelsTests {
     }
 
     @Test func otherProvidersKeepTheSignedOutCopy() {
-        for provider in ProviderID.allCases where provider != .claude && provider != .glm {
+        for provider in ProviderID.allCases where ![.claude, .glm, .minimax].contains(provider) {
             #expect(FetchError.notSignedIn.userMessage(provider: provider) == FetchError.notSignedIn.userMessage, "\(provider)")
         }
         let others: [FetchError] = [.unauthorized, .cliNotFound("claude"), .parse("shape"), .cliTooOld(name: "claude", minimum: nil), .keychainDenied]
@@ -225,7 +231,7 @@ struct ModelsTests {
     @Test func providersThatNeedTheNetworkAreTheOnesThatContactOne() {
         let expected: [ProviderID: Bool] = [
             .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
-            .cursor: false, .glm: true,
+            .cursor: false, .glm: true, .minimax: true,
         ]
         for provider in ProviderID.allCases {
             #expect(provider.checkUsesNetwork == expected[provider], "\(provider)")

@@ -1,0 +1,22 @@
+{
+  "base_resp": { "status_code": 0, "status_msg": "success" },
+  "model_remains": [
+    {
+      "model_name": "MiniMax-M2",
+      "current_interval_total_count": 600,
+      "current_interval_usage_count": 450,
+      "start_time": 1793613600000,
+      "end_time": 1793631600000,
+      "current_weekly_total_count": 6000,
+      "current_weekly_usage_count": 5400,
+      "weekly_start_time": 1793577600000,
+      "weekly_end_time": 1794182400000
+    },
+    {
+      "model_name": "speech-2.6-hd",
+      "current_interval_total_count": 4000,
+      "current_interval_usage_count": 4000,
+      "end_time": 1793631600000
+    }
+  ]
+}

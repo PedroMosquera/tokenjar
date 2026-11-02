@@ -22,6 +22,7 @@ struct PastedKeySection: View {
     private var prompt: String {
         switch account.provider {
         case .glm: "Paste a GLM Coding Plan API key"
+        case .minimax: "Paste a MiniMax Token Plan key (sk-cp-...)"
         default: "Paste an API key"
         }
     }

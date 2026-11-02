@@ -32,6 +32,7 @@ public struct HTTPClient: Sendable {
     public static let allowedEndpoints: [String: Set<String>] = [
         "opencode.ai": ["/zen/go/v1/usage"],
         "api.z.ai": ["/api/monitor/usage/quota/limit"],
+        "api.minimax.io": ["/v1/token_plan/remains"],
         "status.claude.com": ["/api/v2/summary.json"],
         "status.openai.com": ["/proxy/status.openai.com"],
         "www.githubstatus.com": ["/api/v2/summary.json"],

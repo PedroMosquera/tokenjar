@@ -215,6 +215,7 @@ extension AppModel {
             AccountConfig(id: "pasted-key", provider: .opencodeGo, label: "Pasted key", credential: .keychain(account: "pasted-key")),
             AccountConfig(id: "glm", provider: .glm, label: "GLM", credential: .keychain(account: "glm")),
             AccountConfig(id: "glm-no-key", provider: .glm, label: "No key"),
+            AccountConfig(id: "minimax", provider: .minimax, label: "MiniMax", credential: .keychain(account: "minimax")),
             AccountConfig(id: "cursor", provider: .cursor, label: "Cursor"),
         ])
         func window(_ id: String, _ label: String, _ used: Double, _ minutes: Int, resetIn: TimeInterval) -> UsageWindow {
@@ -248,6 +249,9 @@ extension AppModel {
                 window("mcp:monthly", "Tools (MCP)", 5, 30 * 1_440, resetIn: 20 * 86_400),
             ], fetchedAt: now.addingTimeInterval(-60), source: "z.ai API")),
             "glm-no-key": AccountStatus(error: .notSignedIn, lastAttempt: now.addingTimeInterval(-30)),
+            "minimax": AccountStatus(snapshot: UsageSnapshot(accountID: "minimax", provider: .minimax, plan: "Token Plan", windows: [
+                window("session", "5-hour", 25, 300, resetIn: 3 * 3600), window("weekly", "Week", 10, 10_080, resetIn: 6 * 86_400),
+            ], fetchedAt: now.addingTimeInterval(-60), source: "minimax API")),
             "cursor": AccountStatus(snapshot: UsageSnapshot(
                 accountID: "cursor", provider: .cursor, fetchedAt: now.addingTimeInterval(-60), source: CursorUsageFetcher.source,
                 notes: [CursorUsageFetcher.noUsageNote]

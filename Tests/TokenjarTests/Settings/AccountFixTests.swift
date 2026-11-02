@@ -31,6 +31,10 @@ struct AccountFixTests {
         #expect(AccountFix.primary(for: .unauthorized, provider: .glm, credential: .keychain(account: "g")) == .changeKey)
     }
 
+    @Test func minimaxWithoutAKeyOffersChangeKey() {
+        #expect(AccountFix.primary(for: .notSignedIn, provider: .minimax, credential: nil) == .changeKey)
+    }
+
     @Test func glmWithoutAPlanOffersNothing() {
         #expect(AccountFix.primary(for: .noSubscription("x"), provider: .glm, credential: .keychain(account: "g")) == nil)
     }

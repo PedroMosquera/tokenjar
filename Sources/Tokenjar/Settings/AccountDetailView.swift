@@ -605,7 +605,7 @@ extension ProviderID {
         case .copilot: "gh"
         case .opencodeGo, .opencodeZen: "opencode"
         case .antigravity: "agy"
-        case .glm, .devin, .cursor: nil
+        case .glm, .minimax, .devin, .cursor: nil
         }
     }
 
