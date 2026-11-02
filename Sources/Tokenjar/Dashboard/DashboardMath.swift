@@ -640,7 +640,7 @@ nonisolated struct MonthForecast: Equatable, Sendable {
 /// prices: what the subscriptions would have cost at API prices.
 nonisolated struct PlanValue: Equatable, Sendable {
     var spend: Double
-    /// The sum of the plans' US monthly list prices.
+    /// The sum of the plans' US monthly list prices, converted into `currency`.
     var planPrice: Double
     /// In account order, one entry per account.
     var plans: [String]
@@ -683,7 +683,7 @@ nonisolated struct PlanValue: Equatable, Sendable {
         let names = plans.count == 1 ? "\(plans[0]) plan" : "\(plans.dropLast().joined(separator: ", ")) and \(plans[plans.count - 1]) plans"
         let base = plans.count == 1 ? "the \(money(planPrice, locale)) \(names)" : "the \(money(planPrice, locale)) of the \(names)"
         return "Covered \(money(spend, locale)) of API usage this month, \(valueText(locale: locale)) \(base). "
-            + "API-equivalent estimate, not a bill; plan prices are US monthly list prices."
+            + "API-equivalent estimate, not a bill; plan prices are \(currency == "USD" ? "" : "converted from ")US monthly list prices."
     }
 
     @MainActor private func money(_ amount: Double, _ locale: Locale) -> String {

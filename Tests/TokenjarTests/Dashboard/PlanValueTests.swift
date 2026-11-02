@@ -78,6 +78,7 @@ struct PlanValueTests {
         #expect(abs(plan.planPrice - 184) < 1e-6)
         #expect(abs(plan.multiple - 2.85) < 1e-9)
         #expect(plan.caption(locale: locale) == "vs the €184 plan")
+        #expect(plan.help(locale: locale).hasSuffix("; plan prices are converted from US monthly list prices."))
     }
 
     @Test @MainActor func textSaysWhatThePlanCovered() throws {
