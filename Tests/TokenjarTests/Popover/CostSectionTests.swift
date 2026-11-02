@@ -54,18 +54,29 @@ struct CostSectionTests {
         let content = try #require(make(month, planPrice: max5x))
         #expect(content.today == "$20.25")
         #expect(content.trailing == "7.8x plan")
+        #expect(content.multiple == "7.8x")
         #expect(content.highlightsTrailing)
         #expect(content.tiles == [
             CostSection.Tile(title: "Today", value: "$20.25"),
             CostSection.Tile(title: "Last 30 days", value: "$780"),
             CostSection.Tile(title: "30d tokens", value: Format.tokens(3_100_000, locale: locale)),
-            CostSection.Tile(title: "Plan value", value: "7.8x", detail: "the $100 plan"),
+            CostSection.Tile(title: "Plan value", value: "7.8x", detail: "the $100 plan", highlighted: true),
         ])
+    }
+
+    /// Green says the plan paid for itself, so a plan used for less than its price stays uncoloured.
+    @Test func belowThePlanPriceTheMultipleIsNotHighlighted() throws {
+        let content = try #require(make([row(day(11, 2), cost: 50)], planPrice: max5x))
+        #expect(content.trailing == "0.5x plan")
+        #expect(content.multiple == "0.5x")
+        #expect(!content.highlightsTrailing)
+        #expect(content.tiles.last == CostSection.Tile(title: "Plan value", value: "0.5x", detail: "the $100 plan", highlighted: false))
     }
 
     @Test func withoutAPlanPriceTheRowShowsThe30DayTotal() throws {
         let content = try #require(make(month))
         #expect(content.trailing == "$780 30d")
+        #expect(content.multiple == nil)
         #expect(!content.highlightsTrailing)
         #expect(content.tiles.last == CostSection.Tile(title: "Top model", value: "m"))
         #expect(content.footer == ["API-equivalent estimate from this Mac's logs, not a bill."])
@@ -124,7 +135,7 @@ struct CostSectionTests {
         let content = try #require(make(month, planPrice: max5x, currency: euro))
         #expect(content.today == "€18.63")
         #expect(content.trailing == "7.8x plan")
-        #expect(content.tiles.last == CostSection.Tile(title: "Plan value", value: "7.8x", detail: "the €92 plan"))
+        #expect(content.tiles.last == CostSection.Tile(title: "Plan value", value: "7.8x", detail: "the €92 plan", highlighted: true))
         #expect(content.footer.contains("EUR at the ECB rate of Oct 30."))
         #expect(content.currency == "EUR")
     }

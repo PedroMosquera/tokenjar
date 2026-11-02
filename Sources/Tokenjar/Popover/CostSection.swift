@@ -8,6 +8,7 @@ enum CostSection {
         var title: String
         var value: String
         var detail: String?
+        var highlighted = false
     }
 
     struct Day: Equatable {
@@ -21,6 +22,9 @@ enum CostSection {
         var today: String
         /// "7.8x plan", or "$780 30d" when the plan's price is unknown.
         var trailing: String
+        /// "7.8x", the part of `trailing` the row colours; nil when the plan's price is unknown.
+        var multiple: String?
+        /// The 30-day value has reached the plan's price.
         var highlightsTrailing: Bool
         /// Four, in grid order.
         var tiles: [Tile]
@@ -92,11 +96,18 @@ enum CostSection {
         ]
         var footer: [String] = []
         let trailing: String
+        var multiple: String?
+        var paysForItself = false
         let plan = planPrice.map { currency.amount($0.monthlyUSD) }.flatMap { $0 > 0 ? $0 : nil }
         if let plan {
-            let multiple = PlanValue.multipleText(total.amount / plan, locale: locale)
-            trailing = "\(multiple) plan"
-            tiles.append(Tile(title: "Plan value", value: multiple, detail: "the \(Format.money(plan, currency: code, fractionDigits: 0, locale: locale)) plan"))
+            let text = PlanValue.multipleText(total.amount / plan, locale: locale)
+            multiple = text
+            paysForItself = total.amount >= plan
+            trailing = "\(text) plan"
+            tiles.append(Tile(
+                title: "Plan value", value: text, detail: "the \(Format.money(plan, currency: code, fractionDigits: 0, locale: locale)) plan",
+                highlighted: paysForItself
+            ))
             footer.append("Top model: \(topModel)")
         } else {
             trailing = "\(money(total.amount)) 30d"
@@ -110,7 +121,7 @@ enum CostSection {
         }
 
         return Content(
-            today: today, trailing: trailing, highlightsTrailing: plan != nil, tiles: tiles, days: days, average: average, peak: peak,
+            today: today, trailing: trailing, multiple: multiple, highlightsTrailing: paysForItself, tiles: tiles, days: days, average: average, peak: peak,
             summary: "Avg \(money(average)) · Peak \(money(peak))",
             spoken: "Daily API value, last 30 days, average \(money(average)), peak \(money(peak))",
             footer: footer, currency: code

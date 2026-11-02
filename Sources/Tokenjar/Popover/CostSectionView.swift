@@ -26,7 +26,7 @@ struct CostSectionView: View {
                     Text("API value")
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 8)
-                    Text("\(content.today) today · \(Text(content.trailing).foregroundStyle(content.highlightsTrailing ? AnyShapeStyle(.green) : AnyShapeStyle(.primary)))")
+                    trailing
                         .monospacedDigit()
                 }
                 .font(.callout)
@@ -47,6 +47,12 @@ struct CostSectionView: View {
         }
     }
 
+    private var trailing: Text {
+        guard let multiple = content.multiple else { return Text("\(content.today) today · \(content.trailing)") }
+        let style = content.highlightsTrailing ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary)
+        return Text("\(content.today) today · \(Text(multiple).foregroundStyle(style)) plan")
+    }
+
     private var tiles: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
             ForEach(Array(stride(from: 0, to: content.tiles.count, by: 2)), id: \.self) { index in
@@ -65,10 +71,11 @@ struct CostSectionView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Group {
+                let value = Text(tile.value).font(.callout.weight(.semibold)).foregroundStyle(tile.highlighted ? AnyShapeStyle(.green) : AnyShapeStyle(.primary))
                 if let detail = tile.detail {
-                    Text("\(Text(tile.value).font(.callout.weight(.semibold))) \(Text(detail).font(.caption).foregroundStyle(.secondary))")
+                    Text("\(value) \(Text(detail).font(.caption).foregroundStyle(.secondary))")
                 } else {
-                    Text(tile.value).font(.callout.weight(.semibold))
+                    value
                 }
             }
             .monospacedDigit()
