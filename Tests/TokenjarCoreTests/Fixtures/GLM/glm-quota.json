@@ -1,0 +1,13 @@
+{
+  "code": 200,
+  "msg": "Operation successful",
+  "success": true,
+  "data": {
+    "planName": "Lite",
+    "limits": [
+      { "type": "TOKENS_LIMIT", "unit": 3, "number": 5, "percentage": 42, "nextResetTime": 1793628000000 },
+      { "type": "TOKENS_LIMIT", "unit": 6, "number": 1, "percentage": 18, "nextResetTime": 1793923200000 },
+      { "type": "TIME_LIMIT", "unit": 5, "number": 1, "percentage": 5, "nextResetTime": 1796083200000 }
+    ]
+  }
+}

@@ -10,11 +10,11 @@ public enum SignInCommand {
         case .claude: ("CLAUDE_CONFIG_DIR", "~/.claude")
         case .codex: ("CODEX_HOME", "~/.codex")
         case .copilot: ("GH_CONFIG_DIR", "~/.config/gh")
-        case .opencodeGo, .opencodeZen, .antigravity, .devin, .cursor: nil
+        case .opencodeGo, .opencodeZen, .antigravity, .glm, .devin, .cursor: nil
         }
     }
 
-    /// nil for Antigravity, Devin and Cursor. `executable` maps a CLI name to what should run (a located absolute path, or the bare name).
+    /// nil for Antigravity, GLM, Devin and Cursor. `executable` maps a CLI name to what should run (a located absolute path, or the bare name).
     /// `abbreviatingHome` writes paths under the home folder as `~/...` for display; the result still runs the same,
     /// but Terminal and the clipboard get the full paths so nothing depends on how a shell expands ~.
     public static func command(for account: AccountConfig, paths: AppPaths, executable: (String) -> String, abbreviatingHome: Bool = false) -> String? {
@@ -24,7 +24,7 @@ public enum SignInCommand {
         case .codex: words = [executable("codex"), "login"]
         case .opencodeGo, .opencodeZen: words = [executable("opencode"), "auth", "login"]
         case .copilot: words = [executable("gh"), "auth", "login"]
-        case .antigravity, .devin, .cursor: return nil
+        case .antigravity, .glm, .devin, .cursor: return nil
         }
         let quotePath = abbreviatingHome ? { tildeQuote($0, home: paths.home.path) } : shellQuote
         var parts = [quotePath(words[0])] + words.dropFirst().map(shellQuote)

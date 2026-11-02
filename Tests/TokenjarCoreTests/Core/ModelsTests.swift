@@ -19,6 +19,7 @@ struct ModelsTests {
             .opencodeZen: "https://opencode.ai/auth",
             .antigravity: "https://antigravity.google/docs/plans",
             .copilot: "https://github.com/settings/copilot",
+            .glm: "https://z.ai/manage-apikey/coding-plan/personal/my-plan",
             // The quota sits on Usage & limits; Settings > Plans only lists plans.
             .devin: "https://app.devin.ai/settings/usage",
             .cursor: "https://cursor.com/dashboard/usage",
@@ -57,6 +58,16 @@ struct ModelsTests {
         #expect(ProviderID.cursor.displayName == "Cursor")
         #expect(ProviderID.cursor.logoName == "cursor")
         #expect(ProviderID.cursor.harness == nil)
+        #expect(ProviderID(rawValue: "glm") == .glm)
+        #expect(ProviderID.glm.displayName == "GLM Coding Plan")
+        #expect(ProviderID.glm.logoName == "zai")
+        #expect(ProviderID.glm.harness == nil)
+        #expect(ProviderID.glm.statusFeedURL == nil)
+    }
+
+    /// The providers whose only key is one pasted in Settings, stored in Tokenjar's own Keychain item.
+    @Test func pastedKeyProvidersAreGoAndGLM() {
+        #expect(ProviderID.allCases.filter(\.usesPastedKey) == [.opencodeGo, .glm])
     }
 
     @Test func linkOnlyProvidersAreDevinAndCursor() {
@@ -66,7 +77,7 @@ struct ModelsTests {
     @Test func zenDevinAndCursorReportNoWindows() {
         let expected: [ProviderID: Bool] = [
             .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
-            .cursor: false,
+            .cursor: false, .glm: true,
         ]
         for provider in ProviderID.allCases {
             #expect(provider.reportsWindows == expected[provider], "\(provider)")
@@ -210,7 +221,7 @@ struct ModelsTests {
     @Test func providersThatNeedTheNetworkAreTheOnesThatContactOne() {
         let expected: [ProviderID: Bool] = [
             .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
-            .cursor: false,
+            .cursor: false, .glm: true,
         ]
         for provider in ProviderID.allCases {
             #expect(provider.checkUsesNetwork == expected[provider], "\(provider)")

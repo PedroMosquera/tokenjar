@@ -73,7 +73,7 @@ struct ProviderHealthFeed: Sendable {
                 components: [Component(id: "pjmpxvq2cmr2", name: "Copilot")],
                 productWords: [ProductWord(word: "Copilot", name: "Copilot")]
             )
-        case .opencodeGo, .opencodeZen, .antigravity, .devin, .cursor:
+        case .opencodeGo, .opencodeZen, .antigravity, .glm, .devin, .cursor:
             nil
         }
     }

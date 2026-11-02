@@ -7,6 +7,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     case opencodeZen = "opencode-zen"
     case antigravity
     case copilot
+    case glm
     case devin
     case cursor
 
@@ -18,6 +19,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeZen: "OpenCode Zen"
         case .antigravity: "Antigravity"
         case .copilot: "GitHub Copilot"
+        case .glm: "GLM Coding Plan"
         case .devin: "Devin"
         case .cursor: "Cursor"
         }
@@ -31,6 +33,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: "opencode"
         case .antigravity: "antigravity"
         case .copilot: "copilot"
+        case .glm: "zai"
         case .devin: "windsurf"
         case .cursor: "cursor"
         }
@@ -43,6 +46,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: URL(string: "https://opencode.ai/auth")!
         case .antigravity: URL(string: "https://antigravity.google/docs/plans")!
         case .copilot: URL(string: "https://github.com/settings/copilot")!
+        case .glm: URL(string: "https://z.ai/manage-apikey/coding-plan/personal/my-plan")!
         case .devin: URL(string: "https://app.devin.ai/settings/usage")!
         case .cursor: URL(string: "https://cursor.com/dashboard/usage")!
         }
@@ -56,7 +60,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: URL(string: "https://status.opencode.ai")
         case .copilot: URL(string: "https://www.githubstatus.com")
         case .devin: URL(string: "https://www.devinstatus.com")
-        case .antigravity, .cursor: nil
+        case .antigravity, .glm, .cursor: nil
         }
     }
 
@@ -67,7 +71,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: URL(string: "https://status.claude.com/api/v2/summary.json")
         case .codex: URL(string: "https://status.openai.com/proxy/status.openai.com")
         case .copilot: URL(string: "https://www.githubstatus.com/api/v2/summary.json")
-        case .opencodeGo, .opencodeZen, .antigravity, .devin, .cursor: nil
+        case .opencodeGo, .opencodeZen, .antigravity, .glm, .devin, .cursor: nil
         }
     }
 
@@ -75,7 +79,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     public var isLinkOnly: Bool {
         switch self {
         case .devin, .cursor: true
-        case .claude, .codex, .opencodeGo, .opencodeZen, .antigravity, .copilot: false
+        case .claude, .codex, .opencodeGo, .opencodeZen, .antigravity, .copilot, .glm: false
         }
     }
 
@@ -84,7 +88,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     public var reportsWindows: Bool {
         switch self {
         case .opencodeZen, .devin, .cursor: false
-        case .claude, .codex, .opencodeGo, .antigravity, .copilot: true
+        case .claude, .codex, .opencodeGo, .antigravity, .copilot, .glm: true
         }
     }
 
@@ -93,7 +97,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     public var checkUsesNetwork: Bool {
         switch self {
         case .opencodeZen, .devin, .cursor: false
-        case .claude, .codex, .opencodeGo, .antigravity, .copilot: true
+        case .claude, .codex, .opencodeGo, .antigravity, .copilot, .glm: true
         }
     }
 
@@ -103,7 +107,15 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: .claudeCode
         case .codex: .codex
         case .opencodeGo, .opencodeZen: .opencode
-        case .antigravity, .copilot, .devin, .cursor: nil
+        case .antigravity, .copilot, .glm, .devin, .cursor: nil
+        }
+    }
+
+    /// True when the provider's key is one the user pastes in Settings, kept in Tokenjar's own Keychain item.
+    public var usesPastedKey: Bool {
+        switch self {
+        case .opencodeGo, .glm: true
+        case .claude, .codex, .opencodeZen, .antigravity, .copilot, .devin, .cursor: false
         }
     }
 }

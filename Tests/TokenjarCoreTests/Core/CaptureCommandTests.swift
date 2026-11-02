@@ -259,6 +259,29 @@ struct CaptureCommandTests {
         #expect(!text.contains("example.com"))
     }
 
+    @Test func glmWithoutAKeyStopsAndSendsNothing() async {
+        let transport = OpenCodeFakeTransport(HTTPResponse(status: 200, body: Data()))
+        #expect(await capture(.glm, transport: transport) == .stopped("No GLM key was found in the --credential-file entry."))
+        #expect(transport.requests.isEmpty)
+    }
+
+    @Test func glmCaptureKeepsLimitTypesAndRedactsTheRest() async throws {
+        try write("keys.json", #"{"glm": {"type": "api", "key": "glm-placeholderkey1234567890"}}"#)
+        let body = #"{"code":200,"msg":"hello person@example.com","success":true,"data":{"planName":"Lite","limits":[{"type":"CREDIT_LIMIT","unit":3,"number":5,"percentage":42,"nextResetTime":1793628000000}]}}"#
+        let transport = OpenCodeFakeTransport(HTTPResponse(status: 200, body: Data(body.utf8)))
+
+        let credential = CredentialRef.file(path: home.appending(path: "keys.json").path, key: "glm")
+        let text = try document(await capture(.glm, credential: credential, transport: transport))
+
+        let request = try #require(transport.requests.first)
+        #expect(request.url == GLMUsageFetcher.usageURL)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "glm-placeholderkey1234567890")
+        #expect(text.contains(#""type" : "CREDIT_LIMIT""#))
+        #expect(text.contains(#""planName" : "Lite""#))
+        #expect(!text.contains("glm-placeholder"))
+        #expect(!text.contains("example.com"))
+    }
+
     @Test func linkOnlyProvidersAndZenHaveNothingToCapture() async {
         for provider in [ProviderID.devin, .cursor, .opencodeZen] {
             guard case .nothingToCapture = await capture(provider) else {
@@ -272,8 +295,8 @@ struct CaptureCommandTests {
 
     // MARK: Helpers
 
-    private func account(_ provider: ProviderID) -> AccountConfig {
-        AccountConfig(id: "dev-\(provider.rawValue)", provider: provider, label: "dev")
+    private func account(_ provider: ProviderID, credential: CredentialRef? = nil) -> AccountConfig {
+        AccountConfig(id: "dev-\(provider.rawValue)", provider: provider, label: "dev", credential: credential)
     }
 
     private func context(transport: OpenCodeFakeTransport = OpenCodeFakeTransport(HTTPResponse(status: 500, body: Data()))) -> FetchContext {
@@ -294,10 +317,11 @@ struct CaptureCommandTests {
     }
 
     private func capture(
-        _ provider: ProviderID, codexLauncher: any CodexAppServerLaunching = RecordingCodexLauncher(ScriptedCodexConnection(replies: [:])),
+        _ provider: ProviderID, credential: CredentialRef? = nil,
+        codexLauncher: any CodexAppServerLaunching = RecordingCodexLauncher(ScriptedCodexConnection(replies: [:])),
         transport: OpenCodeFakeTransport = OpenCodeFakeTransport(HTTPResponse(status: 500, body: Data()))
     ) async -> Capture.Outcome {
-        await Capture.run(account(provider), context: context(transport: transport), codexLauncher: codexLauncher, environment: [:])
+        await Capture.run(account(provider, credential: credential), context: context(transport: transport), codexLauncher: codexLauncher, environment: [:])
     }
 
     private func document(_ outcome: Capture.Outcome) throws -> String {

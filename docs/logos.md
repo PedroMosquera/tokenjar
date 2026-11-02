@@ -1,6 +1,6 @@
 # Logos
 
-Provider marks in `Resources/Logos/`, loaded by `ProviderLogo` as `<ProviderID.logoName>.svg`. All come from the [simple-icons](https://github.com/simple-icons/simple-icons) npm package at a pinned version, served by jsDelivr. Nothing is fetched at build or run time; the files are committed. `copilot.svg` is GitHub Copilot's mark, and `windsurf.svg` stands in for Devin (see below). Tokenjar's own menu bar marks are in `Resources/Marks/`, described under [Marks](#marks).
+Provider marks in `Resources/Logos/`, loaded by `ProviderLogo` as `<ProviderID.logoName>.svg`. All but `zai.svg`, drawn for Tokenjar, come from the [simple-icons](https://github.com/simple-icons/simple-icons) npm package at a pinned version, served by jsDelivr. Nothing is fetched at build or run time; the files are committed. `copilot.svg` is GitHub Copilot's mark, and `windsurf.svg` stands in for Devin (see below). Tokenjar's own menu bar marks are in `Resources/Marks/`, described under [Marks](#marks).
 
 | File | Source URL | Package version | SHA-256 of committed file | SHA-256 of upstream file | Brand hex |
 |---|---|---|---|---|---|
@@ -11,16 +11,18 @@ Provider marks in `Resources/Logos/`, loaded by `ProviderLogo` as `<ProviderID.l
 | `copilot.svg` | https://cdn.jsdelivr.net/npm/simple-icons@16.32.0/icons/githubcopilot.svg | simple-icons 16.32.0 (published 2026-09-20) | `09d6bb1e34f0e0b993dbb131de510daf942397ff6a767782a32f6c8477e345a8` | `c72c1e0018e84b3128c5a1ac43ec2be135ac6ec4eb9c0ea18ed76416d23f2af3` | `#000000` |
 | `windsurf.svg` | https://cdn.jsdelivr.net/npm/simple-icons@16.32.0/icons/windsurf.svg | simple-icons 16.32.0 (published 2026-09-20) | `32b8612ce3f45366e8748a39fed19c0370a9c1faf103b2dfe4f6a5d2cd72b6c4` | `6a084cb5c1a82bbf3eeda54e3bf450bf8d4a9368d80b815db22116b6b00a2aae` | `#0B100F` |
 | `cursor.svg` | https://cdn.jsdelivr.net/npm/simple-icons@16.32.0/icons/cursor.svg | simple-icons 16.32.0 (published 2026-09-20) | `4b2cb7a078ecc7a86f7698d8c9930276c7ee85eeb3cf2ad9bb73ad92245646a5` | `71572a9be192cc069ec22b48d785e61d754eeed7edb7d082d615f6d5620f70ec` | `#000000` |
+| `zai.svg` | none: drawn for Tokenjar | none | `8ca472d92d81e15a73271197e3eae598dd2943035c13ae9f117c9ca729a71661` | none | none |
 
 Brand hex values come from `data/simple-icons.json` in the same package version. The files themselves are black, so draw them as templates and tint them at runtime. Drawn as-is they nearly vanish on a dark background.
 
-In the app, `ProviderLogoView` draws each file as a template, tinted `#D97757` for Claude and `#8E75B2` for Antigravity. The OpenAI, OpenCode, GitHub Copilot, Windsurf (Devin) and Cursor marks follow the text color instead, so they read in dark mode and their brand hex is unused. The menu bar shows a provider logo only when the user picks it as the menu bar icon in Settings > General; it is then a monochrome template, drawn at its own 16 pt and tinted only with a severity color, and the picker names `antigravity.svg` "Gemini" and `windsurf.svg` "Windsurf / Devin" after what they show. `make app` copies `Resources/Logos/` into `Contents/Resources/Logos`; a binary run from `.build` falls back to the repo's `Resources/Logos/`. `LogoAssetTests.everyProviderHasALoadableLogoAtMenuBarSize` checks that every provider's file, `copilot.svg`, `windsurf.svg` and `cursor.svg` included, loads with `NSImage(contentsOf:)` at 16 x 16 pt.
+In the app, `ProviderLogoView` draws each file as a template, tinted `#D97757` for Claude and `#8E75B2` for Antigravity. The OpenAI, OpenCode, GitHub Copilot, Windsurf (Devin), Cursor and Z.ai stand-in marks follow the text color instead, so they read in dark mode and their brand hex is unused. The menu bar shows a provider logo only when the user picks it as the menu bar icon in Settings > General; it is then a monochrome template, drawn at its own 16 pt and tinted only with a severity color, and the picker names `antigravity.svg` "Gemini" and `windsurf.svg` "Windsurf / Devin" after what they show. `make app` copies `Resources/Logos/` into `Contents/Resources/Logos`; a binary run from `.build` falls back to the repo's `Resources/Logos/`. `LogoAssetTests.everyProviderHasALoadableLogoAtMenuBarSize` checks that every provider's file, `copilot.svg`, `windsurf.svg` and `cursor.svg` included, loads with `NSImage(contentsOf:)` at 16 x 16 pt.
 
 ## Why these versions
 
 - **16.32.0** is the newest release published at least two weeks before 2026-10-10. Versions are pinned exactly, never `latest`.
 - **OpenAI** was removed from simple-icons in 16.0.0. 15.22.0 is the last 15.x release, and `icons/openai.svg` exists at that version.
 - **Antigravity** has no simple-icons slug in 16.32.0 (nor in 16.34.0, the newest release on 2026-10-10). `antigravity.svg` is the **Google Gemini mark used as a stand-in**. Replace it when simple-icons adds an Antigravity icon, or with Google's own mark after checking its guidelines.
+- **Z.ai** (GLM Coding Plan) has no simple-icons slug in 16.32.0 (`zai` and `zhipuai` both 404). `zai.svg` is a **plain "Z" lettermark drawn for Tokenjar** as a stand-in: a rounded square with the letter cut out (`fill-rule="evenodd"`), in the same 24 x 24 template style. Replace it with Z.ai's own mark after checking its guidelines, or when simple-icons adds one.
 - **Devin** has no simple-icons slug in 16.32.0. `windsurf.svg` is the **Windsurf mark used as a stand-in** for it. Replace it when simple-icons adds a Devin icon, or with Devin's own mark after checking its guidelines.
 
 ## How the files were normalized

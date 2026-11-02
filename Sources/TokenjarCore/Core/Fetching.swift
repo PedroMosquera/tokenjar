@@ -37,6 +37,7 @@ public enum FetcherRegistry {
         case .opencodeZen: OpenCodeZenUsageFetcher()
         case .antigravity: AntigravityUsageFetcher()
         case .copilot: CopilotUsageFetcher()
+        case .glm: GLMUsageFetcher()
         case .devin: DevinUsageFetcher()
         case .cursor: CursorUsageFetcher()
         }
@@ -48,7 +49,7 @@ public enum FetcherRegistry {
         case .codex: CodexHistoryScanner()
         case .opencodeGo: OpenCodeHistoryScanner(providerIDs: ["opencode-go"])
         case .opencodeZen: OpenCodeHistoryScanner(providerIDs: ["opencode"])
-        case .antigravity, .copilot, .devin, .cursor: nil
+        case .antigravity, .copilot, .glm, .devin, .cursor: nil
         }
     }
 }

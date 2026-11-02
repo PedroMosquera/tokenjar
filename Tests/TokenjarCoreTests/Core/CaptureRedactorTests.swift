@@ -41,6 +41,10 @@ struct CaptureRedactorTests {
                 "\(agyGroup).buckets[].window",
                 "usage.stderr.phrases[]",
             ],
+            .glm: [
+                "capture", "error", "response.data.limits[].type", "response.data.planName", "response.data.plan",
+                "response.data.plan_type", "response.data.packageName", "response.data.level",
+            ],
             .opencodeGo: [
                 "capture", "error",
                 "response._tag", "response.error.type", "response.**.currency",

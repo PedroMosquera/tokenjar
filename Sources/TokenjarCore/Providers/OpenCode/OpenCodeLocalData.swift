@@ -33,7 +33,7 @@ enum OpenCodeLocalData {
         return key
     }
 
-    private static func apiKey(inAuthFile url: URL, entries names: [String]) -> String? {
+    static func apiKey(inAuthFile url: URL, entries names: [String]) -> String? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()
         decoder.userInfo[AuthEntries.namesKey] = names

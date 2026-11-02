@@ -28,6 +28,7 @@ public enum Capture {
             case .copilot: return try await copilot(account, context: context)
             case .antigravity: return try await antigravity(context: context)
             case .opencodeGo: return try await opencodeGo(account, context: context, environment: environment)
+            case .glm: return try await glm(account, context: context)
             case .opencodeZen: return .nothingToCapture("OpenCode Zen has nothing to capture: its numbers come from opencode's local database, not from a request.")
             case .devin: return .nothingToCapture("Devin has nothing to capture: Tokenjar runs, reads and sends nothing for it.")
             case .cursor: return .nothingToCapture("Cursor has nothing to capture: Tokenjar runs, reads and sends nothing for it.")
@@ -303,6 +304,23 @@ public enum Capture {
     }
 
     // MARK: OpenCode Go
+
+    private static func glm(_ account: AccountConfig, context: FetchContext) async throws -> Outcome {
+        guard let key = try? PastedKey.apiKey(for: account, secrets: context.secrets, paths: context.paths) else {
+            return .stopped("No GLM key was found in the --credential-file entry.")
+        }
+        var document: [String: Any] = ["capture": ProviderID.glm.rawValue]
+        do {
+            let response = try await context.http.get(GLMUsageFetcher.usageURL, headers: ["Authorization": key], timeout: 20)
+            document["status"] = response.status
+            document["response"] = json(response.body)
+        } catch let error as URLError where error.code == .timedOut {
+            document["error"] = "timeout"
+        } catch {
+            document["error"] = "network"
+        }
+        return .document(try CaptureRedactor.render(document, provider: .glm))
+    }
 
     private static func opencodeGo(_ account: AccountConfig, context: FetchContext, environment: [String: String]) async throws -> Outcome {
         let dataDirectory = OpenCodeLocalData.dataDirectory(for: account, paths: context.paths, environment: environment)

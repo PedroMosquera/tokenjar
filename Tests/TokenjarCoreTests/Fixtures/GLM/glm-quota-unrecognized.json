@@ -1,0 +1,6 @@
+{
+  "code": 200,
+  "msg": "Operation successful",
+  "success": true,
+  "data": { "limits": [ { "type": "FUTURE_LIMIT", "unit": 3, "number": 1, "percentage": 99, "nextResetTime": 1793624400000 } ] }
+}

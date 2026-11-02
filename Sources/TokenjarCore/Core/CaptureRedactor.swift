@@ -42,6 +42,8 @@ public enum CaptureRedactor {
             .antigravity: ["capture"]
                 + ["name", "displayName", "display_name", "label", "title"].map { "\(agyGroup).\($0)" }
                 + ["\(agyGroup).buckets[].window", "usage.stderr.phrases[]"],
+            .glm: ["capture", "error", "response.data.limits[].type"]
+                + ["planName", "plan", "plan_type", "packageName", "level"].map { "response.data.\($0)" },
             .opencodeGo: ["capture", "error", "response._tag", "response.error.type", "response.**.currency"]
                 + goWindows.map { "response.\($0).status" }
                 + goWindows.map { "response.usage.\($0).status" },
