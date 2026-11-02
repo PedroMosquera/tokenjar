@@ -97,6 +97,8 @@ struct GeneralSettingsPane: View {
 
             providerStatusSection
 
+            currencySection
+
             configFileSection
         }
         .onAppear {
@@ -138,6 +140,28 @@ struct GeneralSettingsPane: View {
             }
         }
     }
+
+    /// A preference of this Mac, not config.json, so a shared config cannot make another Mac send a rate request.
+    private var currencySection: some View {
+        Section("Currency") {
+            Picker(selection: Binding(get: { model.currencyPick ?? Self.automaticTag }, set: { model.setCurrencyPick($0 == Self.automaticTag ? nil : $0) })) {
+                Text("Automatic (\(model.regionCurrency))").tag(Self.automaticTag)
+                ForEach(DisplayCurrency.supported, id: \.self) { code in
+                    Text(code).tag(code)
+                }
+            } label: {
+                Text("Currency")
+                Text("This Mac only. Estimates convert at the ECB's daily rate.")
+            }
+            if let date = model.costCurrency.rateDate {
+                Text("Rate of \(date)")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private static let automaticTag = "automatic"
 
     static let providerStatusCaption = "When you open the Tokenjar popover or refresh, Tokenjar asks the public status pages of Claude, Codex and GitHub Copilot whether the products you use have a problem. It sends no account data. This setting applies to this Mac only."
 

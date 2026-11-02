@@ -122,6 +122,11 @@ final class AppModel {
     @ObservationIgnored private var healthGeneration = 0
     /// The last batch of status checks, for tests to wait on.
     @ObservationIgnored private(set) var healthCheck: Task<Void, Never>?
+    @ObservationIgnored private let rateFetcher: @Sendable () async throws -> ExchangeRates
+    @ObservationIgnored private let locale: Locale
+    @ObservationIgnored private var lastFruitlessRateAttempt: Date?
+    /// The last ECB fetch, for tests to wait on.
+    @ObservationIgnored private(set) var rateCheck: Task<Void, Never>?
     @ObservationIgnored private var networkWatch = NetworkWatch()
     @ObservationIgnored private var settleTask: Task<Void, Never>?
     @ObservationIgnored private var lastBackOnlineRefresh: Date?
@@ -175,7 +180,9 @@ final class AppModel {
         paths: AppPaths = AppPaths(), fetcher: @escaping (ProviderID) -> any UsageFetcher = FetcherRegistry.fetcher(for:),
         clock: @escaping () -> Date = { Date() }, network: any NetworkStatus = PathMonitorNetworkStatus(),
         healthFetcher: @escaping @Sendable (ProviderID) async throws -> ProviderHealthAnswer = { try await ProviderHealthFetcher().fetch($0) },
-        defaults: any DefaultsStoring = MemoryDefaults()
+        defaults: any DefaultsStoring = MemoryDefaults(),
+        rateFetcher: @escaping @Sendable () async throws -> ExchangeRates = { try await ExchangeRateFetcher().fetch() },
+        locale: Locale = .autoupdatingCurrent
     ) {
         self.paths = paths
         self.fetcher = fetcher
@@ -186,6 +193,10 @@ final class AppModel {
         healthSetting = ProviderHealthSetting(defaults: defaults)
         providerStatusOn = healthSetting.isOn
         pinnedAccountID = defaults.object(forKey: Self.pinnedAccountKey) as? String
+        self.rateFetcher = rateFetcher
+        self.locale = locale
+        currencyPick = defaults.object(forKey: Self.currencyPickKey) as? String
+        exchangeRates = (defaults.object(forKey: Self.exchangeRatesKey) as? Data).flatMap { try? JSONDecoder().decode(ExchangeRates.self, from: $0) }
         let start = clock()
         now = start
         popoverNow = start
@@ -443,6 +454,7 @@ final class AppModel {
         now = clock()
         popoverNow = now
         checkProviderHealth(userInitiated: false)
+        checkExchangeRates(userInitiated: false)
         guard RefreshScheduler.shouldRefreshOnPopoverOpen(lastRefreshAt: lastRefreshAt, now: now) else { return }
         refresh(force: true)
     }
@@ -627,7 +639,10 @@ final class AppModel {
     @discardableResult
     func refresh(force: Bool, userInitiated: Bool = false) -> Task<Void, Never>? {
         // Launch, wake and a return from offline force a refresh too, and must not ask the status pages.
-        if userInitiated { checkProviderHealth(userInitiated: true) }
+        if userInitiated {
+            checkProviderHealth(userInitiated: true)
+            checkExchangeRates(userInitiated: true)
+        }
         // Read once: a later reading for the start would push every next check back by the time this one took to begin.
         let current = clock()
         // Removed before `due`, so a held account is never begun, keeps its next due time, and stays due.
@@ -847,6 +862,78 @@ final class AppModel {
         }
     }
 
+    // MARK: Currency
+
+    static let currencyPickKey = "displayCurrency"
+    static let exchangeRatesKey = "exchangeRates"
+
+    /// The currency picked in Settings; nil is Automatic. A preference rather than config: config.json is shared between
+    /// Macs, and the currency worth showing follows the Mac's region.
+    private(set) var currencyPick: String?
+
+    /// The latest ECB rates seen on this Mac, kept across launches so the first open after a launch can convert at once.
+    private(set) var exchangeRates: ExchangeRates?
+
+    var effectiveCurrency: String { DisplayCurrency.effective(pick: currencyPick, locale: locale) }
+
+    /// The region's code, for the Automatic row's label.
+    var regionCurrency: String { DisplayCurrency.regionDefault(locale) }
+
+    var costCurrency: CostCurrency { CostCurrency.resolve(effectiveCurrency, rates: exchangeRates) }
+
+    /// Picking a currency is a request, so it fetches at the user cooldown rather than the automatic one.
+    func setCurrencyPick(_ code: String?) {
+        currencyPick = code
+        preferences.set(code, forKey: Self.currencyPickKey)
+        checkExchangeRates(userInitiated: true)
+    }
+
+    /// Asks the ECB when the rates are older than its latest publication. USD never asks, so a Mac set to USD sends
+    /// nothing. Automatic triggers wait while checks are held offline; a refresh or a pick the user made does not.
+    @discardableResult
+    func checkExchangeRates(userInitiated: Bool) -> Task<Void, Never>? {
+        guard !isInert, effectiveCurrency != "USD", rateCheck == nil, userInitiated || !networkWatch.holdsChecks else { return nil }
+        let current = clock()
+        guard ExchangeRateSchedule.isDue(rates: exchangeRates, lastFruitlessAttempt: lastFruitlessRateAttempt, now: current, userInitiated: userInitiated) else { return nil }
+        let fetch = rateFetcher
+        let task = Task {
+            let result: Result<ExchangeRates, FetchError>
+            do {
+                result = .success(try await fetch())
+            } catch let error as FetchError {
+                result = .failure(error)
+            } catch {
+                result = .failure(.network(String(describing: type(of: error))))
+            }
+            applyRates(result, askedAt: current)
+            rateCheck = nil
+        }
+        rateCheck = task
+        return task
+    }
+
+    private func applyRates(_ result: Result<ExchangeRates, FetchError>, askedAt: Date) {
+        switch result {
+        case .success(let rates) where exchangeRates.map({ rates.date > $0.date }) ?? true:
+            exchangeRates = rates
+            lastFruitlessRateAttempt = nil
+            preferences.set(try? JSONEncoder().encode(rates), forKey: Self.exchangeRatesKey)
+        case .success:
+            lastFruitlessRateAttempt = askedAt
+        case .failure(let error):
+            lastFruitlessRateAttempt = askedAt
+            let host = ExchangeRateFetcher.url.host() ?? "ecb.europa.eu"
+            let detail: String
+            switch error {
+            case .parse(let text): detail = "the answer did not decode (\(text))"
+            case .timeout: detail = "no answer within \(Int(ExchangeRateFetcher.timeout)) s"
+            case .network(let text): detail = text
+            default: detail = "\(error)"
+            }
+            Logger(subsystem: AppPaths.bundleIdentifier, category: "exchange-rates").log("\(host, privacy: .public): \(detail, privacy: .public)")
+        }
+    }
+
     // MARK: History
 
     /// Reads local harness logs incrementally off the main thread and stores per-response token counts.
@@ -978,7 +1065,10 @@ final class AppModel {
         refresh(accountID: accountID)
     }
 
-    func showDashboard(accountID: String? = nil) { presenter.showDashboard(accountID) }
+    func showDashboard(accountID: String? = nil) {
+        checkExchangeRates(userInitiated: false)
+        presenter.showDashboard(accountID)
+    }
     func showSettings(accountID: String? = nil) { presenter.showSettings(accountID) }
     func closePopover() { presenter.closePopover() }
 
