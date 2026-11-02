@@ -41,7 +41,7 @@ struct AboutSettingsPane: View {
         Item(what: "GET https://status.claude.com/api/v2/summary.json", why: "Claude's public status. Only with provider status on, when you open the popover or refresh."),
         Item(what: "GET https://status.openai.com/proxy/status.openai.com", why: "Codex's public status. Only with provider status on, when you open the popover or refresh."),
         Item(what: "GET https://www.githubstatus.com/api/v2/summary.json", why: "GitHub Copilot's public status. Only with provider status on, when you open the popover or refresh."),
-        Item(what: "GET https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", why: "Exchange rates for estimates, only when the currency is not USD. Once a day at most, when you open the popover or dashboard or refresh."),
+        Item(what: "GET https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", why: "Exchange rates for estimates. Only when the currency is not USD, when you open the popover or dashboard, refresh or pick a currency, and a newer rate should exist."),
     ]
 
     private let writes = [
@@ -49,7 +49,7 @@ struct AboutSettingsPane: View {
         Item(what: "~/Library/Application Support/Tokenjar/", why: "tokenjar.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens or quota, so it is not run again until that CLI (claude or agy) updates or you click Try Once More. probe: an empty folder the CLIs run in."),
         Item(what: "$TMPDIR/tokenjar-sign-in-<account>.command", why: "Only when you click Sign In in Terminal: the login command for Terminal to run. It deletes itself when it runs."),
         Item(what: "Keychain: \(AppPaths.keychainService)", why: "Only API keys you paste here."),
-        Item(what: "Preferences: \(AppPaths.bundleIdentifier)", why: "Window frames, and whether provider status is on for this Mac."),
+        Item(what: "Preferences: \(AppPaths.bundleIdentifier)", why: "Window frames and, for this Mac only: whether provider status is on, the pinned account, the currency and its exchange rates, and which API value sections are open."),
     ]
 
     var body: some View {
