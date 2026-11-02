@@ -32,6 +32,17 @@ struct MonthlyBudgetTests {
         #expect(snapshot.spendLimitMoney == MoneyLine(label: "Monthly budget", amount: 67.38, limit: 200))
     }
 
+    @Test func theBudgetsMoneyLineCarriesItsCurrency() throws {
+        let snapshot = MonthlyBudget.apply(150, spent: 30, currency: "EUR", to: gateway(), now: now, calendar: Self.calendar)
+        #expect(snapshot.spendLimitMoney == MoneyLine(label: "Monthly budget", amount: 30, limit: 150, currency: "EUR"))
+        #expect(try #require(snapshot.windows.first).usedPercent == 20)
+    }
+
+    @Test func theUntrackedNoteSaysWhatToDo() {
+        #expect(MonthlyBudget.untrackedNote(budgetCurrency: "EUR", displayCurrency: "USD") == "Budget is in EUR. Pick EUR in Settings > General to track it on this Mac.")
+        #expect(MonthlyBudget.untrackedNote(budgetCurrency: "EUR", displayCurrency: "EUR") == "Budget is in EUR. It is tracked once an exchange rate loads.")
+    }
+
     @Test func noBudgetOrANonPositiveOneChangesNothing() {
         #expect(apply(nil, spent: 10, to: gateway()) == gateway())
         #expect(apply(0, spent: 10, to: gateway()) == gateway())

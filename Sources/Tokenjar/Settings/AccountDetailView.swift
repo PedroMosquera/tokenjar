@@ -184,16 +184,26 @@ struct AccountDetailView: View {
 
     private var monthlyBudgetSection: some View {
         Section {
-            CommittingTextField(
-                title: "Monthly budget", prompt: "None",
-                value: account.monthlyBudget.map { $0.formatted(.number.precision(.fractionLength(0...2))) } ?? ""
-            ) { text in
-                // Empty clears the budget; text that is not an amount keeps what was there.
-                let amount = SettingsLogic.budgetAmount(from: text)
-                guard amount != nil || text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                model.updateAccount(account.id) { $0.monthlyBudget = amount }
+            HStack {
+                CommittingTextField(
+                    title: "Monthly budget", prompt: "None",
+                    value: account.monthlyBudget.map { $0.formatted(.number.precision(.fractionLength(0...2))) } ?? ""
+                ) { text in
+                    // Empty clears the budget; text that is not an amount keeps what was there.
+                    let amount = SettingsLogic.budgetAmount(from: text)
+                    guard amount != nil || text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                    model.updateAccount(account.id) {
+                        $0.budgetCurrency = SettingsLogic.budgetCurrency(
+                            before: $0.monthlyBudget, after: amount, current: $0.budgetCurrency, display: model.effectiveCurrency
+                        )
+                        $0.monthlyBudget = amount
+                    }
+                }
+                if account.monthlyBudget != nil {
+                    Text(account.budgetCurrency ?? "USD").foregroundStyle(.secondary)
+                }
             }
-            Text("In US dollars. Draws a bar against this month's spend, estimated at list price from this Mac's logs, and counts in the menu bar and alerts like a spend limit.")
+            Text("Draws a bar against this month's spend, estimated at list price from this Mac's logs, and counts in the menu bar and alerts like a spend limit. A new budget takes this Mac's display currency and keeps it; clear the budget and type it again to change currency.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -212,15 +222,18 @@ struct AccountDetailView: View {
                 Text("A Today bar under the spend limit, and one notification a day when today's spend goes over.")
             }
             if account.dailyBudget != nil {
-                CommittingTextField(
-                    title: "Amount per day",
-                    prompt: recommended.map { Format.money($0.budget, currency: $0.currency, fractionDigits: 0, locale: .autoupdatingCurrent) },
-                    value: account.dailyBudget?.amount.map { $0.formatted(.number.precision(.fractionLength(0...2))) } ?? ""
-                ) { text in
-                    // Empty means the recommended amount; text that is not an amount keeps what was there.
-                    let amount = SettingsLogic.budgetAmount(from: text)
-                    guard amount != nil || text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                    model.updateAccount(account.id) { $0.dailyBudget = DailyBudget(amount: amount) }
+                HStack {
+                    CommittingTextField(
+                        title: "Amount per day",
+                        prompt: recommended.map { Format.money($0.budget, currency: $0.currency, fractionDigits: 0, locale: .autoupdatingCurrent) },
+                        value: account.dailyBudget?.amount.map { $0.formatted(.number.precision(.fractionLength(0...2))) } ?? ""
+                    ) { text in
+                        // Empty means the recommended amount; text that is not an amount keeps what was there.
+                        let amount = SettingsLogic.budgetAmount(from: text)
+                        guard amount != nil || text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        model.updateAccount(account.id) { $0.dailyBudget = DailyBudget(amount: amount) }
+                    }
+                    Text(snapshot.spendLimitMoney?.currency ?? "USD").foregroundStyle(.secondary)
                 }
                 Text("Leave it empty for the recommended amount: what is left this month spread over the days left, so a heavy day lowers the next.")
                     .font(.caption)

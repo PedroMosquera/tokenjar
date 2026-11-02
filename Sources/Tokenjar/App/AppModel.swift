@@ -776,8 +776,15 @@ final class AppModel {
     /// Added before the snapshot is stored, so its samples feed the Today bar and the dashboard as a seat's cap does.
     private func withMonthlyBudget(_ snapshot: UsageSnapshot, account: AccountConfig, now: Date) -> UsageSnapshot {
         guard account.monthlyBudget != nil, let monthStart = Calendar.current.dateInterval(of: .month, for: now)?.start else { return snapshot }
-        let spent = DashboardMath.cost(pricedUsage(accountIDs: [account.id], since: monthStart), since: monthStart).amount
-        return MonthlyBudget.apply(account.monthlyBudget, spent: spent, to: snapshot, now: now)
+        let usd = DashboardMath.cost(pricedUsage(accountIDs: [account.id], since: monthStart), since: monthStart).amount
+        let currency = account.budgetCurrency ?? "USD"
+        guard let spent = currency == "USD" ? usd : exchangeRates?.convert(usd: usd, to: currency) else {
+            guard MonthlyBudget.applies(to: snapshot) else { return snapshot }
+            var out = snapshot
+            out.notes.append(MonthlyBudget.untrackedNote(budgetCurrency: currency, displayCurrency: effectiveCurrency))
+            return out
+        }
+        return MonthlyBudget.apply(account.monthlyBudget, spent: spent, currency: currency, to: snapshot, now: now)
     }
 
     /// Accounts whose last probe spent tokens or quota stay out, unless the binary of the CLI that ran it has changed.

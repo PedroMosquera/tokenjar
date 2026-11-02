@@ -428,6 +428,14 @@ struct ConfigStoreTests {
         #expect(loaded.merged.accounts[0].showInMenuBar == false)
     }
 
+    @Test func anOldConfigReadsBudgetsAsUSD() throws {
+        let old = try JSONDecoder().decode(AccountConfig.self, from: Data(#"{"id": "claude", "provider": "claude", "monthlyBudget": 100}"#.utf8))
+        #expect(old.budgetCurrency == nil)
+        let euro = try JSONDecoder().decode(AccountConfig.self, from: Data(#"{"id": "claude", "provider": "claude", "monthlyBudget": 100, "budgetCurrency": "EUR"}"#.utf8))
+        #expect(euro.budgetCurrency == "EUR")
+        #expect(try JSONDecoder().decode(AccountConfig.self, from: JSONEncoder().encode(euro)) == euro)
+    }
+
     @Test func aConfigWithoutTheNewKeysLoadsTheDefaults() throws {
         let json = #"{"alerts": {"thresholds": [70]}, "accounts": [{"id": "copilot", "provider": "copilot"}]}"#
         let config = try JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))

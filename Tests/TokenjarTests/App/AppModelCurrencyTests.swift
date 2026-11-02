@@ -174,4 +174,61 @@ struct AppModelCurrencyTests {
         #expect(readOnly.checkExchangeRates(userInitiated: true) == nil)
         #expect(asks.total == 0)
     }
+
+    /// A pay-as-you-go account with a budget in `currency` and $50 of priced spend this month.
+    private func budgetedModel(
+        _ home: ModelHome, budget: Double, currency: String, stored: ExchangeRates? = nil, asks: RateAsks, locale: String
+    ) throws -> (AppModel, AccountConfig) {
+        var gateway = AccountConfig(id: "gateway", provider: .claude, label: "LiteLLM")
+        gateway.monthlyBudget = budget
+        gateway.budgetCurrency = currency
+        try home.writeConfig(AppConfig(accounts: [gateway]))
+        let clock = TestClock()
+        let defaults = MemoryDefaults()
+        if let stored { defaults.set(try JSONEncoder().encode(stored), forKey: AppModel.exchangeRatesKey) }
+        let model = AppModel(
+            paths: home.paths,
+            fetcher: { _ in FakeFetcher(log: FetchLog(), result: { account in
+                .success(UsageSnapshot(accountID: account.id, provider: .claude, billing: .payAsYouGo, fetchedAt: Date(), source: "test"))
+            }) },
+            clock: { clock.now }, defaults: defaults, rateFetcher: { try await asks.fetch() }, locale: Locale(identifier: locale)
+        )
+        model.isAvailable = { _ in true }
+        model.loadState()
+        try model.store?.upsert([UsageEvent(
+            dedupeKey: "gateway:1", timestamp: clock.now.addingTimeInterval(-3600), accountID: "gateway", harness: .claudeCode,
+            model: "claude-opus-5-5", project: "tokenjar", inputTokens: 100, reportedCostUSD: 50
+        )])
+        return (model, gateway)
+    }
+
+    @Test func aEuroBudgetComparesInEuros() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        let asks = RateAsks(.failure(.network("unused")))
+        let (model, gateway) = try budgetedModel(
+            home, budget: 92, currency: "EUR", stored: ExchangeRates(date: "2026-10-30", perEUR: ["USD": 1 / 0.92]), asks: asks, locale: "en_US"
+        )
+        await model.tick()?.value
+
+        let snapshot = try #require(model.status(for: gateway).snapshot)
+        let money = try #require(snapshot.spendLimitMoney)
+        #expect(money.currency == "EUR")
+        #expect(abs(money.amount - 46) < 0.001)
+        #expect(abs(try #require(snapshot.windows.first { $0.id == UsageWindow.spendCapID }).usedPercent - 50) < 0.001)
+    }
+
+    @Test func aBudgetInACurrencyWithoutARateIsUntrackedAndFetchesNothing() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        let asks = RateAsks(.success(rates("2026-10-30")))
+        let (model, gateway) = try budgetedModel(home, budget: 100, currency: "EUR", asks: asks, locale: "en_US")
+        await model.tick()?.value
+        await model.rateCheck?.value
+
+        let snapshot = try #require(model.status(for: gateway).snapshot)
+        #expect(!snapshot.windows.contains { $0.id == UsageWindow.spendCapID })
+        #expect(snapshot.notes.contains("Budget is in EUR. Pick EUR in Settings > General to track it on this Mac."))
+        #expect(asks.total == 0)
+    }
 }

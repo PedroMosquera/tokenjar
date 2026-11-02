@@ -349,6 +349,7 @@ public struct ConfigStore: Sendable {
         if before.dashboardURL != after.dashboardURL { out.dashboardURL = after.dashboardURL }
         if before.dailyBudget != after.dailyBudget { out.dailyBudget = after.dailyBudget }
         if before.monthlyBudget != after.monthlyBudget { out.monthlyBudget = after.monthlyBudget }
+        if before.budgetCurrency != after.budgetCurrency { out.budgetCurrency = after.budgetCurrency }
         return out
     }
 

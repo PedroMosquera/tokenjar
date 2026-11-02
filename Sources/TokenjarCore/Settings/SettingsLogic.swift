@@ -28,6 +28,14 @@ public enum SettingsLogic {
         return out
     }
 
+    /// The currency to save with a budget after an edit: a new one takes the display currency, an edit keeps its
+    /// own, and clearing drops it. nil is USD.
+    public static func budgetCurrency(before: Double?, after: Double?, current: String?, display: String) -> String? {
+        guard after != nil else { return nil }
+        if before != nil { return current }
+        return display == "USD" ? nil : display
+    }
+
     /// A daily or monthly budget typed in Settings. nil for blank or unreadable text, or an amount that is not positive.
     /// A currency symbol or spaces are ignored. With both "." and "," the last one is the decimal point; with one kind,
     /// it is the decimal point when it is the locale's, or when a group after it is not three digits ("5.50" in German).

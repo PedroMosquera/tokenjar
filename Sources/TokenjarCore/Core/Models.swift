@@ -140,14 +140,17 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
     public var dashboardURL: String?
     /// nil is off; on, it draws a Today bar for an account limited by what it spends.
     public var dailyBudget: DailyBudget?
-    /// What a login billed per use may spend per calendar month, in USD, set by hand (`MonthlyBudget`). nil is none.
+    /// What a login billed per use may spend per calendar month, set by hand in `budgetCurrency` (`MonthlyBudget`). nil is none.
     public var monthlyBudget: Double?
+    /// ISO code of `monthlyBudget` and of a fixed daily amount on an account priced from history. nil is USD.
+    public var budgetCurrency: String?
 
     public init(
         id: String, provider: ProviderID, label: String, enabled: Bool = true,
         profileDir: String? = nil, credential: CredentialRef? = nil, showInMenuBar: Bool = true,
         refreshMinutes: Int? = nil, alertThresholds: [Int]? = nil,
-        dashboardURL: String? = nil, dailyBudget: DailyBudget? = nil, monthlyBudget: Double? = nil
+        dashboardURL: String? = nil, dailyBudget: DailyBudget? = nil, monthlyBudget: Double? = nil,
+        budgetCurrency: String? = nil
     ) {
         self.id = id
         self.provider = provider
@@ -161,6 +164,7 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         self.dashboardURL = dashboardURL
         self.dailyBudget = dailyBudget
         self.monthlyBudget = monthlyBudget
+        self.budgetCurrency = budgetCurrency
     }
 
     public init(from decoder: Decoder) throws {
@@ -177,6 +181,7 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         dashboardURL = try c.decodeIfPresent(String.self, forKey: .dashboardURL)
         dailyBudget = try c.decodeIfPresent(DailyBudget.self, forKey: .dailyBudget)
         monthlyBudget = try c.decodeIfPresent(Double.self, forKey: .monthlyBudget)
+        budgetCurrency = try c.decodeIfPresent(String.self, forKey: .budgetCurrency)
     }
 
     public var displayName: String { "\(provider.displayName) · \(label)" }

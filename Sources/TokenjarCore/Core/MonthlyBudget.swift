@@ -13,16 +13,22 @@ public enum MonthlyBudget {
             && (snapshot.spendLimitMoney == nil || snapshot.spendLimitMoney?.label == label)
     }
 
-    /// `snapshot` with a spend-limit window and money line for `budget`. Unchanged without a positive budget, for an
+    /// `snapshot` with a spend-limit window and money line for `budget`, with `spent` already in `currency`. Unchanged without a positive budget, for an
     /// account whose cost is not priced from local history, or one that already reports a spend limit.
-    public static func apply(_ budget: Double?, spent: Double, to snapshot: UsageSnapshot, now: Date, calendar: Calendar = .current) -> UsageSnapshot {
+    public static func apply(_ budget: Double?, spent: Double, currency: String = "USD", to snapshot: UsageSnapshot, now: Date, calendar: Calendar = .current) -> UsageSnapshot {
         guard let budget, budget > 0, applies(to: snapshot), snapshot.spendLimitMoney == nil, let month = calendar.dateInterval(of: .month, for: now) else { return snapshot }
         var out = snapshot
         out.windows.append(UsageWindow(
             id: UsageWindow.spendCapID, label: label, usedPercent: spent / budget * 100,
             windowMinutes: Int((month.duration / 60).rounded()), resetsAt: month.end, limitStyle: .overage
         ))
-        out.money.append(MoneyLine(label: label, amount: spent, limit: budget))
+        out.money.append(MoneyLine(label: label, amount: spent, limit: budget, currency: currency))
         return out
+    }
+
+    /// Shown instead of the bar on a Mac that has no rate for the budget's currency.
+    public static func untrackedNote(budgetCurrency: String, displayCurrency: String) -> String {
+        if budgetCurrency == displayCurrency { return "Budget is in \(budgetCurrency). It is tracked once an exchange rate loads." }
+        return "Budget is in \(budgetCurrency). Pick \(budgetCurrency) in Settings > General to track it on this Mac."
     }
 }
