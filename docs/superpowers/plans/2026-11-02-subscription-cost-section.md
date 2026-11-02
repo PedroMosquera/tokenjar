@@ -243,7 +243,8 @@ enum CostSection {
         var summary: String        // "Avg $26 · Peak $61"
         var footer: [String]
     }
-    /// nil unless `snapshot.billing == .subscription` and something in the last 30 local days was priced.
+    /// nil for an account billed per use (`CostLine.applies`), one with a spend limit, one with no limit window, or
+    /// nothing priced in the last 30 local days. Plan snapshots usually carry `billing == nil`, so billing is not the test.
     static func make(snapshot: UsageSnapshot, rows: [PricedUsageRow], planPrice: PlanPrice?, currency: CostCurrency,
                      now: Date, calendar: Calendar = .current, locale: Locale = .autoupdatingCurrent) -> Content?
 }
@@ -261,7 +262,7 @@ enum CostSection {
 - `unpricedModelsAreNoted`: footer line 2 is `"API-equivalent estimate from this Mac's logs, not a bill, some models unpriced."`.
 - `inEurosTheFooterNamesTheRateDate`: footer contains `"EUR at the ECB rate of Oct 30."` and `today` starts with `"€"`.
 - `awaitingARateSaysSo`: `CostSection.make` with `CostCurrency.resolve("EUR", rates: nil)` gives `"$"` amounts and a footer containing `"Shown in USD until an exchange rate loads."`.
-- `onlySubscriptionsGetIt`: billing `.payAsYouGo`, `nil` and `.free` return nil; no priced rows return nil.
+- `onlyPlanCardsGetIt`: a snapshot with `billing: nil` and a weekly window returns content; billing `.payAsYouGo`, `.usageBased` and `.pooled` return nil; a snapshot with no windows returns nil; one whose only window is `UsageWindow.spendCapID` returns nil; no priced rows return nil.
 - `AppModelCurrencyTests.theExpandedStateIsRememberedPerAccount`: `setCostSectionExpanded("a", true)` persists `["a"]`; a second model on the same defaults reports `a` open and `b` closed.
 
 - [ ] **Step 2: Run, confirm red on assertions.**
