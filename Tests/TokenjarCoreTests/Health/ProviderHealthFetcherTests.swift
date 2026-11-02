@@ -34,10 +34,13 @@ struct ProviderHealthFetcherTests {
         #expect(transport.requests.isEmpty)
     }
 
-    /// The feeds are the only endpoints on the list besides OpenCode's, and the status pages themselves cannot be fetched:
+    /// The feeds are the only endpoints on the list besides OpenCode's and the ECB's, and the status pages themselves cannot be fetched:
     /// they open in the browser.
     @Test func feedsAreTheOnlyOtherAllowedEndpointsAndPagesAreNeverFetched() {
-        var expected: [String: Set<String>] = ["opencode.ai": [OpenCodeGoUsageFetcher.usageURL.path()]]
+        var expected: [String: Set<String>] = [
+            "opencode.ai": [OpenCodeGoUsageFetcher.usageURL.path()],
+            ExchangeRateFetcher.url.host()!: [ExchangeRateFetcher.url.path()],
+        ]
         for url in ProviderID.allCases.compactMap(\.statusFeedURL) { expected[url.host()!, default: []].insert(url.path()) }
         #expect(HTTPClient.allowedEndpoints == expected)
         for url in ProviderID.allCases.compactMap(\.statusPageURL) {

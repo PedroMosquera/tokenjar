@@ -41,6 +41,7 @@ struct AboutSettingsPane: View {
         Item(what: "GET https://status.claude.com/api/v2/summary.json", why: "Claude's public status. Only with provider status on, when you open the popover or refresh."),
         Item(what: "GET https://status.openai.com/proxy/status.openai.com", why: "Codex's public status. Only with provider status on, when you open the popover or refresh."),
         Item(what: "GET https://www.githubstatus.com/api/v2/summary.json", why: "GitHub Copilot's public status. Only with provider status on, when you open the popover or refresh."),
+        Item(what: "GET https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", why: "Exchange rates for estimates, only when the currency is not USD. Once a day at most, when you open the popover or dashboard or refresh."),
     ]
 
     private let writes = [

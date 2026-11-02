@@ -33,6 +33,7 @@ public struct HTTPClient: Sendable {
         "opencode.ai": ["/zen/go/v1/usage"],
         "status.claude.com": ["/api/v2/summary.json"],
         "status.openai.com": ["/proxy/status.openai.com"],
+        "www.ecb.europa.eu": ["/stats/eurofxref/eurofxref-daily.xml"],
         "www.githubstatus.com": ["/api/v2/summary.json"],
     ]
     public static var allowedHosts: Set<String> { Set(allowedEndpoints.keys) }
