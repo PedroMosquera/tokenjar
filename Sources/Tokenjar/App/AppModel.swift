@@ -926,6 +926,7 @@ final class AppModel {
             exchangeRates = rates
             lastFruitlessRateAttempt = nil
             preferences.set(try? JSONEncoder().encode(rates), forKey: Self.exchangeRatesKey)
+            reapplyBudgets()
         case .success:
             lastFruitlessRateAttempt = askedAt
         case .failure(let error):
@@ -939,6 +940,16 @@ final class AppModel {
             default: detail = "\(error)"
             }
             Logger(subsystem: AppPaths.bundleIdentifier, category: "exchange-rates").log("\(host, privacy: .public): \(detail, privacy: .public)")
+        }
+    }
+
+    /// A budget outside USD is measured at the rates the snapshot was fetched with, so new rates re-measure it from
+    /// the store without asking any provider.
+    private func reapplyBudgets() {
+        let current = clock()
+        for account in accounts where (account.budgetCurrency ?? "USD") != "USD" {
+            guard let snapshot = statuses[account.id]?.snapshot else { continue }
+            statuses[account.id]?.snapshot = withMonthlyBudget(MonthlyBudget.removed(from: snapshot), account: account, now: current)
         }
     }
 

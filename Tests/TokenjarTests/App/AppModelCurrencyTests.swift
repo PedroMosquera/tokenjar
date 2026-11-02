@@ -210,7 +210,8 @@ struct AppModelCurrencyTests {
 
     /// A pay-as-you-go account with a budget in `currency` and $50 of priced spend this month.
     private func budgetedModel(
-        _ home: ModelHome, budget: Double, currency: String, stored: ExchangeRates? = nil, asks: RateAsks, locale: String
+        _ home: ModelHome, budget: Double, currency: String, stored: ExchangeRates? = nil, asks: RateAsks, locale: String,
+        log: FetchLog = FetchLog()
     ) throws -> (AppModel, AccountConfig) {
         var gateway = AccountConfig(id: "gateway", provider: .claude, label: "LiteLLM")
         gateway.monthlyBudget = budget
@@ -221,7 +222,7 @@ struct AppModelCurrencyTests {
         if let stored { defaults.set(try JSONEncoder().encode(stored), forKey: AppModel.exchangeRatesKey) }
         let model = AppModel(
             paths: home.paths,
-            fetcher: { _ in FakeFetcher(log: FetchLog(), result: { account in
+            fetcher: { _ in FakeFetcher(log: log, result: { account in
                 .success(UsageSnapshot(accountID: account.id, provider: .claude, billing: .payAsYouGo, fetchedAt: Date(), source: "test"))
             }) },
             clock: { clock.now }, defaults: defaults, rateFetcher: { try await asks.fetch() }, locale: Locale(identifier: locale)
@@ -263,5 +264,27 @@ struct AppModelCurrencyTests {
         #expect(!snapshot.windows.contains { $0.id == UsageWindow.spendCapID })
         #expect(snapshot.notes.contains("Budget is in EUR. Pick EUR in Settings > General to track it on this Mac."))
         #expect(asks.total == 0)
+    }
+
+    @Test func ratesArrivingTrackAnUntrackedBudgetWithoutAskingTheProvider() async throws {
+        let home = try ModelHome()
+        defer { home.remove() }
+        let asks = RateAsks(.success(rates("2026-10-30")))
+        let log = FetchLog()
+        let (model, gateway) = try budgetedModel(home, budget: 100, currency: "EUR", asks: asks, locale: "es_ES", log: log)
+        await model.tick()?.value
+        let untracked = try #require(model.status(for: gateway).snapshot)
+        #expect(untracked.notes.contains("Budget is in EUR. It is tracked once an exchange rate loads."))
+        #expect(!untracked.windows.contains { $0.id == UsageWindow.spendCapID })
+
+        await model.checkExchangeRates(userInitiated: true)?.value
+        let tracked = try #require(model.status(for: gateway).snapshot)
+        #expect(!tracked.notes.contains { $0.hasPrefix("Budget is in") })
+        let money = try #require(tracked.spendLimitMoney)
+        #expect(money.currency == "EUR")
+        #expect(abs(money.amount - 50 / 1.1) < 0.001)
+        #expect(tracked.windows.filter { $0.id == UsageWindow.spendCapID }.count == 1)
+        #expect(log.count("gateway") == 1)
+        #expect(asks.total == 1)
     }
 }

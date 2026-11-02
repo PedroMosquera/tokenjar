@@ -43,6 +43,17 @@ struct MonthlyBudgetTests {
         #expect(MonthlyBudget.untrackedNote(budgetCurrency: "EUR", displayCurrency: "EUR") == "Budget is in EUR. It is tracked once an exchange rate loads.")
     }
 
+    /// New rates re-measure a budget, so what it added comes off first; a provider's own spend limit stays.
+    @Test func removingABudgetLeavesTheSnapshotAsFetched() {
+        var untracked = gateway()
+        untracked.notes = ["Kept", MonthlyBudget.untrackedNote(budgetCurrency: "EUR", displayCurrency: "EUR")]
+        #expect(MonthlyBudget.removed(from: untracked).notes == ["Kept"])
+        #expect(MonthlyBudget.removed(from: apply(200, spent: 10, to: gateway())) == gateway())
+        let seat = gateway(windows: [UsageWindow(id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: 20)],
+                           money: [MoneyLine(label: "Extra usage", amount: 40, limit: 200)], billing: .usageBased)
+        #expect(MonthlyBudget.removed(from: seat) == seat)
+    }
+
     @Test func noBudgetOrANonPositiveOneChangesNothing() {
         #expect(apply(nil, spent: 10, to: gateway()) == gateway())
         #expect(apply(0, spent: 10, to: gateway()) == gateway())

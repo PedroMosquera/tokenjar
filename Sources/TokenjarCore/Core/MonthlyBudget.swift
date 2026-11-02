@@ -28,7 +28,20 @@ public enum MonthlyBudget {
 
     /// Shown instead of the bar on a Mac that has no rate for the budget's currency.
     public static func untrackedNote(budgetCurrency: String, displayCurrency: String) -> String {
-        if budgetCurrency == displayCurrency { return "Budget is in \(budgetCurrency). It is tracked once an exchange rate loads." }
-        return "Budget is in \(budgetCurrency). Pick \(budgetCurrency) in Settings > General to track it on this Mac."
+        if budgetCurrency == displayCurrency { return "\(untrackedPrefix)\(budgetCurrency). It is tracked once an exchange rate loads." }
+        return "\(untrackedPrefix)\(budgetCurrency). Pick \(budgetCurrency) in Settings > General to track it on this Mac."
+    }
+
+    private static let untrackedPrefix = "Budget is in "
+
+    /// `snapshot` without what `apply` or `untrackedNote` added to it, so the budget can be applied again at new rates.
+    public static func removed(from snapshot: UsageSnapshot) -> UsageSnapshot {
+        var out = snapshot
+        if snapshot.spendLimitMoney?.label == label {
+            out.windows.removeAll { $0.id == UsageWindow.spendCapID }
+            out.money.removeAll { $0.label == label }
+        }
+        out.notes.removeAll { $0.hasPrefix(untrackedPrefix) }
+        return out
     }
 }
