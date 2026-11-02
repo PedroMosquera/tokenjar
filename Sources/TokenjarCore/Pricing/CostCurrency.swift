@@ -31,7 +31,7 @@ public struct CostCurrency: Hashable, Sendable {
 
 public enum DisplayCurrency {
     /// Currencies the ECB publishes that the picker offers.
-    public static let supported = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "SEK", "NOK", "DKK", "PLN", "CZK"]
+    public static let supported = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD"]
 
     public static func regionDefault(_ locale: Locale) -> String {
         guard let code = locale.currency?.identifier, supported.contains(code) else { return "USD" }

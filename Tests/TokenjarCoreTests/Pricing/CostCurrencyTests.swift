@@ -47,6 +47,11 @@ struct CostCurrencyTests {
         #expect(DisplayCurrency.regionDefault(Locale(identifier: "ja_JP")) == "JPY")
         #expect(DisplayCurrency.regionDefault(Locale(identifier: "pt_BR")) == "USD")
         #expect(DisplayCurrency.regionDefault(Locale(identifier: "en_US")) == "USD")
+        #expect(DisplayCurrency.regionDefault(Locale(identifier: "sv_SE")) == "USD")
+    }
+
+    @Test func thePickerOffersExactlyTheseCurrenciesInOrder() {
+        #expect(DisplayCurrency.supported == ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD"])
     }
 
     @Test func aPickWinsOverTheRegion() {
