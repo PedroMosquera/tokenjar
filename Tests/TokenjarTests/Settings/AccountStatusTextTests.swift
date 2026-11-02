@@ -189,6 +189,14 @@ struct AccountStatusTextTests {
         #expect(line.caption == nil)
     }
 
+    /// GLM has no login to sign out of: its only source is a key pasted in Settings.
+    @Test func aGLMAccountWithoutAKeyAsksForOneInsteadOfASignIn() {
+        let glm = AccountConfig(id: "glm", provider: .glm, label: "GLM")
+        let line = text(glm, AccountStatus(error: .notSignedIn))
+        #expect(line.text == "No pasted key on this Mac.")
+        #expect(line.caption == AccountStatusText.Caption(text: "No key", isActionable: true))
+    }
+
     @Test func signedOutNamesTheCLI() {
         let line = text(codex, AccountStatus(error: .notSignedIn))
         #expect(line.text == "Signed out of codex.")

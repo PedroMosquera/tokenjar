@@ -431,6 +431,8 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
         case .timeout: return "No answer from \(provider.displayName) in time. Tokenjar tries again at the next refresh."
         case .notSignedIn where provider == .claude:
             return "Signed out of claude. Sign in again. \(ClaudeUsageFetcher.shellOnlyLoginHint)"
+        case .notSignedIn where provider == .glm:
+            return "No \(provider.displayName) key on this Mac. Paste one in Settings to see limits."
         default: return userMessage
         }
     }

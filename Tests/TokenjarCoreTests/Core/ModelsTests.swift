@@ -65,6 +65,10 @@ struct ModelsTests {
         #expect(ProviderID.glm.statusFeedURL == nil)
     }
 
+    @Test func aMissingGLMKeyIsNotCalledASignOut() {
+        #expect(FetchError.notSignedIn.userMessage(provider: .glm) == "No GLM Coding Plan key on this Mac. Paste one in Settings to see limits.")
+    }
+
     /// The providers whose only key is one pasted in Settings, stored in Tokenjar's own Keychain item.
     @Test func pastedKeyProvidersAreGoAndGLM() {
         #expect(ProviderID.allCases.filter(\.usesPastedKey) == [.opencodeGo, .glm])
@@ -177,7 +181,7 @@ struct ModelsTests {
     }
 
     @Test func otherProvidersKeepTheSignedOutCopy() {
-        for provider in ProviderID.allCases where provider != .claude {
+        for provider in ProviderID.allCases where provider != .claude && provider != .glm {
             #expect(FetchError.notSignedIn.userMessage(provider: provider) == FetchError.notSignedIn.userMessage, "\(provider)")
         }
         let others: [FetchError] = [.unauthorized, .cliNotFound("claude"), .parse("shape"), .cliTooOld(name: "claude", minimum: nil), .keychainDenied]

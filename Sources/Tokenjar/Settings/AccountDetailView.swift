@@ -41,6 +41,10 @@ struct AccountDetailView: View {
                     AccountCredentialSection(account: account, signInCommand: signInCommand, onSignIn: openSignIn)
                         .id(Self.credentialAnchor)
                         .disabled(!model.canEditConfig)
+                } else if account.provider.usesPastedKey {
+                    PastedKeySection(account: account)
+                        .id(Self.credentialAnchor)
+                        .disabled(!model.canEditConfig)
                 }
                 // OpenCode's login belongs to its key source, inside the Credential section.
                 if !account.provider.isLinkOnly, !account.provider.usesAPIKey {
@@ -574,7 +578,7 @@ struct AccountStatusText: Equatable {
         case .actionable: break
         }
         let text = switch error {
-        case .notSignedIn: "Signed out"
+        case .notSignedIn: account.provider.usesPastedKey && account.provider.cliName == nil ? "No key" : "Signed out"
         case .unauthorized: account.provider.usesAPIKey ? "Key rejected" : "Login rejected"
         case .cliNotFound: "Not installed"
         case .keychainDenied: "Keychain denied"
@@ -586,6 +590,7 @@ struct AccountStatusText: Equatable {
     private static func actionableText(_ error: FetchError, account: AccountConfig) -> String {
         guard case .notSignedIn = error else { return error.userMessage }
         if case .keychain = account.credential { return "No pasted key on this Mac." }
+        if account.provider.usesPastedKey, account.provider.cliName == nil { return "No pasted key on this Mac." }
         guard let cli = account.provider.cliName else { return error.userMessage }
         return "Signed out of \(cli)."
     }
@@ -604,7 +609,7 @@ extension ProviderID {
         }
     }
 
-    var usesAPIKey: Bool { self == .opencodeGo || self == .opencodeZen }
+    var usesAPIKey: Bool { self == .opencodeZen || usesPastedKey }
 
     /// Whether SignInCommand has a login to hand to Terminal. agy has none, GLM's key is pasted, and links run nothing.
     var hasSignInCommand: Bool { self != .antigravity && cliName != nil }
@@ -652,7 +657,8 @@ enum AccountFix: Equatable {
         let pastedKey = if case .keychain = credential { true } else { false }
         switch error {
         case .notSignedIn:
-            if provider.usesAPIKey, pastedKey { return .changeKey }
+            // With no login to run, pasting a key is the only fix.
+            if provider.usesAPIKey, pastedKey || !provider.hasSignInCommand { return .changeKey }
             return provider.hasSignInCommand ? .signIn : nil
         case .unauthorized:
             if provider.usesAPIKey { return .changeKey }

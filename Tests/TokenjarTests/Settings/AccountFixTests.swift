@@ -17,6 +17,24 @@ struct AccountFixTests {
         #expect(AccountFix.primary(for: .notSignedIn, provider: .opencodeGo, credential: .keychain(account: "go")) == .changeKey)
     }
 
+    /// GLM has no CLI login: the pasted key is its only source, so every key problem is fixed by pasting one.
+    @Test func glmWithoutAKeyOffersChangeKey() {
+        #expect(AccountFix.primary(for: .notSignedIn, provider: .glm, credential: nil) == .changeKey)
+    }
+
+    /// config.json syncs and the Keychain does not, so another Mac can name a key this one never stored.
+    @Test func glmWithAKeyMissingOnThisMacOffersChangeKey() {
+        #expect(AccountFix.primary(for: .notSignedIn, provider: .glm, credential: .keychain(account: "g")) == .changeKey)
+    }
+
+    @Test func glmRejectedKeyOffersChangeKey() {
+        #expect(AccountFix.primary(for: .unauthorized, provider: .glm, credential: .keychain(account: "g")) == .changeKey)
+    }
+
+    @Test func glmWithoutAPlanOffersNothing() {
+        #expect(AccountFix.primary(for: .noSubscription("x"), provider: .glm, credential: .keychain(account: "g")) == nil)
+    }
+
     /// The key is still in the Keychain; changing it would not get past the prompt.
     @Test func aDeniedKeychainReadIsTriedAgainNotChanged() {
         #expect(AccountFix.primary(for: .keychainDenied, provider: .opencodeGo, credential: .keychain(account: "go")) == .tryAgain)

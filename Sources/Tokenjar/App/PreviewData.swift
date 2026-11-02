@@ -213,6 +213,9 @@ extension AppModel {
             AccountConfig(id: "devin", provider: .devin, label: "Devin"),
             AccountConfig(id: "past-reset", provider: .claude, label: "Max"),
             AccountConfig(id: "pasted-key", provider: .opencodeGo, label: "Pasted key", credential: .keychain(account: "pasted-key")),
+            AccountConfig(id: "glm", provider: .glm, label: "GLM", credential: .keychain(account: "glm")),
+            AccountConfig(id: "glm-no-key", provider: .glm, label: "No key"),
+            AccountConfig(id: "cursor", provider: .cursor, label: "Cursor"),
         ])
         func window(_ id: String, _ label: String, _ used: Double, _ minutes: Int, resetIn: TimeInterval) -> UsageWindow {
             UsageWindow(id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: now.addingTimeInterval(resetIn))
@@ -240,6 +243,15 @@ extension AppModel {
                 window("session", "5-hour", 100, 300, resetIn: -5 * 60), window("weekly", "Week", 64, 10_080, resetIn: 3 * 86_400),
             ], fetchedAt: now.addingTimeInterval(-8 * 60), source: "claude CLI")),
             "pasted-key": AccountStatus(error: .keychainDenied, lastAttempt: now.addingTimeInterval(-30)),
+            "glm": AccountStatus(snapshot: UsageSnapshot(accountID: "glm", provider: .glm, plan: "Lite", windows: [
+                window("session", "5-hour", 42, 300, resetIn: 2 * 3600), window("weekly", "Week", 18, 10_080, resetIn: 4 * 86_400),
+                window("mcp:monthly", "Tools (MCP)", 5, 30 * 1_440, resetIn: 20 * 86_400),
+            ], fetchedAt: now.addingTimeInterval(-60), source: "z.ai API")),
+            "glm-no-key": AccountStatus(error: .notSignedIn, lastAttempt: now.addingTimeInterval(-30)),
+            "cursor": AccountStatus(snapshot: UsageSnapshot(
+                accountID: "cursor", provider: .cursor, fetchedAt: now.addingTimeInterval(-60), source: CursorUsageFetcher.source,
+                notes: [CursorUsageFetcher.noUsageNote]
+            )),
         ]
         model.store = InMemoryUsageStore()
         return model
