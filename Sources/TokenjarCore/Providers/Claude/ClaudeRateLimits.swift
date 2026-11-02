@@ -55,7 +55,7 @@ struct ClaudeRateLimits: Decodable, Sendable {
     var money: [MoneyLine] {
         guard let extra = extraUsage, extra.isEnabled == true else { return [] }
         let currency = extra.currency ?? "USD"
-        let divisor = pow(10, Double(extra.decimalPlaces ?? Self.minorUnitDigits(currency)))
+        let divisor = pow(10, Double(extra.decimalPlaces ?? DisplayCurrency.minorUnitDigits(currency)))
         return [MoneyLine(label: "Extra usage", amount: (extra.usedCredits ?? 0) / divisor, limit: extra.monthlyLimit.map { $0 / divisor }, currency: currency)]
     }
 
@@ -94,14 +94,6 @@ struct ClaudeRateLimits: Decodable, Sendable {
     static func readable(_ kind: String) -> String {
         let words = kind.replacingOccurrences(of: "_", with: " ")
         return words.prefix(1).uppercased() + words.dropFirst()
-    }
-
-    /// ISO 4217 minor-unit digits (USD 2, JPY 0, KWD 3). Amounts arrive in minor units of their currency.
-    static func minorUnitDigits(_ currency: String) -> Int {
-        var digits: Int32 = 2
-        var rounding: Double = 0
-        guard CFNumberFormatterGetDecimalInfoForCurrencyCode(currency as CFString, &digits, &rounding) else { return 2 }
-        return Int(digits)
     }
 
     private struct RawLimit: Decodable {

@@ -153,8 +153,8 @@ struct GeneralSettingsPane: View {
                 Text("Currency")
                 Text("This Mac only. Estimates convert at the ECB's daily rate.")
             }
-            if let date = model.costCurrency.rateDate {
-                Text("Rate of \(date)")
+            if let caption = Self.rateCaption(model.costCurrency) {
+                Text(caption)
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -162,6 +162,11 @@ struct GeneralSettingsPane: View {
     }
 
     private static let automaticTag = "automatic"
+
+    /// "Rate of Oct 30", dated as the card's footer dates it.
+    static func rateCaption(_ currency: CostCurrency) -> String? {
+        currency.rateDate.flatMap(Format.rateDay).map { "Rate of \($0)" }
+    }
 
     static let providerStatusCaption = "When you open the Tokenjar popover or refresh, Tokenjar asks the public status pages of Claude, Codex and GitHub Copilot whether the products you use have a problem. It sends no account data. This setting applies to this Mac only."
 

@@ -60,10 +60,10 @@ struct ClaudeUsageFetcherTests {
 
         // JPY has no minor unit, so 1234 is ¥1234, not ¥12.34.
         #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 1234, limit: 5000, currency: "JPY")])
-        #expect(ClaudeRateLimits.minorUnitDigits("USD") == 2)
-        #expect(ClaudeRateLimits.minorUnitDigits("EUR") == 2)
-        #expect(ClaudeRateLimits.minorUnitDigits("JPY") == 0)
-        #expect(ClaudeRateLimits.minorUnitDigits("KWD") == 3)
+        #expect(DisplayCurrency.minorUnitDigits("USD") == 2)
+        #expect(DisplayCurrency.minorUnitDigits("EUR") == 2)
+        #expect(DisplayCurrency.minorUnitDigits("JPY") == 0)
+        #expect(DisplayCurrency.minorUnitDigits("KWD") == 3)
     }
 
     @Test func decimalPlacesOverridesTheCurrencyDefault() throws {

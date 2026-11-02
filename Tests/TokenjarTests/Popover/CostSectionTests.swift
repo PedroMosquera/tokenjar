@@ -140,6 +140,22 @@ struct CostSectionTests {
         #expect(content.currency == "EUR")
     }
 
+    /// Yen has no minor unit, so neither today nor a hovered day gets decimals.
+    @Test func inYenAmountsHaveNoDecimals() throws {
+        let yen = CostCurrency.resolve("JPY", rates: ExchangeRates(date: "2026-10-30", perEUR: ["USD": 1, "JPY": 162.5]))
+        let content = try #require(make(month, planPrice: max5x, currency: yen))
+        #expect(content.today == "¥3,291")
+        #expect(content.tiles.first == CostSection.Tile(title: "Today", value: "¥3,291"))
+        let hovered = try #require(content.day(at: day(10, 20), calendar: Self.calendar))
+        #expect(content.readout(hovered, calendar: Self.calendar, locale: locale) == "Oct 20: ¥81,250")
+    }
+
+    /// Settings dates the rate as the footer does, so the two never read "2026-10-30" and "Oct 30".
+    @Test @MainActor func settingsDatesTheRateAsTheFooterDoes() {
+        #expect(GeneralSettingsPane.rateCaption(euro) == "Rate of Oct 30")
+        #expect(GeneralSettingsPane.rateCaption(.usd) == nil)
+    }
+
     @Test func awaitingARateSaysSo() throws {
         let content = try #require(make(month, planPrice: max5x, currency: CostCurrency.resolve("EUR", rates: nil)))
         #expect(content.today == "$20.25")
@@ -159,6 +175,11 @@ struct CostSectionTests {
         #expect(make(rows, snapshot: snapshot(windows: [cap])) == nil)
         #expect(make([row(day(11, 2), cost: nil)]) == nil)
         #expect(make([]) == nil)
+    }
+
+    /// "$0.00 today · 0.0x plan" says nothing, so a window priced at zero gets no section, as the dashboard's plan value.
+    @Test func aWindowPricedAtNothingHasNoSection() {
+        #expect(make([row(day(11, 2), cost: 0), row(day(10, 30), cost: 0)], planPrice: max5x) == nil)
     }
 
     /// An Enterprise seat's spend limit already has its own bar, so the section stays off even beside a plan window.

@@ -41,6 +41,15 @@ enum Format {
         return duration(date.timeIntervalSince(now))
     }
 
+    /// "Oct 30" from the ECB's "2026-10-30". English like the rest of the copy, and read as a calendar date, not an instant.
+    static func rateDay(_ iso: String) -> String? {
+        let parts = iso.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3, (1...12).contains(parts[1]) else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        return "\(calendar.shortMonthSymbols[parts[1] - 1]) \(parts[2])"
+    }
+
     /// "just now", "2m ago", "3h ago", "2d ago".
     static func age(of date: Date?, now: Date) -> String {
         guard let date else { return "never" }

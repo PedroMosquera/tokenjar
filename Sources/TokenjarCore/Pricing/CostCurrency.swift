@@ -42,4 +42,12 @@ public enum DisplayCurrency {
         if let pick, supported.contains(pick) { return pick }
         return regionDefault(locale)
     }
+
+    /// ISO 4217 minor-unit digits (USD 2, JPY 0, KWD 3).
+    public static func minorUnitDigits(_ currency: String) -> Int {
+        var digits: Int32 = 2
+        var rounding: Double = 0
+        guard CFNumberFormatterGetDecimalInfoForCurrencyCode(currency as CFString, &digits, &rounding) else { return 2 }
+        return Int(digits)
+    }
 }

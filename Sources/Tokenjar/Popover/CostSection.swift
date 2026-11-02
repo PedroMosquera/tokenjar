@@ -18,7 +18,7 @@ enum CostSection {
     }
 
     struct Content: Equatable {
-        /// "$20.25", always two decimals.
+        /// "$20.25", always to the currency's minor unit, so "¥3,291" in yen.
         var today: String
         /// "7.8x plan", or "$780 30d" when the plan's price is unknown.
         var trailing: String
@@ -48,7 +48,7 @@ enum CostSection {
         /// "Oct 30: $5.00", in place of the summary while a bar is hovered.
         func readout(_ day: Day, calendar: Calendar = .current, locale: Locale = .autoupdatingCurrent) -> String {
             let date = day.date.formatted(Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone).month(.abbreviated).day())
-            return "\(date): \(Format.money(day.amount, currency: currency, fractionDigits: 2, locale: locale))"
+            return "\(date): \(Format.money(day.amount, currency: currency, fractionDigits: DisplayCurrency.minorUnitDigits(currency), locale: locale))"
         }
     }
 
@@ -64,8 +64,8 @@ enum CostSection {
         !CostLine.applies(to: snapshot) && snapshot.spendLimitMoney == nil && snapshot.windows.contains { $0.id != UsageWindow.spendCapID }
     }
 
-    /// `rows` are already in `currency`; `planPrice` is converted here. nil where `applies` is false or nothing was
-    /// priced in the last 30 local days.
+    /// `rows` are already in `currency`; `planPrice` is converted here. nil where `applies` is false or the last 30
+    /// local days priced to nothing.
     static func make(
         snapshot: UsageSnapshot, rows: [PricedUsageRow], planPrice: PlanPrice?, currency: CostCurrency,
         now: Date, calendar: Calendar = .current, locale: Locale = .autoupdatingCurrent
@@ -74,11 +74,11 @@ enum CostSection {
               let end = calendar.date(byAdding: .day, value: dayCount, to: start) else { return nil }
         let rows = rows.filter { $0.row.day >= start && $0.row.day < end }
         let total = DashboardMath.cost(rows, since: start)
-        guard total.hasCost else { return nil }
+        guard total.hasCost, total.amount > 0 else { return nil }
         let code = currency.code
         func money(_ amount: Double) -> String { Format.money(amount, currency: code, locale: locale) }
 
-        let today = Format.money(DashboardMath.cost(rows, since: calendar.startOfDay(for: now)).amount, currency: code, fractionDigits: 2, locale: locale)
+        let today = Format.money(DashboardMath.cost(rows, since: calendar.startOfDay(for: now)).amount, currency: code, fractionDigits: DisplayCurrency.minorUnitDigits(code), locale: locale)
         let days = (0..<dayCount).compactMap { offset -> Day? in
             guard let date = calendar.date(byAdding: .day, value: offset, to: start),
                   let next = calendar.date(byAdding: .day, value: 1, to: date) else { return nil }
@@ -116,7 +116,7 @@ enum CostSection {
         footer.append("API-equivalent estimate from this Mac's logs, not a bill\(total.unpricedRows > 0 ? ", some models unpriced" : "").")
         if currency.awaitingRate {
             footer.append("Shown in USD until an exchange rate loads.")
-        } else if code != "USD", let date = currency.rateDate.flatMap(rateDay) {
+        } else if code != "USD", let date = currency.rateDate.flatMap(Format.rateDay) {
             footer.append("\(code) at the ECB rate of \(date).")
         }
 
@@ -135,14 +135,5 @@ enum CostSection {
             if let cost = priced.cost { costs[priced.row.model, default: 0] += cost }
         }
         return costs.max { $0.value != $1.value ? $0.value < $1.value : $0.key > $1.key }?.key ?? ""
-    }
-
-    /// "Oct 30" from the ECB's "2026-10-30". English like the rest of the copy, and read as a calendar date, not an instant.
-    private static func rateDay(_ iso: String) -> String? {
-        let parts = iso.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3, (1...12).contains(parts[1]) else { return nil }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "en_US_POSIX")
-        return "\(calendar.shortMonthSymbols[parts[1] - 1]) \(parts[2])"
     }
 }
