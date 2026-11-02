@@ -51,20 +51,21 @@ Mirror Devin.
 
 ## Z.ai GLM Coding Plan
 
-- New `ProviderID.glm` (raw value `glm`, display name "GLM Coding Plan"). Usage page: `https://z.ai/manage-apikey/subscription`, to be confirmed by the builder against the owner's account.
+- New `ProviderID.glm` (raw value `glm`, display name "GLM Coding Plan"). Usage page: `https://z.ai/manage-apikey/coding-plan/personal/my-plan` (CodexBar's), to be confirmed by the builder against the owner's account.
 - Request: `GET https://api.z.ai/api/monitor/usage/quota/limit`, header `authorization: <key>` with no `Bearer` prefix, 20 s timeout. That header form is what Z.ai's own client documents in [zai-org/ZCode docs/coding-plan-quota-remaining-api.md](https://github.com/zai-org/ZCode/blob/main/docs/coding-plan-quota-remaining-api.md). CodexBar sends `Bearer`; if the owner's account rejects the bare key and accepts `Bearer`, use what works and note it.
-- Expected answer, per that document: a `limits` array. Each entry has `type`, `unit`, `number`, `percentage` (used %) and `nextResetTime` (epoch milliseconds, per CodexBar).
+- Expected answer, per that document and CodexBar's `docs/zai.md`: `data.limits[]`, each entry with `type`, `unit`, `number`, `percentage` (used %) and `nextResetTime` (epoch milliseconds), plus a plan name in `data.planName` (or `plan`, `plan_type`, `packageName`, `level`). Plan V3, sold since 2026-07-30 and so the likely shape of a plan opened now, reports its windows as `CREDIT_LIMIT` (points) instead of `TOKENS_LIMIT`. Both are read the same way.
 - Window mapping:
 
 | Entry | Window id | Label | Length |
 |---|---|---|---|
-| `type == "TOKENS_LIMIT"`, `unit == 3`, `number == 5` | `session` | 5-hour | 300 min |
-| `type == "TOKENS_LIMIT"`, `unit == 6` | `weekly` | Weekly | 10,080 min |
+| `type` is `TOKENS_LIMIT` or `CREDIT_LIMIT`, `unit == 3`, `number == 5` | `session` | 5-hour | 300 min |
+| `type` is `TOKENS_LIMIT` or `CREDIT_LIMIT`, `unit == 6` | `weekly` | Weekly | 10,080 min |
 | `type == "TIME_LIMIT"`, `unit == 5`, `number == 1` | `mcp:monthly` | Tools (MCP) | calendar month ending at the reset (`UsageWindow.monthMinutes`) |
 
 - An entry matching none of these is skipped. If the answer has no recognized entry at all, the check fails as a parse error, so a shape change shows up as a failed check rather than an empty card.
 - A window at 0 % with a reset in the future is "not started", as OpenCode Go's is.
-- Plan name: shown if the answer carries one (the field name is unknown until a real answer is recorded); otherwise "GLM Coding Plan".
+- Plan name: the first of `data.planName`, `plan`, `plan_type`, `packageName`, `level` that is a non-empty string; otherwise "GLM Coding Plan".
+- A successful answer with an empty `limits` array is the calm "No active GLM Coding Plan for this key", never 0 % used: Tokenjar sends only personal-scope requests, so an empty list means the key has no plan. A non-empty list with no recognized entry is a parse failure.
 - Errors: classify from recorded answers. Z.ai is known to answer some errors with HTTP 200 and a body with `success: false` and a `code`; the builder records a bad-key answer from the real account and maps it to "Key rejected". 401 is a rejected key, 429 backs off with `Retry-After`, 5xx and transport failures are network errors.
 
 ## MiniMax Token Plan
@@ -87,6 +88,8 @@ Mirror Devin.
 - Each provider's fixtures are hand-written from the documented shapes first, labelled as hand-written in the test support file, then replaced by redacted captures from the owner's accounts. `FixtureShapeTests` already scans every fixture for secrets.
 - **A valid key with no plan** (a Z.ai pay-as-you-go key with no Coding Plan, a MiniMax `sk-api-` key) is a calm `noSubscription` state ("No active GLM Coding Plan for this key", "No active MiniMax Token Plan for this key"), as OpenCode Go does, never "Key rejected". The owner records that answer by capturing once with a non-plan key if one is at hand; otherwise the mapping stays on a hand-written fixture and is listed under Not verified. No local check of key prefixes.
 - **If a live answer needs something the hard rules forbid** (a query parameter such as MiniMax's `GroupId`, another host, cookie auth): stop work on that provider and bring it back to the owner. The other provider carries on.
+
+- For both providers, an HTTP 200 whose body is not JSON (a captive portal or a corporate block page, which is what the owner's work laptop serves for these hosts) is a network error, not a parse failure, so it reads as "Can't reach the server" rather than asking the user to act.
 
 ## Shipping
 
