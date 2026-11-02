@@ -15,7 +15,7 @@ struct AccountsSettingsPane: View {
                 ContentUnavailableView {
                     Label("No Accounts", systemImage: "person.crop.circle.badge.plus")
                 } description: {
-                    Text("Add Claude, Codex, OpenCode, Antigravity, Copilot or Devin to track its limits.")
+                    Text("Add Claude, Codex, OpenCode, Antigravity, Copilot, Devin or Cursor to track its limits.")
                 } actions: {
                     addMenu { Text("Add Account") }
                         .menuStyle(.button)

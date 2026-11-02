@@ -266,6 +266,7 @@ struct CaptureCommandTests {
                 continue
             }
         }
+        #expect(await capture(.cursor) == .nothingToCapture("Cursor has nothing to capture: Tokenjar runs, reads and sends nothing for it."))
         #expect(runner.calls.isEmpty)
     }
 

@@ -31,7 +31,7 @@ struct AccountCard: View {
         let status = model.status(for: account)
         let refreshMinutes = account.refreshMinutes ?? model.config.refreshMinutes
         let isStale = status.isStale(now: model.popoverNow, refreshMinutes: refreshMinutes)
-        // Zen and Devin need no network, so a Mac-wide cause says nothing about them.
+        // Zen and the link-only providers need no network, so a Mac-wide cause says nothing about them.
         let connectivity = account.provider.checkUsesNetwork ? model.connectivity : .online
         let shownError = Self.rowError(status: status, provider: account.provider, connectivity: connectivity)
         VStack(alignment: .leading, spacing: 10) {

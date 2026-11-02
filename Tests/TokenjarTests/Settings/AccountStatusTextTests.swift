@@ -220,6 +220,14 @@ struct AccountStatusTextTests {
         #expect(line.tone == .neutral)
     }
 
+    /// Cursor bills by usage, so "quota" would be the wrong word, and it has no plan to share one later.
+    @Test func aCursorAccountSaysItSharesNoUsage() {
+        let cursor = AccountConfig(id: "cursor", provider: .cursor, label: "Cursor")
+        let line = text(cursor, AccountStatus(snapshot: snapshot(cursor)))
+        #expect(line.text == "Opens cursor.com")
+        #expect(line.detail == "Cursor doesn't share your usage with local apps, so this account opens its usage page. Tokenjar runs nothing for it and reads nothing.")
+    }
+
     @Test func anAccountThatIsOffSaysSoEvenWithOldData() {
         var off = codex
         off.enabled = false

@@ -495,7 +495,7 @@ struct AccountStatusText: Equatable {
         if provider.isLinkOnly {
             return AccountStatusText(
                 symbol: "link", tone: .neutral, text: "Opens \(account.resolvedDashboardURL.host() ?? provider.displayName)",
-                detail: "\(provider.displayName) doesn't share your quota with local apps yet, so this account opens its usage page. Tokenjar runs nothing for it and reads nothing.",
+                detail: "\(provider.displayName) doesn't share your usage with local apps, so this account opens its usage page. Tokenjar runs nothing for it and reads nothing.",
                 offersCheck: false
             )
         }
