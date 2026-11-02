@@ -31,7 +31,7 @@ public enum CostLine {
         switch snapshot.provider {
         case .opencodeZen, .copilot: .snapshot
         case .codex: snapshot.billing == .usageBased ? .snapshot : .history
-        case .claude, .opencodeGo, .antigravity, .devin: .history
+        case .claude, .opencodeGo, .antigravity, .devin, .cursor: .history
         }
     }
 

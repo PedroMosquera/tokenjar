@@ -59,9 +59,21 @@ struct AccountDiscoveryTests {
 
     @Test func otherApplicationsDoNotProposeDevin() throws {
         let home = TempHome()
-        try home.makeDirectory("SystemApplications/Cursor.app")
         try home.makeDirectory("Library/Application Support/Code")
         #expect(try discover(home).isEmpty)
+    }
+
+    /// Existence only, as for Devin: Cursor's data folder holds its login tokens and is never opened.
+    @Test(arguments: ["SystemApplications/Cursor.app", "Applications/Cursor.app", "Library/Application Support/Cursor"])
+    func anyCursorInstallProposesALinkOnlyCursorAccount(marker: String) throws {
+        let home = TempHome()
+        try home.makeDirectory(marker)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: home.url.appending(path: marker).path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: home.url.appending(path: marker).path) }
+        let account = AccountConfig(id: "cursor", provider: .cursor, label: "Cursor", showInMenuBar: false)
+        #expect(try discover(home) == [account])
+        #expect(AccountDiscovery.location(of: account, paths: AppPaths(home: home.url), environment: [:]) == nil)
+        #expect(AccountDiscovery.isAvailable(account, paths: AppPaths(home: home.url), environment: [:]))
     }
 
     /// gh is only located, never run, and its config folder is never opened: it can hold a token.

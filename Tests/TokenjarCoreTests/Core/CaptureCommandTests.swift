@@ -259,8 +259,8 @@ struct CaptureCommandTests {
         #expect(!text.contains("example.com"))
     }
 
-    @Test func devinAndZenHaveNothingToCapture() async {
-        for provider in [ProviderID.devin, .opencodeZen] {
+    @Test func linkOnlyProvidersAndZenHaveNothingToCapture() async {
+        for provider in [ProviderID.devin, .cursor, .opencodeZen] {
             guard case .nothingToCapture = await capture(provider) else {
                 Issue.record("\(provider) has no source to capture")
                 continue

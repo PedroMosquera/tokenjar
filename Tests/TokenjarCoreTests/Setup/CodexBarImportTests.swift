@@ -31,7 +31,7 @@ struct CodexBarImportTests {
         let preview = CodexBarImport.preview(paths: AppPaths(home: home.url), environment: [:], defaults: defaults)
 
         #expect(preview == CodexBarImportPreview(
-            enabledProviders: [.codex, .claude, .opencodeGo, .antigravity], thresholdsUsed: [50, 80], refreshMinutes: 15, notificationsEnabled: true
+            enabledProviders: [.codex, .claude, .cursor, .opencodeGo, .antigravity], thresholdsUsed: [50, 80], refreshMinutes: 15, notificationsEnabled: true
         ))
         // A literal, so a key added to the import or to the allowlist fails here.
         #expect(Set(defaults.requested) == ["refreshFrequency", "quotaWarningNotificationsEnabled", "quotaWarningThresholds"])
@@ -51,7 +51,7 @@ struct CodexBarImportTests {
 
     @Test func configWithNoneOfOurProvidersPreviewsAnEmptyList() throws {
         let home = TempHome()
-        try home.write(".config/codexbar/config.json", #"{"providers":[{"id":"cursor","enabled":true},{"id":"claude","enabled":false}]}"#)
+        try home.write(".config/codexbar/config.json", #"{"providers":[{"id":"kiro","enabled":true},{"id":"claude","enabled":false}]}"#)
         #expect(CodexBarImport.preview(paths: AppPaths(home: home.url), environment: [:], defaults: FakeDefaults())?.enabledProviders == [])
     }
 
@@ -93,13 +93,14 @@ struct CodexBarImportTests {
         #expect(CodexBarImport.providerID("antigravity") == .antigravity)
         #expect(CodexBarImport.providerID("opencode") == .opencodeZen)
         #expect(CodexBarImport.providerID("opencodego") == .opencodeGo)
-        #expect(CodexBarImport.providerID("cursor") == nil)
+        #expect(CodexBarImport.providerID("kiro") == nil)
     }
 
     @Test func copilotKeepsItsIDAndWindsurfIsNowDevin() {
         #expect(CodexBarImport.providerID("copilot") == .copilot)
         #expect(CodexBarImport.providerID("devin") == .devin)
         #expect(CodexBarImport.providerID("windsurf") == .devin)
+        #expect(CodexBarImport.providerID("cursor") == .cursor)
     }
 
     @Test func devinIsOneLoginPerMac() {
@@ -107,6 +108,12 @@ struct CodexBarImportTests {
         let applied = apply(CodexBarImportPreview(enabledProviders: []), to: config, discovered: [AccountConfig(id: "devin", provider: .devin, label: "Devin")])
         #expect(applied.accounts.map(\.id) == ["windsurf"])
         #expect(applied.accounts.map(\.enabled) == [false])
+    }
+
+    @Test func cursorIsOneLoginPerMac() {
+        let config = AppConfig(accounts: [AccountConfig(id: "cursor-work", provider: .cursor, label: "Work", showInMenuBar: false)])
+        let applied = apply(CodexBarImportPreview(enabledProviders: []), to: config, discovered: [AccountConfig(id: "cursor", provider: .cursor, label: "Cursor")])
+        #expect(applied.accounts.map(\.id) == ["cursor-work"])
     }
 
     // MARK: apply

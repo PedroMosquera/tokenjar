@@ -30,6 +30,7 @@ public enum Capture {
             case .opencodeGo: return try await opencodeGo(account, context: context, environment: environment)
             case .opencodeZen: return .nothingToCapture("OpenCode Zen has nothing to capture: its numbers come from opencode's local database, not from a request.")
             case .devin: return .nothingToCapture("Devin has nothing to capture: Tokenjar runs, reads and sends nothing for it.")
+            case .cursor: return .nothingToCapture("Cursor has nothing to capture: Tokenjar runs, reads and sends nothing for it.")
             }
         } catch {
             return .stopped("The capture could not be printed as JSON.")

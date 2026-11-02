@@ -96,4 +96,4 @@ SOFTWARE.
 
 ## Trademarks
 
-Product names and logos belong to their owners. Tokenjar is not affiliated with or endorsed by Anthropic, OpenAI, Google, GitHub, OpenCode, Cognition, Windsurf or CodexBar. The logos mark each provider's accounts in the app, and one appears in the menu bar only when the user picks it as the menu bar icon in Settings > General. `antigravity.svg` (the Google Gemini mark) and `windsurf.svg` stand in for Antigravity and Devin, which simple-icons does not include.
+Product names and logos belong to their owners. Tokenjar is not affiliated with or endorsed by Anthropic, OpenAI, Google, GitHub, OpenCode, Cognition, Windsurf, Cursor (Anysphere) or CodexBar. The logos mark each provider's accounts in the app, and one appears in the menu bar only when the user picks it as the menu bar icon in Settings > General. `antigravity.svg` (the Google Gemini mark) and `windsurf.svg` stand in for Antigravity and Devin, which simple-icons does not include.

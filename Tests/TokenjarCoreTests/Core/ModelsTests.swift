@@ -21,6 +21,7 @@ struct ModelsTests {
             .copilot: "https://github.com/settings/copilot",
             // The quota sits on Usage & limits; Settings > Plans only lists plans.
             .devin: "https://app.devin.ai/settings/usage",
+            .cursor: "https://cursor.com/dashboard/usage",
         ]
         for provider in ProviderID.allCases {
             #expect(provider.defaultDashboardURL.absoluteString == expected[provider], "\(provider)")
@@ -52,15 +53,20 @@ struct ModelsTests {
         #expect(ProviderID.devin.displayName == "Devin")
         #expect(ProviderID.devin.logoName == "windsurf")
         #expect(ProviderID.devin.harness == nil)
+        #expect(ProviderID(rawValue: "cursor") == .cursor)
+        #expect(ProviderID.cursor.displayName == "Cursor")
+        #expect(ProviderID.cursor.logoName == "cursor")
+        #expect(ProviderID.cursor.harness == nil)
     }
 
-    @Test func onlyDevinIsALinkOnlyProvider() {
-        #expect(ProviderID.allCases.filter(\.isLinkOnly) == [.devin])
+    @Test func linkOnlyProvidersAreDevinAndCursor() {
+        #expect(ProviderID.allCases.filter(\.isLinkOnly) == [.devin, .cursor])
     }
 
-    @Test func onlyZenAndDevinReportNoWindows() {
+    @Test func zenDevinAndCursorReportNoWindows() {
         let expected: [ProviderID: Bool] = [
             .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
+            .cursor: false,
         ]
         for provider in ProviderID.allCases {
             #expect(provider.reportsWindows == expected[provider], "\(provider)")
@@ -204,6 +210,7 @@ struct ModelsTests {
     @Test func providersThatNeedTheNetworkAreTheOnesThatContactOne() {
         let expected: [ProviderID: Bool] = [
             .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
+            .cursor: false,
         ]
         for provider in ProviderID.allCases {
             #expect(provider.checkUsesNetwork == expected[provider], "\(provider)")

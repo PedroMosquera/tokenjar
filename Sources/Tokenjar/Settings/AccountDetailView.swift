@@ -600,14 +600,14 @@ extension ProviderID {
         case .copilot: "gh"
         case .opencodeGo, .opencodeZen: "opencode"
         case .antigravity: "agy"
-        case .devin: nil
+        case .devin, .cursor: nil
         }
     }
 
     var usesAPIKey: Bool { self == .opencodeGo || self == .opencodeZen }
 
-    /// Whether SignInCommand has a login to hand to Terminal. agy has none, and Devin runs nothing.
-    var hasSignInCommand: Bool { self != .antigravity && self != .devin }
+    /// Whether SignInCommand has a login to hand to Terminal. agy has none, and Devin and Cursor run nothing.
+    var hasSignInCommand: Bool { self != .antigravity && !isLinkOnly }
 }
 
 /// What the Sign in section says for an Antigravity account. agy has no login command to hand to Terminal, so this row

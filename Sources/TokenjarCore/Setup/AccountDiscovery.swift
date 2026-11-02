@@ -43,6 +43,13 @@ public enum AccountDiscovery {
         if devinMarkers.contains(where: { fm.fileExists(atPath: $0.path) }) {
             accounts.append(AccountConfig(id: "devin", provider: .devin, label: "Devin", showInMenuBar: false))
         }
+        let cursorMarkers = [
+            systemApplications.appending(path: "Cursor.app"), paths.home.appending(path: "Applications/Cursor.app"),
+            paths.home.appending(path: "Library/Application Support/Cursor"),
+        ]
+        if cursorMarkers.contains(where: { fm.fileExists(atPath: $0.path) }) {
+            accounts.append(AccountConfig(id: "cursor", provider: .cursor, label: "Cursor", showInMenuBar: false))
+        }
         return accounts
     }
 
@@ -54,12 +61,12 @@ public enum AccountDiscovery {
         guard let location = location(of: account, paths: paths, environment: environment) else { return true }
         switch account.provider {
         case .claude, .codex, .copilot: return isDirectory(location)
-        case .opencodeGo, .opencodeZen, .antigravity, .devin: return FileManager.default.fileExists(atPath: location.path)
+        case .opencodeGo, .opencodeZen, .antigravity, .devin, .cursor: return FileManager.default.fileExists(atPath: location.path)
         }
     }
 
     /// The profile dir or credential file the account reads on this Mac (gh's config folder for Copilot, whose files
-    /// are never opened, and opencode.db for Zen, which needs no key). nil for Antigravity, Devin and a key in the
+    /// are never opened, and opencode.db for Zen, which needs no key). nil for Antigravity, Devin, Cursor and a key in the
     /// app's own Keychain, which have no file of their own.
     public static func location(of account: AccountConfig, paths: AppPaths, environment: [String: String]) -> URL? {
         switch account.provider {
@@ -78,7 +85,7 @@ public enum AccountDiscovery {
             case .keychain: nil
             case nil: openCodeAuthFile(paths: paths, environment: environment)
             }
-        case .antigravity, .devin:
+        case .antigravity, .devin, .cursor:
             nil
         }
     }

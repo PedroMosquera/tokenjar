@@ -8,6 +8,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     case antigravity
     case copilot
     case devin
+    case cursor
 
     public var displayName: String {
         switch self {
@@ -18,6 +19,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .antigravity: "Antigravity"
         case .copilot: "GitHub Copilot"
         case .devin: "Devin"
+        case .cursor: "Cursor"
         }
     }
 
@@ -30,6 +32,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .antigravity: "antigravity"
         case .copilot: "copilot"
         case .devin: "windsurf"
+        case .cursor: "cursor"
         }
     }
 
@@ -41,10 +44,11 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .antigravity: URL(string: "https://antigravity.google/docs/plans")!
         case .copilot: URL(string: "https://github.com/settings/copilot")!
         case .devin: URL(string: "https://app.devin.ai/settings/usage")!
+        case .cursor: URL(string: "https://cursor.com/dashboard/usage")!
         }
     }
 
-    /// Opened in the browser, never fetched. Antigravity has no official status page.
+    /// Opened in the browser, never fetched. Antigravity has no official status page, and Cursor's redirects to xAI's.
     public var statusPageURL: URL? {
         switch self {
         case .claude: URL(string: "https://status.claude.com")
@@ -52,7 +56,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: URL(string: "https://status.opencode.ai")
         case .copilot: URL(string: "https://www.githubstatus.com")
         case .devin: URL(string: "https://www.devinstatus.com")
-        case .antigravity: nil
+        case .antigravity, .cursor: nil
         }
     }
 
@@ -63,14 +67,14 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: URL(string: "https://status.claude.com/api/v2/summary.json")
         case .codex: URL(string: "https://status.openai.com/proxy/status.openai.com")
         case .copilot: URL(string: "https://www.githubstatus.com/api/v2/summary.json")
-        case .opencodeGo, .opencodeZen, .antigravity, .devin: nil
+        case .opencodeGo, .opencodeZen, .antigravity, .devin, .cursor: nil
         }
     }
 
     /// True when the provider shares no usage Tokenjar can read, so its account is a link to the provider's own page.
     public var isLinkOnly: Bool {
         switch self {
-        case .devin: true
+        case .devin, .cursor: true
         case .claude, .codex, .opencodeGo, .opencodeZen, .antigravity, .copilot: false
         }
     }
@@ -79,7 +83,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     /// thresholds and limit charts have nothing to show for it.
     public var reportsWindows: Bool {
         switch self {
-        case .opencodeZen, .devin: false
+        case .opencodeZen, .devin, .cursor: false
         case .claude, .codex, .opencodeGo, .antigravity, .copilot: true
         }
     }
@@ -88,7 +92,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     /// question from `reportsWindows`, though the values match today: a Zen balance check would split them.
     public var checkUsesNetwork: Bool {
         switch self {
-        case .opencodeZen, .devin: false
+        case .opencodeZen, .devin, .cursor: false
         case .claude, .codex, .opencodeGo, .antigravity, .copilot: true
         }
     }
@@ -99,7 +103,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: .claudeCode
         case .codex: .codex
         case .opencodeGo, .opencodeZen: .opencode
-        case .antigravity, .copilot, .devin: nil
+        case .antigravity, .copilot, .devin, .cursor: nil
         }
     }
 }
