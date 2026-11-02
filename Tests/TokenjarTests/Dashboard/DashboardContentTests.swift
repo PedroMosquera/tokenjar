@@ -133,6 +133,26 @@ struct DashboardContentLoadTests {
         #expect(!content.costLastMonth.hasUsage)
     }
 
+    /// $10 at 1.25 dollars per euro is €8 on every estimate the page draws.
+    @Test func estimatesLoadInTheDisplayCurrency() throws {
+        let model = model()
+        let zen = try #require(model.accounts.first { $0.id == "opencode-zen" })
+        try model.store?.upsert([UsageEvent(
+            dedupeKey: "zen:eur", timestamp: now.addingTimeInterval(-3600), accountID: "opencode-zen", harness: .opencode,
+            model: "kimi-k3", project: "tokenjar", inputTokens: 100, reportedCostUSD: 10
+        )])
+        var input = DashboardContent.Input(
+            model: model, accounts: model.accounts, account: zen, range: .week, now: now,
+            key: DashboardLoadKey(accountIDs: [zen.id], range: .week, historyRevision: 0)
+        )
+        input.currency = CostCurrency.resolve("EUR", rates: ExchangeRates(date: "2026-10-30", perEUR: ["USD": 1.25]))
+        let content = DashboardContent.load(input)
+        #expect(content.currency.code == "EUR")
+        #expect(abs(content.costLastSevenDays.amount - 8) < 0.0001)
+        #expect(abs(content.activity.total - 8) < 0.0001)
+        #expect(content.activity.currency == "EUR")
+    }
+
     @Test func limitsStartNearTheFirstSampleWhenHistoryIsNew() {
         // The test store's samples start an hour ago, so a week-long axis would leave the lines in a sliver.
         let content = load(model(), range: .week)

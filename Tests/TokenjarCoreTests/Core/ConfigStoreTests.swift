@@ -226,7 +226,7 @@ struct ConfigStoreTests {
     }
 
     enum NewLeaf: String, CaseIterable, Sendable {
-        case paceDays, spendDisplay, accountOrder, dailyBudget, monthlyBudget, earlyResets
+        case paceDays, spendDisplay, accountOrder, dailyBudget, monthlyBudget, budgetCurrency, earlyResets
 
         func edit(_ config: inout AppConfig) {
             switch self {
@@ -235,6 +235,7 @@ struct ConfigStoreTests {
             case .accountOrder: config.accountOrder = .tightestFirst
             case .dailyBudget: config.accounts[0].dailyBudget = DailyBudget(amount: 100)
             case .monthlyBudget: config.accounts[0].monthlyBudget = 200
+            case .budgetCurrency: config.accounts[0].budgetCurrency = "EUR"
             case .earlyResets: config.alerts.earlyResets = false
             }
         }
@@ -248,6 +249,7 @@ struct ConfigStoreTests {
             case .accountOrder: ["accountOrder": "byProvider"]
             case .dailyBudget: ["accounts": [["id": "claude", "dailyBudget": ["amount": 50]]]]
             case .monthlyBudget: ["accounts": [["id": "claude", "monthlyBudget": 500]]]
+            case .budgetCurrency: ["accounts": [["id": "claude", "budgetCurrency": "GBP"]]]
             case .earlyResets: ["alerts": ["earlyResets": false]]
             }
         }

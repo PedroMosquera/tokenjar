@@ -47,9 +47,10 @@ struct MonthCostLineTests {
     @Test func inEurosTheLineUsesEuros() {
         let euro = CostCurrency.resolve("EUR", rates: ExchangeRates(date: "2026-10-30", perEUR: ["USD": 1 / 0.92]))
         let rows = [row(day(10, 1), cost: 4.5), row(day(10, 10), cost: 7.9)]
-        let lines = text(.payAsYouGo, rows, currency: euro)
-        #expect(lines?.amounts?.hasPrefix("€") == true)
-        #expect(lines?.detail?.hasPrefix("On pace for ~€") == true)
+        // $12.40, $7.90 and the ~$40 pace at 0.92 euro per dollar.
+        #expect(text(.payAsYouGo, rows, currency: euro) == MonthCostLine.Lines(
+            amounts: "€11.41 this month · €7.27 today", detail: "On pace for ~€37 this month, estimate at list price"
+        ))
     }
 
     @Test func aDayWithoutUsageLeavesTodayOut() {
