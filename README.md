@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml)
 
-Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot. Devin and Cursor share no usage with local apps, so each only gets a link to its usage page in Settings.
+Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity, GitHub Copilot, Z.ai's GLM Coding Plan and MiniMax's Token Plan. Devin and Cursor share no usage with local apps, so each only gets a link to its usage page in Settings.
 
 I built it because I did not want a third-party app handling my AI logins. Tokenjar asks each provider's own CLI for the numbers, except for OpenCode, where it reads opencode's key and local database. History stays on your Mac. There is no prebuilt download: you build it from source with the Command Line Tools, by hand or through Homebrew.
 
@@ -26,10 +26,12 @@ I built it because I did not want a third-party app handling my AI logins. Token
 | OpenCode Zen | This month's spend, added up from the local `opencode.db` | Pay as you go |
 | Antigravity | `agy -p /usage` (agy 1.1.11 or later) | No plan name. Each quota pool agy reports becomes a limit. |
 | GitHub Copilot | `gh api`, a read-only GET | Free, Pro, Pro+, Max, Business, Enterprise |
+| GLM Coding Plan | One HTTPS GET to api.z.ai with a key you paste in Settings | The plan name Z.ai sends. Shows the 5-hour and weekly windows, and the monthly tools (MCP) quota when the plan has one. |
+| MiniMax | One HTTPS GET to api.minimax.io with a Token Plan key you paste in Settings | Token Plan. Shows the 5-hour and weekly windows of each coding model. |
 | Devin, which now includes Windsurf | Nothing yet. Devin shares no usage with local apps, so it has no card; its page in Settings opens the usage page. | |
 | Cursor | Nothing. Cursor shares usage only through its own login token or a browser session, so it has no card; its page in Settings opens the usage page. | |
 
-The Antigravity reader has never run against a live install. Copilot's endpoint is undocumented, and most Copilot plans have not been checked against a real account.
+The Antigravity, GLM and MiniMax readers have never run against a live account. Tokenjar contacts api.z.ai or api.minimax.io only for an account of that provider with a pasted key. Copilot's endpoint is undocumented, and most Copilot plans have not been checked against a real account.
 
 ## Using it
 
@@ -97,7 +99,7 @@ On disk it keeps token counts, model ids, timestamps and project folder names, p
 - macOS 14 or later.
 - Command Line Tools with Swift 6.2 or later (`xcode-select --install`). Xcode is not needed.
 - For the Homebrew install, macOS 15.6 or later (Homebrew checks only for macOS 15).
-- The CLI for each provider you track: `claude`, `codex`, `agy` 1.1.11 or later, and `gh` signed in with `gh auth login`. OpenCode, Devin and Cursor need none.
+- The CLI for each provider you track: `claude`, `codex`, `agy` 1.1.11 or later, and `gh` signed in with `gh auth login`. OpenCode, GLM, MiniMax, Devin and Cursor need none.
 
 ## Install
 
@@ -155,7 +157,7 @@ Settings writes everything to `~/.config/tokenjar/config.json`, and you can edit
 
 Pick an `id` once and keep it. History and alerts are stored under it.
 
-The file holds no secrets, only where keys live, so it can sit in a dotfiles repo and be symlinked into place on each Mac (`stow --no-folding` works). Anything that should differ on one Mac, such as a label, goes in `config.local.json` next to it. History, alert state and pasted keys stay on each Mac. Update Tokenjar on every Mac before adding a Cursor account to a shared file: an older build cannot load a config that names a provider it does not know. [docs/configuration.md](docs/configuration.md) has every field and the details of the shared setup.
+The file holds no secrets, only where keys live, so it can sit in a dotfiles repo and be symlinked into place on each Mac (`stow --no-folding` works). Anything that should differ on one Mac, such as a label, goes in `config.local.json` next to it. History, alert state and pasted keys stay on each Mac. Update Tokenjar on every Mac before adding a Cursor, GLM or MiniMax account to a shared file: an older build cannot load a config that names a provider it does not know. [docs/configuration.md](docs/configuration.md) has every field and the details of the shared setup.
 
 ## Troubleshooting
 

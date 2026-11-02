@@ -37,7 +37,9 @@ struct AboutSettingsPane: View {
     ]
 
     static let contacts = [
-        Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits. The only request that carries a key. Usage and status pages open in your browser."),
+        Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits, with its key. Usage and status pages open in your browser."),
+        Item(what: "GET https://api.z.ai/api/monitor/usage/quota/limit", why: "GLM Coding Plan limits, with the key you pasted. Only for a GLM account that has one."),
+        Item(what: "GET https://api.minimax.io/v1/token_plan/remains", why: "MiniMax Token Plan limits, with the key you pasted. Only for a MiniMax account that has one."),
         Item(what: "GET https://status.claude.com/api/v2/summary.json", why: "Claude's public status. Only with provider status on, when you open the popover or refresh."),
         Item(what: "GET https://status.openai.com/proxy/status.openai.com", why: "Codex's public status. Only with provider status on, when you open the popover or refresh."),
         Item(what: "GET https://www.githubstatus.com/api/v2/summary.json", why: "GitHub Copilot's public status. Only with provider status on, when you open the popover or refresh."),
