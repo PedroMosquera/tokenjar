@@ -665,8 +665,12 @@ nonisolated struct PlanValue: Equatable, Sendable {
         return PlanValue(spend: cost.amount, planPrice: prices.values.reduce(0, +), plans: plans, isEstimate: cost.isEstimate, currency: currency.code)
     }
 
-    /// "5.7x", or "12x" from 10 up, where a decimal adds nothing.
     @MainActor func valueText(locale: Locale = .autoupdatingCurrent) -> String {
+        Self.multipleText(multiple, locale: locale)
+    }
+
+    /// "5.7x", or "12x" from 10 up, where a decimal adds nothing.
+    static func multipleText(_ multiple: Double, locale: Locale) -> String {
         multiple.formatted(.number.precision(.fractionLength(multiple < 10 ? 1 : 0)).locale(locale)) + "x"
     }
 

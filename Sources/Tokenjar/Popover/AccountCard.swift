@@ -280,6 +280,10 @@ private struct SnapshotBody: View {
                     }
                 }
             }
+            if let section = model.costSection(for: account, snapshot: snapshot, now: now) {
+                Divider()
+                CostSectionView(accountID: account.id, content: section)
+            }
             let costLine = model.monthCostLine(snapshot: snapshot, now: now)
             if let costLine {
                 VStack(alignment: .leading, spacing: 2) {

@@ -102,6 +102,39 @@ struct AppModelCurrencyTests {
         #expect(rig.model.costCurrency.code == "GBP")
     }
 
+    @Test func theExpandedStateIsRememberedPerAccount() throws {
+        let first = try rig("en_US")
+        #expect(!first.model.isCostSectionExpanded("a"))
+        first.model.setCostSectionExpanded("a", true)
+        #expect(first.defaults.object(forKey: "costSectionExpanded") as? [String] == ["a"])
+
+        let second = try rig("en_US", defaults: first.defaults)
+        #expect(second.model.isCostSectionExpanded("a"))
+        #expect(!second.model.isCostSectionExpanded("b"))
+        second.model.setCostSectionExpanded("a", false)
+        #expect(second.defaults.object(forKey: "costSectionExpanded") as? [String] == [])
+    }
+
+    /// $11 of this account's use at 1.1 USD per euro is €10 against the €100 plan; another account's use stays out.
+    @Test func theCostSectionPricesThisAccountInTheDisplayCurrency() throws {
+        let rig = try rig("es_ES", stored: rates(today(TestClock())))
+        let now = rig.clock.now
+        let store = InMemoryUsageStore()
+        try store.upsert([
+            UsageEvent(dedupeKey: "a", timestamp: now, accountID: "claude", harness: .claudeCode, model: "m", project: "p", inputTokens: 1_000_000),
+            UsageEvent(dedupeKey: "b", timestamp: now, accountID: "other", harness: .claudeCode, model: "m", project: "p", inputTokens: 5_000_000),
+        ])
+        rig.model.store = store
+        rig.model.priceTable = PriceTable(
+            prices: ["m": ModelPrice(input: 11, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, source: "test", asOf: "test")],
+            plans: ["claude": ["Max 5x": PlanPrice(monthlyUSD: 110, source: "test", asOf: "test")]]
+        )
+        let account = AccountConfig(id: "claude", provider: .claude, label: "Personal")
+        let section = try #require(rig.model.costSection(for: account, snapshot: usageSnapshot(account, plan: "Max 5x", fetchedAt: now), now: now))
+        #expect(section.today == Format.money(10, currency: "EUR", fractionDigits: 2, locale: .autoupdatingCurrent))
+        #expect(section.tiles.last == CostSection.Tile(title: "Plan value", value: PlanValue.multipleText(0.1, locale: .autoupdatingCurrent), detail: "the \(Format.money(100, currency: "EUR", fractionDigits: 0, locale: .autoupdatingCurrent)) plan"))
+    }
+
     @Test func freshRatesAreNotAskedForAgain() async throws {
         let clock = TestClock()
         let rig = try rig("es_ES", stored: rates(ExchangeRateSchedule.latestPublicationDay(asOf: clock.now)), clock: clock)

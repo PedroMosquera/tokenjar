@@ -193,6 +193,7 @@ final class AppModel {
         healthSetting = ProviderHealthSetting(defaults: defaults)
         providerStatusOn = healthSetting.isOn
         pinnedAccountID = defaults.object(forKey: Self.pinnedAccountKey) as? String
+        expandedCostSections = Set(defaults.object(forKey: Self.costSectionExpandedKey) as? [String] ?? [])
         self.rateFetcher = rateFetcher
         self.locale = locale
         currencyPick = defaults.object(forKey: Self.currencyPickKey) as? String
@@ -977,6 +978,29 @@ final class AppModel {
     func monthCostLine(snapshot: UsageSnapshot, now: Date) -> MonthCostLine.Lines? {
         guard CostLine.applies(to: snapshot), let monthStart = Calendar.current.dateInterval(of: .month, for: now)?.start else { return nil }
         return MonthCostLine.text(snapshot: snapshot, rows: pricedUsage(accountIDs: [snapshot.accountID], since: monthStart), now: now, currency: costCurrency)
+    }
+
+    /// The card's API value section for an account on a plan; nil, without reading the store, for every other account.
+    func costSection(for account: AccountConfig, snapshot: UsageSnapshot, now: Date) -> CostSection.Content? {
+        guard CostSection.applies(to: snapshot), let start = CostSection.start(now: now) else { return nil }
+        let currency = costCurrency
+        let planPrice = snapshot.plan.flatMap { priceTable.planPrice(provider: account.provider, plan: $0) }
+        return CostSection.make(
+            snapshot: snapshot, rows: currency.converted(pricedUsage(accountIDs: [account.id], since: start)), planPrice: planPrice,
+            currency: currency, now: now
+        )
+    }
+
+    static let costSectionExpandedKey = "costSectionExpanded"
+
+    /// Accounts whose API value section is open on this Mac. A preference rather than config, like the menu bar pin.
+    private(set) var expandedCostSections: Set<String> = []
+
+    func isCostSectionExpanded(_ accountID: String) -> Bool { expandedCostSections.contains(accountID) }
+
+    func setCostSectionExpanded(_ accountID: String, _ open: Bool) {
+        if open { expandedCostSections.insert(accountID) } else { expandedCostSections.remove(accountID) }
+        preferences.set(expandedCostSections.sorted(), forKey: Self.costSectionExpandedKey)
     }
 
     func pricedUsage(accountIDs: [String]?, since: Date) -> [PricedUsageRow] {
