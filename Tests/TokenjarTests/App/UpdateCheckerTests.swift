@@ -91,10 +91,8 @@ struct UpdateCheckerTests {
         #expect(notified == 0)
     }
 
-    @Test func aFailedCheckIsSilent() async {
+    @Test func aFailedCheckNowShowsTheFailure() async {
         let rig = make(.failure(.network("HTTP 403")))
-        var notified = 0
-        rig.checker.onNewVersion = { _, _ in notified += 1 }
         let started = rig.clock.now
         await rig.checker.checkNow()?.value
         #expect(rig.checker.status == .failed(at: started))
@@ -103,7 +101,8 @@ struct UpdateCheckerTests {
     @Test func switchingToManualMidCheckPostsNothing() async {
         let gate = Gate()
         let defaults = MemoryDefaults()
-        let checker = UpdateChecker(defaults: defaults, installed: v030, clock: { Date() }, fetch: { [v040] in
+        let clock = TestClock()
+        let checker = UpdateChecker(defaults: defaults, installed: v030, clock: { clock.now }, fetch: { [v040] in
             await gate.wait()
             return UpdateFetcher.releaseInfo(for: v040)!
         })
@@ -116,6 +115,12 @@ struct UpdateCheckerTests {
         await task?.value
         #expect(notified == 0)
         #expect(checker.status == .available(release(v040)))
+
+        // Nobody was told, so turning Automatic back on still announces it.
+        checker.mode = .automatic
+        clock.advance(25 * 3600)
+        await checker.checkIfDue(holdsChecks: false)?.value
+        #expect(notified == 1)
     }
 
     @Test func aFailedCheckKeepsAKnownUpdateVisible() async {

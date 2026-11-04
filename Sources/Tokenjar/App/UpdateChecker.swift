@@ -13,9 +13,9 @@ final class UpdateChecker {
     static let modeKey = "updateCheck"
     static let lastCheckKey = "updateLastCheck"
     static let latestVersionKey = "updateLatestVersion"
-    static let notifiedVersionKey = "updateNotifiedVersion"
+    static let notifiedVersionsKey = "updateNotifiedVersions"
 
-    /// Called only for an automatic check that finds a version newer than any already announced.
+    /// Called only for an automatic check that finds a newer version not announced or shown before.
     @ObservationIgnored var onNewVersion: (_ installed: AppVersion, _ latest: AppVersion) -> Void = { _, _ in }
 
     private(set) var status: UpdateStatus
@@ -98,13 +98,18 @@ final class UpdateChecker {
     private func apply(_ release: ReleaseInfo, installed: AppVersion, startedAt: Date, userInitiated: Bool) {
         let decision = UpdateSchedule.decide(
             latest: release.version, installed: installed,
-            notified: Self.version(defaults, Self.notifiedVersionKey), userInitiated: userInitiated
+            notified: notifiedVersions, userInitiated: userInitiated
         )
         defaults.set(release.version.description, forKey: Self.latestVersionKey)
-        defaults.set(decision.notifiedVersion?.description, forKey: Self.notifiedVersionKey)
         status = release.version > installed ? .available(release) : .upToDate(checkedAt: startedAt)
-        // The user may have switched to Manual while this check was running.
-        if decision.notify, mode == .automatic { onNewVersion(installed, release.version) }
+        // A check that finishes after a switch to Manual told nobody, so it must not count the version as announced.
+        guard userInitiated || mode == .automatic else { return }
+        defaults.set(decision.notified.sorted().map(\.description), forKey: Self.notifiedVersionsKey)
+        if decision.notify { onNewVersion(installed, release.version) }
+    }
+
+    private var notifiedVersions: Set<AppVersion> {
+        Set((defaults.object(forKey: Self.notifiedVersionsKey) as? [String] ?? []).compactMap(AppVersion.init))
     }
 
     private static func version(_ defaults: any DefaultsStoring, _ key: String) -> AppVersion? {

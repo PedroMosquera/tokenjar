@@ -6,11 +6,11 @@ public enum UpdateCheckMode: String, Sendable, CaseIterable {
 
 public struct UpdateDecision: Equatable, Sendable {
     public var notify: Bool
-    public var notifiedVersion: AppVersion?
+    public var notified: Set<AppVersion>
 
-    public init(notify: Bool, notifiedVersion: AppVersion?) {
+    public init(notify: Bool, notified: Set<AppVersion>) {
         self.notify = notify
-        self.notifiedVersion = notifiedVersion
+        self.notified = notified
     }
 }
 
@@ -26,11 +26,12 @@ public enum UpdateSchedule {
         return elapsed < 0 || elapsed >= automaticInterval
     }
 
-    /// A user-initiated check shows its result itself, so it never notifies but still marks the version as seen.
-    /// Only equality with the last notified version silences a notice: a mistaken high tag that is later withdrawn
-    /// must not hold back every real release after it.
-    public static func decide(latest: AppVersion, installed: AppVersion, notified: AppVersion?, userInitiated: Bool) -> UpdateDecision {
-        guard latest > installed else { return UpdateDecision(notify: false, notifiedVersion: notified) }
-        return UpdateDecision(notify: !userInitiated && latest != notified, notifiedVersion: latest)
+    /// A version is news once: every version announced, or shown by Check Now, is remembered, so a withdrawn release
+    /// that reappears is not announced again and a withdrawn high tag cannot hold back lower releases. Versions at or
+    /// below the installed one can never be news again and are dropped.
+    public static func decide(latest: AppVersion, installed: AppVersion, notified: Set<AppVersion>, userInitiated: Bool) -> UpdateDecision {
+        let pending = notified.filter { $0 > installed }
+        guard latest > installed else { return UpdateDecision(notify: false, notified: pending) }
+        return UpdateDecision(notify: !userInitiated && !pending.contains(latest), notified: pending.union([latest]))
     }
 }
