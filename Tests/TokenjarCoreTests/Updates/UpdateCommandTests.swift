@@ -18,8 +18,6 @@ struct UpdateCommandTests {
         #expect(UpdateCommand.installFolder(appBundle: "/Applications/Tokenjar.app", home: home) == "/Applications")
     }
 
-    /// Replacing Homebrew's own copy in place would delete it when brew has nothing to upgrade, since
-    /// tokenjar-install-app then copies the app onto itself.
     @Test func aCopyRunningFromHomebrewInstallsIntoApplicationsInstead() {
         for bundle in ["/opt/homebrew/Cellar/tokenjar/0.3.0/Tokenjar.app", "/usr/local/opt/tokenjar/Tokenjar.app"] {
             #expect(UpdateCommand.installFolder(appBundle: bundle, home: home) == "/Users/me/Applications")
@@ -28,6 +26,13 @@ struct UpdateCommandTests {
 
     @Test func homebrewUpgradesThenInstallsIntoTheRunningAppsFolder() {
         let line = UpdateCommand.terminal(method: .homebrew(prefix: "/opt/homebrew"), version: v040, appBundle: app, home: home)
+        #expect(line == "/opt/homebrew/bin/brew upgrade tokenjar && /opt/homebrew/bin/tokenjar-install-app /Users/me/Applications")
+    }
+
+    @Test func theHomebrewLineForACellarCopyInstallsIntoApplications() {
+        let line = UpdateCommand.terminal(
+            method: .homebrew(prefix: "/opt/homebrew"), version: v040, appBundle: "/opt/homebrew/Cellar/tokenjar/0.3.0/Tokenjar.app", home: home
+        )
         #expect(line == "/opt/homebrew/bin/brew upgrade tokenjar && /opt/homebrew/bin/tokenjar-install-app /Users/me/Applications")
     }
 

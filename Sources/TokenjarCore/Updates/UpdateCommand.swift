@@ -16,9 +16,8 @@ public enum UpdateCommand {
         homebrewPrefixes.first { fileExists("\($0)/opt/tokenjar/Tokenjar.app") }.map { .homebrew(prefix: $0) } ?? .releaseArchive
     }
 
-    /// The running app's own folder, so the copy replaced is the one running. A copy running from inside Homebrew's
-    /// folders goes to ~/Applications instead: replacing Homebrew's own app in place deletes it whenever brew has
-    /// nothing to upgrade, because the install script then copies the app onto itself.
+    /// The running app's own folder, except for a copy inside Homebrew's folders: replacing that in place deletes it
+    /// when brew has nothing to upgrade, because the install script then copies the app onto itself.
     public static func installFolder(appBundle: String, home: String) -> String {
         if homebrewPrefixes.contains(where: { appBundle.hasPrefix("\($0)/Cellar/") || appBundle.hasPrefix("\($0)/opt/") }) {
             return "\(home)/Applications"
