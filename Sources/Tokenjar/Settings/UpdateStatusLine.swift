@@ -1,10 +1,10 @@
 import Foundation
 
 enum UpdateStatusLine {
-    /// nil while nothing has been checked yet, so About shows no line at all.
-    static func text(_ status: UpdateStatus, now: Date) -> String? {
+    /// `lastCheck` is only used for `.unknown`: it is also written for failed attempts, so it never implies "up to date".
+    static func text(_ status: UpdateStatus, lastCheck: Date?, now: Date) -> String {
         switch status {
-        case .unknown: nil
+        case .unknown: lastCheck.map { "Last checked \(ago($0, now: now))" } ?? "Not checked yet"
         case .checking: "Checking..."
         case .upToDate(let at): "Up to date · checked \(ago(at, now: now))"
         case .available(let release): "Tokenjar \(release.version) is available"

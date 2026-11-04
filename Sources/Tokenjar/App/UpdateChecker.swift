@@ -24,6 +24,9 @@ final class UpdateChecker {
         didSet { defaults.set(mode.rawValue, forKey: Self.modeKey) }
     }
 
+    /// When the latest attempt started, successful or not.
+    var lastCheck: Date? { defaults.object(forKey: Self.lastCheckKey) as? Date }
+
     /// A build without a readable version cannot compare anything, so it never asks.
     var canCheck: Bool { installed != nil }
 
@@ -53,7 +56,7 @@ final class UpdateChecker {
     @discardableResult
     func checkIfDue(holdsChecks: Bool) -> Task<Void, Never>? {
         guard canCheck, !holdsChecks,
-              UpdateSchedule.isDue(mode: mode, lastCheckAt: defaults.object(forKey: Self.lastCheckKey) as? Date, now: clock())
+              UpdateSchedule.isDue(mode: mode, lastCheckAt: lastCheck, now: clock())
         else { return nil }
         return start(userInitiated: false)
     }

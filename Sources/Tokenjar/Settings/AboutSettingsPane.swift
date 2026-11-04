@@ -114,6 +114,12 @@ struct AboutSettingsPane: View {
         UpdateCommand(name: "make", command: "git pull && make install"),
     ]
 
+    private static func updateNoticeSummary(_ delivery: AlertDelivery) -> String {
+        delivery.action == .openNotificationSettings
+            ? "Notifications for Tokenjar are off in System Settings, so update notices are not shown."
+            : "Update notices arrive quietly in Notification Center. Allow banners to see them on screen."
+    }
+
     @ViewBuilder private func updatesSection(_ updates: UpdateChecker) -> some View {
         let delivery = AlertDelivery(model.notificationPermission)
         Section("Updates") {
@@ -137,6 +143,9 @@ struct AboutSettingsPane: View {
             }
             if updates.mode == .automatic, let action = delivery.action {
                 HStack {
+                    Text(Self.updateNoticeSummary(delivery))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                     Spacer()
                     switch action {
                     case .allowBanners:
@@ -154,8 +163,10 @@ struct AboutSettingsPane: View {
             } label: {
                 if !updates.canCheck {
                     Text("Update checks need the installed app.")
-                } else if let line = UpdateStatusLine.text(updates.status, now: Date()) {
-                    Text(line)
+                } else {
+                    TimelineView(.periodic(from: .now, by: 60)) { context in
+                        Text(UpdateStatusLine.text(updates.status, lastCheck: updates.lastCheck, now: context.date))
+                    }
                 }
             }
             if case .available(let release) = updates.status {

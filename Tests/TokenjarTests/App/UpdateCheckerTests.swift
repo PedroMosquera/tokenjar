@@ -131,11 +131,22 @@ struct UpdateCheckerTests {
 
     @Test func aFailedAutomaticCheckWaitsADay() async {
         let rig = make(.failure(.timeout))
+        var notified = 0
+        rig.checker.onNewVersion = { _, _ in notified += 1 }
         rig.checker.mode = .automatic
         await rig.checker.checkIfDue(holdsChecks: false)?.value
         rig.clock.advance(3600)
         #expect(rig.checker.checkIfDue(holdsChecks: false) == nil)
         #expect(rig.asks.total == 1)
+        #expect(notified == 0)
+    }
+
+    @Test func lastCheckIsTheStoredStartOfTheLatestAttempt() async {
+        let rig = make(.failure(.timeout))
+        #expect(rig.checker.lastCheck == nil)
+        let started = rig.clock.now
+        await rig.checker.checkNow()?.value
+        #expect(rig.checker.lastCheck == started)
     }
 
     @Test func upToDateRecordsWhenTheCheckStarted() async {

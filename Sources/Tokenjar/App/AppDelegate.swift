@@ -77,12 +77,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
 
         let notifications = NotificationManager()
         notifications.onOpenDashboard = { [weak self] accountID in self?.showDashboard(accountID: accountID) }
-        notifications.activate()
-        model.notifications = notifications
         notifications.onOpenAbout = { [weak self] in
             self?.model.settingsPaneRequest = .about
             self?.showSettings(accountID: nil)
         }
+        notifications.activate()
+        model.notifications = notifications
 
         let updates = UpdateChecker(
             defaults: UserDefaults.standard,

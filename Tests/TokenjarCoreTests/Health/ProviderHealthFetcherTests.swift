@@ -34,7 +34,7 @@ struct ProviderHealthFetcherTests {
         #expect(transport.requests.isEmpty)
     }
 
-    /// The feeds are the only endpoints on the list besides OpenCode's and the ECB's, and the status pages themselves cannot be fetched:
+    /// The feeds are the only endpoints on the list besides OpenCode's, the ECB's and GitHub's release check, and the status pages themselves cannot be fetched:
     /// they open in the browser.
     @Test func feedsAreTheOnlyOtherAllowedEndpointsAndPagesAreNeverFetched() {
         var expected: [String: Set<String>] = [
