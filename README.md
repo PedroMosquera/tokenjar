@@ -126,7 +126,8 @@ The app sends only these requests itself, and a test fails if another endpoint i
 
 - `GET https://opencode.ai/zen/go/v1/usage`, for OpenCode Go.
 - One GET to the public status page of each of Claude, Codex and GitHub Copilot you track, when you open the popover or refresh. Only if you turn on Check provider status pages in Settings on that Mac.
-- One GET for the European Central Bank's daily exchange rates, only while this Mac's display currency is not USD. It is the only request to a host that is not a provider, and it sends no account data.
+- One GET for the European Central Bank's daily exchange rates, only while this Mac's display currency is not USD. It sends no account data.
+- One GET to `api.github.com` for the latest Tokenjar release, only when you click Check Now in Settings > About or once a day while Check for updates is Automatic. It sends no key and no account data.
 
 The Copilot request is gh's own, with gh's telemetry turned off.
 
