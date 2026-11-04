@@ -193,11 +193,11 @@ struct PriceTableTests {
         }
     }
 
-    /// US monthly list prices read from the providers' own pages. A label that stands for more than one price (Claude's
-    /// "Max" without its tier, Codex's "Pro" for every Pro tier, a Business seat of either kind) or for no list price at
-    /// all is left out, so the dashboard shows nothing rather than a wrong multiple.
+    /// US monthly list prices read from the providers' own pages. A label that stands for more than one price (Codex's
+    /// "Pro" for every Pro tier, a Business seat of either kind) or for no list price at all is left out, so the
+    /// dashboard shows nothing rather than a wrong multiple.
     @Test(arguments: [
-        (ProviderID.claude, "Pro", 20.0), (.claude, "Max 5x", 100), (.claude, "Max 20x", 200), (.claude, "Team", 25),
+        (ProviderID.claude, "Pro", 20.0), (.claude, "Max", 100), (.claude, "Ultra", 200), (.claude, "Team", 25),
         (.claude, "Team Premium", 125), (.codex, "Go", 8), (.codex, "Plus", 20), (.opencodeGo, "Go", 10),
     ])
     func bundledPlanPrices(provider: ProviderID, plan: String, monthlyUSD: Double) {
@@ -206,7 +206,7 @@ struct PriceTableTests {
     }
 
     @Test(arguments: [
-        (ProviderID.claude, "Max"), (.claude, "Enterprise"), (.claude, "Enterprise (usage-based)"), (.codex, "Free"),
+        (ProviderID.claude, "Max 5x"), (.claude, "Max 20x"), (.claude, "Enterprise"), (.claude, "Enterprise (usage-based)"), (.codex, "Free"),
         (.codex, "Pro"), (.codex, "Business"), (.codex, "Edu"), (.codex, "Enterprise"), (.copilot, "Pro"),
     ])
     func bundledTableLeavesOutPlansWithoutOneListPrice(provider: ProviderID, plan: String) {

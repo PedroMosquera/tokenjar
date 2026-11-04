@@ -78,9 +78,11 @@ struct ClaudeGlobalConfig: Decodable, Sendable {
         let tiers = [account.userRateLimitTier, account.organizationRateLimitTier].compactMap { $0 }
         switch account.organizationType {
         case "claude_max":
-            if tiers.contains(where: { $0.hasSuffix("max_20x") }) { return "Max 20x" }
-            if tiers.contains(where: { $0.hasSuffix("max_5x") }) { return "Max 5x" }
-            return "Max"
+            // Anthropic renamed Max 5x to Max and Max 20x to Ultra on 2026-10-30; the tier codes kept the old names. An
+            // unknown tier gets no label, since "Max" now names the $100 plan and would price an Ultra seat wrong.
+            if tiers.contains(where: { $0.hasSuffix("max_20x") }) { return "Ultra" }
+            if tiers.contains(where: { $0.hasSuffix("max_5x") }) { return "Max" }
+            return nil
         case "claude_pro":
             return "Pro"
         case "claude_team":

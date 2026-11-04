@@ -35,7 +35,7 @@ extension AppModel {
 
         let snapshots: [UsageSnapshot] = [
             UsageSnapshot(
-                accountID: "claude-personal", provider: .claude, plan: "Max 5x",
+                accountID: "claude-personal", provider: .claude, plan: "Max",
                 windows: [
                     window("session", "5-hour", 42, 300, resetIn: 2 * 3600 + 10 * 60),
                     window("weekly", "Week", 63, 10_080, resetIn: 2 * 86_400 + 4 * 3600),
@@ -186,7 +186,7 @@ extension AppModel {
             "claude-sonnet-5-5": ModelPrice(input: 3, output: 15, cacheRead: 0.3, cacheWrite5m: 3.75, cacheWrite1h: 6, source: "preview placeholder", asOf: "preview"),
             "gpt-5.5-codex": ModelPrice(input: 1.25, output: 10, cacheRead: 0.125, cacheWrite5m: 1.25, cacheWrite1h: 1.25, source: "preview placeholder", asOf: "preview"),
         ], plans: [
-            "claude": ["Max 5x": PlanPrice(monthlyUSD: 100, source: "preview placeholder", asOf: "preview")],
+            "claude": ["Max": PlanPrice(monthlyUSD: 100, source: "preview placeholder", asOf: "preview")],
             "opencode-go": ["Go": PlanPrice(monthlyUSD: 10, source: "preview placeholder", asOf: "preview")],
         ])
         return model
@@ -236,7 +236,7 @@ extension AppModel {
             // In the menu bar on purpose: a link card must never be its worst account or count as needing attention.
             "devin": AccountStatus(snapshot: devinLink(now: now)),
             // Checked before its 5-hour window reset 5 minutes ago; the 100 % belongs to the cycle that ended.
-            "past-reset": AccountStatus(snapshot: UsageSnapshot(accountID: "past-reset", provider: .claude, plan: "Max 5x", windows: [
+            "past-reset": AccountStatus(snapshot: UsageSnapshot(accountID: "past-reset", provider: .claude, plan: "Max", windows: [
                 window("session", "5-hour", 100, 300, resetIn: -5 * 60), window("weekly", "Week", 64, 10_080, resetIn: 3 * 86_400),
             ], fetchedAt: now.addingTimeInterval(-8 * 60), source: "claude CLI")),
             "pasted-key": AccountStatus(error: .keychainDenied, lastAttempt: now.addingTimeInterval(-30)),
@@ -279,7 +279,7 @@ extension AppModel {
         let checked = now.addingTimeInterval(-60)
         let snapshots = [
             UsageSnapshot(
-                accountID: "claude-personal", provider: .claude, plan: "Max 5x",
+                accountID: "claude-personal", provider: .claude, plan: "Max",
                 windows: [
                     window("session", "5-hour", 100, 300, resetIn: 87 * 60),
                     window("weekly", "Week", 40, 10_080, resetIn: 3 * 86_400 + 5 * 3_600),
@@ -527,7 +527,7 @@ extension AppModel {
             fetchedAt: now.addingTimeInterval(-60), source: "opencode.db", notes: ["Balance needs a console sign-in; showing local spend only."]
         )
         let personal = UsageSnapshot(
-            accountID: "claude-personal", provider: .claude, plan: "Max 5x",
+            accountID: "claude-personal", provider: .claude, plan: "Max",
             windows: [UsageWindow(id: "session", label: "5-hour", usedPercent: 97, windowMinutes: 300, resetsAt: now.addingTimeInterval(70 * 60))],
             fetchedAt: now.addingTimeInterval(-25 * 60), source: ClaudeUsageFetcher.source
         )

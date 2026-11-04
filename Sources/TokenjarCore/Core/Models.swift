@@ -303,7 +303,7 @@ public enum Billing: String, Codable, CaseIterable, Sendable {
 public struct UsageSnapshot: Codable, Hashable, Sendable {
     public var accountID: String
     public var provider: ProviderID
-    /// Human plan label, e.g. "Max 20x", "Plus", "Enterprise".
+    /// Human plan label, e.g. "Ultra", "Plus", "Enterprise".
     public var plan: String?
     /// nil when the fetcher cannot tell, which never shows a cost line.
     public var billing: Billing?

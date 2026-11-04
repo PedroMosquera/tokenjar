@@ -38,13 +38,13 @@ The dashboard's Plan value tile compares this month's API-equivalent spend with 
 ```json
 {
   "plans": {
-    "claude": { "Max": { "monthlyUSD": 200 } },
+    "claude": { "Pro": { "monthlyUSD": 17 } },
     "codex": { "Pro": { "monthlyUSD": 200 } }
   }
 }
 ```
 
-The bundled prices are US prices for monthly billing, read from each provider's own pricing page on the date recorded with them. A plan billed yearly, priced in another region or with a discount costs a different amount, so set your own. The bundle leaves out a plan name that stands for more than one price, such as Claude's Max without its tier or Codex's Pro, which covers every Pro tier, and plans with no list price, such as Enterprise. Add those yourself to see the tile for them.
+The bundled prices are US prices for monthly billing, read from each provider's own pricing page on the date recorded with them. A plan billed yearly, priced in another region or with a discount costs a different amount, so set your own. The bundle leaves out a plan name that stands for more than one price, such as Codex's Pro, which covers every Pro tier, and plans with no list price, such as Enterprise. Add those yourself to see the tile for them.
 
 ## Several Macs
 

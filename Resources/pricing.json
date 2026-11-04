@@ -86,13 +86,13 @@
         "monthlyUSD": 20, "source": "https://claude.com/pricing", "asOf": "2026-10-16",
         "note": "US price billed monthly."
       },
-      "Max 5x": {
-        "monthlyUSD": 100, "source": "https://support.claude.com/en/articles/11049741-what-is-the-max-plan", "asOf": "2026-10-16",
-        "note": "Web subscription; Max is sold monthly only."
+      "Max": {
+        "monthlyUSD": 100, "source": "https://claude.com/pricing", "asOf": "2026-11-04",
+        "note": "Called Max 5x until 2026-10-30. Web subscription, sold monthly only."
       },
-      "Max 20x": {
-        "monthlyUSD": 200, "source": "https://support.claude.com/en/articles/11049741-what-is-the-max-plan", "asOf": "2026-10-16",
-        "note": "Web subscription; Max is sold monthly only."
+      "Ultra": {
+        "monthlyUSD": 200, "source": "https://claude.com/pricing", "asOf": "2026-11-04",
+        "note": "Called Max 20x until 2026-10-30. Web subscription, sold monthly only."
       },
       "Team": {
         "monthlyUSD": 25, "source": "https://claude.com/pricing", "asOf": "2026-10-16",

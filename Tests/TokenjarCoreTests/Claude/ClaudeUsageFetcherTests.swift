@@ -46,7 +46,7 @@ struct ClaudeUsageFetcherTests {
         ])
         #expect(snapshot.windows[0].resetsAt != nil && snapshot.windows[2].resetsAt != nil)
         #expect(snapshot.money.isEmpty, "extra usage is disabled in this capture")
-        #expect(snapshot.plan == "Max 20x")
+        #expect(snapshot.plan == "Ultra")
         #expect(snapshot.source == "claude CLI")
         #expect(snapshot.fetchedAt == now)
         #expect(snapshot.notes.isEmpty)
@@ -390,7 +390,7 @@ struct ClaudeUsageFetcherTests {
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
         #expect(!snapshot.windows.isEmpty)
-        #expect(snapshot.plan == "Max 20x", "a proxy in front of a subscription still bills the plan")
+        #expect(snapshot.plan == "Ultra", "a proxy in front of a subscription still bills the plan")
         #expect(snapshot.billing == nil)
     }
 
@@ -464,7 +464,7 @@ struct ClaudeUsageFetcherTests {
         #expect(runner.calls.isEmpty)
         #expect(snapshot.source == "Claude Code cache")
         #expect(snapshot.fetchedAt == Date(timeIntervalSince1970: 1_791_660_000.5))
-        #expect(snapshot.plan == "Max 20x")
+        #expect(snapshot.plan == "Ultra")
         #expect(snapshot.windows.map(\.id) == ["session", "weekly", "weekly:Fable"])
         #expect(snapshot.windows.map(\.usedPercent) == [30, 40, 10])
         #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 25.5, limit: 50, currency: "GBP")])
@@ -568,9 +568,9 @@ struct ClaudeUsageFetcherTests {
     // MARK: Plan labels
 
     @Test(arguments: [
-        (ClaudeGlobalConfig.OAuthAccount(organizationType: "claude_max", organizationRateLimitTier: "default_claude_max_20x"), "Max 20x"),
-        (ClaudeGlobalConfig.OAuthAccount(organizationType: "claude_max", userRateLimitTier: "default_claude_max_5x"), "Max 5x"),
-        (ClaudeGlobalConfig.OAuthAccount(organizationType: "claude_max"), "Max"),
+        (ClaudeGlobalConfig.OAuthAccount(organizationType: "claude_max", organizationRateLimitTier: "default_claude_max_20x"), "Ultra"),
+        (ClaudeGlobalConfig.OAuthAccount(organizationType: "claude_max", userRateLimitTier: "default_claude_max_5x"), "Max"),
+        (ClaudeGlobalConfig.OAuthAccount(organizationType: "claude_max"), nil),
         (ClaudeGlobalConfig.OAuthAccount(organizationType: "claude_pro", organizationRateLimitTier: "default_claude_pro"), "Pro"),
         (ClaudeGlobalConfig.OAuthAccount(organizationType: "claude_team"), "Team"),
         (ClaudeGlobalConfig.OAuthAccount(organizationType: "claude_team", userRateLimitTier: "default_claude_max_5x"), "Team Premium"),
