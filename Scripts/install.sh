@@ -42,8 +42,9 @@ NEW="$DEST/.Tokenjar.app.new"
 PREVIOUS="$DEST/.Tokenjar.app.old"
 # A crash between the two renames below leaves the old app only at $PREVIOUS, so it is brought back before anything is
 # cleared.
-if [ ! -e "$DEST/Tokenjar.app" ] && [ -e "$PREVIOUS" ]; then
-  mv "$PREVIOUS" "$DEST/Tokenjar.app"
+if [ ! -e "$DEST/Tokenjar.app" ] && [ -e "$PREVIOUS" ] && ! mv "$PREVIOUS" "$DEST/Tokenjar.app"; then
+  echo "error: an earlier install was interrupted and its app is at $PREVIOUS. Move it back to $DEST/Tokenjar.app, then run this command again." >&2
+  exit 1
 fi
 rm -rf "$NEW" "$PREVIOUS"
 if ! ditto "$APP" "$NEW" || ! codesign --verify --strict "$NEW"; then
@@ -52,8 +53,9 @@ if ! ditto "$APP" "$NEW" || ! codesign --verify --strict "$NEW"; then
   exit 1
 fi
 
-# The app used to be Headroom. This runs only once the new app is staged, so a failed install keeps Headroom. Tokenjar moves its data only once Headroom has quit, so quit it and remove its bundle,
-# but only a bundle that carries Headroom's own bundle id.
+# The app used to be Headroom. Tokenjar moves its data only once Headroom has quit, so quit it and remove its bundle, but
+# only a bundle that carries Headroom's own bundle id. This waits until the new app is staged, so a failed copy or check
+# keeps Headroom.
 OLD="$DEST/Headroom.app"
 if [ -d "$OLD" ] && [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$OLD/Contents/Info.plist" 2>/dev/null)" = "com.pedromosquera.headroom" ]; then
   pkill -x Headroom 2>/dev/null || true
@@ -74,10 +76,11 @@ fi
 regex_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
 APP_PATTERN="^($(regex_escape "$DEST")|$(regex_escape "$DEST_RESOLVED"))/Tokenjar\.app/Contents/MacOS/Tokenjar( |\$)"
 pkill -f "$APP_PATTERN" 2>/dev/null && sleep 1 || true
-# Every failure below reopens the old app, since it was just quit.
+# Where a failure below leaves an old app in place, it is reopened, since it was just quit. Reopening is best effort so
+# the error that follows is always printed.
 if [ -e "$DEST/Tokenjar.app" ] && ! mv "$DEST/Tokenjar.app" "$PREVIOUS"; then
   rm -rf "$NEW"
-  open "$DEST/Tokenjar.app"
+  open "$DEST/Tokenjar.app" || true
   echo "error: could not move the installed app aside. It was left in place and reopened." >&2
   exit 1
 fi
@@ -86,7 +89,7 @@ if ! mv "$NEW" "$DEST/Tokenjar.app"; then
   if [ ! -e "$PREVIOUS" ]; then
     echo "error: could not move the new app into place." >&2
   elif mv "$PREVIOUS" "$DEST/Tokenjar.app"; then
-    open "$DEST/Tokenjar.app"
+    open "$DEST/Tokenjar.app" || true
     echo "error: could not move the new app into place. The previous app was put back and reopened." >&2
   else
     echo "error: could not move the new app into place or put the previous one back. It is at $PREVIOUS." >&2

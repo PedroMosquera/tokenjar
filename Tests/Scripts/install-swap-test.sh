@@ -39,16 +39,22 @@ stubs() {
   done
 }
 
-# Makes the Nth call to mv fail without moving anything; every other call is the real mv.
+# Makes the listed calls to mv (counted from 1) fail without moving anything; every other call is the real mv.
 failing_mv() {
-  local bin="$1" n="$2"
-  printf '#!/bin/sh\ncount=$(cat "%s/mv.count" 2>/dev/null || echo 0)\ncount=$((count + 1))\necho "$count" > "%s/mv.count"\n[ "$count" -eq %s ] && exit 1\nexec /bin/mv "$@"\n' \
-    "$bin" "$bin" "$n" > "$bin/mv"
+  local bin="$1"
+  shift
+  printf '#!/bin/sh\ncount=$(cat "%s/mv.count" 2>/dev/null || echo 0)\ncount=$((count + 1))\necho "$count" > "%s/mv.count"\ncase " %s " in *" $count "*) exit 1 ;; esac\nexec /bin/mv "$@"\n' \
+    "$bin" "$bin" "$*" > "$bin/mv"
   chmod +x "$bin/mv"
 }
 
+# Reports Headroom as still running.
+headroom_running() { printf '#!/bin/sh\nexit 0\n' > "$1/pgrep"; chmod +x "$1/pgrep"; }
+
 marker_of() { cat "$1/Tokenjar.app/Contents/Resources/marker" 2>/dev/null || echo "<missing>"; }
 extras_in() { ls -A "$1" | grep -v '^Tokenjar.app$' || true; }
+# A copy moved inside the bundle by mistake breaks its seal, so the signature check also catches nesting.
+intact() { codesign --verify --strict "$1/Tokenjar.app" 2>/dev/null; }
 called() { grep -q "^$2" "$1/calls.log"; }
 not_called() { ! called "$@"; }
 
@@ -139,6 +145,7 @@ run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
 check "after a crash, a failed install exits non-zero" [ "$status" -ne 0 ]
 check "after a crash, the moved-aside app is restored" [ "$(marker_of "$t/dest")" = old ]
 check "after a crash, no staging folders are left" [ -z "$(extras_in "$t/dest")" ]
+check "after a crash, the restored app is intact" intact "$t/dest"
 
 # Leftovers from a crash after the swap (the app in place plus a stale copy aside) are cleared, never nested.
 t="$WORK/stale"; stubs "$t/bin"; fake_app "$t/new/Tokenjar.app" new; fake_app "$t/dest/Tokenjar.app" old
@@ -147,6 +154,7 @@ run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
 check "stale leftovers: install exits 0" [ "$status" -eq 0 ]
 check "stale leftovers: the new app is installed" [ "$(marker_of "$t/dest")" = new ]
 check "stale leftovers: nothing is left beside it" [ -z "$(extras_in "$t/dest")" ]
+check "stale leftovers: the installed app is intact" intact "$t/dest"
 
 # With a stale copy aside, a failed move in must restore the app that was installed, not the stale one.
 t="$WORK/stalerollback"; stubs "$t/bin"; failing_mv "$t/bin" 2; fake_app "$t/new/Tokenjar.app" new
@@ -154,8 +162,26 @@ fake_app "$t/dest/Tokenjar.app" old; fake_app "$t/dest/.Tokenjar.app.old" older
 run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
 check "stale leftovers and a failed move in: exits non-zero" [ "$status" -ne 0 ]
 check "stale leftovers and a failed move in: the installed app comes back" [ "$(marker_of "$t/dest")" = old ]
+check "stale leftovers and a failed move in: the app is not nested or altered" intact "$t/dest"
 
-# Headroom is retired only once the new app is safely staged, so a failed install keeps it.
+# Both the move in and the move back fail: the message says where the old app was left.
+t="$WORK/doublefail"; stubs "$t/bin"; failing_mv "$t/bin" 2 3; fake_app "$t/new/Tokenjar.app" new; fake_app "$t/dest/Tokenjar.app" old
+run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
+check "double failure exits non-zero" [ "$status" -ne 0 ]
+check "double failure keeps the old app aside" [ "$(cat "$t/dest/.Tokenjar.app.old/Contents/Resources/marker" 2>/dev/null)" = old ]
+check "double failure names where the old app is" grep -q 'Tokenjar.app.old' "$t/bin/out.log"
+check "double failure removes the new copy" [ ! -e "$t/dest/.Tokenjar.app.new" ]
+
+# Headroom still running stops the install before anything is replaced, and the staged copy is removed.
+t="$WORK/headroomrunning"; stubs "$t/bin"; headroom_running "$t/bin"; fake_app "$t/new/Tokenjar.app" new
+fake_app "$t/dest/Tokenjar.app" old; fake_app "$t/dest/Headroom.app" headroom com.pedromosquera.headroom
+run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
+check "Headroom running exits non-zero" [ "$status" -ne 0 ]
+check "Headroom running keeps the installed app" [ "$(marker_of "$t/dest")" = old ]
+check "Headroom running keeps Headroom" [ -d "$t/dest/Headroom.app" ]
+check "Headroom running removes the staged copy" [ ! -e "$t/dest/.Tokenjar.app.new" ]
+
+# Headroom is retired only once the new app is copied and verified, so a failed copy or check keeps it.
 t="$WORK/headroom"; stubs "$t/bin"; fake_app "$t/new/Tokenjar.app" new; fake_app "$t/dest/Headroom.app" headroom com.pedromosquera.headroom
 printf 'tampered' > "$t/new/Tokenjar.app/Contents/Resources/marker"
 run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?

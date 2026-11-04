@@ -248,7 +248,7 @@ Never stored, logged or displayed: prompts, outputs, message or file contents, e
 
 Builds before the rename were called Headroom: bundle id `com.pedromosquera.headroom`, Keychain service `com.pedromosquera.headroom.apikeys`, `~/.config/headroom/` and `~/Library/Application Support/Headroom/`.
 
-`Scripts/install.sh`, which `make install` and Homebrew's `tokenjar-install-app` run, retires the old app once the new Tokenjar has been copied and verified beside the install folder's copy (so a failed install keeps Headroom), and only when `Headroom.app` in the install folder carries exactly that bundle id in its `Info.plist`: it quits any process named exactly `Headroom` (`pkill -x Headroom`), waits up to 5 seconds for it to exit, stops without installing if it is still running, and then deletes `Headroom.app`. It never touches a Headroom installed anywhere else.
+`Scripts/install.sh`, which `make install` and Homebrew's `tokenjar-install-app` run, retires the old app once the new Tokenjar has been copied and verified beside the install folder's copy (so a failed copy or signature check keeps Headroom), and only when `Headroom.app` in the install folder carries exactly that bundle id in its `Info.plist`: it quits any process named exactly `Headroom` (`pkill -x Headroom`), waits up to 5 seconds for it to exit, stops without installing if it is still running, and then deletes `Headroom.app`. It never touches a Headroom installed anywhere else.
 
 At launch, before the config or the database is opened, Tokenjar moves what Headroom left, once:
 
