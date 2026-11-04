@@ -21,7 +21,7 @@ The app's privacy promise is that it contacts nothing it does not have to ("no t
 
 ## Non-goals
 
-- Downloading, installing or running anything. Tokenjar never updates itself; the user runs the command.
+- Downloading, installing or running anything. Tokenjar never updates itself; the user runs the command. (Superseded by `2026-11-04-in-app-update-design.md`, which adds Update Now.)
 - Showing release notes inside the app. The release page on GitHub has them.
 - Percentage alerts. They already exist (Settings > Alerts, and per account under Overrides). Making them easier to find is a separate change.
 - Prerelease or beta channels.
