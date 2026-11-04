@@ -17,7 +17,7 @@ TEST_FLAGS := -Xswiftc -plugin-path -Xswiftc $(CLT)/usr/lib/swift/host/plugins/t
 	-Xlinker -F -Xlinker $(CLT)/Library/Developer/Frameworks \
 	-Xlinker -rpath -Xlinker $(CLT)/Library/Developer/Frameworks
 
-.PHONY: build release test app install run clean
+.PHONY: build release test app install run clean readme-images
 
 build:
 	swift build --scratch-path $(SCRATCH)
@@ -37,6 +37,14 @@ install: app
 
 run: app
 	open build/$(APP_NAME).app
+
+# Redraws the README screenshots in docs/images from the built-in preview data. See docs/development.md.
+READMERENDERS := $(SCRATCH)/readme-renders
+readme-images: build
+	rm -rf $(READMERENDERS)
+	$(SCRATCH)/debug/$(APP_NAME) --render-windows $(READMERENDERS)/windows --only popover --only dashboard-all-default --only settings-account-claude-work
+	$(SCRATCH)/debug/$(APP_NAME) --render-snapshots $(READMERENDERS)/snapshots
+	swift Scripts/readme-images.swift $(READMERENDERS)/windows $(READMERENDERS)/snapshots docs/images
 
 clean:
 	rm -rf $(SCRATCH) build

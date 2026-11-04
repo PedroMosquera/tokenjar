@@ -590,7 +590,7 @@ extension AppModel {
         )
         model.statuses[snapshot.accountID] = AccountStatus(snapshot: snapshot, error: nil, lastAttempt: snapshot.fetchedAt)
 
-        // Hourly samples that climb to $490 by the end of yesterday and to $520 now.
+        // Hourly samples that climb to $66 by the end of yesterday and to $70 now.
         let todayStart = Calendar.current.startOfDay(for: now)
         var samples: [WindowSample] = []
         var time = cycleStart
@@ -606,6 +606,16 @@ extension AppModel {
         let store = InMemoryUsageStore()
         store.addSamples(samples)
         model.store = store
+        return model
+    }
+}
+
+extension AppModel {
+    /// The Personal Claude card of `preview` alone, with its API value section open, for the README's API value image.
+    static func previewAPIValue(now: Date = Date(timeIntervalSince1970: 1_791_660_000)) -> AppModel {
+        let model = preview(now: now)
+        model.config.accounts = model.config.accounts.filter { $0.id == "claude-personal" }
+        model.setCostSectionExpanded("claude-personal", true)
         return model
     }
 }

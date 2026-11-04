@@ -5,35 +5,48 @@
 
 [![CI](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml)
 
-Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot. Devin and Cursor share no usage with local apps, so each only gets a link to its usage page in Settings.
+Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot.
 
 I built it because I did not want a third-party app handling my AI logins. Tokenjar asks each provider's own CLI for the numbers, except for OpenCode, where it reads opencode's key and local database. History stays on your Mac. There is no prebuilt download: you build it from source with the Command Line Tools, by hand or through Homebrew.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/popover-dark.png">
-    <img src="docs/images/popover-light.png" width="360" alt="The Tokenjar popover: a card per account with a bar for each limit window, its used percent and time to reset, and a line saying whether the week runs out before it resets">
+    <img src="docs/images/popover-light.png" width="360" alt="The Tokenjar popover: a card per account with a bar for each limit window, its used percent and time to reset, a line saying whether the week runs out before it resets, and a collapsed API value row">
   </picture>
 </p>
 
-## What it tracks
+## Highlights
+
+- **Every limit at a glance.** One card per account, a bar per limit window, and the time until each resets.
+- **Pace, not just percent.** Each card says whether you will run out before the reset, such as "Runs out ~1d 17h before reset".
+- **Is the plan paying for itself?** An API value row prices your usage at API list rates and compares it with the plan, such as "4.3x plan".
+- **Spend limits.** Seats billed per use show money spent against the monthly limit, with an optional daily budget.
+- **A dashboard** with limits over time, API-equivalent cost by model, project or account, and a 12-month activity calendar.
+- **Private by design.** No telemetry, no OAuth tokens read, no third-party service holding your logins.
+
+## Supported providers
 
 | Provider | Where the numbers come from | Plans it recognizes |
 |---|---|---|
-| Claude | `claude -p /usage`, with hooks and MCP servers off | Pro, Max, Ultra, Team, Team Premium, Enterprise. An Enterprise seat billed per use has no plan limits, so it shows its monthly spend limit instead. API key, gateway (such as LiteLLM), Bedrock, Vertex and Foundry logins have no plan limits, so their card shows this month's and today's spend instead, estimated at list price from the local logs, and where the month is headed at that rate. Set a Monthly budget on the account's page in Settings to turn that spend into a bar that counts in the menu bar and alerts like a spend limit. Tokenjar finds them in Claude's `settings.json`, not in your shell. |
+| Claude | `claude -p /usage`, with hooks and MCP servers off | Pro, Max, Ultra, Team, Team Premium, Enterprise, and logins without plan limits (API key, gateway, Bedrock, Vertex, Foundry) |
 | Codex | `codex app-server`, read-only | Free, Go, Plus, Pro, Business, Edu, Enterprise |
 | OpenCode Go | One HTTPS GET to opencode.ai with your opencode key | Go |
 | OpenCode Zen | This month's spend, added up from the local `opencode.db` | Pay as you go |
 | Antigravity | `agy -p /usage` (agy 1.1.11 or later) | No plan name. Each quota pool agy reports becomes a limit. |
 | GitHub Copilot | `gh api`, a read-only GET | Free, Pro, Pro+, Max, Business, Enterprise |
-| Devin, which now includes Windsurf | Nothing yet. Devin shares no usage with local apps, so it has no card; its page in Settings opens the usage page. | |
-| Cursor | Nothing. Cursor shares usage only through its own login token or a browser session, so it has no card; its page in Settings opens the usage page. | |
+
+Devin (which now includes Windsurf) and Cursor share no usage with local apps, so they have no card. Their page in Settings opens the provider's usage page.
 
 The Antigravity reader has never run against a live install. Copilot's endpoint is undocumented, and most Copilot plans have not been checked against a real account.
 
-## Using it
+## A quick tour
 
-The menu bar item shows the used percent of the account with the least room left, or of the account you pinned with Pin to Menu Bar in a card's ⋯ menu; the pin is kept for that Mac only, and the right-click menu can unpin it. By default it turns red at 95% and amber at 80%, or sooner when a window that is at least half used is on pace to run out before it resets. When a window is full it counts down to the reset instead. A slash across the icon means Tokenjar can't refresh right now, because the Mac is offline or no provider answered. Faded numbers are out of date, and a dot means something needs you: a failed check you can fix, or settings that can't be read. Devin and OpenCode Zen never show up there. An account billed per use counts by its spend limit, like any other limit. Settings > General changes both levels, can switch the item to one thin bar per account or to the icon alone, and can show the amount spent instead of the percent for an account billed per use. That amount is off by default, since anyone near your screen can read it.
+The screenshots use made-up preview data. [docs/usage.md](docs/usage.md) explains every part in detail.
+
+### Menu bar
+
+The menu bar item shows the used percent of the account with the least room left, or of the one you pin. It turns amber at 80% and red at 95%, sooner when a window is on pace to run out, and counts down to the reset once a window is full. Right-click it for Refresh Now, the dashboard, Settings and Quit.
 
 <p align="center">
   <picture>
@@ -42,9 +55,35 @@ The menu bar item shows the used percent of the account with the least room left
   </picture>
 </p>
 
-Clicking it opens the popover shown at the top. Each limit window gets a bar with a tick where an even pace would be, and the time until it resets. The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A failed check says what went wrong and offers the fix. When a limit is full, the header also names the account with the most room left, such as "Codex has room: 5-hour 2% used". When the Mac is offline or no provider answers, the header says so once and the cards keep their last numbers with their age. Command-R refreshes, and a click outside the popover or Escape closes it. The cards follow the order of the accounts in Settings; Settings > General can group them by provider or put the account with the least room left on top. An account that can't connect, because its CLI is missing or it has never been signed in, stays out of the popover until it does. One that worked and then signed out keeps its card, since that needs you. Hide and Stop Checking in a card's ⋯ menu turns an account off, and the footer counts what is hidden ("2 hidden"); clicking it opens Settings, where Enabled turns an account back on.
+### Popover
 
-An Enterprise seat billed per use has one limit, the money it may spend this month. Its card shows that spend limit in money, such as "$70 of $200", with the share used and the time until it resets on the 1st, at midnight UTC, under the bar. Spending past the limit is allowed on these seats, so past 100% the card, the header and the menu bar keep counting ("108%", "$240 over") instead of calling it full, and you get one notification when spend first passes the limit. Claude's `/usage` does not report that date, so it comes from the calendar month. Turn on Daily budget on the account's page in Settings to add a Today bar: today's spend against what you can spend per day and still end the month under the limit. Type an amount to use a fixed budget instead. The bar keeps counting past 100% to show how far over today is, and you get one notification a day when it goes over. Claude reports only the month's total, so Tokenjar works out today from its own checks: the total now minus the total at its last check before midnight.
+Click the menu bar item for one card per account. Each limit window has a bar, with a tick where an even pace would be, and the line under the bars says how you are tracking. When a limit is full, the header names the account with the most room left.
+
+<details>
+<summary>See a card for every supported provider</summary>
+<br>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/popover-providers-dark.png">
+    <img src="docs/images/popover-providers-light.png" width="740" alt="The popover with every card, in two columns: Claude Personal on Max, Claude Work on Team with extra usage, Codex Pro, OpenCode Go, OpenCode Zen with its monthly spend, Antigravity's Gemini and Claude and GPT pools, and GitHub Copilot Pro's AI credits">
+  </picture>
+</p>
+</details>
+
+### API value
+
+On a plan card, the API value row shows what today's usage would cost at API list prices, and how many times the plan's price the last 30 days came to. Click the row to open the last 30 days, the tokens used and a daily chart; click it again to close it. It is an estimate from this Mac's logs, not a bill. Costs show in your region's currency, converted at the European Central Bank's daily rate.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/popover-api-value-dark.png">
+    <img src="docs/images/popover-api-value-light.png" width="360" alt="A Claude Max card with its API value section open: $5.19 today, $432 over the last 30 days, 303.6M tokens, 4.3x the $100 plan, and 30 daily bars with a dotted line at the average day">
+  </picture>
+</p>
+
+### Spend limits
+
+An Enterprise seat billed per use has one limit: the money it may spend this month, such as "$70 of $200". Turn on Daily budget in Settings to add a Today bar with what you can spend per day and still end the month under the limit.
 
 <p align="center">
   <picture>
@@ -53,22 +92,20 @@ An Enterprise seat billed per use has one limit, the money it may spend this mon
   </picture>
 </p>
 
-Right-click the menu bar item, or Control-click it, for Refresh Now, Open Dashboard, Settings and Quit Tokenjar. Quitting from that menu, the popover or Command-Q asks first. Hold Option in the menu to quit without being asked.
+### Dashboard
 
-On the card of an account on a plan, a collapsed API value row shows what today's usage would have cost at API list prices and, when the plan has a known list price, how many times that price the last 30 days came to, such as "7.8x plan" (otherwise the 30-day total, such as "$780 30d"). Click it to open today, the last 30 days, the tokens used, the plan value (or the top model) and 30 daily bars, with a link to the dashboard for that account. It is an estimate from this Mac's logs, not a bill, so it can read low if you use the account elsewhere. Only Claude, Codex and OpenCode Go accounts have it, since the other providers keep no local logs. Each card remembers whether it is open, on this Mac only.
-
-Costs show in the currency set in Settings > General > Currency, which is kept on this Mac only. Automatic follows the Mac's region and falls back to USD. A currency other than USD converts the estimates at the European Central Bank's daily rate, fetched when you open the popover or dashboard or refresh, and never while the currency is USD. Until a rate has loaded, amounts stay in USD. Money the providers report, such as a spend limit, is not converted. A budget keeps the currency it was typed in.
-
-The dashboard (Command-D) charts each limit over time with its resets and estimates what your usage would have cost at API prices, in the display currency, split by model, harness, project or account. A Projected tile carries this month's cost to the end of the month at its rate so far and compares that with last month's total, once Tokenjar's history has any cost last month. Like every cost on the dashboard it is an API-equivalent estimate, not a bill. For an account on a plan with a known list price, a Plan value tile compares this month's API-equivalent spend with the plan's monthly price, such as 5.7x the $200 plan. It also shows the cache hit rate, the share of the input your models read from cache, overall and per model. On an account's page, What 1% buys lists each weekly or monthly limit cycle with the tokens and API-equivalent cost your local logs recorded per 1% of that limit, so a drop from one cycle to the next shows when a limit got tighter. It counts only this Mac's logs: use on other Macs, on the web or in other apps adds to the provider's % but not to Tokenjar's figures, so they can read high. Faint rules on the daily chart mark the average day, counting days without usage as zero, and the peak day. The daily chart can also stack tokens by type (cache reads, cache writes, input and output, reasoning counted once as output), with each type's share of the range written out, so output stays readable next to cache reads. An Activity calendar shades each day of the last 12 months by its API-equivalent cost, GitHub style, for one account or all of them. For a seat billed per use it charts instead what was actually spent each hour, day or week, worked out from its spend limit at each of Tokenjar's checks, with the daily budget as a dashed line. Charts start where Tokenjar's history does, so a new install fills in over the first days. Antigravity and Copilot keep no local logs, so they show limits only.
+The dashboard (Command-D) charts each limit over time and estimates what your usage would have cost at API prices, split by model, harness, project or account. It adds a month-end projection, the plan value, the cache hit rate and a 12-month activity calendar.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard-dark.png">
-    <img src="docs/images/dashboard-light.png" width="860" alt="The dashboard with an account sidebar, cost tiles for today, 7 days and this month, a chart of each account's tightest limit over a week, and daily spend by model">
+    <img src="docs/images/dashboard-light.png" width="860" alt="The dashboard with an account sidebar, cost tiles for today, 7 days, this month and the projection, plan value, tokens, requests and cache hit rate tiles, and a chart of each account's tightest limit over a week">
   </picture>
 </p>
 
-Each account gets its own page in Settings with its status, the fix when a check fails, and buttons to check it now or sign in from Terminal. Adding an account asks for its name first. Drag accounts in the list to reorder them, or use the ⋯ button on a row, also on right-click, to rename, hide from the menu bar, move or remove one.
+### Settings
+
+Each account has its own page with its status, the fix when a check fails, and buttons to check it now or sign in from Terminal. Drag accounts to reorder them. Alerts are local notifications at 80% and 95%, when the pace says you will run out, and when a source stops working.
 
 <p align="center">
   <picture>
@@ -77,22 +114,21 @@ Each account gets its own page in Settings with its status, the fix when a check
   </picture>
 </p>
 
-Alerts are local notifications. By default you get one when a window crosses 80% or 95%, when the pace says you will run out before the reset, when a provider resets a window early so there is room again, when a source stops working, and, with a daily budget on, the first time a day goes over it. Settings > Alerts changes the levels and has a reset alert, which is off by default. Until you click Allow Banners there, alerts go to Notification Center without a banner.
-
 ### In scripts
 
-`Tokenjar --status` prints each enabled account's last numbers as one line of JSON: its plan, when it was checked, whether that is out of date, and each limit window with its used percent, reset time, where an even pace would be and whether it runs out before the reset. It runs no check and writes nothing, so a tmux, SketchyBar or Claude Code status line can call it every few seconds while the app keeps the numbers fresh. `version` changes only when a field changes meaning or goes away.
-
-```sh
-alias tokenjar=~/Applications/Tokenjar.app/Contents/MacOS/Tokenjar
-tokenjar --status | jq -r '.accounts[] | .label as $label | .tightestWindowID as $t | .windows[] | select(.id == $t) | "\($label) \(.usedPercent | round)%"'
-```
-
-That prints one line per account with the number the menu bar uses, such as `Personal 81%`.
+`Tokenjar --status` prints each account's last numbers as one line of JSON, without running a check, so a tmux, SketchyBar or Claude Code status line can call it every few seconds. [docs/usage.md](docs/usage.md#in-scripts) has an example.
 
 ## Privacy
 
-Tokenjar never reads or refreshes an OAuth token; each CLI keeps and renews its own login. The app's own requests are `GET https://opencode.ai/zen/go/v1/usage`; only if you turn on Check provider status pages in Settings on that Mac, one GET to the public status page of each of Claude, Codex and GitHub Copilot you track, when you open the popover or refresh; and, only while this Mac's display currency is not USD, one GET for the European Central Bank's daily exchange rates. That last one is the only request to a host that is not a provider, and it sends no account data. A test fails if another endpoint is added. The Copilot request is gh's own, with gh's telemetry turned off. Tokenjar itself has no telemetry and no update check, and it never imports browser cookies.
+Tokenjar never reads or refreshes an OAuth token: each CLI keeps and renews its own login. It has no telemetry and no update check, and it never imports browser cookies.
+
+The app sends only these requests itself, and a test fails if another endpoint is added:
+
+- `GET https://opencode.ai/zen/go/v1/usage`, for OpenCode Go.
+- One GET to the public status page of each of Claude, Codex and GitHub Copilot you track, when you open the popover or refresh. Only if you turn on Check provider status pages in Settings on that Mac.
+- One GET for the European Central Bank's daily exchange rates, only while this Mac's display currency is not USD. It is the only request to a host that is not a provider, and it sends no account data.
+
+The Copilot request is gh's own, with gh's telemetry turned off.
 
 On disk it keeps token counts, model ids, timestamps and project folder names, plus each account's plan name, limit percentages and reset times. Log paths and response ids are stored only as SHA-256 digests. Prompts, outputs, emails and provider account ids are never stored. Settings > About lists what the app runs, reads, contacts and writes, and [docs/privacy.md](docs/privacy.md) has the full list.
 
@@ -174,12 +210,22 @@ No notifications: alerts only come from the installed app, not from `swift run` 
 ## Development
 
 ```sh
-make build   # debug build
-make test    # Swift Testing; run it with XDG_CONFIG_HOME unset
-make app     # release build, bundled and signed as build/Tokenjar.app
+make build          # debug build
+make test           # Swift Testing; run it with XDG_CONFIG_HOME unset
+make app            # release build, bundled and signed as build/Tokenjar.app
+make readme-images  # redraw the screenshots in docs/images from preview data
 ```
 
-`.build/debug/Tokenjar --render-snapshots <dir>` and `--render-windows <dir>` draw the app to PNG from built-in preview data, without putting a window on screen. The screenshots in this README come from those two flags, so the accounts, numbers and dates in them are made up. [docs/development.md](docs/development.md) has the other targets and flags, and [docs/design.md](docs/design.md) is the full design.
+`.build/debug/Tokenjar --render-snapshots <dir>` and `--render-windows <dir>` draw the app to PNG from built-in preview data, without putting a window on screen. The screenshots in this README come from those two flags through `make readme-images`, so the accounts, numbers and dates in them are made up. [docs/development.md](docs/development.md) has the other targets and flags, and [docs/design.md](docs/design.md) is the full design.
+
+## Documentation
+
+- [docs/usage.md](docs/usage.md): how each part of the app behaves.
+- [docs/configuration.md](docs/configuration.md): every field of `config.json`, plan prices and the shared setup across Macs.
+- [docs/troubleshooting.md](docs/troubleshooting.md): sign-in, CLIs that can't be found, proxies and other fixes.
+- [docs/privacy.md](docs/privacy.md): everything Tokenjar runs, reads, contacts and writes.
+- [docs/development.md](docs/development.md): building, developer flags, the README images and releasing.
+- [docs/design.md](docs/design.md): the design of record.
 
 ## License
 

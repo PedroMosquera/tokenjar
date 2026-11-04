@@ -6,7 +6,7 @@ import TokenjarCore
 @MainActor
 struct PreviewDataTests {
     private static var previewModels: [AppModel] {
-        [AppModel.preview(), .previewStates(), .previewEmpty(), .previewLimitHit(), .previewIncident(), .previewAllClearOutage(), .previewSpendLimit()]
+        [AppModel.preview(), .previewStates(), .previewEmpty(), .previewLimitHit(), .previewIncident(), .previewAllClearOutage(), .previewSpendLimit(), .previewAPIValue()]
     }
 
     /// Preview renders end up in the README and in PRs, so no path in them may come from this Mac.
@@ -28,6 +28,17 @@ struct PreviewDataTests {
         #expect(today.isRecommended)
         #expect(today.spent > 0)
         #expect(!today.isOver)
+    }
+
+    /// The README's API value image shows one plan card, its section open, with a multiple of the plan's price.
+    @Test func theAPIValuePreviewShowsOneOpenPlanCard() throws {
+        let model = AppModel.previewAPIValue()
+        #expect(model.config.accounts.map(\.id) == ["claude-personal"])
+        #expect(model.isCostSectionExpanded("claude-personal"))
+        let account = try #require(model.config.accounts.first)
+        let snapshot = try #require(model.status(for: account).snapshot)
+        let section = try #require(model.costSection(for: account, snapshot: snapshot, now: model.popoverNow))
+        #expect(section.multiple != nil)
     }
 
     @Test func theConfigFileRowShowsThePlaceholderPath() {

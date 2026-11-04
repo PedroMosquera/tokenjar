@@ -52,6 +52,8 @@ private final class RenderSession {
         var allClearOutage: AppModel?
         /// A seat billed per use, with its spend limit and a daily budget.
         var spendLimit: AppModel?
+        /// One plan card with its API value section open.
+        var apiValue: AppModel?
         var menuBar: [(name: String, state: MenuBarState)]
     }
 
@@ -111,6 +113,9 @@ private final class RenderSession {
             if let spendLimit = data.spendLimit {
                 renderPopover(spendLimit, screen: "popover-spend-limit", appearance: appearance, suffix: suffix)
             }
+            if let apiValue = data.apiValue {
+                renderPopover(apiValue, screen: "popover-api-value", appearance: appearance, suffix: suffix)
+            }
             if let incident = data.incident {
                 renderPopover(incident, screen: "popover-incident", appearance: appearance, suffix: suffix)
                 renderSettings(incident, opening: nil, appearance: appearance, suffix: suffix) { _ in [Step(screen: "settings-general-status") {}] }
@@ -140,8 +145,8 @@ private final class RenderSession {
         let outages = [offline, noAnswer, partialOutage, settingsUnloaded]
         let limitHit = AppModel.previewLimitHit()
         let incident = AppModel.previewIncident(), allClearOutage = AppModel.previewAllClearOutage()
-        let spendLimit = AppModel.previewSpendLimit()
-        for preview in [model, states, empty, configError, short, limitHit, incident, allClearOutage, spendLimit] + outages {
+        let spendLimit = AppModel.previewSpendLimit(), apiValue = AppModel.previewAPIValue()
+        for preview in [model, states, empty, configError, short, limitHit, incident, allClearOutage, spendLimit, apiValue] + outages {
             preview.secrets = SessionSecretStore(InMemorySecretStore())
         }
         let slots = SnapshotRenderer.slotStates(now: model.now).map { (name: "slot-\($0.name)", state: $0.state) }
@@ -152,7 +157,7 @@ private final class RenderSession {
         return RenderData(
             model: model, states: states, empty: empty, configError: configError, short: short,
             offline: offline, noAnswer: noAnswer, partialOutage: partialOutage, settingsUnloaded: settingsUnloaded, limitHit: limitHit,
-            incident: incident, allClearOutage: allClearOutage, spendLimit: spendLimit,
+            incident: incident, allClearOutage: allClearOutage, spendLimit: spendLimit, apiValue: apiValue,
             menuBar: [("preview", model.menuBarState), ("states", states.menuBarState)] + outageStrips + slots
         )
     }
