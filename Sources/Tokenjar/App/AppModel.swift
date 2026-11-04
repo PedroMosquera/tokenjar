@@ -961,14 +961,13 @@ final class AppModel {
         scanning = true
         let jobs = accounts.compactMap { account in FetcherRegistry.scanner(for: account.provider).map { (account, $0) } }
         let paths = self.paths
-        Task.detached(priority: .utility) { [weak self] in
-            let changed = HistoryScanJob.run(jobs, store: store, paths: paths)
-            await MainActor.run {
-                guard let self else { return }
-                self.scanning = false
-                self.lastScanAt = self.clock()
-                if changed { self.historyRevision += 1 }
-            }
+        // Swift 6.2.3 rejects `self` inside `MainActor.run` from a detached task, so the scan is awaited from here.
+        Task { [weak self] in
+            let changed = await Task.detached(priority: .utility) { HistoryScanJob.run(jobs, store: store, paths: paths) }.value
+            guard let self else { return }
+            self.scanning = false
+            self.lastScanAt = self.clock()
+            if changed { self.historyRevision += 1 }
         }
     }
 

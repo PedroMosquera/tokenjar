@@ -76,7 +76,7 @@ struct DocsPinTests {
         let recorded = runner.calls.map { Call(executable: $0.executable, arguments: $0.arguments, environment: $0.environment) }
         // The fetchers read the fake binaries under it, so it must outlive them.
         withExtendedLifetime(temp) {}
-        return recorded.prefix(claudeCount) + codex + recorded.dropFirst(claudeCount)
+        return Array(recorded.prefix(claudeCount)) + codex + Array(recorded.dropFirst(claudeCount))
     }
 }
 
