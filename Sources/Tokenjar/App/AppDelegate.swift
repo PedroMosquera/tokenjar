@@ -79,6 +79,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
         notifications.onOpenDashboard = { [weak self] accountID in self?.showDashboard(accountID: accountID) }
         notifications.activate()
         model.notifications = notifications
+        notifications.onOpenAbout = { [weak self] in
+            self?.model.settingsPaneRequest = .about
+            self?.showSettings(accountID: nil)
+        }
+
+        let updates = UpdateChecker(
+            defaults: UserDefaults.standard,
+            installed: AppVersion(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
+        )
+        updates.onNewVersion = { installed, latest in notifications.postUpdate(installed: installed, latest: latest) }
+        model.updates = updates
 
         observeIcon()
         model.start()

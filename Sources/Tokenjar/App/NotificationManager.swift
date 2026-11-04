@@ -30,9 +30,15 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     nonisolated static let categoryID = "tokenjar.alert"
     nonisolated static let openDashboardActionID = "tokenjar.open-dashboard"
     nonisolated private static let accountIDKey = "accountID"
+    nonisolated private static let routeKey = "route"
+    nonisolated private static let aboutRoute = "about"
+    nonisolated private static let updateThreadID = "tokenjar-update"
 
     /// Called with the alert's account id when the user taps a notification or its "Open Dashboard" action.
     var onOpenDashboard: (String?) -> Void = { _ in }
+
+    /// Called when the user taps an update notification.
+    var onOpenAbout: () -> Void = {}
 
     /// `UNUserNotificationCenter.current()` raises outside an app bundle, so nothing touches it unless this is true.
     var isSupported: Bool {
@@ -94,6 +100,24 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    static func updateContent(installed: AppVersion, latest: AppVersion) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = "Tokenjar \(latest) is available"
+        content.body = "You have \(installed). Open Settings > About to see what changed and how to update."
+        content.threadIdentifier = updateThreadID
+        content.userInfo = [routeKey: aboutRoute]
+        content.sound = .default
+        return content
+    }
+
+    /// Not gated on the alerts setting: choosing Automatic update checks is the opt-in. One request per version, so
+    /// a version that is already delivered is replaced rather than repeated.
+    func postUpdate(installed: AppVersion, latest: AppVersion) {
+        guard let center else { return }
+        let content = Self.updateContent(installed: installed, latest: latest)
+        center.add(UNNotificationRequest(identifier: "tokenjar|update|\(latest)", content: content, trigger: nil))
+    }
+
     func withdraw(_ ids: [String]) {
         guard let center, !ids.isEmpty else { return }
         center.removeDeliveredNotifications(withIdentifiers: ids)
@@ -108,9 +132,14 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let userInfo = response.notification.request.content.userInfo
+        if userInfo[Self.routeKey] as? String == Self.aboutRoute {
+            await MainActor.run { onOpenAbout() }
+            return
+        }
         let action = response.actionIdentifier
         guard action == Self.openDashboardActionID || action == UNNotificationDefaultActionIdentifier else { return }
-        let accountID = response.notification.request.content.userInfo[Self.accountIDKey] as? String
+        let accountID = userInfo[Self.accountIDKey] as? String
         await MainActor.run { onOpenDashboard(accountID) }
     }
 }

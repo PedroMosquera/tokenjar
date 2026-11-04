@@ -108,6 +108,8 @@ final class AppModel {
 
     var dashboardSelection: String?
     var settingsSelection: String?
+    /// A pane another part of the app wants Settings to show; SettingsView consumes it, so an open window switches too.
+    var settingsPaneRequest: SettingsPane?
 
     @ObservationIgnored var presenter = Presenter()
     @ObservationIgnored let paths: AppPaths

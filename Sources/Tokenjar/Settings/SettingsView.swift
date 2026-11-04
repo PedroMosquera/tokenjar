@@ -40,7 +40,13 @@ struct SettingsView: View {
 
     // Until the user picks something, follow `settingsSelection` so "Settings for this account" lands on that account.
     private var pane: SettingsPane {
-        chosenPane ?? (model.settingsSelection == nil ? .general : .accounts)
+        chosenPane ?? model.settingsPaneRequest ?? (model.settingsSelection == nil ? .general : .accounts)
+    }
+
+    private func takePaneRequest() {
+        guard let request = model.settingsPaneRequest else { return }
+        chosenPane = request
+        model.settingsPaneRequest = nil
     }
 
     private var accountID: String? {
@@ -58,6 +64,8 @@ struct SettingsView: View {
         }
         .frame(minWidth: Self.minimumSize.width, minHeight: Self.minimumSize.height)
         .navigationTitle(pane.title)
+        .onAppear(perform: takePaneRequest)
+        .onChange(of: model.settingsPaneRequest) { takePaneRequest() }
         .onChange(of: model.settingsSelection) { _, id in
             guard let id else { return }
             chosenPane = .accounts
