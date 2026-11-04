@@ -28,25 +28,8 @@ mkdir -p "$DEST"
 DEST="$(CDPATH='' cd -- "$DEST" && pwd)"
 DEST_RESOLVED="$(CDPATH='' cd -- "$DEST" && pwd -P)"
 
-# The app used to be Headroom. Tokenjar moves its data only once Headroom has quit, so quit it and remove its bundle,
-# but only a bundle that carries Headroom's own bundle id.
-OLD="$DEST/Headroom.app"
-if [ -d "$OLD" ] && [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$OLD/Contents/Info.plist" 2>/dev/null)" = "com.pedromosquera.headroom" ]; then
-  pkill -x Headroom 2>/dev/null || true
-  for _ in $(seq 50); do
-    pgrep -x Headroom >/dev/null || break
-    sleep 0.1
-  done
-  if pgrep -x Headroom >/dev/null; then
-    echo "error: Headroom is still running. Quit it, then run this command again." >&2
-    exit 1
-  fi
-  rm -rf "$OLD"
-  echo "Removed $OLD"
-fi
-
-# Copying an app onto itself would delete it before the copy starts. Homebrew's opt folder is a link into its Cellar,
-# so both sides are compared with links resolved.
+# An app installed onto itself has nothing to update, so it is refused rather than quit and reopened. Homebrew's opt
+# folder is a link into its Cellar, so both sides are compared with links resolved.
 APP_RESOLVED="$(CDPATH='' cd -- "$APP" && pwd -P)"
 if [ "$APP_RESOLVED" = "$DEST_RESOLVED/Tokenjar.app" ]; then
   echo "error: $APP is already the app in $DEST. Nothing was changed." >&2
@@ -57,6 +40,11 @@ fi
 # running one alone.
 NEW="$DEST/.Tokenjar.app.new"
 PREVIOUS="$DEST/.Tokenjar.app.old"
+# A crash between the two renames below leaves the old app only at $PREVIOUS, so it is brought back before anything is
+# cleared.
+if [ ! -e "$DEST/Tokenjar.app" ] && [ -e "$PREVIOUS" ]; then
+  mv "$PREVIOUS" "$DEST/Tokenjar.app"
+fi
 rm -rf "$NEW" "$PREVIOUS"
 if ! ditto "$APP" "$NEW" || ! codesign --verify --strict "$NEW"; then
   rm -rf "$NEW"
@@ -64,17 +52,45 @@ if ! ditto "$APP" "$NEW" || ! codesign --verify --strict "$NEW"; then
   exit 1
 fi
 
+# The app used to be Headroom. This runs only once the new app is staged, so a failed install keeps Headroom. Tokenjar moves its data only once Headroom has quit, so quit it and remove its bundle,
+# but only a bundle that carries Headroom's own bundle id.
+OLD="$DEST/Headroom.app"
+if [ -d "$OLD" ] && [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$OLD/Contents/Info.plist" 2>/dev/null)" = "com.pedromosquera.headroom" ]; then
+  pkill -x Headroom 2>/dev/null || true
+  for _ in $(seq 50); do
+    pgrep -x Headroom >/dev/null || break
+    sleep 0.1
+  done
+  if pgrep -x Headroom >/dev/null; then
+    rm -rf "$NEW"
+    echo "error: Headroom is still running. Quit it, then run this command again." >&2
+    exit 1
+  fi
+  rm -rf "$OLD"
+  echo "Removed $OLD"
+fi
+
 # Only the copy being replaced: matching the name alone would also stop a debug build or a window render.
 regex_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
 APP_PATTERN="^($(regex_escape "$DEST")|$(regex_escape "$DEST_RESOLVED"))/Tokenjar\.app/Contents/MacOS/Tokenjar( |\$)"
 pkill -f "$APP_PATTERN" 2>/dev/null && sleep 1 || true
-if [ -e "$DEST/Tokenjar.app" ]; then
-  mv "$DEST/Tokenjar.app" "$PREVIOUS"
+# Every failure below reopens the old app, since it was just quit.
+if [ -e "$DEST/Tokenjar.app" ] && ! mv "$DEST/Tokenjar.app" "$PREVIOUS"; then
+  rm -rf "$NEW"
+  open "$DEST/Tokenjar.app"
+  echo "error: could not move the installed app aside. It was left in place and reopened." >&2
+  exit 1
 fi
 if ! mv "$NEW" "$DEST/Tokenjar.app"; then
-  [ -e "$PREVIOUS" ] && mv "$PREVIOUS" "$DEST/Tokenjar.app"
   rm -rf "$NEW"
-  echo "error: could not move the new app into place. The previous app was put back." >&2
+  if [ ! -e "$PREVIOUS" ]; then
+    echo "error: could not move the new app into place." >&2
+  elif mv "$PREVIOUS" "$DEST/Tokenjar.app"; then
+    open "$DEST/Tokenjar.app"
+    echo "error: could not move the new app into place. The previous app was put back and reopened." >&2
+  else
+    echo "error: could not move the new app into place or put the previous one back. It is at $PREVIOUS." >&2
+  fi
   exit 1
 fi
 rm -rf "$PREVIOUS"
