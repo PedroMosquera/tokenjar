@@ -181,7 +181,7 @@ To update, pull and run `make install` again. It quits the Tokenjar running from
 
 ### Updates
 
-Settings > About can tell you when a new version exists. It is off until you click Check Now or switch Check for updates to Automatic, which asks GitHub once a day and sends one notification per new version. When a newer version exists, Update in Terminal in About opens Terminal and runs the update for the copy you are running: through Homebrew if you installed with Homebrew, otherwise the release build through the installer inside the app, which also moves a `make install` copy to release builds. About also shows each command with a Copy button. Tokenjar itself never installs anything.
+Settings > About can tell you when a new version exists. It is off until you click Check Now or switch Check for updates to Automatic, which asks GitHub once a day and sends one notification per new version. When a newer version exists, Update in Terminal in About opens Terminal and runs the update for the copy you are running: through Homebrew if you installed with Homebrew, otherwise the release build through the installer inside the app, which also moves a `make install` copy to release builds; then run `make clean` in that clone or delete it, so macOS does not pick that build over this one. About also shows each command with a Copy button. Tokenjar itself never installs anything.
 
 ### After installing
 

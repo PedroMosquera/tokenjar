@@ -14,7 +14,7 @@ enum TerminalLauncher {
         let url = FileManager.default.temporaryDirectory.appending(path: fileName)
         try Data(SignInCommand.script(command: command, title: title).utf8).write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
-        NSWorkspace.shared.open(url)
+        guard NSWorkspace.shared.open(url) else { throw CocoaError(.fileReadUnknown) }
     }
 
     static func copy(_ command: String) {

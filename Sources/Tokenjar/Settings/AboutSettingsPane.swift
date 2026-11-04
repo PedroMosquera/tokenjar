@@ -6,7 +6,7 @@ import TokenjarCore
 /// docs/privacy.md names every Runs, Reads and Contacts item by its `what`, and AboutSummaryTests fails when they differ.
 struct AboutSettingsPane: View {
     @Environment(AppModel.self) private var model
-    @SettingsState private var terminalFailed = false
+    @SettingsState private var failedUpdateCommand: String?
 
     struct Item: Identifiable {
         var id: String { what }
@@ -191,10 +191,14 @@ struct AboutSettingsPane: View {
                 }
             }
         }
-        .alert("Couldn't open Terminal", isPresented: $terminalFailed) {
-            Button("OK", role: .cancel) {}
+        .alert("Couldn't open Terminal", isPresented: Binding(
+            get: { failedUpdateCommand != nil },
+            set: { if !$0 { failedUpdateCommand = nil } }
+        )) {
+            Button("Copy Command") { failedUpdateCommand.map(TerminalLauncher.copy) }
+            Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Copy one of the commands below and paste it into Terminal.")
+            Text("Copy the update command and paste it into Terminal.")
         }
         .onAppear { model.refreshNotificationPermission() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -203,15 +207,14 @@ struct AboutSettingsPane: View {
     }
 
     private func openUpdateInTerminal(_ version: AppVersion) {
-        let app = Bundle.main.bundleURL
         let command = UpdateCommand.terminal(
             method: UpdateCommand.method(fileExists: FileManager.default.fileExists(atPath:)), version: version,
-            appBundle: app.path, installFolder: app.deletingLastPathComponent().path
+            appBundle: Bundle.main.bundlePath, home: NSHomeDirectory()
         )
         do {
             try TerminalLauncher.run(command: command, title: "update to \(version)", fileName: UpdateCommand.terminalScriptFileName)
         } catch {
-            terminalFailed = true
+            failedUpdateCommand = command
         }
     }
 

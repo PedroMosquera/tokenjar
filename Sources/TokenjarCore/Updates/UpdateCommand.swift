@@ -6,7 +6,8 @@ public enum UpdateMethod: Equatable, Sendable {
 }
 
 /// The shell line that updates Tokenjar. Homebrew's copy is updated through Homebrew; every other install gets the
-/// release archive through the get.sh shipped inside the running app, so nothing fetched at update time is run.
+/// release archive through the get.sh shipped inside the running app, so no script is downloaded to run the update.
+/// The tagged source it builds does run its own Makefile and scripts.
 public enum UpdateCommand {
     static let homebrewPrefixes = ["/opt/homebrew", "/usr/local"]
     public static let terminalScriptFileName = "tokenjar-update.command"
@@ -15,9 +16,18 @@ public enum UpdateCommand {
         homebrewPrefixes.first { fileExists("\($0)/opt/tokenjar/Tokenjar.app") }.map { .homebrew(prefix: $0) } ?? .releaseArchive
     }
 
-    /// `installFolder` is the folder holding the running app, so the copy replaced is the one that is running.
-    public static func terminal(method: UpdateMethod, version: AppVersion, appBundle: String, installFolder: String) -> String {
-        let folder = SignInCommand.shellQuote(installFolder)
+    /// The running app's own folder, so the copy replaced is the one running. A copy running from inside Homebrew's
+    /// folders goes to ~/Applications instead: replacing Homebrew's own app in place deletes it whenever brew has
+    /// nothing to upgrade, because the install script then copies the app onto itself.
+    public static func installFolder(appBundle: String, home: String) -> String {
+        if homebrewPrefixes.contains(where: { appBundle.hasPrefix("\($0)/Cellar/") || appBundle.hasPrefix("\($0)/opt/") }) {
+            return "\(home)/Applications"
+        }
+        return (appBundle as NSString).deletingLastPathComponent
+    }
+
+    public static func terminal(method: UpdateMethod, version: AppVersion, appBundle: String, home: String) -> String {
+        let folder = SignInCommand.shellQuote(installFolder(appBundle: appBundle, home: home))
         switch method {
         case .homebrew(let prefix):
             let brew = SignInCommand.shellQuote("\(prefix)/bin/brew")

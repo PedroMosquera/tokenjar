@@ -16,7 +16,7 @@ cp -R Resources/Logos "$APP/Contents/Resources/Logos"
 cp -R Resources/Marks "$APP/Contents/Resources/Marks"
 # The MIT licenses of Tokenjar and of the bundled logos require their notices in every copy.
 cp LICENSE THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/"
-# Update in Terminal runs this copy, so an update never executes a script fetched at update time.
+# Update in Terminal runs this copy, so no script is downloaded to run an update.
 cp Scripts/get.sh "$APP/Contents/Resources/get.sh"
 [ -f Resources/pricing.json ] && cp Resources/pricing.json "$APP/Contents/Resources/pricing.json"
 if [ -f Resources/AppIcon.icns ]; then
