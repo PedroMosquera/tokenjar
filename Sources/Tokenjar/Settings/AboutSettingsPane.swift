@@ -177,7 +177,7 @@ struct AboutSettingsPane: View {
                     Button("Update in Terminal") { openUpdateInTerminal(release.version) }
                 } label: {
                     Text("Update to \(release.version)")
-                    Text("Opens Terminal and runs the update for this copy of Tokenjar, which quits and reopens when it is done.")
+                    Text("Opens Terminal, runs the update for this copy of Tokenjar, then opens the new version.")
                 }
                 ForEach(Self.updateCommands) { item in
                     LabeledContent {
