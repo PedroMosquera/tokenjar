@@ -147,6 +147,13 @@ check "after a crash, the moved-aside app is restored" [ "$(marker_of "$t/dest")
 check "after a crash, no staging folders are left" [ -z "$(extras_in "$t/dest")" ]
 check "after a crash, the restored app is intact" intact "$t/dest"
 
+# If the interrupted install's app cannot be moved back, the script stops and never clears it.
+t="$WORK/crashstuck"; stubs "$t/bin"; failing_mv "$t/bin" 1; fake_app "$t/new/Tokenjar.app" new; fake_app "$t/dest/.Tokenjar.app.old" old
+run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
+check "unrecoverable crash leftovers exit non-zero" [ "$status" -ne 0 ]
+check "unrecoverable crash leftovers keep the old app aside" [ "$(cat "$t/dest/.Tokenjar.app.old/Contents/Resources/marker" 2>/dev/null)" = old ]
+check "unrecoverable crash leftovers say where the app is" grep -q 'Tokenjar.app.old' "$t/bin/out.log"
+
 # Leftovers from a crash after the swap (the app in place plus a stale copy aside) are cleared, never nested.
 t="$WORK/stale"; stubs "$t/bin"; fake_app "$t/new/Tokenjar.app" new; fake_app "$t/dest/Tokenjar.app" old
 fake_app "$t/dest/.Tokenjar.app.old" older
@@ -180,6 +187,12 @@ check "Headroom running exits non-zero" [ "$status" -ne 0 ]
 check "Headroom running keeps the installed app" [ "$(marker_of "$t/dest")" = old ]
 check "Headroom running keeps Headroom" [ -d "$t/dest/Headroom.app" ]
 check "Headroom running removes the staged copy" [ ! -e "$t/dest/.Tokenjar.app.new" ]
+
+# A successful install retires Headroom.
+t="$WORK/headroomok"; stubs "$t/bin"; fake_app "$t/new/Tokenjar.app" new; fake_app "$t/dest/Headroom.app" headroom com.pedromosquera.headroom
+run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
+check "install with Headroom present exits 0" [ "$status" -eq 0 ]
+check "install with Headroom present removes it" [ ! -e "$t/dest/Headroom.app" ]
 
 # Headroom is retired only once the new app is copied and verified, so a failed copy or check keeps it.
 t="$WORK/headroom"; stubs "$t/bin"; fake_app "$t/new/Tokenjar.app" new; fake_app "$t/dest/Headroom.app" headroom com.pedromosquera.headroom
