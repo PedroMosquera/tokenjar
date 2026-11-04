@@ -123,7 +123,7 @@ Each account gets its own page in Settings with its status, the fix when a check
 
 Settings > About shows the version you run and a Check for updates setting. On Manual, the default, Tokenjar asks GitHub only when you click Check Now. On Automatic it asks once a day and sends one notification per new version. Clicking the notification opens About.
 
-When a newer version exists, About links to its release notes on GitHub and shows the update command for Homebrew, curl and make, each with a Copy button. Tokenjar never installs anything itself. Check Now needs the installed app.
+When a newer version exists, About links to its release notes on GitHub. Update in Terminal opens Terminal and runs the update for the copy you are running, which quits and reopens when it is done. The commands for Homebrew, curl and make are listed too, each with a Copy button. Tokenjar never installs anything itself. Check Now needs the installed app.
 
 ## Alerts
 

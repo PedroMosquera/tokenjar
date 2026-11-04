@@ -6,6 +6,7 @@ import TokenjarCore
 /// docs/privacy.md names every Runs, Reads and Contacts item by its `what`, and AboutSummaryTests fails when they differ.
 struct AboutSettingsPane: View {
     @Environment(AppModel.self) private var model
+    @SettingsState private var terminalFailed = false
 
     struct Item: Identifiable {
         var id: String { what }
@@ -48,6 +49,7 @@ struct AboutSettingsPane: View {
     private let writes = [
         Item(what: "~/.config/tokenjar/config.json", why: "Settings, through the symlink if it is one."),
         Item(what: "~/Library/Application Support/Tokenjar/", why: "tokenjar.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens or quota, so it is not run again until that CLI (claude or agy) updates or you click Try Once More. probe: an empty folder the CLIs run in."),
+        Item(what: "$TMPDIR/tokenjar-update.command", why: "Only when you click Update in Terminal: the update command for Terminal to run. It deletes itself when it runs."),
         Item(what: "$TMPDIR/tokenjar-sign-in-<account>.command", why: "Only when you click Sign In in Terminal: the login command for Terminal to run. It deletes itself when it runs."),
         Item(what: "Keychain: \(AppPaths.keychainService)", why: "Only API keys you paste here."),
         Item(what: "Preferences: \(AppPaths.bundleIdentifier)", why: "Window frames and, for this Mac only: whether provider status is on, the pinned account, the currency and its exchange rates, which API value sections are open, and the update check setting, its last check, the latest version seen and the newer versions already announced."),
@@ -102,16 +104,16 @@ struct AboutSettingsPane: View {
         }
     }
 
-    private struct UpdateCommand: Identifiable {
+    private struct CopyCommand: Identifiable {
         var id: String { name }
         var name: String
         var command: String
     }
 
     private static let updateCommands = [
-        UpdateCommand(name: "Homebrew", command: "brew upgrade tokenjar && tokenjar-install-app"),
-        UpdateCommand(name: "curl", command: "curl -fsSL https://raw.githubusercontent.com/PedroMosquera/tokenjar/main/Scripts/get.sh | bash"),
-        UpdateCommand(name: "make", command: "git pull && make install"),
+        CopyCommand(name: "Homebrew", command: "brew upgrade tokenjar && tokenjar-install-app"),
+        CopyCommand(name: "curl", command: "curl -fsSL https://raw.githubusercontent.com/PedroMosquera/tokenjar/main/Scripts/get.sh | bash"),
+        CopyCommand(name: "make", command: "git pull && make install"),
     ]
 
     private static func updateNoticeSummary(_ delivery: AlertDelivery) -> String {
@@ -171,12 +173,15 @@ struct AboutSettingsPane: View {
             }
             if case .available(let release) = updates.status {
                 Link("What's new in \(release.version)", destination: release.pageURL)
+                LabeledContent {
+                    Button("Update in Terminal") { openUpdateInTerminal(release.version) }
+                } label: {
+                    Text("Update to \(release.version)")
+                    Text("Opens Terminal and runs the update for this copy of Tokenjar, which quits and reopens when it is done.")
+                }
                 ForEach(Self.updateCommands) { item in
                     LabeledContent {
-                        Button("Copy") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(item.command, forType: .string)
-                        }
+                        Button("Copy") { TerminalLauncher.copy(item.command) }
                     } label: {
                         Text(item.name)
                         Text(item.command)
@@ -186,9 +191,27 @@ struct AboutSettingsPane: View {
                 }
             }
         }
+        .alert("Couldn't open Terminal", isPresented: $terminalFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Copy one of the commands below and paste it into Terminal.")
+        }
         .onAppear { model.refreshNotificationPermission() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.refreshNotificationPermission()
+        }
+    }
+
+    private func openUpdateInTerminal(_ version: AppVersion) {
+        let app = Bundle.main.bundleURL
+        let command = UpdateCommand.terminal(
+            method: UpdateCommand.method(fileExists: FileManager.default.fileExists(atPath:)), version: version,
+            appBundle: app.path, installFolder: app.deletingLastPathComponent().path
+        )
+        do {
+            try TerminalLauncher.run(command: command, title: "update to \(version)", fileName: UpdateCommand.terminalScriptFileName)
+        } catch {
+            terminalFailed = true
         }
     }
 

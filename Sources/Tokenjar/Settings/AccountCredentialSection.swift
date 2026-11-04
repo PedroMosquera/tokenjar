@@ -76,7 +76,7 @@ struct AccountCredentialSection: View {
                     }
                     HStack {
                         Spacer()
-                        Button("Copy Command") { SignInLauncher.copy(line.command) }
+                        Button("Copy Command") { TerminalLauncher.copy(line.command) }
                         Button("Sign In in Terminal\u{2026}") { onSignIn(line.command) }
                     }
                 }

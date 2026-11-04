@@ -291,7 +291,7 @@ struct AccountDetailView: View {
                 }
                 HStack {
                     Spacer()
-                    Button("Copy Command") { SignInLauncher.copy(line.command) }
+                    Button("Copy Command") { TerminalLauncher.copy(line.command) }
                     Button("Sign In in Terminal\u{2026}") { openSignIn(line.command) }
                 }
             } else {
@@ -424,7 +424,7 @@ struct AccountDetailView: View {
 
     private func openSignIn(_ command: String) {
         do {
-            try SignInLauncher.run(command: command, account: account)
+            try TerminalLauncher.signIn(command: command, account: account)
         } catch {
             signInFailed = true
         }

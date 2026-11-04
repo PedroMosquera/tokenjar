@@ -175,7 +175,7 @@ Delivery: notification ids are the dedupe keys, so a repost replaces instead of 
 
 ## Updates
 
-Tokenjar can tell you a newer version exists. It never downloads or installs anything: it is a check, not an update feed.
+Tokenjar can tell you a newer version exists. It never downloads or installs anything itself: it is a check, not an update feed, and Update in Terminal hands the update to Terminal on a click.
 
 - **Setting.** Settings > About has Check for updates, Manual (the default, and what a missing setting reads as) or Automatic. It lives in this Mac's preferences and never in `config.json`, so turning it on here does not turn it on for another Mac that shares the config file.
 - **Manual** makes no request unless you click Check Now. Not at launch, not at first run, not after an upgrade.
@@ -185,6 +185,7 @@ Tokenjar can tell you a newer version exists. It never downloads or installs any
 - **Check Now never notifies.** A version it finds shows in About only and counts as notified, so a later automatic check stays quiet about it.
 - **Failures.** A failed check never notifies. It shows in About as `Couldn't check for updates`, unless a newer version is already known, in which case About keeps showing that version.
 - **About** shows the status line, a link to that release's GitHub page, and the update command for each install way, each with a Copy button: Homebrew (`brew upgrade tokenjar && tokenjar-install-app`), curl (the README's one-liner) and make (`git pull && make install`, run in the clone). The app cannot tell how it was installed, so it shows all three. The link is built from the tag, never taken from the response.
+- **Update in Terminal** (`UpdateCommand`, `TerminalLauncher`) writes `$TMPDIR/tokenjar-update.command` and opens it, as Sign In in Terminal does. `UpdateCommand.method` picks Homebrew when its keg app exists under `/opt/homebrew` or `/usr/local`, else the release archive. The archive line is `TOKENJAR_VERSION=<version> /bin/bash <app>/Contents/Resources/get.sh <folder>`: `Scripts/bundle.sh` copies `get.sh` into the app, so an update never runs a script fetched at update time. `<folder>` is the running app's folder, so `install.sh` quits and replaces the copy that is running.
 - **Stored** in this Mac's preferences: `updateCheck`, `updateLastCheck`, `updateLatestVersion` and `updateNotifiedVersions` (every newer version announced or shown, so a withdrawn release that reappears is not announced twice and a withdrawn high tag cannot hold back lower ones; versions at or below the installed one are dropped).
 
 ## Probe latch
