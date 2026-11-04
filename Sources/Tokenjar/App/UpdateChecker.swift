@@ -74,12 +74,22 @@ final class UpdateChecker {
             do {
                 apply(try await fetch(), installed: installed, startedAt: startedAt, userInitiated: userInitiated)
             } catch {
-                status = .failed(at: startedAt)
+                fail(installed: installed, at: startedAt)
             }
             inFlight = nil
         }
         inFlight = task
         return task
+    }
+
+    /// A failed check says nothing about a release already seen, so a known newer version stays on offer.
+    private func fail(installed: AppVersion, at date: Date) {
+        if let known = Self.version(defaults, Self.latestVersionKey), known > installed,
+           let release = UpdateFetcher.releaseInfo(for: known) {
+            status = .available(release)
+        } else {
+            status = .failed(at: date)
+        }
     }
 
     private func apply(_ release: ReleaseInfo, installed: AppVersion, startedAt: Date, userInitiated: Bool) {

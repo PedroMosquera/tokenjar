@@ -12,6 +12,8 @@ private nonisolated final class Asks: @unchecked Sendable {
 
     var total: Int { lock.withLock { asked } }
 
+    func answer(_ next: Result<ReleaseInfo, FetchError>) { lock.withLock { outcome = next } }
+
     func fetch() async throws -> ReleaseInfo {
         try lock.withLock { () -> Result<ReleaseInfo, FetchError> in
             asked += 1
@@ -96,6 +98,34 @@ struct UpdateCheckerTests {
         let started = rig.clock.now
         await rig.checker.checkNow()?.value
         #expect(rig.checker.status == .failed(at: started))
+        #expect(notified == 0)
+    }
+
+    @Test func aFailedCheckKeepsAKnownUpdateVisible() async {
+        let rig = make(.success(release(v040)))
+        await rig.checker.checkNow()?.value
+        rig.asks.answer(.failure(.network("HTTP 403")))
+        await rig.checker.checkNow()?.value
+        #expect(rig.checker.status == .available(release(v040)))
+    }
+
+    @Test func aFailedCheckKeepsAStoredUpdateVisible() async {
+        let defaults = MemoryDefaults()
+        defaults.set("0.4.0", forKey: "updateLatestVersion")
+        let rig = make(.failure(.timeout), defaults: defaults)
+        await rig.checker.checkNow()?.value
+        #expect(rig.checker.status == .available(release(v040)))
+    }
+
+    @Test func aCheckNowThatFoundTheVersionSilencesALaterAutomaticCheck() async {
+        let rig = make(.success(release(v040)))
+        var notified = 0
+        rig.checker.onNewVersion = { _, _ in notified += 1 }
+        await rig.checker.checkNow()?.value
+        rig.checker.mode = .automatic
+        rig.clock.advance(25 * 3600)
+        await rig.checker.checkIfDue(holdsChecks: false)?.value
+        #expect(rig.asks.total == 2)
         #expect(notified == 0)
     }
 
