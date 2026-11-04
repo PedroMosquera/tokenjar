@@ -136,12 +136,12 @@ On disk it keeps token counts, model ids, timestamps and project folder names, p
 
 - macOS 14 or later.
 - Command Line Tools with Swift 6.2 or later (`xcode-select --install`). Xcode is not needed.
-- For the Homebrew install, macOS 15.6 or later (Homebrew checks only for macOS 15).
+- For the Homebrew and curl installs, macOS 15.6 or later (Homebrew checks only for macOS 15).
 - The CLI for each provider you track: `claude`, `codex`, `agy` 1.1.11 or later, and `gh` signed in with `gh auth login`. OpenCode, Devin and Cursor need none.
 
 ## Install
 
-Both ways below build Tokenjar from source on your Mac with the Command Line Tools, sign it ad-hoc there and end with the app in `~/Applications`. Neither needs admin rights, though installing Homebrew itself does if you do not have it yet. Pick one and stay with it, so that only one copy runs.
+All three ways below build Tokenjar from source on your Mac with the Command Line Tools, sign it ad-hoc there and end with the app in `~/Applications`. None needs admin rights, though installing Homebrew itself does if you do not have it yet. Pick one and stay with it, so that only one copy runs.
 
 ### With Homebrew
 
@@ -153,6 +153,18 @@ tokenjar-install-app
 The full name adds the [PedroMosquera/homebrew-tap](https://github.com/PedroMosquera/homebrew-tap) tap and trusts only this formula. Homebrew downloads the tagged source, builds it with network access turned off (a minute or a few, depending on the Mac), and keeps `Tokenjar.app` in its own folder. Homebrew does not put apps in `~/Applications`, so `tokenjar-install-app` then does what `make install` does with its own build: it quits the Tokenjar running from `~/Applications`, copies Homebrew's build there and opens it. `tokenjar-install-app <folder>` puts it somewhere else.
 
 To update, run `brew upgrade tokenjar`, then `tokenjar-install-app` again. Until you do, the previous version keeps running. Homebrew reminds you after each install and upgrade. If you used `make install` before, run `make clean` in that clone or delete it, so macOS does not pick that build over this one. If that was `make install INSTALL_DIR=<folder>`, give `tokenjar-install-app` the same folder, so it replaces that copy. Homebrew's own install analytics include the formula's name; `brew analytics off` turns them off ([docs/privacy.md](docs/privacy.md#traffic-that-is-not-tokenjars)).
+
+### With curl
+
+For a Mac where Homebrew is not allowed, or not wanted:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/PedroMosquera/tokenjar/main/Scripts/get.sh | bash
+```
+
+The script checks for the Command Line Tools and Swift 6.2, downloads the source of the latest release (the same tag Homebrew builds) into a temporary folder, runs `make install` there and deletes the folder when it is done. Nothing is left behind but the app and SwiftPM's small manifest cache, which every build writes. `| bash -s -- <folder>` installs somewhere else, and `| TOKENJAR_VERSION=0.2.0 bash` builds that release instead of the latest. To read the script before it runs, save it with `curl -fsSLo get.sh` and the same URL, then run `bash get.sh`.
+
+To update, run the same line again. Like `make install`, it quits the Tokenjar running from the install folder, replaces it and opens the new build. If you used Homebrew before, run `brew uninstall tokenjar` first. If you used `make install` before, run `make clean` in that clone or delete it, so macOS does not pick that build over this one.
 
 ### With make
 

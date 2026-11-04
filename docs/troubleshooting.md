@@ -33,7 +33,7 @@ Tokenjar passes `HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY` and their lowercase form
 
 ## No notifications
 
-Alerts need the app bundle, so they never come from `swift run` or a `.build` binary; use the installed copy in `~/Applications` (from `make install` or `tokenjar-install-app`). If they arrive only in Notification Center, click Allow Banners in Settings > Alerts. If macOS has them turned off, the same pane offers Open Notification Settings.
+Alerts need the app bundle, so they never come from `swift run` or a `.build` binary; use the installed copy in `~/Applications` (from `make install`, `tokenjar-install-app` or the curl installer). If they arrive only in Notification Center, click Allow Banners in Settings > Alerts. If macOS has them turned off, the same pane offers Open Notification Settings.
 
 ## "Checks for this account are paused"
 
@@ -51,6 +51,8 @@ The ad-hoc signature changes on every build, so macOS asks again before Tokenjar
 
 Homebrew builds Tokenjar with your developer tools, and the build needs Swift 6.2 or later (`swift --version` shows yours). With older tools, Homebrew may first warn that a newer Command Line Tools release is available, or that your Xcode is outdated, and then the build fails and Homebrew shows the last 15 lines of the build log, which say the package is using Swift tools version 6.2.0 but the installed version is older. Update the Command Line Tools from Software Update in System Settings (macOS 15.6 or later is needed). If `xcode-select -p` prints a path inside an Xcode app instead of `/Library/Developer/CommandLineTools`, that Xcode's Swift is used: update it to Xcode 26 or later, or switch to the Command Line Tools with `sudo xcode-select --switch /Library/Developer/CommandLineTools`. Then run the install again. Report any other build failure in this repository's issues, even if Homebrew's message points to the tap's.
 
+The curl installer checks the same thing before it downloads anything, and stops with "Tokenjar needs Swift 6.2 or later" or "the Command Line Tools are not installed". The same fixes apply, and `xcode-select --install` installs the Command Line Tools when they are missing.
+
 ## A new build will not launch
 
-If your Mac only runs approved software, through a binary allowlist for example, each `make install`, `brew install`, `brew upgrade` or `brew reinstall` produces a new ad-hoc signed build that needs approval before it can launch.
+If your Mac only runs approved software, through a binary allowlist for example, each `make install`, curl install, `brew install`, `brew upgrade` or `brew reinstall` produces a new ad-hoc signed build that needs approval before it can launch.
