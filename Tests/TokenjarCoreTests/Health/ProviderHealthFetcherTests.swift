@@ -40,6 +40,7 @@ struct ProviderHealthFetcherTests {
         var expected: [String: Set<String>] = [
             "opencode.ai": [OpenCodeGoUsageFetcher.usageURL.path()],
             ExchangeRateFetcher.url.host()!: [ExchangeRateFetcher.url.path()],
+            UpdateFetcher.url.host()!: [UpdateFetcher.url.path()],
         ]
         for url in ProviderID.allCases.compactMap(\.statusFeedURL) { expected[url.host()!, default: []].insert(url.path()) }
         #expect(HTTPClient.allowedEndpoints == expected)

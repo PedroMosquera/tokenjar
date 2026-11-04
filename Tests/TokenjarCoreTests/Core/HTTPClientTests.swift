@@ -5,8 +5,9 @@ import Testing
 struct HTTPClientTests {
     /// Pins the privacy promise in docs/privacy.md. Changing it must be a deliberate, reviewed edit.
     @Test func allowlistIsPinned() {
-        #expect(HTTPClient.allowedHosts == ["opencode.ai", "status.claude.com", "status.openai.com", "www.ecb.europa.eu", "www.githubstatus.com"])
+        #expect(HTTPClient.allowedHosts == ["api.github.com", "opencode.ai", "status.claude.com", "status.openai.com", "www.ecb.europa.eu", "www.githubstatus.com"])
         #expect(HTTPClient.allowedEndpoints == [
+            "api.github.com": ["/repos/PedroMosquera/tokenjar/releases/latest"],
             "opencode.ai": ["/zen/go/v1/usage"],
             "status.claude.com": ["/api/v2/summary.json"],
             "status.openai.com": ["/proxy/status.openai.com"],

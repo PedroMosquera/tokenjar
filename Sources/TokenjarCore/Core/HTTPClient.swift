@@ -30,6 +30,7 @@ public struct HTTPClient: Sendable {
     /// host serves only the one feed Tokenjar reads. Status checks send no key. Each host is the one that answers without
     /// a redirect, since none is ever followed.
     public static let allowedEndpoints: [String: Set<String>] = [
+        "api.github.com": ["/repos/PedroMosquera/tokenjar/releases/latest"],
         "opencode.ai": ["/zen/go/v1/usage"],
         "status.claude.com": ["/api/v2/summary.json"],
         "status.openai.com": ["/proxy/status.openai.com"],

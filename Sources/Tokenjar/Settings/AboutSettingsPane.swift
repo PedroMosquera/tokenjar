@@ -42,6 +42,7 @@ struct AboutSettingsPane: View {
         Item(what: "GET https://status.openai.com/proxy/status.openai.com", why: "Codex's public status. Only with provider status on, when you open the popover or refresh."),
         Item(what: "GET https://www.githubstatus.com/api/v2/summary.json", why: "GitHub Copilot's public status. Only with provider status on, when you open the popover or refresh."),
         Item(what: "GET https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", why: "Exchange rates for estimates. Only when the currency is not USD, when you open the popover or dashboard, refresh or pick a currency, and a newer rate should exist."),
+        Item(what: "GET https://api.github.com/repos/PedroMosquera/tokenjar/releases/latest", why: "The latest Tokenjar release. Only when you click Check Now, or once a day with Check for updates set to Automatic."),
     ]
 
     private let writes = [

@@ -48,14 +48,27 @@ ECB exchange rates, only while this Mac's currency (Settings > General > Currenc
 
 - Tests: `ExchangeRateFetcherTests.sendsOneGETWithNoKeyOrCookie` pins the request and its headers, `a404IsANetworkError`, `aTimeoutIsATimeout` and `anotherURLErrorKeepsItsCode` the error mapping, and `ExchangeRateScheduleTests` the publication day and both cooldowns. `ProviderHealthFetcherTests.sendsOneGETWithNoKeyOrCookie` pins the status request and its headers. `AppModelHealthTests.offAsksNothing`, `turningTheSwitchOnAsksNothing`, `theSwitchIsThisMacsPreferenceAndNeverConfig`, `theAppKeepsTheSwitchInItsOwnPreferences`, `popoverOpenAsksAgainOnlyAfterTwoMinutesEvenAfterAFailure`, `anAccountRefreshJustBeforeAnOpenDoesNotHoldBackADueCheck`, `refreshAsksEveryProviderAtOnce`, `launchTicksWakeAndAReturnFromOfflineNeverAsk`, `onlyProvidersWithAnAccountAndAFeedAreAskedOnceEach`, `disabledAndAbsentAccountsAreNotAskedFor`, `aProviderWhoseCheckIsStillRunningIsNotAskedAgain`, `previewsAndReadOnlyModelsNeverAsk` and `turningOffForgetsAnswersAndDropsOneInFlight` pin when a status page is asked and when nothing is.
 
+The latest Tokenjar release, to tell you when a newer one exists. It runs only when you click Check Now in Settings > About, or once a day while Check for updates is set to Automatic.
+
+| | |
+|---|---|
+| Request | `GET https://api.github.com/repos/PedroMosquera/tokenjar/releases/latest` |
+| When | When you click Check Now, or once a day while Check for updates is set to Automatic. |
+| Headers | `User-Agent: Tokenjar` and `Accept: application/vnd.github+json`, plus URLSession's standard headers. No key, no cookies, no identifier of this Mac, your accounts or your usage, and not the version you run. |
+| Timeout | 10 s. Local and remote caches are ignored. |
+| What is read | The release's `tag_name` and nothing else. The link Settings > About offers is built from that tag, never taken from the response. |
+| What the host can infer | Your IP address, that you run Tokenjar, your preferred languages, and when you check. |
+
+- Tests: `UpdateFetcherTests.sendsOneGETWithNoKeyOrCookie` pins the update request, its headers and the link built from the tag, and `a403IsANetworkError`, `a302IsANetworkError`, `aTimeoutIsATimeout`, `anUnparseableTagIsAParseError` and `aBodyWithoutATagIsAParseError` the error mapping.
+
 ### How HTTPClient enforces it
 
-- `HTTPClient.allowedEndpoints` is exactly `opencode.ai` `/zen/go/v1/usage`, `status.claude.com` `/api/v2/summary.json`, `status.openai.com` `/proxy/status.openai.com`, `www.ecb.europa.eu` `/stats/eurofxref/eurofxref-daily.xml` and `www.githubstatus.com` `/api/v2/summary.json`, and `HTTPClient.allowedHosts` is derived from it. The three status feeds are the provider status requests above, and the ECB file is the exchange rate request.
+- `HTTPClient.allowedEndpoints` is exactly `opencode.ai` `/zen/go/v1/usage`, `status.claude.com` `/api/v2/summary.json`, `status.openai.com` `/proxy/status.openai.com`, `www.ecb.europa.eu` `/stats/eurofxref/eurofxref-daily.xml`, `www.githubstatus.com` `/api/v2/summary.json` and `api.github.com` `/repos/PedroMosquera/tokenjar/releases/latest`, and `HTTPClient.allowedHosts` is derived from it. The three status feeds are the provider status requests above, the ECB file is the exchange rate request, and the GitHub endpoint is the update check.
 - `HTTPClient.validate` runs before a request is built. It accepts only `https`, only those hosts (subdomains and look-alikes such as `opencode.ai.evil.example` are rejected), only the one path listed for each, only the default port (none, or 443), and no user info, query or fragment. Any other URL on those hosts is rejected too.
 - `URLSessionTransport.send` refuses every method but GET and validates the URL again, so code that uses the transport directly cannot reach another host or path either.
 - Redirects are never followed, so the `Authorization` header cannot be carried anywhere else.
 - The URL session is ephemeral: no cookie storage, no cookies sent, no URL cache.
-- Tests: `HTTPClientTests.allowlistIsPinned` pins `allowedHosts` and `allowedEndpoints` (the ECB entry included). `onlyTheGoUsageEndpointIsAllowedOnTheHost`, `statusHostsAllowOnlyTheirFeed`, `otherStatusHostsAreNotAllowed`, `getRejectsDisallowedURLsBeforeTheTransport`, `transportRejectsDisallowedHostsWithoutConnecting`, `transportRefusesAnythingButGET` and `transportNeverFollowsRedirects` cover URL validation, the transport's second check, the GET rule and the redirect refusal. `sessionIsCookieFree` pins the ephemeral, cookie-free session, and `ProviderHealthFetcherTests.feedsAreTheOnlyOtherAllowedEndpointsAndPagesAreNeverFetched` that the status pages themselves cannot be fetched. Adding an endpoint is a privacy decision that needs this page updated in the same change.
+- Tests: `HTTPClientTests.allowlistIsPinned` pins `allowedHosts` and `allowedEndpoints` (the ECB and GitHub entries included). `onlyTheGoUsageEndpointIsAllowedOnTheHost`, `statusHostsAllowOnlyTheirFeed`, `otherStatusHostsAreNotAllowed`, `getRejectsDisallowedURLsBeforeTheTransport`, `transportRejectsDisallowedHostsWithoutConnecting`, `transportRefusesAnythingButGET` and `transportNeverFollowsRedirects` cover URL validation, the transport's second check, the GET rule and the redirect refusal. `sessionIsCookieFree` pins the ephemeral, cookie-free session, and `ProviderHealthFetcherTests.feedsAreTheOnlyOtherAllowedEndpointsAndPagesAreNeverFetched` that the status pages themselves cannot be fetched. Adding an endpoint is a privacy decision that needs this page updated in the same change.
 
 ### Network status
 
@@ -311,3 +324,4 @@ Details in [Network](#network).
 - `GET https://status.openai.com/proxy/status.openai.com`
 - `GET https://www.githubstatus.com/api/v2/summary.json`
 - `GET https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml`
+- `GET https://api.github.com/repos/PedroMosquera/tokenjar/releases/latest`
