@@ -45,12 +45,38 @@ if [ -d "$OLD" ] && [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' 
   echo "Removed $OLD"
 fi
 
+# Copying an app onto itself would delete it before the copy starts. Homebrew's opt folder is a link into its Cellar,
+# so both sides are compared with links resolved.
+APP_RESOLVED="$(CDPATH='' cd -- "$APP" && pwd -P)"
+if [ "$APP_RESOLVED" = "$DEST_RESOLVED/Tokenjar.app" ]; then
+  echo "error: $APP is already the app in $DEST. Nothing was changed." >&2
+  exit 1
+fi
+
+# The new copy is made and verified beside the old one first, so a failed copy or check leaves the installed app and the
+# running one alone.
+NEW="$DEST/.Tokenjar.app.new"
+PREVIOUS="$DEST/.Tokenjar.app.old"
+rm -rf "$NEW" "$PREVIOUS"
+if ! ditto "$APP" "$NEW" || ! codesign --verify --strict "$NEW"; then
+  rm -rf "$NEW"
+  echo "error: could not copy and verify $APP. The installed app was not changed." >&2
+  exit 1
+fi
+
 # Only the copy being replaced: matching the name alone would also stop a debug build or a window render.
 regex_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
 APP_PATTERN="^($(regex_escape "$DEST")|$(regex_escape "$DEST_RESOLVED"))/Tokenjar\.app/Contents/MacOS/Tokenjar( |\$)"
 pkill -f "$APP_PATTERN" 2>/dev/null && sleep 1 || true
-rm -rf "$DEST/Tokenjar.app"
-ditto "$APP" "$DEST/Tokenjar.app"
-codesign --verify --strict "$DEST/Tokenjar.app"
+if [ -e "$DEST/Tokenjar.app" ]; then
+  mv "$DEST/Tokenjar.app" "$PREVIOUS"
+fi
+if ! mv "$NEW" "$DEST/Tokenjar.app"; then
+  [ -e "$PREVIOUS" ] && mv "$PREVIOUS" "$DEST/Tokenjar.app"
+  rm -rf "$NEW"
+  echo "error: could not move the new app into place. The previous app was put back." >&2
+  exit 1
+fi
+rm -rf "$PREVIOUS"
 open "$DEST/Tokenjar.app"
 echo "Installed to $DEST/Tokenjar.app"

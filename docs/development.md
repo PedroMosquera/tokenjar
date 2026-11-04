@@ -7,7 +7,7 @@ Tokenjar builds with the Command Line Tools: Swift 6.2 or later, no Xcode and no
 | Target | What it does |
 |---|---|
 | `make build` | Debug build |
-| `make test` | Swift Testing under Command Line Tools (run it with `XDG_CONFIG_HOME` unset) |
+| `make test` | Swift Testing under Command Line Tools (run it with `XDG_CONFIG_HOME` unset), then `Tests/Scripts/install-swap-test.sh` for `Scripts/install.sh` |
 | `make release` | Release build |
 | `make app` | Release build bundled and signed as `build/Tokenjar.app` |
 | `make install` | `make app`, then copy to `~/Applications` and launch |
