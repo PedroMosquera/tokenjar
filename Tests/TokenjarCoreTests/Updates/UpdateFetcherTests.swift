@@ -19,6 +19,15 @@ struct UpdateFetcherTests {
         #expect(AppVersion("") == nil)
     }
 
+    /// The release link is rebuilt from the parsed number, so a tag that only parses by dropping a zero would link
+    /// to a tag that does not exist.
+    @Test func refusesLeadingZeros() {
+        #expect(AppVersion("v0.04.0") == nil)
+        #expect(AppVersion("01.0") == nil)
+        #expect(AppVersion("0.0.1")?.description == "0.0.1")
+        #expect(AppVersion("10.20.0")?.description == "10.20.0")
+    }
+
     @Test func sendsOneGETWithNoKeyOrCookie() async throws {
         let transport = HealthFakeTransport(HTTPResponse(status: 200, body: body(tag: "v0.4.0")))
         let release = try await fetch(transport)

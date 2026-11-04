@@ -43,6 +43,11 @@ private func v(_ s: String) -> AppVersion { AppVersion(s)! }
         }
     }
 
+    @Test func aMistakenHighTagDoesNotSilenceLaterReleases() {
+        let result = UpdateSchedule.decide(latest: v("0.4.0"), installed: v("0.3.0"), notified: v("40.0.0"), userInitiated: false)
+        #expect(result == UpdateDecision(notify: true, notifiedVersion: v("0.4.0")))
+    }
+
     @Test func aNewerVersionAfterANotifiedOneNotifiesAgain() {
         let result = UpdateSchedule.decide(latest: v("0.5.0"), installed: v("0.3.0"), notified: v("0.4.0"), userInitiated: false)
         #expect(result == UpdateDecision(notify: true, notifiedVersion: v("0.5.0")))

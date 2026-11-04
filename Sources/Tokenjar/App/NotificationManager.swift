@@ -37,7 +37,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// Called with the alert's account id when the user taps a notification or its "Open Dashboard" action.
     var onOpenDashboard: (String?) -> Void = { _ in }
 
-    /// Called when the user taps an update notification.
     var onOpenAbout: () -> Void = {}
 
     /// `UNUserNotificationCenter.current()` raises outside an app bundle, so nothing touches it unless this is true.

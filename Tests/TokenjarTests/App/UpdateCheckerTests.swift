@@ -98,7 +98,24 @@ struct UpdateCheckerTests {
         let started = rig.clock.now
         await rig.checker.checkNow()?.value
         #expect(rig.checker.status == .failed(at: started))
+    }
+
+    @Test func switchingToManualMidCheckPostsNothing() async {
+        let gate = Gate()
+        let defaults = MemoryDefaults()
+        let checker = UpdateChecker(defaults: defaults, installed: v030, clock: { Date() }, fetch: { [v040] in
+            await gate.wait()
+            return UpdateFetcher.releaseInfo(for: v040)!
+        })
+        var notified = 0
+        checker.onNewVersion = { _, _ in notified += 1 }
+        checker.mode = .automatic
+        let task = checker.checkIfDue(holdsChecks: false)
+        checker.mode = .manual
+        await gate.open()
+        await task?.value
         #expect(notified == 0)
+        #expect(checker.status == .available(release(v040)))
     }
 
     @Test func aFailedCheckKeepsAKnownUpdateVisible() async {

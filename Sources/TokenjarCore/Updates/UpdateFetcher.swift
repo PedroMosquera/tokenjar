@@ -8,7 +8,7 @@ public struct AppVersion: Comparable, Hashable, Sendable, CustomStringConvertibl
         let digits = text.hasPrefix("v") ? String(text.dropFirst()) : text
         let pieces = digits.split(separator: ".", omittingEmptySubsequences: false)
         let numbers = pieces.compactMap { piece in
-            piece.allSatisfy(\.isASCII) && piece.allSatisfy(\.isNumber) ? Int(piece) : nil
+            piece.allSatisfy(\.isASCII) && piece.allSatisfy(\.isNumber) && !(piece.count > 1 && piece.first == "0") ? Int(piece) : nil
         }
         guard !pieces.isEmpty, numbers.count == pieces.count else { return nil }
         parts = numbers

@@ -38,7 +38,8 @@ struct SettingsView: View {
     /// Narrower, the account page beside the sidebar and the account list puts its fields under their labels.
     static let minimumSize = NSSize(width: 800, height: 460)
 
-    // Until the user picks something, follow `settingsSelection` so "Settings for this account" lands on that account.
+    // Until the user picks something, a notification's pane request wins, then `settingsSelection` so "Settings for
+    // this account" lands on that account.
     private var pane: SettingsPane {
         chosenPane ?? model.settingsPaneRequest ?? (model.settingsSelection == nil ? .general : .accounts)
     }

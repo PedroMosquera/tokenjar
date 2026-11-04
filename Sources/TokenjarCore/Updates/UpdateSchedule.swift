@@ -27,8 +27,10 @@ public enum UpdateSchedule {
     }
 
     /// A user-initiated check shows its result itself, so it never notifies but still marks the version as seen.
+    /// Only equality with the last notified version silences a notice: a mistaken high tag that is later withdrawn
+    /// must not hold back every real release after it.
     public static func decide(latest: AppVersion, installed: AppVersion, notified: AppVersion?, userInitiated: Bool) -> UpdateDecision {
         guard latest > installed else { return UpdateDecision(notify: false, notifiedVersion: notified) }
-        return UpdateDecision(notify: !userInitiated && latest > (notified ?? installed), notifiedVersion: max(notified ?? latest, latest))
+        return UpdateDecision(notify: !userInitiated && latest != notified, notifiedVersion: latest)
     }
 }

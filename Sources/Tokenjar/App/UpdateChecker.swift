@@ -103,7 +103,8 @@ final class UpdateChecker {
         defaults.set(release.version.description, forKey: Self.latestVersionKey)
         defaults.set(decision.notifiedVersion?.description, forKey: Self.notifiedVersionKey)
         status = release.version > installed ? .available(release) : .upToDate(checkedAt: startedAt)
-        if decision.notify { onNewVersion(installed, release.version) }
+        // The user may have switched to Manual while this check was running.
+        if decision.notify, mode == .automatic { onNewVersion(installed, release.version) }
     }
 
     private static func version(_ defaults: any DefaultsStoring, _ key: String) -> AppVersion? {
