@@ -54,6 +54,10 @@ public struct UpdateFetcher: Sendable {
 
     private static let releasePage = "https://github.com/PedroMosquera/tokenjar/releases/tag/"
 
+    public static func releaseInfo(for version: AppVersion) -> ReleaseInfo? {
+        URL(string: releasePage + "v\(version)").map { ReleaseInfo(version: version, pageURL: $0) }
+    }
+
     private struct Latest: Decodable {
         let tag_name: String
     }
@@ -81,9 +85,9 @@ public struct UpdateFetcher: Sendable {
         guard let latest = try? JSONDecoder().decode(Latest.self, from: response.body) else {
             throw FetchError.parse("no tag_name in the release")
         }
-        guard let version = AppVersion(latest.tag_name), let pageURL = URL(string: Self.releasePage + "v\(version)") else {
+        guard let version = AppVersion(latest.tag_name), let release = Self.releaseInfo(for: version) else {
             throw FetchError.parse("unrecognised release tag")
         }
-        return ReleaseInfo(version: version, pageURL: pageURL)
+        return release
     }
 }

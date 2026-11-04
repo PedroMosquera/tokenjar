@@ -134,6 +134,7 @@ final class AppModel {
     @ObservationIgnored var store: (any UsageStore)?
     @ObservationIgnored var priceTable = PriceTable()
     @ObservationIgnored var notifications: NotificationManager?
+    @ObservationIgnored var updates: UpdateChecker?
     /// Set by `AppModel.preview()`: shows every configured account regardless of what exists on this Mac.
     @ObservationIgnored var previewMode = false {
         didSet { refreshAccounts() }
@@ -456,8 +457,15 @@ final class AppModel {
         popoverNow = now
         checkProviderHealth(userInitiated: false)
         checkExchangeRates(userInitiated: false)
+        checkForUpdatesIfDue()
         guard RefreshScheduler.shouldRefreshOnPopoverOpen(lastRefreshAt: lastRefreshAt, now: now) else { return }
         refresh(force: true)
+    }
+
+    @discardableResult
+    func checkForUpdatesIfDue() -> Task<Void, Never>? {
+        guard !isInert else { return nil }
+        return updates?.checkIfDue(holdsChecks: networkWatch.holdsChecks)
     }
 
     @discardableResult
@@ -470,6 +478,7 @@ final class AppModel {
             historyRevision += 1
         }
         guard !sleeping else { return nil }
+        checkForUpdatesIfDue()
         refreshAccounts()
         reloadConfigIfChanged()
         let fetches = refresh(force: false)
