@@ -10,6 +10,7 @@ How each part of the app behaves. The [README](../README.md) has the short tour;
 - [Currency](#currency)
 - [Dashboard](#dashboard)
 - [Settings and accounts](#settings-and-accounts)
+- [Updates](#updates)
 - [Alerts](#alerts)
 - [In scripts](#in-scripts)
 
@@ -117,6 +118,12 @@ Each account gets its own page in Settings with its status, the fix when a check
 - Adding an account asks for its name first.
 - Drag accounts in the list to reorder them.
 - The ⋯ button on a row, also on right-click, renames an account, hides it from the menu bar, moves it or removes it.
+
+## Updates
+
+Settings > About shows the version you run and a Check for updates setting. On Manual, the default, Tokenjar asks GitHub only when you click Check Now. On Automatic it asks once a day and sends one notification per new version. Clicking the notification opens About.
+
+When a newer version exists, About links to its release notes on GitHub and shows the update command for Homebrew, curl and make, each with a Copy button. Tokenjar never installs anything itself. Check Now needs the installed app.
 
 ## Alerts
 

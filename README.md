@@ -120,7 +120,7 @@ Each account has its own page with its status, the fix when a check fails, and b
 
 ## Privacy
 
-Tokenjar never reads or refreshes an OAuth token: each CLI keeps and renews its own login. It has no telemetry and no update check, and it never imports browser cookies.
+Tokenjar never reads or refreshes an OAuth token: each CLI keeps and renews its own login. It has no telemetry, and it checks for updates only when you ask: Settings > About has a Check Now button, and an optional Automatic setting that asks GitHub once a day. It never imports browser cookies.
 
 The app sends only these requests itself, and a test fails if another endpoint is added:
 
@@ -177,6 +177,10 @@ make install
 That builds a release binary, wraps it in `Tokenjar.app`, signs it ad-hoc, copies it to `~/Applications` and opens it. It shows no Gatekeeper prompt. `make install INSTALL_DIR=<folder>` puts it somewhere else.
 
 To update, pull and run `make install` again. It quits the Tokenjar running from the install folder, replaces it and opens the new build. A copy started anywhere else, such as by `make run` or a `.build` binary, keeps running.
+
+### Updates
+
+Settings > About can tell you when a new version exists. It is off until you click Check Now or switch Check for updates to Automatic, which asks GitHub once a day and sends one notification per new version. Tokenjar never installs anything: About shows the update command for each of the three ways above, with a Copy button.
 
 ### After installing
 

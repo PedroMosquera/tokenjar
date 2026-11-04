@@ -50,7 +50,7 @@ struct AboutSettingsPane: View {
         Item(what: "~/Library/Application Support/Tokenjar/", why: "tokenjar.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens or quota, so it is not run again until that CLI (claude or agy) updates or you click Try Once More. probe: an empty folder the CLIs run in."),
         Item(what: "$TMPDIR/tokenjar-sign-in-<account>.command", why: "Only when you click Sign In in Terminal: the login command for Terminal to run. It deletes itself when it runs."),
         Item(what: "Keychain: \(AppPaths.keychainService)", why: "Only API keys you paste here."),
-        Item(what: "Preferences: \(AppPaths.bundleIdentifier)", why: "Window frames and, for this Mac only: whether provider status is on, the pinned account, the currency and its exchange rates, and which API value sections are open."),
+        Item(what: "Preferences: \(AppPaths.bundleIdentifier)", why: "Window frames and, for this Mac only: whether provider status is on, the pinned account, the currency and its exchange rates, which API value sections are open, and the update check setting, its last check and the newest version seen."),
     ]
 
     var body: some View {
@@ -62,13 +62,17 @@ struct AboutSettingsPane: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Tokenjar").font(.title3.weight(.semibold))
                         Text("Version \(version)").foregroundStyle(.secondary)
-                        Text("Shows how much room is left on each AI subscription. Built from source; no telemetry, no updates feed.")
+                        Text("Shows how much room is left on each AI subscription. Built from source. No telemetry, and it checks for updates only when you ask.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 4)
                     }
                 }
+            }
+
+            if let updates = model.updates {
+                updatesSection(updates)
             }
 
             itemSection("Runs", Self.runs)
@@ -95,6 +99,85 @@ struct AboutSettingsPane: View {
                     }
                 }
             }
+        }
+    }
+
+    private struct UpdateCommand: Identifiable {
+        var id: String { name }
+        var name: String
+        var command: String
+    }
+
+    private static let updateCommands = [
+        UpdateCommand(name: "Homebrew", command: "brew upgrade tokenjar && tokenjar-install-app"),
+        UpdateCommand(name: "curl", command: "curl -fsSL https://raw.githubusercontent.com/PedroMosquera/tokenjar/main/Scripts/get.sh | bash"),
+        UpdateCommand(name: "make", command: "git pull && make install"),
+    ]
+
+    @ViewBuilder private func updatesSection(_ updates: UpdateChecker) -> some View {
+        let delivery = AlertDelivery(model.notificationPermission)
+        Section("Updates") {
+            Picker(selection: Binding(
+                get: { updates.mode },
+                set: { mode in
+                    updates.mode = mode
+                    if mode == .automatic {
+                        model.requestNotificationPermission(prominent: true)
+                        model.checkForUpdatesIfDue()
+                    }
+                }
+            )) {
+                Text("Manual").tag(UpdateCheckMode.manual)
+                Text("Automatic").tag(UpdateCheckMode.automatic)
+            } label: {
+                Text("Check for updates")
+                Text(updates.mode == .automatic
+                    ? "Tokenjar asks GitHub once a day and notifies you once per new version."
+                    : "Tokenjar asks GitHub only when you click Check Now.")
+            }
+            if updates.mode == .automatic, let action = delivery.action {
+                HStack {
+                    Spacer()
+                    switch action {
+                    case .allowBanners:
+                        Button("Allow Banners") { model.requestNotificationPermission(prominent: true) }
+                    case .openNotificationSettings:
+                        Button("Open Notification Settings") {
+                            NSWorkspace.shared.open(AlertDelivery.notificationSettingsURL(bundleID: Bundle.main.bundleIdentifier))
+                        }
+                    }
+                }
+            }
+            LabeledContent {
+                Button("Check Now") { updates.checkNow() }
+                    .disabled(updates.status == .checking || !updates.canCheck)
+            } label: {
+                if !updates.canCheck {
+                    Text("Update checks need the installed app.")
+                } else if let line = UpdateStatusLine.text(updates.status, now: Date()) {
+                    Text(line)
+                }
+            }
+            if case .available(let release) = updates.status {
+                Link("What's new in \(release.version)", destination: release.pageURL)
+                ForEach(Self.updateCommands) { item in
+                    LabeledContent {
+                        Button("Copy") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(item.command, forType: .string)
+                        }
+                    } label: {
+                        Text(item.name)
+                        Text(item.command)
+                            .font(.system(.callout, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+        }
+        .onAppear { model.refreshNotificationPermission() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.refreshNotificationPermission()
         }
     }
 
