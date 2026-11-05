@@ -179,16 +179,18 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let route = Self.route(response.notification.request.content.userInfo, action: response.actionIdentifier)
-        await MainActor.run {
-            switch route {
-            case .openDashboard(let accountID): onOpenDashboard(accountID)
-            case .openAbout: onOpenAbout()
-            // About opens too, since that is where the build's progress shows.
-            case .updateNow(let version):
-                onUpdateNow(version)
-                onOpenAbout()
-            case nil: break
-            }
+        await MainActor.run { handle(route) }
+    }
+
+    func handle(_ route: NotificationRoute?) {
+        switch route {
+        case .openDashboard(let accountID): onOpenDashboard(accountID)
+        case .openAbout: onOpenAbout()
+        // About opens too, since that is where the build's progress shows.
+        case .updateNow(let version):
+            onUpdateNow(version)
+            onOpenAbout()
+        case nil: break
         }
     }
 }

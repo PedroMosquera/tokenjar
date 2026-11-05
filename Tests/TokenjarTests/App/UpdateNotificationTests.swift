@@ -41,6 +41,18 @@ struct UpdateNotificationTests {
         #expect(NotificationManager.route(updated, action: NotificationManager.updateNowActionID) == .openAbout)
     }
 
+    @MainActor @Test func eachRouteCallsOnlyItsOwnHandlers() {
+        let manager = NotificationManager()
+        var calls: [String] = []
+        manager.onOpenDashboard = { calls.append("dashboard \($0 ?? "-")") }
+        manager.onOpenAbout = { calls.append("about") }
+        manager.onUpdateNow = { calls.append("update \($0)") }
+        for route in [NotificationRoute.openDashboard("claude-1"), .openAbout, .updateNow(v040), nil] {
+            manager.handle(route)
+        }
+        #expect(calls == ["dashboard claude-1", "about", "update 0.4.0", "about"])
+    }
+
     @Test func alertsStillOpenTheDashboard() {
         let info: [AnyHashable: Any] = ["accountID": "claude-1"]
         #expect(NotificationManager.route(info, action: UNNotificationDefaultActionIdentifier) == .openDashboard("claude-1"))

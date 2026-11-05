@@ -12,6 +12,15 @@ enum UpdateProgress: Equatable {
     /// The swap has started and quits this app; the next launch reports how it went.
     case installing(AppVersion)
     case failed(AppVersion, UpdateFailure)
+
+    /// What About shows while an update runs, nil otherwise.
+    var busyText: String? {
+        switch self {
+        case .building(let version): "Building \(version). This takes a few minutes, then Tokenjar quits and opens the new version."
+        case .installing(let version): "Installing \(version). Tokenjar quits and opens the new version."
+        case .idle, .failed: nil
+        }
+    }
 }
 
 protocol UpdateRunning: Sendable {

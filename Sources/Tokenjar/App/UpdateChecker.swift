@@ -4,6 +4,11 @@ import TokenjarCore
 
 enum UpdateStatus: Equatable {
     case unknown, checking, upToDate(checkedAt: Date), available(ReleaseInfo), failed(at: Date)
+
+    var isAvailable: Bool {
+        if case .available = self { return true }
+        return false
+    }
 }
 
 /// Asks GitHub whether a newer Tokenjar exists. Nothing is sent until the user turns on Automatic or presses Check

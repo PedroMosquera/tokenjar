@@ -183,6 +183,10 @@ struct AboutSettingsPane: View {
                     Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
                 }
             }
+            if !updates.status.isAvailable, let busy = model.updater?.progress.busyText {
+                // A build started from a notification runs whatever the latest check says now.
+                progressRow(busy)
+            }
             if case .available(let release) = updates.status {
                 Link("What's new in \(release.version)", destination: release.pageURL)
                 if let updater = model.updater { updateNowRow(updater, release.version) }
@@ -224,12 +228,9 @@ struct AboutSettingsPane: View {
     }
 
     @ViewBuilder private func updateNowRow(_ updater: Updater, _ version: AppVersion) -> some View {
-        switch updater.progress {
-        case .building(let building):
-            progressRow("Building \(building). This takes a few minutes, then Tokenjar quits and opens the new version.")
-        case .installing(let installing):
-            progressRow("Installing \(installing). Tokenjar quits and opens the new version.")
-        case .idle, .failed:
+        if let busy = updater.progress.busyText {
+            progressRow(busy)
+        } else {
             LabeledContent {
                 Button("Update Now") { updater.start(version) }
                     .buttonStyle(.borderedProminent)
