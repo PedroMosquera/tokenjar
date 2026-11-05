@@ -93,7 +93,7 @@ struct UpdaterTests {
     private func make(
         runner: FakeUpdateRunner = FakeUpdateRunner(), installed: AppVersion? = AppVersion("0.3.0"), homebrew: Bool = false,
         keg: AppVersion? = nil, writable: Bool = true, defaults: MemoryDefaults = MemoryDefaults(), autoInstall: Bool = false,
-        folderWritable: ((String) -> Bool)? = nil
+        folderWritable: ((String) -> Bool)? = nil, swift: String? = "Apple Swift version 6.3.2"
     ) throws -> Rig {
         if autoInstall { defaults.set(true, forKey: Updater.autoInstallKey) }
         let home = try ModelHome()
@@ -101,7 +101,7 @@ struct UpdaterTests {
             defaults: defaults, installed: installed, appBundle: home.url.appending(path: "Applications/Tokenjar.app").path,
             paths: home.paths, temporaryDirectory: nil,
             fileExists: { homebrew && $0 == "/opt/homebrew/opt/tokenjar/Tokenjar.app" }, folderWritable: folderWritable ?? { _ in writable },
-            kegVersion: { _ in keg }, runner: runner, toolsInstalled: { true }
+            kegVersion: { _ in keg }, runner: runner, toolsInstalled: { true }, swiftVersion: { swift }, userName: "jdoe"
         )
         return Rig(updater: updater, runner: runner, defaults: defaults, home: home)
     }
@@ -467,6 +467,56 @@ struct UpdaterTests {
         await build?.value
         #expect(rig.updater.progress == .failed(v040, .homebrewBehind))
         #expect(tried(rig.defaults) == [])
+    }
+
+    // MARK: Report This Problem
+
+    private func fields(_ url: URL?) -> [String: String] {
+        let items = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
+        return Dictionary(items.map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { first, _ in first })
+    }
+
+    @Test func thereIsNothingToReportWithoutAFailure() async throws {
+        let rig = try make()
+        defer { rig.home.remove() }
+        #expect(await rig.updater.report() == nil)
+        await rig.updater.start(v040)?.value
+        #expect(rig.updater.progress == .installing(v040))
+        #expect(await rig.updater.report() == nil)
+    }
+
+    @Test func aReportNamesTheFailedUpdateAndEndsWithTheRedactedLog() async throws {
+        let rig = try make(runner: FakeUpdateRunner(buildStatus: 1))
+        defer { rig.home.remove() }
+        await rig.updater.start(v040)?.value
+        let home = rig.home.paths.home.path
+        try Data("$ /bin/bash \(home)/Applications/Tokenjar.app/Contents/Resources/get.sh\nerror: jdoe cannot build\n".utf8)
+            .write(to: rig.home.paths.updateLogFile)
+        let values = fields(await rig.updater.report())
+        #expect(values["from"] == "0.3.0")
+        #expect(values["to"] == "0.4.0")
+        #expect(values["method"] == "Release archive")
+        #expect(values["swift"] == "Apple Swift version 6.3.2")
+        #expect(values["macos"] == ProcessInfo.processInfo.operatingSystemVersionString)
+        #expect(values["log"] == "$ /bin/bash ~/Applications/Tokenjar.app/Contents/Resources/get.sh\nerror: <user> cannot build")
+    }
+
+    @Test func aReportEndsWithTheLastLinesOfALongLog() async throws {
+        let rig = try make(runner: FakeUpdateRunner(buildStatus: 1))
+        defer { rig.home.remove() }
+        await rig.updater.start(v040)?.value
+        let filler = String(repeating: "f", count: 200)
+        let log = (1...5000).map { "\($0) \(filler)" }.joined(separator: "\n") + "\nthe last line\n"
+        try Data(log.utf8).write(to: rig.home.paths.updateLogFile)
+        let sent = fields(await rig.updater.report())["log"] ?? ""
+        #expect(sent.hasSuffix("4999 \(filler)\n5000 \(filler)\nthe last line"))
+    }
+
+    @Test func aMissingSwiftVersionSaysSo() async throws {
+        let rig = try make(runner: FakeUpdateRunner(buildStatus: 1), swift: nil)
+        defer { rig.home.remove() }
+        await rig.updater.start(v040)?.value
+        #expect(fields(await rig.updater.report())["swift"] == "unknown")
     }
 
     @Test func theAppWiresChecksNoticesAndTheUpdaterTogether() async throws {

@@ -124,6 +124,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
                     stdin: nil, timeout: 5, outputLimit: 4096
                 )
                 return result.map { $0.exitCode == 0 && !$0.timedOut } ?? false
+            },
+            swiftVersion: {
+                let result = try? await FoundationProcessRunner().run(
+                    URL(fileURLWithPath: "/usr/bin/swift"), arguments: ["--version"], environment: [:], currentDirectory: nil,
+                    stdin: nil, timeout: 10, outputLimit: 4096
+                )
+                guard let result, result.exitCode == 0, !result.timedOut else { return nil }
+                return String(decoding: result.stdout, as: UTF8.self).components(separatedBy: "\n").first
             }
         )
     }

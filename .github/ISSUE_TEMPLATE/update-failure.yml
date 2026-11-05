@@ -1,0 +1,47 @@
+name: Update failed
+description: Update Now or Install updates automatically could not update Tokenjar.
+title: "Update failed"
+labels: [update-failure]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report This Problem in Settings > About fills in this form. Tokenjar replaces your home folder with `~` and your user name with `<user>`, but read the log before you submit and remove anything you would rather not share.
+  - type: input
+    id: from
+    attributes:
+      label: Version you had
+    validations:
+      required: true
+  - type: input
+    id: to
+    attributes:
+      label: Version it tried to install
+    validations:
+      required: true
+  - type: input
+    id: method
+    attributes:
+      label: Install method
+      description: Homebrew, or Release archive for every other install.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+  - type: input
+    id: swift
+    attributes:
+      label: First line of swift --version
+  - type: textarea
+    id: log
+    attributes:
+      label: End of update.log
+      description: The last lines of ~/Library/Application Support/Tokenjar/update.log. Reveal Log in Settings > About shows the whole file.
+      render: text
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: What you were doing when it failed, and whether it happens again with Update Now.

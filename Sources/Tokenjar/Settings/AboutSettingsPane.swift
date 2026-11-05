@@ -24,6 +24,7 @@ struct AboutSettingsPane: View {
         Item(what: "bash <app>/Contents/Resources/get.sh", why: "Only for Update Now, clicked or run by Install updates automatically, when Homebrew has no copy of Tokenjar. The installer inside this app, set to the new version: it downloads that release's source from github.com and builds it into the update folder below. Nothing is installed yet."),
         Item(what: "bash ~/Library/Application Support/Tokenjar/update/install.sh <folder>", why: "After that build, at once for a click, or once no Tokenjar window is open for Install updates automatically: the new version's install script replaces this copy in its folder, quits it and opens the new one."),
         Item(what: "brew upgrade tokenjar, then tokenjar-install-app <folder>", why: "Instead of the two above, when Homebrew's copy of Tokenjar exists. Homebrew contacts its own servers."),
+        Item(what: "swift --version", why: "Only when you click Report This Problem after a failed update: its first line goes in the issue it opens in your browser."),
     ]
 
     static let reads = [
@@ -190,6 +191,18 @@ struct AboutSettingsPane: View {
                 } icon: {
                     Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
                 }
+                LabeledContent {
+                    HStack {
+                        Button("Reveal Log") { NSWorkspace.shared.activateFileViewerSelecting([updater.logFile]) }
+                            .disabled(!FileManager.default.fileExists(atPath: updater.logFile.path))
+                        Button("Report This Problem") {
+                            Task { if let url = await updater.report() { NSWorkspace.shared.open(url) } }
+                        }
+                    }
+                } label: {
+                    Text("Report on GitHub")
+                    Text(Self.reportCaption)
+                }
             }
             if !updates.status.isAvailable, let busy = model.updater?.progress.busyText {
                 // A build can outlive the newer-version status: a notification starts its own version, and a release can
@@ -260,7 +273,13 @@ struct AboutSettingsPane: View {
         }
     }
 
-    static let autoInstallCaption = """
+    static let reportCaption = """
+        Opens a new GitHub issue in your browser with the versions, install method, macOS and Swift versions and the \
+        end of the log filled in, your home folder and user name taken out. Opening it sends those to github.com; \
+        nothing is filed until you submit it.
+        """
+
+        static let autoInstallCaption = """
         Tokenjar downloads and builds each new version by itself, then quits and opens it once no Tokenjar window is \
         open. Each version is tried once; Update Now stays available.
         """

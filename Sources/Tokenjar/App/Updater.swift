@@ -75,6 +75,8 @@ final class Updater {
     @ObservationIgnored private let kegVersion: (_ prefix: String) -> AppVersion?
     @ObservationIgnored private let runner: any UpdateRunning
     @ObservationIgnored private let toolsInstalled: @Sendable () async -> Bool
+    @ObservationIgnored private let swiftVersion: @Sendable () async -> String?
+    @ObservationIgnored private let userName: String
     /// The swap for the `.ready` build, planned when its build started so it matches what was built.
     @ObservationIgnored private var readyInstall: UpdateStep?
 
@@ -82,8 +84,11 @@ final class Updater {
         defaults: any DefaultsStoring, installed: AppVersion?, appBundle: String, paths: AppPaths, temporaryDirectory: String?,
         fileExists: @escaping (String) -> Bool, folderWritable: @escaping (String) -> Bool,
         kegVersion: @escaping (_ prefix: String) -> AppVersion?, runner: any UpdateRunning,
-        toolsInstalled: @escaping @Sendable () async -> Bool
+        toolsInstalled: @escaping @Sendable () async -> Bool, swiftVersion: @escaping @Sendable () async -> String? = { nil },
+        userName: String = NSUserName()
     ) {
+        self.swiftVersion = swiftVersion
+        self.userName = userName
         self.defaults = defaults
         self.installed = installed
         self.appBundle = appBundle
@@ -151,6 +156,19 @@ final class Updater {
         else { return false }
         swap(version, step, silent: true)
         return true
+    }
+
+    /// Report This Problem for the failure About shows, nil while there is none. Runs `swift --version` and reads
+    /// the log, so it is called on the click, not ahead of it.
+    func report() async -> URL? {
+        guard case .failed(let version, _) = progress else { return nil }
+        let swift = await swiftVersion() ?? "unknown"
+        let report = UpdateReport(
+            from: installed?.description ?? "unknown", to: version, method: UpdateCommand.method(fileExists: fileExists),
+            macOS: ProcessInfo.processInfo.operatingSystemVersionString, swift: swift,
+            log: String(decoding: (try? Data(contentsOf: logFile)) ?? Data(), as: UTF8.self)
+        )
+        return report.url(home: paths.home.path, user: userName)
     }
 
     /// Reports the swap a previous run started, once: the key is cleared whatever the outcome.
@@ -247,7 +265,7 @@ final class Updater {
         if silent { onCouldNotUpdate(version) }
     }
 
-    private func prepare() throws {
+        private func prepare() throws {
         try AppPaths.createOwnerOnlyDirectory(paths.supportDirectory)
         if FileManager.default.fileExists(atPath: paths.updateStageDirectory.path) {
             try FileManager.default.removeItem(at: paths.updateStageDirectory)
