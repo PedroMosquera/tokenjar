@@ -55,6 +55,8 @@ final class AppModel {
         var showSettings: (String?) -> Void = { _ in }
         var closePopover: () -> Void = {}
         var requestQuit: () -> Void = {}
+        /// The Dashboard or Settings is open. The popover is `isPopoverShown`.
+        var hasOpenWindows: () -> Bool = { false }
     }
 
     var config = AppConfig() {
@@ -482,6 +484,9 @@ final class AppModel {
         }
         guard !sleeping else { return nil }
         checkForUpdatesIfDue()
+        if !isInert {
+            updater?.installIfIdle(windowOpen: isPopoverShown || presenter.hasOpenWindows(), automatic: updates?.mode == .automatic)
+        }
         refreshAccounts()
         reloadConfigIfChanged()
         let fetches = refresh(force: false)

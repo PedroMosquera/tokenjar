@@ -21,7 +21,7 @@ struct AboutSettingsPane: View {
         Item(what: "agy -p /usage --output-format json", why: "Antigravity limits."),
         Item(what: "gh api --method GET copilot_internal/user --jq <filter>", why: "GitHub Copilot limits, through your own gh login: gh sends this GET to api.github.com with its own token. The filter keeps only the plan, the reset date and the quota numbers. gh's telemetry and update check are off for it."),
         Item(what: "xcode-select -p", why: "Whether the Command Line Tools are installed, when you open About, so Update Now can say when they are missing."),
-        Item(what: "bash <app>/Contents/Resources/get.sh", why: "Only when you click Update Now and Homebrew has no copy of Tokenjar. The installer inside this app, set to the new version: it downloads that release's source from github.com and builds it into the update folder below. Nothing is installed yet."),
+        Item(what: "bash <app>/Contents/Resources/get.sh", why: "Only for Update Now, clicked or run by Install updates automatically, when Homebrew has no copy of Tokenjar. The installer inside this app, set to the new version: it downloads that release's source from github.com and builds it into the update folder below. Nothing is installed yet."),
         Item(what: "bash ~/Library/Application Support/Tokenjar/update/install.sh <folder>", why: "Right after that build: the new version's install script replaces this copy in its folder, quits it and opens the new one."),
         Item(what: "brew upgrade tokenjar, then tokenjar-install-app <folder>", why: "Instead of the two above, when Homebrew's copy of Tokenjar exists. Homebrew contacts its own servers."),
     ]
@@ -163,6 +163,14 @@ struct AboutSettingsPane: View {
                     }
                 }
             }
+            if updates.mode == .automatic, let updater = model.updater {
+                Toggle(isOn: Binding(get: { updater.autoInstall }, set: { updater.autoInstall = $0 })) {
+                    Text("Install updates automatically")
+                    Text(updater.blocker?.message ?? Self.autoInstallCaption)
+                }
+                // A blocked copy can still turn it off.
+                .disabled(updater.blocker != nil && !updater.autoInstall)
+            }
             LabeledContent {
                 Button("Check Now") { updates.checkNow() }
                     .disabled(updates.status == .checking || !updates.canCheck)
@@ -238,7 +246,9 @@ struct AboutSettingsPane: View {
                     .disabled(updater.blocker != nil)
             } label: {
                 Text("Update to \(version)")
-                Text(updater.blocker?.message ?? "Builds the new version in the background, then Tokenjar quits and opens it.")
+                Text(updater.blocker?.message ?? (updater.progress == .ready(version)
+                    ? "\(version) is built. Update Now quits Tokenjar and opens it."
+                    : "Builds the new version in the background, then Tokenjar quits and opens it."))
             }
         }
     }
@@ -249,6 +259,11 @@ struct AboutSettingsPane: View {
             Text(text)
         }
     }
+
+    static let autoInstallCaption = """
+        Tokenjar downloads and builds each new version by itself, then quits and opens it once no Tokenjar window is \
+        open. Each version is tried once; Update Now stays available.
+        """
 
     static func failureText(_ version: AppVersion, _ failure: UpdateFailure) -> String {
         switch failure {

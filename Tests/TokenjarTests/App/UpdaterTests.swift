@@ -3,21 +3,38 @@ import Testing
 @testable import Tokenjar
 import TokenjarCore
 
-private nonisolated final class FakeUpdateRunner: UpdateRunning, @unchecked Sendable {
+nonisolated final class FakeUpdateRunner: UpdateRunning, @unchecked Sendable {
     private let lock = NSLock()
     private var builds: [UpdateStep] = []
     private var installs: [UpdateStep] = []
     private var exit: (@Sendable (Int32) -> Void)?
     private var logAtBuild: String?
+    private var held: CheckedContinuation<Void, Never>?
+    private var released = false
     let buildStatus: Int32
     let installThrows: Bool
+    /// A held build ends only at `releaseBuild()`, so a test can act while it runs.
+    let holdsBuild: Bool
     /// Read while the install starts, to see what was stored before it.
     let onInstall: @Sendable () -> Void
 
-    init(buildStatus: Int32 = 0, installThrows: Bool = false, onInstall: @escaping @Sendable () -> Void = {}) {
+    init(
+        buildStatus: Int32 = 0, installThrows: Bool = false, holdsBuild: Bool = false,
+        onInstall: @escaping @Sendable () -> Void = {}
+    ) {
         self.buildStatus = buildStatus
         self.installThrows = installThrows
+        self.holdsBuild = holdsBuild
         self.onInstall = onInstall
+    }
+
+    func releaseBuild() {
+        let waiting = lock.withLock {
+            released = true
+            defer { held = nil }
+            return held
+        }
+        waiting?.resume()
     }
 
     var built: [UpdateStep] { lock.withLock { builds } }
@@ -29,6 +46,16 @@ private nonisolated final class FakeUpdateRunner: UpdateRunning, @unchecked Send
         lock.withLock {
             builds.append(step)
             logAtBuild = text
+        }
+        if holdsBuild {
+            await withCheckedContinuation { continuation in
+                let resumeNow = lock.withLock {
+                    if released { return true }
+                    held = continuation
+                    return false
+                }
+                if resumeNow { continuation.resume() }
+            }
         }
         return buildStatus
     }
@@ -65,8 +92,9 @@ struct UpdaterTests {
 
     private func make(
         runner: FakeUpdateRunner = FakeUpdateRunner(), installed: AppVersion? = AppVersion("0.3.0"), homebrew: Bool = false,
-        keg: AppVersion? = nil, writable: Bool = true, defaults: MemoryDefaults = MemoryDefaults()
+        keg: AppVersion? = nil, writable: Bool = true, defaults: MemoryDefaults = MemoryDefaults(), autoInstall: Bool = false
     ) throws -> Rig {
+        if autoInstall { defaults.set(true, forKey: Updater.autoInstallKey) }
         let home = try ModelHome()
         let updater = Updater(
             defaults: defaults, installed: installed, appBundle: home.url.appending(path: "Applications/Tokenjar.app").path,
@@ -78,6 +106,7 @@ struct UpdaterTests {
     }
 
     private func swappingTo(_ defaults: MemoryDefaults) -> String? { defaults.object(forKey: Updater.swappingToKey) as? String }
+    private func tried(_ defaults: MemoryDefaults) -> String? { defaults.object(forKey: Updater.autoInstallTriedKey) as? String }
 
     @Test func aFailedBuildNeverStartsTheSwap() async throws {
         let rig = try make(runner: FakeUpdateRunner(buildStatus: 1))
@@ -215,5 +244,195 @@ struct UpdaterTests {
         #expect(updated.isEmpty)
         #expect(rig.updater.progress == .failed(v040, .install))
         #expect(swappingTo(defaults) == nil)
+    }
+
+    // MARK: Install updates automatically
+
+    @Test func nothingInstallsByItselfUntilTheBoxIsTicked() async throws {
+        let rig = try make()
+        defer { rig.home.remove() }
+        #expect(rig.updater.autoInstall == false)
+        #expect(rig.defaults.object(forKey: Updater.autoInstallKey) == nil)
+        #expect(rig.updater.found(v040) == nil)
+        #expect(rig.runner.built.isEmpty)
+        #expect(tried(rig.defaults) == nil)
+        #expect(rig.updater.progress == .idle)
+    }
+
+    @Test func theBoxIsKeptInThisMacsPreferences() throws {
+        let rig = try make()
+        defer { rig.home.remove() }
+        rig.updater.autoInstall = true
+        #expect(rig.defaults.object(forKey: Updater.autoInstallKey) as? Bool == true)
+        let again = try make(defaults: rig.defaults)
+        defer { again.home.remove() }
+        #expect(again.updater.autoInstall)
+    }
+
+    @Test func aFoundVersionBuildsAndWaitsUntilNoWindowIsOpen() async throws {
+        let rig = try make(autoInstall: true)
+        defer { rig.home.remove() }
+        let build = rig.updater.found(v040)
+        #expect(tried(rig.defaults) == "0.4.0")
+        #expect(rig.updater.progress == .building(v040, waitsForIdle: true))
+        await build?.value
+        #expect(rig.updater.progress == .ready(v040))
+        #expect(rig.runner.installed.isEmpty)
+        #expect(swappingTo(rig.defaults) == nil)
+
+        #expect(rig.updater.installIfIdle(windowOpen: true, automatic: true) == false)
+        #expect(rig.runner.installed.isEmpty)
+        #expect(rig.updater.installIfIdle(windowOpen: false, automatic: true))
+        #expect(rig.runner.installed.count == 1)
+        #expect(swappingTo(rig.defaults) == "0.4.0")
+        #expect(rig.updater.progress == .installing(v040))
+    }
+
+    @Test func aBuiltVersionWaitsForAClickOnceSilentInstallsAreOff() async throws {
+        let rig = try make(autoInstall: true)
+        defer { rig.home.remove() }
+        await rig.updater.found(v040)?.value
+        #expect(rig.updater.installIfIdle(windowOpen: false, automatic: false) == false)
+        rig.updater.autoInstall = false
+        #expect(rig.updater.installIfIdle(windowOpen: false, automatic: true) == false)
+        #expect(rig.runner.installed.isEmpty)
+
+        // Update Now installs what was built, without building it again.
+        await rig.updater.start(v040)?.value
+        #expect(rig.runner.built.count == 1)
+        #expect(rig.runner.installed.count == 1)
+        #expect(rig.updater.progress == .installing(v040))
+    }
+
+    @Test func eachVersionIsTriedByItselfOnce() async throws {
+        let rig = try make(runner: FakeUpdateRunner(buildStatus: 1), autoInstall: true)
+        defer { rig.home.remove() }
+        await rig.updater.found(v040)?.value
+        #expect(rig.updater.found(v040) == nil)
+        #expect(rig.runner.built.count == 1)
+        // Update Now stays available.
+        await rig.updater.start(v040)?.value
+        #expect(rig.runner.built.count == 2)
+    }
+
+    @Test func anInterruptedSilentAttemptCountsAsTried() async throws {
+        let defaults = MemoryDefaults()
+        let first = try make(runner: FakeUpdateRunner(holdsBuild: true), defaults: defaults, autoInstall: true)
+        defer { first.home.remove() }
+        _ = first.updater.found(v040)
+        // Tokenjar quits mid-build; the next launch finds the same version.
+        let next = try make(defaults: defaults, autoInstall: true)
+        defer { next.home.remove() }
+        #expect(next.updater.found(v040) == nil)
+        #expect(next.runner.built.isEmpty)
+        first.runner.releaseBuild()
+    }
+
+    @Test func aFailedSilentAttemptNotifiesOncePerVersion() async throws {
+        let rig = try make(runner: FakeUpdateRunner(buildStatus: 1), autoInstall: true)
+        defer { rig.home.remove() }
+        var notices: [AppVersion] = []
+        rig.updater.onCouldNotUpdate = { notices.append($0) }
+        await rig.updater.found(v040)?.value
+        await rig.updater.found(v040)?.value
+        #expect(notices == [v040])
+        #expect(rig.updater.progress == .failed(v040, .build))
+    }
+
+    @Test func aSilentSwapThatFailsWhileTheAppRunsNotifies() async throws {
+        let rig = try make(autoInstall: true)
+        defer { rig.home.remove() }
+        var notices: [AppVersion] = []
+        rig.updater.onCouldNotUpdate = { notices.append($0) }
+        await rig.updater.found(v040)?.value
+        rig.updater.installIfIdle(windowOpen: false, automatic: true)
+        rig.runner.endInstall(1)
+        try await waitUntil { rig.updater.progress != .installing(v040) }
+        #expect(notices == [v040])
+        #expect(rig.updater.progress == .failed(v040, .install))
+    }
+
+    @Test func aSilentSwapThatFailedIsNotifiedOnTheNextLaunch() throws {
+        let defaults = MemoryDefaults()
+        defaults.set("0.4.0", forKey: Updater.swappingToKey)
+        defaults.set("0.4.0", forKey: Updater.autoInstallTriedKey)
+        let rig = try make(installed: v030, defaults: defaults)
+        defer { rig.home.remove() }
+        var notices: [AppVersion] = []
+        rig.updater.onCouldNotUpdate = { notices.append($0) }
+        rig.updater.finishPendingSwap()
+        #expect(notices == [v040])
+    }
+
+    @Test func aFailedUpdateNowNeverPostsTheCouldNotUpdateNotice() async throws {
+        let rig = try make(runner: FakeUpdateRunner(buildStatus: 1), autoInstall: true)
+        defer { rig.home.remove() }
+        var notices: [AppVersion] = []
+        rig.updater.onCouldNotUpdate = { notices.append($0) }
+        await rig.updater.start(v040)?.value
+        #expect(rig.updater.progress == .failed(v040, .build))
+
+        let defaults = MemoryDefaults()
+        defaults.set("0.4.0", forKey: Updater.swappingToKey)
+        let relaunched = try make(installed: v030, defaults: defaults)
+        defer { relaunched.home.remove() }
+        relaunched.updater.onCouldNotUpdate = { notices.append($0) }
+        relaunched.updater.finishPendingSwap()
+        #expect(notices.isEmpty)
+    }
+
+    @Test func homebrewNotCaughtUpLeavesTheVersionForTheNextCheck() async throws {
+        let rig = try make(homebrew: true, keg: v030, autoInstall: true)
+        defer { rig.home.remove() }
+        var notices: [AppVersion] = []
+        rig.updater.onCouldNotUpdate = { notices.append($0) }
+        await rig.updater.found(v040)?.value
+        #expect(rig.updater.progress == .failed(v040, .homebrewBehind))
+        #expect(notices.isEmpty)
+        #expect(tried(rig.defaults) == nil)
+        await rig.updater.found(v040)?.value
+        #expect(rig.runner.built.count == 2)
+    }
+
+    @Test func updateNowDuringASilentBuildInstallsWithoutWaiting() async throws {
+        let rig = try make(runner: FakeUpdateRunner(holdsBuild: true), autoInstall: true)
+        defer { rig.home.remove() }
+        let build = rig.updater.found(v040)
+        #expect(rig.updater.start(v040) == nil)
+        #expect(rig.updater.progress == .building(v040, waitsForIdle: false))
+        rig.runner.releaseBuild()
+        await build?.value
+        #expect(rig.runner.built.count == 1)
+        #expect(rig.runner.installed.count == 1)
+        #expect(rig.updater.progress == .installing(v040))
+    }
+
+    @Test func aCopyThatCannotUpdateNeverSpendsItsTry() async throws {
+        let rig = try make(writable: false, autoInstall: true)
+        defer { rig.home.remove() }
+        #expect(rig.updater.found(v040) == nil)
+        #expect(tried(rig.defaults) == nil)
+        #expect(rig.runner.built.isEmpty)
+    }
+
+    @Test func aFoundVersionNoNewerThanTheInstalledOneIsIgnored() async throws {
+        let rig = try make(installed: v040, autoInstall: true)
+        defer { rig.home.remove() }
+        #expect(rig.updater.found(v040) == nil)
+        #expect(tried(rig.defaults) == nil)
+    }
+
+    @Test func theAppHandsFoundVersionsAndNoticeTapsToTheUpdater() async throws {
+        let rig = try make(runner: FakeUpdateRunner(holdsBuild: true), autoInstall: true)
+        defer { rig.home.remove() }
+        let checker = UpdateChecker(defaults: MemoryDefaults(), installed: v030, fetch: { UpdateFetcher.releaseInfo(for: AppVersion("0.4.0")!)! })
+        let notifications = NotificationManager()
+        AppDelegate.connectUpdates(checker, rig.updater, notifications)
+        checker.onFound(v040)
+        #expect(rig.updater.progress == .building(v040, waitsForIdle: true))
+        notifications.onUpdateNow(v040)
+        #expect(rig.updater.progress == .building(v040, waitsForIdle: false))
+        rig.runner.releaseBuild()
+        try await waitUntil { rig.updater.progress == .installing(v040) }
     }
 }

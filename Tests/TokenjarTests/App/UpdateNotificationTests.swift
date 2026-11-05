@@ -27,6 +27,16 @@ struct UpdateNotificationTests {
         #expect(content.threadIdentifier == "tokenjar-update")
     }
 
+    @Test func couldNotUpdateNotificationText() {
+        let content = NotificationManager.couldNotUpdateContent(v040)
+        #expect(content.title == "Tokenjar couldn't update to 0.4.0")
+        #expect(content.body == "Open Settings > About to see what went wrong.")
+        #expect(content.userInfo["route"] as? String == "about")
+        #expect(content.userInfo["version"] == nil)
+        #expect(content.categoryIdentifier.isEmpty)
+        #expect(content.threadIdentifier == "tokenjar-update")
+    }
+
     @Test func theUpdateNowActionStartsThatVersion() {
         let info = NotificationManager.updateContent(installed: v030, latest: v040).userInfo
         #expect(NotificationManager.route(info, action: NotificationManager.updateNowActionID) == .updateNow(v040))

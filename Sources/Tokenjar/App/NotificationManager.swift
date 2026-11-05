@@ -137,6 +137,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         return content
     }
 
+    static func couldNotUpdateContent(_ version: AppVersion) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = "Tokenjar couldn't update to \(version)"
+        content.body = "Open Settings > About to see what went wrong."
+        content.threadIdentifier = updateThreadID
+        content.userInfo = [routeKey: aboutRoute]
+        content.sound = .default
+        return content
+    }
+
     /// Only an available-version notice carries a version, so only it can start an update.
     nonisolated static func route(_ userInfo: [AnyHashable: Any], action: String) -> NotificationRoute? {
         if userInfo[routeKey] as? String == aboutRoute {
@@ -157,11 +167,18 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         center.add(UNNotificationRequest(identifier: "tokenjar|update|\(latest)", content: content, trigger: nil))
     }
 
-    /// Posted by the first launch of the new version, once, whether or not update checks are Automatic: the update
-    /// itself was the click.
+    /// Posted by the first launch of the new version, once, whether or not update checks are Automatic: the click,
+    /// or the Install updates automatically checkbox, was the opt-in.
     func postUpdated(_ version: AppVersion) {
         guard let center else { return }
         center.add(UNNotificationRequest(identifier: "tokenjar|updated|\(version)", content: Self.updatedContent(version), trigger: nil))
+    }
+
+    /// Posted when a silent install fails, which the updater does once per version.
+    func postCouldNotUpdate(_ version: AppVersion) {
+        guard let center else { return }
+        let content = Self.couldNotUpdateContent(version)
+        center.add(UNNotificationRequest(identifier: "tokenjar|could-not-update|\(version)", content: content, trigger: nil))
     }
 
     func withdraw(_ ids: [String]) {

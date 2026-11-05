@@ -76,6 +76,9 @@ Blast radius: with silent installs on, a release tag runs a build on every such 
 - An interrupted build is abandoned, and counts as the version's one automatic attempt.
 - Older Swift versions are not pre-checked; `get.sh`'s own message shows as a failure.
 - The issue form ships with `config.yml` keeping blank issues, and the label is created at ship time.
+- A silent attempt that stops because Homebrew does not have the release yet does not spend the version's try; the next daily check (not the 30-second tick) tries again, since the tap is updated by hand after the release.
+- Update Now on a silent install's finished build swaps it at once, and Update Now during a silent build swaps as soon as it ends instead of waiting for the windows to close.
+- The couldn't-update notice after a relaunch is posted when the failed swap's version is the one in `updateAutoInstallTried`.
 
 ## Left to the builder
 

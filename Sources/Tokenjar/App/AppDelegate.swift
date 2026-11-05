@@ -54,7 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
             showDashboard: { [weak self] accountID in self?.showDashboard(accountID: accountID) },
             showSettings: { [weak self] accountID in self?.showSettings(accountID: accountID) },
             closePopover: { [weak self] in self?.popover.performClose(nil) },
-            requestQuit: { [weak self] in self?.requestQuit(nil) }
+            requestQuit: { [weak self] in self?.requestQuit(nil) },
+            hasOpenWindows: { [weak self] in self?.windows.hasOpenWindows ?? false }
         )
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -86,18 +87,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
 
         let installed = AppVersion(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
         let updates = UpdateChecker(defaults: UserDefaults.standard, installed: installed)
-        updates.onNewVersion = { installed, latest in notifications.postUpdate(installed: installed, latest: latest) }
         model.updates = updates
         let updater = Self.makeUpdater(installed: installed, paths: model.paths)
         updater.quit = { NSApp.terminate(nil) }
-        updater.onUpdated = { notifications.postUpdated($0) }
-        notifications.onUpdateNow = { updater.start($0) }
+        Self.connectUpdates(updates, updater, notifications)
         updater.finishPendingSwap()
         model.updater = updater
 
         observeIcon()
         model.start()
         if model.config.alerts.enabled { model.requestNotificationPermission(prominent: false) }
+    }
+
+    static func connectUpdates(_ updates: UpdateChecker, _ updater: Updater, _ notifications: NotificationManager) {
+        updates.onNewVersion = { installed, latest in notifications.postUpdate(installed: installed, latest: latest) }
+        updates.onFound = { updater.found($0) }
+        updater.onUpdated = { notifications.postUpdated($0) }
+        updater.onCouldNotUpdate = { notifications.postCouldNotUpdate($0) }
+        notifications.onUpdateNow = { updater.start($0) }
     }
 
     private static func makeUpdater(installed: AppVersion?, paths: AppPaths) -> Updater {

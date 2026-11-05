@@ -22,6 +22,9 @@ final class UpdateChecker {
 
     /// Called only for an automatic check that finds a newer version not announced or shown before.
     @ObservationIgnored var onNewVersion: (_ installed: AppVersion, _ latest: AppVersion) -> Void = { _, _ in }
+    /// Called for every automatic check that finds a newer version, announced or not, so a silent install can retry
+    /// a version Homebrew did not have yet at the next daily check.
+    @ObservationIgnored var onFound: (AppVersion) -> Void = { _ in }
 
     private(set) var status: UpdateStatus
 
@@ -111,6 +114,7 @@ final class UpdateChecker {
         guard userInitiated || mode == .automatic else { return }
         defaults.set(decision.notified.sorted().map(\.description), forKey: Self.notifiedVersionsKey)
         if decision.notify { onNewVersion(installed, release.version) }
+        if !userInitiated, release.version > installed { onFound(release.version) }
     }
 
     private var notifiedVersions: Set<AppVersion> {

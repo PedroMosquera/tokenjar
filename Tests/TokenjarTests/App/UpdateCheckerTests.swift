@@ -82,6 +82,32 @@ struct UpdateCheckerTests {
         #expect(again == 0)
     }
 
+    @Test func everyAutomaticCheckOffersANewerVersionForInstalling() async {
+        let rig = make(.success(release(v040)))
+        var found: [AppVersion] = []
+        rig.checker.onFound = { found.append($0) }
+        rig.checker.mode = .automatic
+        await rig.checker.checkIfDue(holdsChecks: false)?.value
+        // Announced once, but each daily check offers it again, so a version Homebrew did not have yet is retried.
+        rig.clock.advance(25 * 3600)
+        await rig.checker.checkIfDue(holdsChecks: false)?.value
+        #expect(found == [v040, v040])
+    }
+
+    @Test func onlyAnAutomaticCheckOffersAVersionForInstalling() async {
+        let rig = make(.success(release(v040)))
+        var found: [AppVersion] = []
+        rig.checker.onFound = { found.append($0) }
+        await rig.checker.checkNow()?.value
+        rig.checker.mode = .automatic
+        await rig.checker.checkNow()?.value
+        let current = make(.success(release(v030)))
+        current.checker.onFound = { found.append($0) }
+        current.checker.mode = .automatic
+        await current.checker.checkIfDue(holdsChecks: false)?.value
+        #expect(found.isEmpty)
+    }
+
     @Test func checkNowRunsOnManualAndNeverNotifies() async {
         let rig = make(.success(release(v040)))
         var notified = 0
