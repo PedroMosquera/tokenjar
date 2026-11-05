@@ -184,7 +184,8 @@ struct AboutSettingsPane: View {
                 }
             }
             if !updates.status.isAvailable, let busy = model.updater?.progress.busyText {
-                // A build started from a notification runs whatever the latest check says now.
+                // A build can outlive the newer-version status: a notification starts its own version, and a release can
+                // be withdrawn or a check run while it builds.
                 progressRow(busy)
             }
             if case .available(let release) = updates.status {
