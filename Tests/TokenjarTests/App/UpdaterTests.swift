@@ -171,6 +171,14 @@ struct UpdaterTests {
         #expect(rig.updater.progress == .idle)
     }
 
+    @Test func aVersionNoNewerThanTheInstalledOneDoesNotStart() async throws {
+        let rig = try make(installed: v040)
+        defer { rig.home.remove() }
+        #expect(rig.updater.start(v040) == nil)
+        #expect(rig.updater.start(v030) == nil)
+        #expect(rig.runner.built.isEmpty)
+    }
+
     @Test func aSecondStartWhileBuildingIsIgnored() async throws {
         let rig = try make()
         defer { rig.home.remove() }

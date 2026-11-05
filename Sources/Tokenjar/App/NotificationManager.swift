@@ -24,11 +24,22 @@ enum NotificationPermission: Equatable {
     }
 }
 
-/// Posts alert outcomes to Notification Center and routes the "Open Dashboard" action back to the app.
+/// Where a tap on a notification or one of its actions leads.
+enum NotificationRoute: Equatable {
+    case openDashboard(String?)
+    case openAbout
+    case updateNow(AppVersion)
+}
+
+/// Posts alert outcomes and update notices to Notification Center and routes their actions back to the app.
 /// Notification Center only serves an app bundle, so every call is a no-op when running from a build folder.
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     nonisolated static let categoryID = "tokenjar.alert"
     nonisolated static let openDashboardActionID = "tokenjar.open-dashboard"
+    /// A category of its own, so usage alerts never show Update Now.
+    nonisolated static let updateCategoryID = "tokenjar.update"
+    nonisolated static let updateNowActionID = "tokenjar.update-now"
+    nonisolated private static let versionKey = "version"
     nonisolated private static let accountIDKey = "accountID"
     nonisolated private static let routeKey = "route"
     nonisolated private static let aboutRoute = "about"
@@ -38,6 +49,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     var onOpenDashboard: (String?) -> Void = { _ in }
 
     var onOpenAbout: () -> Void = {}
+
+    var onUpdateNow: (AppVersion) -> Void = { _ in }
 
     /// `UNUserNotificationCenter.current()` raises outside an app bundle, so nothing touches it unless this is true.
     var isSupported: Bool {
@@ -53,7 +66,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         guard let center else { return }
         center.delegate = self
         let open = UNNotificationAction(identifier: Self.openDashboardActionID, title: "Open Dashboard", options: [.foreground])
-        center.setNotificationCategories([UNNotificationCategory(identifier: Self.categoryID, actions: [open], intentIdentifiers: [])])
+        let update = UNNotificationAction(identifier: Self.updateNowActionID, title: "Update Now", options: [.foreground])
+        center.setNotificationCategories([
+            UNNotificationCategory(identifier: Self.categoryID, actions: [open], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Self.updateCategoryID, actions: [update], intentIdentifiers: []),
+        ])
     }
 
     /// Without `prominent`, asks for provisional delivery: quiet, straight to Notification Center, no prompt.
@@ -102,11 +119,34 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static func updateContent(installed: AppVersion, latest: AppVersion) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = "Tokenjar \(latest) is available"
-        content.body = "You have \(installed). Open Settings > About to see what changed and how to update."
+        content.body = "You have \(installed). Update Now installs it, or open Settings > About to see what changed."
+        content.threadIdentifier = updateThreadID
+        content.categoryIdentifier = updateCategoryID
+        content.userInfo = [routeKey: aboutRoute, versionKey: latest.description]
+        content.sound = .default
+        return content
+    }
+
+    static func updatedContent(_ version: AppVersion) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = "Tokenjar updated to \(version)"
+        content.body = "Open Settings > About to see what changed."
         content.threadIdentifier = updateThreadID
         content.userInfo = [routeKey: aboutRoute]
         content.sound = .default
         return content
+    }
+
+    /// Only an available-version notice carries a version, so only it can start an update.
+    nonisolated static func route(_ userInfo: [AnyHashable: Any], action: String) -> NotificationRoute? {
+        if userInfo[routeKey] as? String == aboutRoute {
+            if action == updateNowActionID, let version = (userInfo[versionKey] as? String).flatMap(AppVersion.init) {
+                return .updateNow(version)
+            }
+            return .openAbout
+        }
+        guard action == openDashboardActionID || action == UNNotificationDefaultActionIdentifier else { return nil }
+        return .openDashboard(userInfo[accountIDKey] as? String)
     }
 
     /// Not gated on the alerts setting: choosing Automatic update checks is the opt-in. One request per version, so
@@ -115,6 +155,13 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         guard let center else { return }
         let content = Self.updateContent(installed: installed, latest: latest)
         center.add(UNNotificationRequest(identifier: "tokenjar|update|\(latest)", content: content, trigger: nil))
+    }
+
+    /// Posted by the first launch of the new version, once, whether or not update checks are Automatic: the update
+    /// itself was the click.
+    func postUpdated(_ version: AppVersion) {
+        guard let center else { return }
+        center.add(UNNotificationRequest(identifier: "tokenjar|updated|\(version)", content: Self.updatedContent(version), trigger: nil))
     }
 
     func withdraw(_ ids: [String]) {
@@ -131,14 +178,17 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        let userInfo = response.notification.request.content.userInfo
-        if userInfo[Self.routeKey] as? String == Self.aboutRoute {
-            await MainActor.run { onOpenAbout() }
-            return
+        let route = Self.route(response.notification.request.content.userInfo, action: response.actionIdentifier)
+        await MainActor.run {
+            switch route {
+            case .openDashboard(let accountID): onOpenDashboard(accountID)
+            case .openAbout: onOpenAbout()
+            // About opens too, since that is where the build's progress shows.
+            case .updateNow(let version):
+                onUpdateNow(version)
+                onOpenAbout()
+            case nil: break
+            }
         }
-        let action = response.actionIdentifier
-        guard action == Self.openDashboardActionID || action == UNNotificationDefaultActionIdentifier else { return }
-        let accountID = userInfo[Self.accountIDKey] as? String
-        await MainActor.run { onOpenDashboard(accountID) }
     }
 }

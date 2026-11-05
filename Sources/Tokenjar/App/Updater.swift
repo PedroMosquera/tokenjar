@@ -87,7 +87,8 @@ final class Updater {
 
     @discardableResult
     func start(_ version: AppVersion) -> Task<Void, Never>? {
-        guard !isBusy, blocker == nil else { return nil }
+        // A notice can be clicked after that version is already installed.
+        guard !isBusy, blocker == nil, let installed, version > installed else { return nil }
         let method = UpdateCommand.method(fileExists: fileExists)
         let plan = UpdatePlan.make(
             method: method, version: version, appBundle: appBundle, home: paths.home.path,
