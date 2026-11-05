@@ -139,8 +139,9 @@ final class Updater {
         }
     }
 
-    /// install.sh exits non-zero only with this copy left in place. A zero exit seen from here means it missed this
-    /// copy when quitting (a path spelled differently) but opened the new one, so this copy quits to leave one running.
+    /// A zero exit seen from here means install.sh missed this copy when quitting (a path spelled differently) but
+    /// opened the new one, so this copy quits to leave one running. A non-zero exit leaves this copy installed, except
+    /// when both renames fail, which install.sh reports in the log with where the old app was left.
     private func installEnded(_ version: AppVersion, status: Int32) {
         guard progress == .installing(version) else { return }
         guard status != 0 else { return quit() }
