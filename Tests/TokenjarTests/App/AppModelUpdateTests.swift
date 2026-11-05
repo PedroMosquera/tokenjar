@@ -62,6 +62,10 @@ struct AppModelUpdateTests {
         #expect(asks.total == 0)
     }
 
+    @Test func aPresenterThatWasNeverWiredReportsAWindowOpen() {
+        #expect(AppModel.Presenter().hasOpenWindows())
+    }
+
     @Test func aBuiltUpdateInstallsAtTheFirstTickWithNoWindowOpen() async throws {
         let home = try ModelHome()
         defer { home.remove() }

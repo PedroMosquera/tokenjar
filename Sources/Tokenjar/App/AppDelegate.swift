@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
             showSettings: { [weak self] accountID in self?.showSettings(accountID: accountID) },
             closePopover: { [weak self] in self?.popover.performClose(nil) },
             requestQuit: { [weak self] in self?.requestQuit(nil) },
-            hasOpenWindows: { [weak self] in self?.windows.hasOpenWindows ?? false }
+            hasOpenWindows: { [weak self] in self?.windows.hasOpenWindows ?? true }
         )
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
         if model.config.alerts.enabled { model.requestNotificationPermission(prominent: false) }
     }
 
-    static func connectUpdates(_ updates: UpdateChecker, _ updater: Updater, _ notifications: NotificationManager) {
+    static func connectUpdates(_ updates: UpdateChecker, _ updater: Updater, _ notifications: any UpdateNotifying) {
         updates.onNewVersion = { installed, latest in notifications.postUpdate(installed: installed, latest: latest) }
         updates.onFound = { updater.found($0) }
         updater.onUpdated = { notifications.postUpdated($0) }

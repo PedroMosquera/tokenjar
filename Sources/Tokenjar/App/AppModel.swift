@@ -55,8 +55,9 @@ final class AppModel {
         var showSettings: (String?) -> Void = { _ in }
         var closePopover: () -> Void = {}
         var requestQuit: () -> Void = {}
-        /// The Dashboard or Settings is open. The popover is `isPopoverShown`.
-        var hasOpenWindows: () -> Bool = { false }
+        /// The Dashboard or Settings is open. The popover is `isPopoverShown`. True when not wired, so a silent
+        /// install never quits the app over a window nobody reported.
+        var hasOpenWindows: () -> Bool = { true }
     }
 
     var config = AppConfig() {

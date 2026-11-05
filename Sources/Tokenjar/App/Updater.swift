@@ -44,7 +44,8 @@ protocol UpdateRunning: Sendable {
 final class Updater {
     static let swappingToKey = "updateSwappingTo"
     static let autoInstallKey = "updateAutoInstall"
-    /// The last version a silent install started on, so each version is tried by itself once.
+    /// The versions silent installs started on, so each is tried by itself once, even one that is withdrawn and
+    /// comes back. Versions no newer than the installed one are dropped.
     static let autoInstallTriedKey = "updateAutoInstallTried"
 
     private(set) var progress: UpdateProgress = .idle
@@ -136,10 +137,9 @@ final class Updater {
     /// before starts building; the try is spent as it starts, so an attempt cut short by quitting counts.
     @discardableResult
     func found(_ latest: AppVersion) -> Task<Void, Never>? {
-        let tried = defaults.object(forKey: Self.autoInstallTriedKey) as? String
-        guard autoInstall, tried != latest.description, canBegin(latest) else { return nil }
-        defaults.set(latest.description, forKey: Self.autoInstallTriedKey)
-        return begin(latest, waitsForIdle: true, triedBefore: tried)
+        guard autoInstall, !tried.contains(latest), canBegin(latest) else { return nil }
+        setTried(tried.union([latest]))
+        return begin(latest, waitsForIdle: true)
     }
 
     /// Called every tick. Swaps in a silent install's build when no Tokenjar window is open and silent installs are
@@ -163,10 +163,19 @@ final class Updater {
             onUpdated(version)
         case .failed(let version):
             progress = .failed(version, .install)
-            if defaults.object(forKey: Self.autoInstallTriedKey) as? String == version.description { onCouldNotUpdate(version) }
+            if tried.contains(version) { onCouldNotUpdate(version) }
         case nil:
             break
         }
+    }
+
+    private var tried: Set<AppVersion> {
+        Set((defaults.object(forKey: Self.autoInstallTriedKey) as? [String] ?? []).compactMap(AppVersion.init))
+    }
+
+    private func setTried(_ versions: Set<AppVersion>) {
+        let newer = versions.filter { version in installed.map { version > $0 } ?? false }
+        defaults.set(newer.sorted().map(\.description), forKey: Self.autoInstallTriedKey)
     }
 
     private func canBegin(_ version: AppVersion) -> Bool {
@@ -175,8 +184,7 @@ final class Updater {
         return version > installed
     }
 
-    /// `triedBefore` is what `autoInstallTriedKey` held before a silent install spent this version's try.
-    private func begin(_ version: AppVersion, waitsForIdle: Bool, triedBefore: String? = nil) -> Task<Void, Never>? {
+    private func begin(_ version: AppVersion, waitsForIdle: Bool) -> Task<Void, Never>? {
         guard canBegin(version) else { return nil }
         let method = UpdateCommand.method(fileExists: fileExists)
         let plan = UpdatePlan.make(
@@ -200,7 +208,7 @@ final class Updater {
             // brew upgrade succeeds without upgrading when its tap has not seen the release yet.
             if case .homebrew(let prefix) = method, !(kegVersion(prefix).map { $0 >= version } ?? false) {
                 // The tap trails the release, so the next daily check tries this version again.
-                if waitsForIdle { defaults.set(triedBefore, forKey: Self.autoInstallTriedKey) }
+                if waitsForIdle { setTried(tried.subtracting([version])) }
                 progress = .failed(version, .homebrewBehind)
                 return
             }

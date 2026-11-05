@@ -92,21 +92,22 @@ struct UpdaterTests {
 
     private func make(
         runner: FakeUpdateRunner = FakeUpdateRunner(), installed: AppVersion? = AppVersion("0.3.0"), homebrew: Bool = false,
-        keg: AppVersion? = nil, writable: Bool = true, defaults: MemoryDefaults = MemoryDefaults(), autoInstall: Bool = false
+        keg: AppVersion? = nil, writable: Bool = true, defaults: MemoryDefaults = MemoryDefaults(), autoInstall: Bool = false,
+        folderWritable: ((String) -> Bool)? = nil
     ) throws -> Rig {
         if autoInstall { defaults.set(true, forKey: Updater.autoInstallKey) }
         let home = try ModelHome()
         let updater = Updater(
             defaults: defaults, installed: installed, appBundle: home.url.appending(path: "Applications/Tokenjar.app").path,
             paths: home.paths, temporaryDirectory: nil,
-            fileExists: { homebrew && $0 == "/opt/homebrew/opt/tokenjar/Tokenjar.app" }, folderWritable: { _ in writable },
+            fileExists: { homebrew && $0 == "/opt/homebrew/opt/tokenjar/Tokenjar.app" }, folderWritable: folderWritable ?? { _ in writable },
             kegVersion: { _ in keg }, runner: runner, toolsInstalled: { true }
         )
         return Rig(updater: updater, runner: runner, defaults: defaults, home: home)
     }
 
     private func swappingTo(_ defaults: MemoryDefaults) -> String? { defaults.object(forKey: Updater.swappingToKey) as? String }
-    private func tried(_ defaults: MemoryDefaults) -> String? { defaults.object(forKey: Updater.autoInstallTriedKey) as? String }
+    private func tried(_ defaults: MemoryDefaults) -> [String]? { defaults.object(forKey: Updater.autoInstallTriedKey) as? [String] }
 
     @Test func aFailedBuildNeverStartsTheSwap() async throws {
         let rig = try make(runner: FakeUpdateRunner(buildStatus: 1))
@@ -273,7 +274,7 @@ struct UpdaterTests {
         let rig = try make(autoInstall: true)
         defer { rig.home.remove() }
         let build = rig.updater.found(v040)
-        #expect(tried(rig.defaults) == "0.4.0")
+        #expect(tried(rig.defaults) == ["0.4.0"])
         #expect(rig.updater.progress == .building(v040, waitsForIdle: true))
         await build?.value
         #expect(rig.updater.progress == .ready(v040))
@@ -355,7 +356,7 @@ struct UpdaterTests {
     @Test func aSilentSwapThatFailedIsNotifiedOnTheNextLaunch() throws {
         let defaults = MemoryDefaults()
         defaults.set("0.4.0", forKey: Updater.swappingToKey)
-        defaults.set("0.4.0", forKey: Updater.autoInstallTriedKey)
+        defaults.set(["0.4.0"], forKey: Updater.autoInstallTriedKey)
         let rig = try make(installed: v030, defaults: defaults)
         defer { rig.home.remove() }
         var notices: [AppVersion] = []
@@ -389,7 +390,7 @@ struct UpdaterTests {
         await rig.updater.found(v040)?.value
         #expect(rig.updater.progress == .failed(v040, .homebrewBehind))
         #expect(notices.isEmpty)
-        #expect(tried(rig.defaults) == nil)
+        #expect(tried(rig.defaults) == [])
         await rig.updater.found(v040)?.value
         #expect(rig.runner.built.count == 2)
     }
@@ -422,17 +423,91 @@ struct UpdaterTests {
         #expect(tried(rig.defaults) == nil)
     }
 
-    @Test func theAppHandsFoundVersionsAndNoticeTapsToTheUpdater() async throws {
-        let rig = try make(runner: FakeUpdateRunner(holdsBuild: true), autoInstall: true)
+    @Test func aWithdrawnVersionThatComesBackIsNotTriedAgain() async throws {
+        let v050 = AppVersion("0.5.0")!
+        let rig = try make(runner: FakeUpdateRunner(buildStatus: 1), autoInstall: true)
+        defer { rig.home.remove() }
+        var notices: [AppVersion] = []
+        rig.updater.onCouldNotUpdate = { notices.append($0) }
+        await rig.updater.found(v050)?.value
+        await rig.updater.found(v040)?.value
+        #expect(rig.updater.found(v050) == nil)
+        #expect(rig.runner.built.count == 2)
+        #expect(notices == [v050, v040])
+    }
+
+    @Test func triedVersionsNoNewerThanTheInstalledOneAreDropped() async throws {
+        let defaults = MemoryDefaults()
+        defaults.set(["0.2.0", "0.3.0"], forKey: Updater.autoInstallTriedKey)
+        let rig = try make(runner: FakeUpdateRunner(buildStatus: 1), defaults: defaults, autoInstall: true)
+        defer { rig.home.remove() }
+        await rig.updater.found(v040)?.value
+        #expect(tried(defaults) == ["0.4.0"])
+    }
+
+    @Test func aCopyBlockedAfterItsBuildNeverSwaps() async throws {
+        let writable = Locked(true)
+        let rig = try make(autoInstall: true, folderWritable: { _ in writable.value })
+        defer { rig.home.remove() }
+        await rig.updater.found(v040)?.value
+        #expect(rig.updater.progress == .ready(v040))
+        writable.set(false)
+        #expect(rig.updater.installIfIdle(windowOpen: false, automatic: true) == false)
+        #expect(rig.updater.start(v040) == nil)
+        #expect(rig.runner.installed.isEmpty)
+        #expect(swappingTo(rig.defaults) == nil)
+    }
+
+    @Test func homebrewNotCaughtUpGivesBackTheTryEvenAfterUpdateNowWasClicked() async throws {
+        let rig = try make(runner: FakeUpdateRunner(holdsBuild: true), homebrew: true, keg: v030, autoInstall: true)
+        defer { rig.home.remove() }
+        let build = rig.updater.found(v040)
+        rig.updater.start(v040)
+        rig.runner.releaseBuild()
+        await build?.value
+        #expect(rig.updater.progress == .failed(v040, .homebrewBehind))
+        #expect(tried(rig.defaults) == [])
+    }
+
+    @Test func theAppWiresChecksNoticesAndTheUpdaterTogether() async throws {
+        let defaults = MemoryDefaults()
+        let rig = try make(runner: FakeUpdateRunner(buildStatus: 1, holdsBuild: true), defaults: defaults, autoInstall: true)
         defer { rig.home.remove() }
         let checker = UpdateChecker(defaults: MemoryDefaults(), installed: v030, fetch: { UpdateFetcher.releaseInfo(for: AppVersion("0.4.0")!)! })
-        let notifications = NotificationManager()
-        AppDelegate.connectUpdates(checker, rig.updater, notifications)
+        let notices = FakeNotices()
+        AppDelegate.connectUpdates(checker, rig.updater, notices)
+
+        checker.onNewVersion(v030, v040)
+        #expect(notices.posted == ["available 0.3.0 0.4.0"])
         checker.onFound(v040)
         #expect(rig.updater.progress == .building(v040, waitsForIdle: true))
-        notifications.onUpdateNow(v040)
+        notices.onUpdateNow(v040)
         #expect(rig.updater.progress == .building(v040, waitsForIdle: false))
         rig.runner.releaseBuild()
-        try await waitUntil { rig.updater.progress == .installing(v040) }
+        try await waitUntil { rig.updater.progress == .failed(v040, .build) }
+
+        let failed = MemoryDefaults()
+        failed.set("0.4.0", forKey: Updater.swappingToKey)
+        failed.set(["0.4.0"], forKey: Updater.autoInstallTriedKey)
+        let relaunched = try make(installed: v030, defaults: failed)
+        defer { relaunched.home.remove() }
+        AppDelegate.connectUpdates(checker, relaunched.updater, notices)
+        relaunched.updater.finishPendingSwap()
+
+        let updated = MemoryDefaults()
+        updated.set("0.4.0", forKey: Updater.swappingToKey)
+        let current = try make(installed: v040, defaults: updated)
+        defer { current.home.remove() }
+        AppDelegate.connectUpdates(checker, current.updater, notices)
+        current.updater.finishPendingSwap()
+        #expect(notices.posted == ["available 0.3.0 0.4.0", "couldn't 0.4.0", "updated 0.4.0"])
     }
+}
+
+private final class FakeNotices: UpdateNotifying {
+    var onUpdateNow: (AppVersion) -> Void = { _ in }
+    private(set) var posted: [String] = []
+    func postUpdate(installed: AppVersion, latest: AppVersion) { posted.append("available \(installed) \(latest)") }
+    func postUpdated(_ version: AppVersion) { posted.append("updated \(version)") }
+    func postCouldNotUpdate(_ version: AppVersion) { posted.append("couldn't \(version)") }
 }

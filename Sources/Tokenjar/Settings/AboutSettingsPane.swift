@@ -22,7 +22,7 @@ struct AboutSettingsPane: View {
         Item(what: "gh api --method GET copilot_internal/user --jq <filter>", why: "GitHub Copilot limits, through your own gh login: gh sends this GET to api.github.com with its own token. The filter keeps only the plan, the reset date and the quota numbers. gh's telemetry and update check are off for it."),
         Item(what: "xcode-select -p", why: "Whether the Command Line Tools are installed, when you open About, so Update Now can say when they are missing."),
         Item(what: "bash <app>/Contents/Resources/get.sh", why: "Only for Update Now, clicked or run by Install updates automatically, when Homebrew has no copy of Tokenjar. The installer inside this app, set to the new version: it downloads that release's source from github.com and builds it into the update folder below. Nothing is installed yet."),
-        Item(what: "bash ~/Library/Application Support/Tokenjar/update/install.sh <folder>", why: "Right after that build: the new version's install script replaces this copy in its folder, quits it and opens the new one."),
+        Item(what: "bash ~/Library/Application Support/Tokenjar/update/install.sh <folder>", why: "After that build, at once for a click, or once no Tokenjar window is open for Install updates automatically: the new version's install script replaces this copy in its folder, quits it and opens the new one."),
         Item(what: "brew upgrade tokenjar, then tokenjar-install-app <folder>", why: "Instead of the two above, when Homebrew's copy of Tokenjar exists. Homebrew contacts its own servers."),
     ]
 

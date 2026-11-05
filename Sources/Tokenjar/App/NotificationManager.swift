@@ -31,9 +31,17 @@ enum NotificationRoute: Equatable {
     case updateNow(AppVersion)
 }
 
+/// The update notices `AppDelegate.connectUpdates` wires to the checker and the updater.
+protocol UpdateNotifying: AnyObject {
+    var onUpdateNow: (AppVersion) -> Void { get set }
+    func postUpdate(installed: AppVersion, latest: AppVersion)
+    func postUpdated(_ version: AppVersion)
+    func postCouldNotUpdate(_ version: AppVersion)
+}
+
 /// Posts alert outcomes and update notices to Notification Center and routes their actions back to the app.
 /// Notification Center only serves an app bundle, so every call is a no-op when running from a build folder.
-final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, UpdateNotifying {
     nonisolated static let categoryID = "tokenjar.alert"
     nonisolated static let openDashboardActionID = "tokenjar.open-dashboard"
     /// A category of its own, so usage alerts never show Update Now.

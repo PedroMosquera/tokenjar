@@ -56,7 +56,7 @@ Blast radius: with silent installs on, a release tag runs a build on every such 
 - **Report This Problem.** Opens `https://github.com/PedroMosquera/tokenjar/issues/new` with `template=update-failure.yml` and these fields prefilled: from version, to version, install method (Homebrew or release archive), macOS version, `swift --version` first line, and the last 40 lines of the log. Before it goes into the URL, every occurrence of the home folder path becomes `~`, and the whole URL stays under 8000 characters by dropping log lines from the top. A new issue form `.github/ISSUE_TEMPLATE/update-failure.yml` declares those fields with matching ids and the label `update-failure`. Adding the first issue form turns on GitHub's template chooser, so `.github/ISSUE_TEMPLATE/config.yml` sets `blank_issues_enabled: true` to keep plain issues working. The `update-failure` label is created on the repository when this ships, since GitHub drops a label that does not exist.
 - **Notification action.** The "available" notification gets a new category of its own (the usage-alert category stays as it is) with one action, **Update Now**, which starts the update and opens About to show progress. Clicking the notification body still only opens About.
 - **Permissions and promises.** The silent-install checkbox's caption says Tokenjar downloads and builds new versions by itself. `docs/privacy.md`, About's Runs list and README describe the commands the update runs and the hosts `get.sh` and Homebrew contact (`github.com`, `codeload.github.com`, and Homebrew's own traffic). The app's own HTTP allowlist does not change: these requests come from `curl` and `brew`, which the app runs, like the CLIs it already runs.
-- **Preferences** (this Mac only): `updateAutoInstall` (Bool, absent means off), `updateSwappingTo`, and `updateAutoInstallTried` (the last version a silent install attempted, for the once-per-version rule).
+- **Preferences** (this Mac only): `updateAutoInstall` (Bool, absent means off), `updateSwappingTo`, and `updateAutoInstallTried` (the versions silent installs attempted, newer than the installed one, for the once-per-version rule).
 
 ## Decided in conversation
 
@@ -78,7 +78,8 @@ Blast radius: with silent installs on, a release tag runs a build on every such 
 - The issue form ships with `config.yml` keeping blank issues, and the label is created at ship time.
 - A silent attempt that stops because Homebrew does not have the release yet does not spend the version's try; the next daily check (not the 30-second tick) tries again, since the tap is updated by hand after the release.
 - Update Now on a silent install's finished build swaps it at once, and Update Now during a silent build swaps as soon as it ends instead of waiting for the windows to close.
-- The couldn't-update notice after a relaunch is posted when the failed swap's version is the one in `updateAutoInstallTried`.
+- The couldn't-update notice after a relaunch is posted when the failed swap's version is in `updateAutoInstallTried`.
+- `updateAutoInstallTried` holds every tried version rather than the last one, so a withdrawn release that comes back is not tried twice.
 
 ## Left to the builder
 
