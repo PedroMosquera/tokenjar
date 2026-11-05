@@ -111,13 +111,23 @@ struct UpdateReportTests {
         #expect(fields(url)["to"] == "0.4.0")
     }
 
+    @Test func aLastLineThatEncodesLongIsCutOnlyAsFarAsNeeded() {
+        let url = report(log: "a\nerror: " + String(repeating: "\u{4E2D}", count: 5000)).url(home: home, user: user)
+        #expect(url.absoluteString.count < UpdateReport.maxURLLength)
+        #expect(url.absoluteString.count > UpdateReport.maxURLLength - 10)
+        #expect(fields(url)["log"]?.hasPrefix("error: \u{4E2D}") == true)
+    }
+
     @Test func longShortFieldsStillLeaveTheAddressUnderTheCap() {
         var long = report(log: "the error")
-        long.swift = String(repeating: "\u{4E2D}", count: 4000)
-        long.macOS = String(repeating: "m", count: 9000)
+        // One family emoji is a single character of seven scalars that encodes to 75 address characters.
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}"
+        long.swift = String(repeating: family, count: 300)
+        long.macOS = String(repeating: family, count: 300)
+        long.from = String(repeating: "\u{4E2D}", count: 4000)
         let url = long.url(home: home, user: user)
         #expect(url.absoluteString.count < UpdateReport.maxURLLength)
-        #expect(fields(url)["swift"]?.count == 200)
+        #expect(fields(url)["from"]?.unicodeScalars.count == 100)
         #expect(fields(url)["log"] == "the error")
     }
 

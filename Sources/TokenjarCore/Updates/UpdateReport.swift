@@ -29,24 +29,31 @@ public struct UpdateReport: Equatable, Sendable {
     /// Every field is redacted with `home` and `user`. The oldest log lines are dropped until the address is shorter
     /// than `maxURLLength`, and a last line still too long is cut short rather than dropped, so the error stays.
     public func url(home: String, user: String) -> URL {
-        // A short field's length is capped so the log always has room.
-        let clean = { (text: String) in String(Self.redact(text, home: home, user: user).prefix(Self.shortFieldLimit)) }
+        // Capped in scalars, which encode to at most 12 address characters each, so the short fields always fit and
+        // leave the log room.
+        let clean = { (text: String) in
+            String(String.UnicodeScalarView(Self.redact(text, home: home, user: user).unicodeScalars.prefix(Self.shortFieldLimit)))
+        }
         let fixed = [
             ("template", "update-failure.yml"), ("title", "Update to \(to) failed"), ("from", clean(from)),
             ("to", to.description), ("method", methodName), ("macos", clean(macOS)), ("swift", clean(swift)),
         ]
         var lines = Array(log.components(separatedBy: "\n").reversed().drop { $0.isEmpty }.reversed().suffix(Self.logLines))
             .map { Self.redact($0, home: home, user: user) }
-        while true {
-            let url = Self.address(fixed + [("log", lines.joined(separator: "\n"))])
-            let over = url.absoluteString.count - (Self.maxURLLength - 1)
-            if over <= 0 || lines.isEmpty { return url }
-            // Each character takes at least one character of the address, so this shrinks it by at least `over`.
-            if lines.count == 1, !lines[0].isEmpty { lines[0] = String(lines[0].dropLast(over)) } else { lines.removeFirst() }
+        let fits = { (log: String) in Self.address(fixed + [("log", log)]).absoluteString.count < Self.maxURLLength }
+        while lines.count > 1, !fits(lines.joined(separator: "\n")) { lines.removeFirst() }
+        let last = Array(lines.joined(separator: "\n"))
+        // The longest start of the one line left that fits. Characters encode to 1 to 9 address characters, so the
+        // cut is searched for rather than computed; an empty log always fits.
+        var low = 0, high = last.count
+        while low < high {
+            let mid = (low + high + 1) / 2
+            if fits(String(last[..<mid])) { low = mid } else { high = mid - 1 }
         }
+        return Self.address(fixed + [("log", String(last[..<low]))])
     }
 
-    static let shortFieldLimit = 200
+    static let shortFieldLimit = 100
 
     /// The home folder becomes `~`, the per-user part of macOS's temporary folder (`/var/folders/<xx>/<id>`) becomes
     /// `<id>`, and the login name anywhere it is not inside a longer run of letters and digits becomes `<user>`, so
