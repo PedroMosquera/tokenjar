@@ -9,7 +9,7 @@ struct UpdateReportTests {
     private func report(log: String, method: UpdateMethod = .releaseArchive) -> UpdateReport {
         UpdateReport(
             from: "0.3.0", to: AppVersion("0.4.0")!, method: method, macOS: "Version 26.0 (Build 25A354)",
-            swift: "swift-driver version: 1.148.6 Apple Swift version 6.3.2", log: log
+            swift: "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)", log: log
         )
     }
 
@@ -28,7 +28,7 @@ struct UpdateReportTests {
         #expect(values["to"] == "0.4.0")
         #expect(values["method"] == "Release archive")
         #expect(values["macos"] == "Version 26.0 (Build 25A354)")
-        #expect(values["swift"] == "swift-driver version: 1.148.6 Apple Swift version 6.3.2")
+        #expect(values["swift"] == "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)")
         #expect(values["log"] == "one\ntwo")
         #expect(fields(report(log: "", method: .homebrew(prefix: "/opt/homebrew")).url(home: home, user: user))["method"] == "Homebrew")
     }
@@ -39,7 +39,6 @@ struct UpdateReportTests {
         #expect(sent == (61...100).map { "line \($0)" })
     }
 
-    /// C-8.
     @Test func theHomeFolderAndUserNameNeverReachTheURL() {
         let log = """
         $ /bin/bash /Users/jdoe/Applications/Tokenjar.app/Contents/Resources/get.sh
@@ -74,6 +73,16 @@ struct UpdateReportTests {
         #expect(!decoded.contains("jdoe"))
     }
 
+    @Test func aNameJoinedByPunctuationIsRemovedToo() {
+        let text = "host jdoe-mbp.local and /private/tmp/jdoe-build and jdoe_cache and com.jdoe.x"
+        #expect(UpdateReport.redact(text, home: home, user: user) == "host <user>-mbp.local and /private/tmp/<user>-build and <user>_cache and com.<user>.x")
+    }
+
+    @Test func thePerUserTemporaryFolderIdIsRemoved() {
+        let text = "error: /private/var/folders/x7/abc123def_ghi/T/tokenjar-install.Ab12/src/Main.swift:3: oops"
+        #expect(UpdateReport.redact(text, home: home, user: user) == "error: /private/var/folders/<id>/T/tokenjar-install.Ab12/src/Main.swift:3: oops")
+    }
+
     @Test func aNameInsideAnotherWordIsKept() {
         #expect(UpdateReport.redact("make swiftbuild by ann; annex annie ann", home: "/Users/ann", user: "ann") == "make swiftbuild by <user>; annex annie <user>")
     }
@@ -83,7 +92,6 @@ struct UpdateReportTests {
         #expect(UpdateReport.redact("/usr/bin", home: "", user: "") == "/usr/bin")
     }
 
-    /// C-8.
     @Test func theURLStaysUnder8000CharactersByDroppingTheOldestLines() {
         let long = String(repeating: "x", count: 400)
         let log = (1...40).map { "\($0) \(long)" }.joined(separator: "\n")
@@ -95,10 +103,22 @@ struct UpdateReportTests {
         #expect(sent.first.map { !$0.hasPrefix("1 ") } ?? false)
     }
 
-    @Test func aSingleHugeLineStillFits() {
-        let url = report(log: String(repeating: "y", count: 20_000)).url(home: home, user: user)
+    @Test func aLastLineTooLongIsCutShortSoTheErrorStays() {
+        let url = report(log: "line 1\nline 2\nerror: " + String(repeating: "z", count: 20_000)).url(home: home, user: user)
         #expect(url.absoluteString.count < UpdateReport.maxURLLength)
+        #expect(url.absoluteString.count > UpdateReport.maxURLLength - 50)
+        #expect(fields(url)["log"]?.hasPrefix("error: zzz") == true)
         #expect(fields(url)["to"] == "0.4.0")
+    }
+
+    @Test func longShortFieldsStillLeaveTheAddressUnderTheCap() {
+        var long = report(log: "the error")
+        long.swift = String(repeating: "\u{4E2D}", count: 4000)
+        long.macOS = String(repeating: "m", count: 9000)
+        let url = long.url(home: home, user: user)
+        #expect(url.absoluteString.count < UpdateReport.maxURLLength)
+        #expect(fields(url)["swift"]?.count == 200)
+        #expect(fields(url)["log"] == "the error")
     }
 
     @Test func charactersThatMeanSomethingInAQueryArriveIntact() {

@@ -275,11 +275,11 @@ struct AboutSettingsPane: View {
 
     static let reportCaption = """
         Opens a new GitHub issue in your browser with the versions, install method, macOS and Swift versions and the \
-        end of the log filled in, your home folder and user name taken out. Opening it sends those to github.com; \
+        end of the log filled in, your home folder, user name and temporary folder id taken out. Opening it sends those to github.com; \
         nothing is filed until you submit it.
         """
 
-        static let autoInstallCaption = """
+    static let autoInstallCaption = """
         Tokenjar downloads and builds each new version by itself, then quits and opens it once no Tokenjar window is \
         open. Each version is tried once; Update Now stays available.
         """

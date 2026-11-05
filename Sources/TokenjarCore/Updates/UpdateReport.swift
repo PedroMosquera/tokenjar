@@ -26,33 +26,41 @@ public struct UpdateReport: Equatable, Sendable {
         self.log = log
     }
 
-    /// Every field is redacted with `home` and `user`, and the oldest log lines are dropped until the address is
-    /// shorter than `maxURLLength`.
+    /// Every field is redacted with `home` and `user`. The oldest log lines are dropped until the address is shorter
+    /// than `maxURLLength`, and a last line still too long is cut short rather than dropped, so the error stays.
     public func url(home: String, user: String) -> URL {
-        let clean = { Self.redact($0, home: home, user: user) }
+        // A short field's length is capped so the log always has room.
+        let clean = { (text: String) in String(Self.redact(text, home: home, user: user).prefix(Self.shortFieldLimit)) }
         let fixed = [
             ("template", "update-failure.yml"), ("title", "Update to \(to) failed"), ("from", clean(from)),
             ("to", to.description), ("method", methodName), ("macos", clean(macOS)), ("swift", clean(swift)),
         ]
         var lines = Array(log.components(separatedBy: "\n").reversed().drop { $0.isEmpty }.reversed().suffix(Self.logLines))
-            .map(clean)
+            .map { Self.redact($0, home: home, user: user) }
         while true {
             let url = Self.address(fixed + [("log", lines.joined(separator: "\n"))])
-            if url.absoluteString.count < Self.maxURLLength || lines.isEmpty { return url }
-            lines.removeFirst()
+            let over = url.absoluteString.count - (Self.maxURLLength - 1)
+            if over <= 0 || lines.isEmpty { return url }
+            // Each character takes at least one character of the address, so this shrinks it by at least `over`.
+            if lines.count == 1, !lines[0].isEmpty { lines[0] = String(lines[0].dropLast(over)) } else { lines.removeFirst() }
         }
     }
 
-    /// The home folder becomes `~`, then the login name standing alone (not inside a longer word) becomes `<user>`.
-    /// A home of "/" or a one-letter name would rewrite nearly everything, so those are left alone.
+    static let shortFieldLimit = 200
+
+    /// The home folder becomes `~`, the per-user part of macOS's temporary folder (`/var/folders/<xx>/<id>`) becomes
+    /// `<id>`, and the login name anywhere it is not inside a longer run of letters and digits becomes `<user>`, so
+    /// `jdoe-mbp` and `com.jdoe.x` lose it too. A home of "/" or a one-letter name would rewrite nearly everything,
+    /// so those are left alone.
     public static func redact(_ text: String, home: String, user: String) -> String {
         var text = text
         let home = home.hasSuffix("/") ? String(home.dropLast()) : home
         if !home.isEmpty { text = text.replacingOccurrences(of: home, with: "~") }
+        text = text.replacingOccurrences(of: "/var/folders/[^/\\s]+/[^/\\s]+", with: "/var/folders/<id>", options: .regularExpression)
         guard user.count > 1 else { return text }
         let name = NSRegularExpression.escapedPattern(for: user)
         return text.replacingOccurrences(
-            of: "(?<![A-Za-z0-9._-])\(name)(?![A-Za-z0-9_-])", with: "<user>", options: [.regularExpression, .caseInsensitive]
+            of: "(?<![A-Za-z0-9])\(name)(?![A-Za-z0-9])", with: "<user>", options: [.regularExpression, .caseInsensitive]
         )
     }
 

@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Report This Problem in Settings > About fills in this form. Tokenjar replaces your home folder with `~` and your user name with `<user>`, but read the log before you submit and remove anything you would rather not share.
+        Report This Problem in Settings > About fills in this form. Tokenjar replaces your home folder with `~`, your user name with `<user>` and your temporary folder id with `<id>`, but read the log before you submit and remove anything you would rather not share.
   - type: input
     id: from
     attributes:

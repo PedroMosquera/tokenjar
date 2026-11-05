@@ -81,7 +81,7 @@ struct AppModelUpdateTests {
         let updater = Updater(
             defaults: defaults, installed: AppVersion("0.3.0"), appBundle: home.url.appending(path: "Applications/Tokenjar.app").path,
             paths: home.paths, temporaryDirectory: nil, fileExists: { _ in false }, folderWritable: { _ in true },
-            kegVersion: { _ in nil }, runner: runner, toolsInstalled: { true }
+            kegVersion: { _ in nil }, runner: runner, toolsInstalled: { true }, swiftVersion: { nil }
         )
         model.updater = updater
         await updater.found(AppVersion("0.4.0")!)?.value

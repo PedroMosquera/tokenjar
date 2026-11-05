@@ -84,7 +84,7 @@ final class Updater {
         defaults: any DefaultsStoring, installed: AppVersion?, appBundle: String, paths: AppPaths, temporaryDirectory: String?,
         fileExists: @escaping (String) -> Bool, folderWritable: @escaping (String) -> Bool,
         kegVersion: @escaping (_ prefix: String) -> AppVersion?, runner: any UpdateRunning,
-        toolsInstalled: @escaping @Sendable () async -> Bool, swiftVersion: @escaping @Sendable () async -> String? = { nil },
+        toolsInstalled: @escaping @Sendable () async -> Bool, swiftVersion: @escaping @Sendable () async -> String?,
         userName: String = NSUserName()
     ) {
         self.swiftVersion = swiftVersion
@@ -265,7 +265,7 @@ final class Updater {
         if silent { onCouldNotUpdate(version) }
     }
 
-        private func prepare() throws {
+    private func prepare() throws {
         try AppPaths.createOwnerOnlyDirectory(paths.supportDirectory)
         if FileManager.default.fileExists(atPath: paths.updateStageDirectory.path) {
             try FileManager.default.removeItem(at: paths.updateStageDirectory)
