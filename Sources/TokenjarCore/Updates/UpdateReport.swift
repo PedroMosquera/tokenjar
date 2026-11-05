@@ -43,8 +43,8 @@ public struct UpdateReport: Equatable, Sendable {
         let fits = { (log: String) in Self.address(fixed + [("log", log)]).absoluteString.count < Self.maxURLLength }
         while lines.count > 1, !fits(lines.joined(separator: "\n")) { lines.removeFirst() }
         let last = Array(lines.joined(separator: "\n"))
-        // The longest start of the one line left that fits. Characters encode to 1 to 9 address characters, so the
-        // cut is searched for rather than computed; an empty log always fits.
+        // The longest start of the one line left that fits. A character can take one address character or dozens, so
+        // the cut is searched for rather than computed; an empty log always fits.
         var low = 0, high = last.count
         while low < high {
             let mid = (low + high + 1) / 2
