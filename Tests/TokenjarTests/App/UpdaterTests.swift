@@ -143,6 +143,18 @@ struct UpdaterTests {
         #expect(swappingTo(rig.defaults) == nil)
     }
 
+    @Test func aSwapThatSucceedsWithoutQuittingTheAppQuitsIt() async throws {
+        let rig = try make()
+        defer { rig.home.remove() }
+        var quits = 0
+        rig.updater.quit = { quits += 1 }
+        await rig.updater.start(v040)?.value
+        rig.runner.endInstall(0)
+        try await waitUntil { quits > 0 }
+        #expect(quits == 1)
+        #expect(rig.updater.progress == .installing(v040))
+    }
+
     @Test func aSwapThatCannotStartIsAFailure() async throws {
         let rig = try make(runner: FakeUpdateRunner(installThrows: true))
         defer { rig.home.remove() }

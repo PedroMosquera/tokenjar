@@ -5,7 +5,8 @@ set -uo pipefail
 
 ROOT="$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)"
 INSTALL="$ROOT/Scripts/install.sh"
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/install-swap-test.XXXXXX")"
+# Through cd, so a TMPDIR ending in a slash leaves no // in the paths install.sh matches running copies by.
+WORK="$(CDPATH='' cd -- "$(mktemp -d "${TMPDIR:-/tmp}/install-swap-test.XXXXXX")" && pwd)"
 trap 'rm -rf "$WORK"' EXIT
 failures=0
 
@@ -86,7 +87,7 @@ t="$WORK/replace"; stubs "$t/bin"; fake_app "$t/new/Tokenjar.app" new; fake_app 
 run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
 check "replace exits 0" [ "$status" -eq 0 ]
 check "replace installs the new app" [ "$(marker_of "$t/dest")" = new ]
-check "replace quits the copy in the install folder" called "$t/bin" "pkill -f "
+check "replace quits the copy in the install folder" called "$t/bin" "pkill "
 check "replace leaves no staging folders" [ -z "$(extras_in "$t/dest")" ]
 
 # A new app that fails its signature check leaves the old app installed and running.
@@ -95,7 +96,7 @@ printf 'tampered' > "$t/new/Tokenjar.app/Contents/Resources/marker"
 run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
 check "bad signature exits non-zero" [ "$status" -ne 0 ]
 check "bad signature keeps the old app" [ "$(marker_of "$t/dest")" = old ]
-check "bad signature never quits the running copy" not_called "$t/bin" "pkill -f "
+check "bad signature never quits the running copy" not_called "$t/bin" "pkill "
 check "bad signature leaves no staging folders" [ -z "$(extras_in "$t/dest")" ]
 
 # A copy step that fails leaves the old app installed and running.
@@ -104,21 +105,21 @@ printf '#!/bin/sh\nexit 1\n' > "$t/bin/ditto"; chmod +x "$t/bin/ditto"
 run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
 check "failed copy exits non-zero" [ "$status" -ne 0 ]
 check "failed copy keeps the old app" [ "$(marker_of "$t/dest")" = old ]
-check "failed copy never quits the running copy" not_called "$t/bin" "pkill -f "
+check "failed copy never quits the running copy" not_called "$t/bin" "pkill "
 
 # Asked to install an app onto itself, it refuses and changes nothing.
 t="$WORK/self"; stubs "$t/bin"; fake_app "$t/dest/Tokenjar.app" old
 run_install "$t/bin" "$t/dest/Tokenjar.app" "$t/dest"; status=$?
 check "self install exits non-zero" [ "$status" -ne 0 ]
 check "self install keeps the app" [ "$(marker_of "$t/dest")" = old ]
-check "self install never quits the running copy" not_called "$t/bin" "pkill -f "
+check "self install never quits the running copy" not_called "$t/bin" "pkill "
 
 # The same app reached through a symlinked folder, as Homebrew's opt links into its Cellar, is still itself.
 t="$WORK/selflink"; stubs "$t/bin"; fake_app "$t/cellar/Tokenjar.app" old; ln -s "$t/cellar" "$t/opt"
 run_install "$t/bin" "$t/opt/Tokenjar.app" "$t/cellar"; status=$?
 check "self install through a link exits non-zero" [ "$status" -ne 0 ]
 check "self install through a link keeps the app" [ "$(marker_of "$t/cellar")" = old ]
-check "self install through a link never quits the running copy" not_called "$t/bin" "pkill -f "
+check "self install through a link never quits the running copy" not_called "$t/bin" "pkill "
 
 # Moving the old app aside fails: it stays installed and is reopened, since it was already quit.
 t="$WORK/aside"; stubs "$t/bin"; failing_mv "$t/bin" 1; fake_app "$t/new/Tokenjar.app" new; fake_app "$t/dest/Tokenjar.app" old
@@ -200,6 +201,27 @@ printf 'tampered' > "$t/new/Tokenjar.app/Contents/Resources/marker"
 run_install "$t/bin" "$t/new/Tokenjar.app" "$t/dest"; status=$?
 check "failed install with Headroom present exits non-zero" [ "$status" -ne 0 ]
 check "failed install keeps Headroom" [ -d "$t/dest/Headroom.app" ]
+
+# Update Now starts install.sh from the running app, so the app is an ancestor of pkill, which macOS skips unless
+# asked. This copy's executable is a real binary that runs the swap as its child, as the app does, with the real pkill.
+t="$WORK/ancestor"; stubs "$t/bin"; fake_app "$t/new/Tokenjar.app" new; fake_app "$t/dest/Tokenjar.app" old
+rm "$t/bin/pkill" "$t/bin/pgrep"
+printf '#include <stdlib.h>\n#include <unistd.h>\nint main(void) { if (fork() == 0) { execl("/bin/sh", "sh", "-c", getenv("SWAP"), (char *)0); _exit(127); } sleep(30); return 0; }\n' \
+  > "$t/app.c"
+cc -o "$t/dest/Tokenjar.app/Contents/MacOS/Tokenjar" "$t/app.c"
+SWAP="PATH='$t/bin':\$PATH TOKENJAR_APP='$t/new/Tokenjar.app' bash '$INSTALL' '$t/dest' >'$t/bin/out.log' 2>&1; echo \$? > '$t/status'" \
+  "$t/dest/Tokenjar.app/Contents/MacOS/Tokenjar" &
+app_pid=$!
+for _ in $(seq 100); do
+  [ -e "$t/status" ] && break
+  sleep 0.1
+done
+check "a swap started by the app exits 0" [ "$(cat "$t/status" 2>/dev/null)" = 0 ]
+# A quit child of this shell stays a zombie until waited for, so its state is read rather than signalled.
+check "a swap started by the app quits it" sh -c "ps -o stat= -p $app_pid | grep -qv Z && exit 1 || exit 0"
+check "a swap started by the app installs the new one" [ "$(marker_of "$t/dest")" = new ]
+kill "$app_pid" 2>/dev/null
+wait "$app_pid" 2>/dev/null
 
 if [ "$failures" -gt 0 ]; then
   echo "$failures check(s) failed"

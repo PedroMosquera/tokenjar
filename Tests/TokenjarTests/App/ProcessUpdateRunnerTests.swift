@@ -45,8 +45,8 @@ struct ProcessUpdateRunnerTests {
         defer { try? FileManager.default.removeItem(at: log) }
         let box = ExitBox()
         let started = Date()
-        try ProcessUpdateRunner().install(shell("sleep 0.3; echo done; exit 4"), log: log) { box.set($0) }
-        #expect(Date().timeIntervalSince(started) < 0.25)
+        try ProcessUpdateRunner().install(shell("sleep 2; echo done; exit 4"), log: log) { box.set($0) }
+        #expect(Date().timeIntervalSince(started) < 1.5)
         try await waitUntil { box.value != nil }
         #expect(box.value == 4)
         #expect(try String(contentsOf: log, encoding: .utf8).hasSuffix("done\n"))

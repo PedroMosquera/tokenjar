@@ -18,7 +18,7 @@ protocol UpdateRunning: Sendable {
     /// Runs `step` to its end with its output appended to `log`, and returns its exit status.
     func build(_ step: UpdateStep, log: URL) async -> Int32
     /// Starts `step` with its output appended to `log` and returns at once. The process outlives this app, which it
-    /// quits; `onExit` runs only when the app is still running as it ends.
+    /// normally quits; `onExit` runs only when the app is still running as it ends.
     func install(_ step: UpdateStep, log: URL, onExit: @escaping @Sendable (Int32) -> Void) throws
 }
 
@@ -34,6 +34,8 @@ final class Updater {
 
     /// Called once, on the first launch after a swap that installed this version.
     @ObservationIgnored var onUpdated: (AppVersion) -> Void = { _ in }
+    /// Quits this copy when a swap succeeded without quitting it, since install.sh has already opened the new one.
+    @ObservationIgnored var quit: () -> Void = {}
 
     @ObservationIgnored private let defaults: any DefaultsStoring
     @ObservationIgnored private let installed: AppVersion?
@@ -137,9 +139,11 @@ final class Updater {
         }
     }
 
-    /// A swap that ends while this app still runs never quit it, so it did not install anything.
+    /// install.sh exits non-zero only with this copy left in place. A zero exit seen from here means it missed this
+    /// copy when quitting (a path spelled differently) but opened the new one, so this copy quits to leave one running.
     private func installEnded(_ version: AppVersion, status: Int32) {
-        guard status != 0, progress == .installing(version) else { return }
+        guard progress == .installing(version) else { return }
+        guard status != 0 else { return quit() }
         defaults.set(nil, forKey: Self.swappingToKey)
         progress = .failed(version, .install)
     }

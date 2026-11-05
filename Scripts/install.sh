@@ -75,7 +75,8 @@ fi
 # Only the copy being replaced: matching the name alone would also stop a debug build or a window render.
 regex_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
 APP_PATTERN="^($(regex_escape "$DEST")|$(regex_escape "$DEST_RESOLVED"))/Tokenjar\.app/Contents/MacOS/Tokenjar( |\$)"
-pkill -f "$APP_PATTERN" 2>/dev/null && sleep 1 || true
+# -a: Update Now runs this script from the app it replaces, and pkill skips its own ancestors without it.
+pkill -a -f "$APP_PATTERN" 2>/dev/null && sleep 1 || true
 # Where a failure below leaves an old app in place, it is reopened, since it was just quit. Reopening is best effort so
 # the error that follows is always printed.
 if [ -e "$DEST/Tokenjar.app" ] && ! mv "$DEST/Tokenjar.app" "$PREVIOUS"; then

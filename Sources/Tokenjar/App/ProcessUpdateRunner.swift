@@ -1,8 +1,8 @@
 import Foundation
 import TokenjarCore
 
-/// Runs Update Now's steps as plain child processes. A child is not quit with this app, so the swap survives the
-/// install script quitting Tokenjar.
+/// Runs Update Now's steps as plain child processes. A child is not quit with this app, so the swap survives
+/// install.sh quitting Tokenjar, which it can do only because its pkill includes ancestors (-a).
 struct ProcessUpdateRunner: UpdateRunning {
     func build(_ step: UpdateStep, log: URL) async -> Int32 {
         await withCheckedContinuation { continuation in

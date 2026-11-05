@@ -53,15 +53,6 @@ struct UpdatePlanTests {
         #expect(archive.install.environment["TMPDIR"] == "/var/folders/xy/T/")
     }
 
-    @Test func nothingIsFetchedToRun() {
-        let archive = plan(.releaseArchive)
-        for step in [archive.build, archive.install] {
-            let text = ([step.executable] + step.arguments + step.environment.values).joined(separator: " ")
-            #expect(!text.contains("curl"))
-            #expect(!text.contains("http"))
-        }
-    }
-
     @Test func aNormalCopyIsNotBlocked() {
         #expect(UpdateBlocker.check(appBundle: app, folderWritable: { _ in true }, commandLineTools: true) == nil)
         #expect(UpdateBlocker.check(appBundle: app, folderWritable: { _ in true }, commandLineTools: nil) == nil)

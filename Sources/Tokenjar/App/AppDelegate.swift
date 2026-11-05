@@ -89,6 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
         updates.onNewVersion = { installed, latest in notifications.postUpdate(installed: installed, latest: latest) }
         model.updates = updates
         let updater = Self.makeUpdater(installed: installed, paths: model.paths)
+        updater.quit = { NSApp.terminate(nil) }
         updater.finishPendingSwap()
         model.updater = updater
 
