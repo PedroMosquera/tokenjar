@@ -19,10 +19,12 @@ public enum UpdateCommand {
     /// The running app's own folder, except for a copy inside Homebrew's folders: replacing that in place deletes it
     /// when brew has nothing to upgrade, because the install script then copies the app onto itself.
     public static func installFolder(appBundle: String, home: String) -> String {
-        if homebrewPrefixes.contains(where: { appBundle.hasPrefix("\($0)/Cellar/") || appBundle.hasPrefix("\($0)/opt/") }) {
-            return "\(home)/Applications"
-        }
+        if runsFromHomebrew(appBundle) { return "\(home)/Applications" }
         return (appBundle as NSString).deletingLastPathComponent
+    }
+
+    static func runsFromHomebrew(_ appBundle: String) -> Bool {
+        homebrewPrefixes.contains { appBundle.hasPrefix("\($0)/Cellar/") || appBundle.hasPrefix("\($0)/opt/") }
     }
 
     public static func terminal(method: UpdateMethod, version: AppVersion, appBundle: String, home: String) -> String {

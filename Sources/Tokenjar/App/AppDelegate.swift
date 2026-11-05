@@ -84,16 +84,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sta
         notifications.activate()
         model.notifications = notifications
 
-        let updates = UpdateChecker(
-            defaults: UserDefaults.standard,
-            installed: AppVersion(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
-        )
+        let installed = AppVersion(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
+        let updates = UpdateChecker(defaults: UserDefaults.standard, installed: installed)
         updates.onNewVersion = { installed, latest in notifications.postUpdate(installed: installed, latest: latest) }
         model.updates = updates
+        let updater = Self.makeUpdater(installed: installed, paths: model.paths)
+        updater.finishPendingSwap()
+        model.updater = updater
 
         observeIcon()
         model.start()
         if model.config.alerts.enabled { model.requestNotificationPermission(prominent: false) }
+    }
+
+    private static func makeUpdater(installed: AppVersion?, paths: AppPaths) -> Updater {
+        Updater(
+            defaults: UserDefaults.standard, installed: installed, appBundle: Bundle.main.bundlePath, paths: paths,
+            temporaryDirectory: ProcessInfo.processInfo.environment["TMPDIR"],
+            fileExists: FileManager.default.fileExists(atPath:), folderWritable: FileManager.default.isWritableFile(atPath:),
+            // Read from the file each time: Bundle caches by path, and brew upgrade replaces what opt points to.
+            kegVersion: { prefix in
+                let plist = NSDictionary(contentsOfFile: "\(prefix)/opt/tokenjar/Tokenjar.app/Contents/Info.plist")
+                return (plist?["CFBundleShortVersionString"] as? String).flatMap(AppVersion.init)
+            },
+            runner: ProcessUpdateRunner(),
+            toolsInstalled: {
+                let result = try? await FoundationProcessRunner().run(
+                    URL(fileURLWithPath: "/usr/bin/xcode-select"), arguments: ["-p"], environment: [:], currentDirectory: nil,
+                    stdin: nil, timeout: 5, outputLimit: 4096
+                )
+                return result.map { $0.exitCode == 0 && !$0.timedOut } ?? false
+            }
+        )
     }
 
     /// Preview renders end up in the README and in PRs, so they use US English and UTC instead of the local region

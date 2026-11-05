@@ -28,6 +28,7 @@ release:
 test:
 	swift test --scratch-path $(SCRATCH) $(TEST_FLAGS)
 	bash Tests/Scripts/install-swap-test.sh
+	bash Tests/Scripts/get-stage-test.sh
 
 app: release
 	SCRATCH=$(SCRATCH) ./Scripts/bundle.sh

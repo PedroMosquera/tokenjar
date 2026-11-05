@@ -20,6 +20,10 @@ struct AboutSettingsPane: View {
         Item(what: "agy --version", why: "Checks agy is 1.1.11 or later before asking for usage, since older versions could send /\u{2060}usage to the model."),
         Item(what: "agy -p /usage --output-format json", why: "Antigravity limits."),
         Item(what: "gh api --method GET copilot_internal/user --jq <filter>", why: "GitHub Copilot limits, through your own gh login: gh sends this GET to api.github.com with its own token. The filter keeps only the plan, the reset date and the quota numbers. gh's telemetry and update check are off for it."),
+        Item(what: "xcode-select -p", why: "Whether the Command Line Tools are installed, when you open About, so Update Now can say when they are missing."),
+        Item(what: "bash <app>/Contents/Resources/get.sh", why: "Only when you click Update Now, on a copy not installed with Homebrew. The installer inside this app, set to the new version: it downloads that release's source from github.com and builds it into the update folder below. Nothing is installed yet."),
+        Item(what: "bash ~/Library/Application Support/Tokenjar/update/install.sh <folder>", why: "Right after that build: the new version's install script replaces this copy in its folder, quits it and opens the new one."),
+        Item(what: "brew upgrade tokenjar, then tokenjar-install-app <folder>", why: "Instead of the two above, when Homebrew's copy of Tokenjar exists. Homebrew contacts its own servers."),
     ]
 
     static let reads = [
@@ -48,11 +52,11 @@ struct AboutSettingsPane: View {
 
     private let writes = [
         Item(what: "~/.config/tokenjar/config.json", why: "Settings, through the symlink if it is one."),
-        Item(what: "~/Library/Application Support/Tokenjar/", why: "tokenjar.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens or quota, so it is not run again until that CLI (claude or agy) updates or you click Try Once More. probe: an empty folder the CLIs run in."),
+        Item(what: "~/Library/Application Support/Tokenjar/", why: "tokenjar.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens or quota, so it is not run again until that CLI (claude or agy) updates or you click Try Once More. probe: an empty folder the CLIs run in. update: the new version Update Now builds, deleted once it runs. update.log: what the last update printed."),
         Item(what: "$TMPDIR/tokenjar-update.command", why: "Only when you click Update in Terminal: the update command for Terminal to run. It deletes itself when it runs."),
         Item(what: "$TMPDIR/tokenjar-sign-in-<account>.command", why: "Only when you click Sign In in Terminal: the login command for Terminal to run. It deletes itself when it runs."),
         Item(what: "Keychain: \(AppPaths.keychainService)", why: "Only API keys you paste here."),
-        Item(what: "Preferences: \(AppPaths.bundleIdentifier)", why: "Window frames and, for this Mac only: whether provider status is on, the pinned account, the currency and its exchange rates, which API value sections are open, and the update check setting, its last check, the latest version seen and the newer versions already announced."),
+        Item(what: "Preferences: \(AppPaths.bundleIdentifier)", why: "Window frames and, for this Mac only: whether provider status is on, the pinned account, the currency and its exchange rates, which API value sections are open, and the update check setting, its last check, the latest version seen, the newer versions already announced and the version an update is installing."),
     ]
 
     var body: some View {
@@ -171,12 +175,22 @@ struct AboutSettingsPane: View {
                     }
                 }
             }
+            if let updater = model.updater, case .failed(let version, let failure) = updater.progress {
+                Label {
+                    Text(Self.failureText(version, failure))
+                    Text("The log is in ~/Library/Application Support/Tokenjar/update.log.")
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+                }
+            }
             if case .available(let release) = updates.status {
                 Link("What's new in \(release.version)", destination: release.pageURL)
+                if let updater = model.updater { updateNowRow(updater, release.version) }
                 LabeledContent {
                     Button("Update in Terminal") { openUpdateInTerminal(release.version) }
+                        .disabled(model.updater?.isBusy ?? false)
                 } label: {
-                    Text("Update to \(release.version)")
+                    Text("Or watch it in Terminal")
                     Text("Opens Terminal, runs the update for this copy of Tokenjar, then opens the new version.")
                 }
                 ForEach(Self.updateCommands) { item in
@@ -200,9 +214,46 @@ struct AboutSettingsPane: View {
         } message: {
             Text("Copy the update command and paste it into Terminal.")
         }
-        .onAppear { model.refreshNotificationPermission() }
+        .onAppear {
+            model.refreshNotificationPermission()
+            model.updater?.refreshPrerequisites()
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.refreshNotificationPermission()
+        }
+    }
+
+    @ViewBuilder private func updateNowRow(_ updater: Updater, _ version: AppVersion) -> some View {
+        switch updater.progress {
+        case .building(let building):
+            progressRow("Building \(building). This takes a few minutes, then Tokenjar quits and opens the new version.")
+        case .installing(let installing):
+            progressRow("Installing \(installing). Tokenjar quits and opens the new version.")
+        case .idle, .failed:
+            LabeledContent {
+                Button("Update Now") { updater.start(version) }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(updater.blocker != nil)
+            } label: {
+                Text("Update to \(version)")
+                Text(updater.blocker?.message ?? "Builds the new version in the background, then Tokenjar quits and opens it.")
+            }
+        }
+    }
+
+    private func progressRow(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text(text)
+        }
+    }
+
+    static func failureText(_ version: AppVersion, _ failure: UpdateFailure) -> String {
+        switch failure {
+        case .couldNotStart: "Couldn't start the update to \(version)."
+        case .build: "Couldn't build \(version). This copy of Tokenjar was not changed."
+        case .homebrewBehind: "Homebrew doesn't have \(version) yet. Try again later."
+        case .install: "Couldn't install \(version). This copy of Tokenjar was not changed."
         }
     }
 

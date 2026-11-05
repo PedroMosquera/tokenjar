@@ -137,6 +137,7 @@ final class AppModel {
     @ObservationIgnored var priceTable = PriceTable()
     @ObservationIgnored var notifications: NotificationManager?
     @ObservationIgnored var updates: UpdateChecker?
+    @ObservationIgnored var updater: Updater?
     /// Set by `AppModel.preview()`: shows every configured account regardless of what exists on this Mac.
     @ObservationIgnored var previewMode = false {
         didSet { refreshAccounts() }

@@ -36,6 +36,10 @@ public struct AppPaths: Sendable {
 
     public var supportDirectory: URL { home.appending(path: "Library/Application Support/Tokenjar") }
     public var databaseFile: URL { supportDirectory.appending(path: "tokenjar.sqlite") }
+    /// Update Now builds the new version here, replaced on each attempt and deleted after a successful swap.
+    public var updateStageDirectory: URL { supportDirectory.appending(path: "update") }
+    /// Output of the last update attempt's build and install, replaced on each attempt.
+    public var updateLogFile: URL { supportDirectory.appending(path: "update.log") }
 
     /// Fixed, empty working directory for CLI probes, so probes never create per-run folders in a CLI's project list.
     public var probeDirectory: URL { supportDirectory.appending(path: "probe") }

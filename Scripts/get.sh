@@ -3,6 +3,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/PedroMosquera/tokenjar/main/Scripts/get.sh | bash
 # Downloads the latest release's source archive (TOKENJAR_VERSION=0.3.0 picks another), builds it with `make install`
 # in a temporary folder, then deletes that folder. An argument installs into that folder instead of ~/Applications.
+# Update Now sets TOKENJAR_STAGE_DIR, which builds without installing and leaves Tokenjar.app and install.sh there.
 set -euo pipefail
 
 # Everything runs from main, so a download cut short by the network runs nothing.
@@ -58,6 +59,18 @@ main() {
   if ! curl -fsSL "$repo/archive/refs/tags/$tag.tar.gz" | tar -xzf - -C "$work" --strip-components 1; then
     echo "error: could not download Tokenjar $tag from $repo. Nothing was changed." >&2
     exit 1
+  fi
+
+  if [ -n "${TOKENJAR_STAGE_DIR:-}" ]; then
+    echo "Building Tokenjar $tag. This takes a minute or a few."
+    make -C "$work" app
+    mkdir -p "$TOKENJAR_STAGE_DIR"
+    rm -rf "$TOKENJAR_STAGE_DIR/Tokenjar.app"
+    ditto "$work/build/Tokenjar.app" "$TOKENJAR_STAGE_DIR/Tokenjar.app"
+    # The new version's own script does the swap; with TOKENJAR_APP set it needs nothing else from the source.
+    cp "$work/Scripts/install.sh" "$TOKENJAR_STAGE_DIR/install.sh"
+    echo "Staged Tokenjar $tag in $TOKENJAR_STAGE_DIR"
+    return
   fi
 
   # Absolute before the build, because install.sh runs from the source folder and would resolve a relative path there.
