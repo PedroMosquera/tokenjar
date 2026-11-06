@@ -196,6 +196,15 @@ struct AccountStatusTextTests {
         #expect(line.caption == AccountStatusText.Caption(text: "Signed out", isActionable: true))
     }
 
+    /// It has no windows, but unlike Zen its number comes from a check of the account, not from this Mac's database.
+    @Test func higgsfieldNamesItsCreditsAndNeverLocalSpend() {
+        let account = AccountConfig(id: "higgsfield", provider: .higgsfield, label: "Higgsfield")
+        let line = text(account, AccountStatus(snapshot: snapshot(account, notes: ["Credits: 10"])))
+        #expect(line.text == "Updated \(age(60))")
+        #expect(line.detail == "Credits: 10")
+        #expect(text(account, AccountStatus()).detail == nil)
+    }
+
     @Test func actionableCaptionsSayWhatToFix() {
         #expect(text(go, AccountStatus(error: .unauthorized)).caption == AccountStatusText.Caption(text: "Key rejected", isActionable: true))
         let latched = FetchError.unsupported(ClaudeUsageFetcher.modelTurnMessage)

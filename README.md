@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml)
 
-Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot.
+Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot, and shows your Higgsfield credit balance.
 
 I built it because I did not want a third-party app handling my AI logins. Tokenjar asks each provider's own CLI for the numbers, except for OpenCode, where it reads opencode's key and local database. History stays on your Mac. There is no prebuilt download: you build it from source with the Command Line Tools, by hand or through Homebrew.
 
@@ -35,6 +35,7 @@ I built it because I did not want a third-party app handling my AI logins. Token
 | OpenCode Zen | This month's spend, added up from the local `opencode.db` | Pay as you go |
 | Antigravity | `agy -p /usage` (agy 1.1.11 or later) | No plan name. Each quota pool agy reports becomes a limit. |
 | GitHub Copilot | `gh api`, a read-only GET | Free, Pro, Pro+, Max, Business, Enterprise |
+| Higgsfield | `higgsfield account status --json`, read-only. A credit balance rather than a limit, so it stays off the menu bar. | Shows the plan name the CLI reports. Only Free has been seen. |
 
 Devin (which now includes Windsurf) and Cursor share no usage with local apps, so they have no card. Their page in Settings opens the provider's usage page.
 
@@ -138,7 +139,7 @@ On disk it keeps token counts, model ids, timestamps and project folder names, p
 - macOS 14 or later.
 - Command Line Tools with Swift 6.2 or later (`xcode-select --install`). Xcode is not needed.
 - For the Homebrew and curl installs, macOS 15.6 or later (Homebrew checks only for macOS 15).
-- The CLI for each provider you track: `claude`, `codex`, `agy` 1.1.11 or later, and `gh` signed in with `gh auth login`. OpenCode, Devin and Cursor need none.
+- The CLI for each provider you track: `claude`, `codex`, `agy` 1.1.11 or later, `gh` signed in with `gh auth login`, and `higgsfield` signed in with `higgsfield auth login`. OpenCode, Devin and Cursor need none.
 
 ## Install
 
@@ -195,7 +196,7 @@ To clear its data as well, delete `~/Library/Application Support/Tokenjar` (hist
 
 ## First run
 
-If there is no config file yet, Tokenjar writes one with default settings and the accounts it finds: Claude Code in `~/.claude`, a Codex login, opencode's API keys (Zen stays off the menu bar), `agy` and `gh` if they are installed, and a Devin, Windsurf or Cursor install. It looks for `gh` but does not run it. If you used CodexBar, Settings > General > Import from CodexBar shows what would change before it changes anything.
+If there is no config file yet, Tokenjar writes one with default settings and the accounts it finds: Claude Code in `~/.claude`, a Codex login, opencode's API keys (Zen stays off the menu bar), `agy`, `gh` and `higgsfield` if they are installed, and a Devin, Windsurf or Cursor install. It looks for `gh` and `higgsfield` but does not run them. If you used CodexBar, Settings > General > Import from CodexBar shows what would change before it changes anything.
 
 ## Configuration
 
@@ -212,11 +213,11 @@ Settings writes everything to `~/.config/tokenjar/config.json`, and you can edit
 
 Pick an `id` once and keep it. History and alerts are stored under it.
 
-The file holds no secrets, only where keys live, so it can sit in a dotfiles repo and be symlinked into place on each Mac (`stow --no-folding` works). Anything that should differ on one Mac, such as a label, goes in `config.local.json` next to it. History and alert state stay on each Mac. Update Tokenjar on every Mac before adding a Cursor account to a shared file: an older build cannot load a config that names a provider it does not know. [docs/configuration.md](docs/configuration.md) has every field and the details of the shared setup.
+The file holds no secrets, only where keys live, so it can sit in a dotfiles repo and be symlinked into place on each Mac (`stow --no-folding` works). Anything that should differ on one Mac, such as a label, goes in `config.local.json` next to it. History and alert state stay on each Mac. Update Tokenjar on every Mac before adding a Cursor or Higgsfield account to a shared file: an older build cannot load a config that names a provider it does not know. [docs/configuration.md](docs/configuration.md) has every field and the details of the shared setup.
 
 ## Troubleshooting
 
-"Can't find the claude command on this Mac" (or codex, agy, gh): Tokenjar does not read your shell's `PATH`. It searches a fixed list of folders, and the account's page in Settings shows which ones. If the CLI lives somewhere else, put its full path under `cliPaths` in the config. A Claude Code installed with npm under a Node version manager such as fnm or nvm is in none of those folders; `claude install` switches it to Anthropic's native build in `~/.local/bin`, which Tokenjar finds.
+"Can't find the claude command on this Mac" (or codex, agy, gh, higgsfield): Tokenjar does not read your shell's `PATH`. It searches a fixed list of folders, and the account's page in Settings shows which ones. If the CLI lives somewhere else, put its full path under `cliPaths` in the config. A Claude Code installed with npm under a Node version manager such as fnm or nvm is in none of those folders; `claude install` switches it to Anthropic's native build in `~/.local/bin`, which Tokenjar finds. The same goes for the Higgsfield CLI from npm, which also needs a Node that Tokenjar's fixed `PATH` may not reach; `brew install higgsfield-ai/tap/higgsfield` puts it in `/opt/homebrew/bin`.
 
 "Signed out" while Claude Code works in your terminal: an API key, a gateway such as LiteLLM or a cloud provider exported only in your shell is invisible to Tokenjar. Put those variables in the `env` block of `~/.claude/settings.json` ([docs/troubleshooting.md](docs/troubleshooting.md#claude-says-signed-out-but-claude-code-works-in-your-terminal) has an example).
 
@@ -246,4 +247,4 @@ make readme-images  # redraw the screenshots in docs/images from preview data
 
 ## License
 
-Tokenjar is under the [MIT License](LICENSE). The provider logos in the app and in these screenshots belong to their owners; [docs/logos.md](docs/logos.md) says where each came from. The logos and a few test fixtures keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Tokenjar is not affiliated with or endorsed by Anthropic, OpenAI, Google, GitHub, OpenCode, Cognition, Windsurf or CodexBar.
+Tokenjar is under the [MIT License](LICENSE). The provider logos in the app and in these screenshots belong to their owners; [docs/logos.md](docs/logos.md) says where each came from. The logos and a few test fixtures keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Tokenjar is not affiliated with or endorsed by Anthropic, OpenAI, Google, GitHub, OpenCode, Cognition, Windsurf, Cursor, Higgsfield or CodexBar.

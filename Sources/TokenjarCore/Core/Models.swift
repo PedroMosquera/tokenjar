@@ -7,6 +7,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     case opencodeZen = "opencode-zen"
     case antigravity
     case copilot
+    case higgsfield
     case devin
     case cursor
 
@@ -18,6 +19,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeZen: "OpenCode Zen"
         case .antigravity: "Antigravity"
         case .copilot: "GitHub Copilot"
+        case .higgsfield: "Higgsfield"
         case .devin: "Devin"
         case .cursor: "Cursor"
         }
@@ -31,6 +33,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: "opencode"
         case .antigravity: "antigravity"
         case .copilot: "copilot"
+        case .higgsfield: "higgsfield"
         case .devin: "windsurf"
         case .cursor: "cursor"
         }
@@ -43,6 +46,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: URL(string: "https://opencode.ai/auth")!
         case .antigravity: URL(string: "https://antigravity.google/docs/plans")!
         case .copilot: URL(string: "https://github.com/settings/copilot")!
+        case .higgsfield: URL(string: "https://higgsfield.ai/pricing")!
         case .devin: URL(string: "https://app.devin.ai/settings/usage")!
         case .cursor: URL(string: "https://cursor.com/dashboard/usage")!
         }
@@ -56,7 +60,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: URL(string: "https://status.opencode.ai")
         case .copilot: URL(string: "https://www.githubstatus.com")
         case .devin: URL(string: "https://www.devinstatus.com")
-        case .antigravity, .cursor: nil
+        case .antigravity, .cursor, .higgsfield: nil
         }
     }
 
@@ -67,7 +71,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: URL(string: "https://status.claude.com/api/v2/summary.json")
         case .codex: URL(string: "https://status.openai.com/proxy/status.openai.com")
         case .copilot: URL(string: "https://www.githubstatus.com/api/v2/summary.json")
-        case .opencodeGo, .opencodeZen, .antigravity, .devin, .cursor: nil
+        case .opencodeGo, .opencodeZen, .antigravity, .higgsfield, .devin, .cursor: nil
         }
     }
 
@@ -75,25 +79,25 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     public var isLinkOnly: Bool {
         switch self {
         case .devin, .cursor: true
-        case .claude, .codex, .opencodeGo, .opencodeZen, .antigravity, .copilot: false
+        case .claude, .codex, .opencodeGo, .opencodeZen, .antigravity, .copilot, .higgsfield: false
         }
     }
 
-    /// False when the provider never reports a limit window (Zen shows local spend, Devin is a link), so the menu bar,
-    /// thresholds and limit charts have nothing to show for it.
+    /// False when the provider never reports a limit window (Zen shows local spend, Higgsfield a credit count, Devin is a
+    /// link), so the menu bar, thresholds and limit charts have nothing to show for it.
     public var reportsWindows: Bool {
         switch self {
-        case .opencodeZen, .devin, .cursor: false
+        case .opencodeZen, .higgsfield, .devin, .cursor: false
         case .claude, .codex, .opencodeGo, .antigravity, .copilot: true
         }
     }
 
     /// Whether a check of this provider's account contacts a server, directly or through its CLI. Answers a different
-    /// question from `reportsWindows`, though the values match today: a Zen balance check would split them.
+    /// question from `reportsWindows`: Higgsfield has no window, but its CLI asks a server for the credits.
     public var checkUsesNetwork: Bool {
         switch self {
         case .opencodeZen, .devin, .cursor: false
-        case .claude, .codex, .opencodeGo, .antigravity, .copilot: true
+        case .claude, .codex, .opencodeGo, .antigravity, .copilot, .higgsfield: true
         }
     }
 
@@ -103,7 +107,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: .claudeCode
         case .codex: .codex
         case .opencodeGo, .opencodeZen: .opencode
-        case .antigravity, .copilot, .devin, .cursor: nil
+        case .antigravity, .copilot, .higgsfield, .devin, .cursor: nil
         }
     }
 }

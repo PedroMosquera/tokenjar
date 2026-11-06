@@ -26,6 +26,7 @@ public enum Capture {
             case .claude: return try await claude(account, context: context)
             case .codex: return try await codex(account, context: context, launcher: codexLauncher)
             case .copilot: return try await copilot(account, context: context)
+            case .higgsfield: return try await higgsfield(context: context)
             case .antigravity: return try await antigravity(context: context)
             case .opencodeGo: return try await opencodeGo(account, context: context, environment: environment)
             case .opencodeZen: return .nothingToCapture("OpenCode Zen has nothing to capture: its numbers come from opencode's local database, not from a request.")
@@ -236,6 +237,34 @@ public enum Capture {
             "stderr": phraseHits(result.stderr, phrases: copilotPhrases),
         ]
         return .document(try CaptureRedactor.render(document, provider: .copilot))
+    }
+
+    // MARK: Higgsfield
+
+    static let higgsfieldPhrases = ["session expired", "no workspace selected", "no response received", "rate limited", "too many requests", "server error"]
+
+    private static func higgsfield(context: FetchContext) async throws -> Outcome {
+        guard let cli = context.cli.locate("higgsfield") else { return .stopped("higgsfield was not found.") }
+        _ = try? context.paths.createProbeDirectory()
+
+        let result: ProcessResult
+        do {
+            result = try await context.process.run(
+                cli, arguments: HiggsfieldUsageFetcher.arguments,
+                environment: context.cli.baseEnvironment().merging(HiggsfieldUsageFetcher.cliEnvironment) { _, own in own },
+                currentDirectory: context.paths.probeDirectory, stdin: nil, timeout: 20, outputLimit: 256 * 1024
+            )
+        } catch {
+            return .stopped("higgsfield could not be started.")
+        }
+        let document: [String: Any] = [
+            "capture": ProviderID.higgsfield.rawValue,
+            "exitCode": Int(result.exitCode),
+            "timedOut": result.timedOut,
+            "response": json(result.stdout),
+            "stderr": phraseHits(result.stderr, phrases: higgsfieldPhrases),
+        ]
+        return .document(try CaptureRedactor.render(document, provider: .higgsfield))
     }
 
     // MARK: Antigravity

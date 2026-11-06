@@ -504,7 +504,7 @@ struct AccountStatusText: Equatable {
             )
         }
         let caption = status.error.flatMap { Self.caption(for: $0, account: account) }
-        let zenNote = provider.reportsWindows ? nil : "Reads this Mac's spend from opencode's local database. No key needed."
+        let zenNote = provider == .opencodeZen ? "Reads this Mac's spend from opencode's local database. No key needed." : nil
         if status.isRefreshing {
             return AccountStatusText(symbol: "arrow.triangle.2.circlepath", tone: .neutral, text: "Checking\u{2026}", detail: zenNote, caption: caption)
         }
@@ -532,7 +532,7 @@ struct AccountStatusText: Equatable {
         }
         if let snapshot = status.snapshot {
             let age = Format.age(of: snapshot.fetchedAt, now: now)
-            if !provider.reportsWindows {
+            if provider == .opencodeZen {
                 return AccountStatusText(symbol: "checkmark.circle.fill", tone: .good, text: "Local spend only \u{00B7} updated \(age)", detail: zenNote)
             }
             // Its own line: some window labels contain a middle dot themselves, so a dot after the age would misread.
@@ -600,6 +600,7 @@ extension ProviderID {
         case .claude: "claude"
         case .codex: "codex"
         case .copilot: "gh"
+        case .higgsfield: "higgsfield"
         case .opencodeGo, .opencodeZen: "opencode"
         case .antigravity: "agy"
         case .devin, .cursor: nil

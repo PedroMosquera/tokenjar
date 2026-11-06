@@ -22,6 +22,8 @@ struct ModelsTests {
             // The quota sits on Usage & limits; Settings > Plans only lists plans.
             .devin: "https://app.devin.ai/settings/usage",
             .cursor: "https://cursor.com/dashboard/usage",
+            // Signed out, every /me path redirects to sign-in, real or not, so no account page could be confirmed.
+            .higgsfield: "https://higgsfield.ai/pricing",
         ]
         for provider in ProviderID.allCases {
             #expect(provider.defaultDashboardURL.absoluteString == expected[provider], "\(provider)")
@@ -57,16 +59,20 @@ struct ModelsTests {
         #expect(ProviderID.cursor.displayName == "Cursor")
         #expect(ProviderID.cursor.logoName == "cursor")
         #expect(ProviderID.cursor.harness == nil)
+        #expect(ProviderID(rawValue: "higgsfield") == .higgsfield)
+        #expect(ProviderID.higgsfield.displayName == "Higgsfield")
+        #expect(ProviderID.higgsfield.logoName == "higgsfield")
+        #expect(ProviderID.higgsfield.harness == nil)
     }
 
     @Test func linkOnlyProvidersAreDevinAndCursor() {
         #expect(ProviderID.allCases.filter(\.isLinkOnly) == [.devin, .cursor])
     }
 
-    @Test func zenDevinAndCursorReportNoWindows() {
+    @Test func zenHiggsfieldDevinAndCursorReportNoWindows() {
         let expected: [ProviderID: Bool] = [
             .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
-            .cursor: false,
+            .cursor: false, .higgsfield: false,
         ]
         for provider in ProviderID.allCases {
             #expect(provider.reportsWindows == expected[provider], "\(provider)")
@@ -222,7 +228,7 @@ struct ModelsTests {
     @Test func providersThatNeedTheNetworkAreTheOnesThatContactOne() {
         let expected: [ProviderID: Bool] = [
             .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
-            .cursor: false,
+            .cursor: false, .higgsfield: true,
         ]
         for provider in ProviderID.allCases {
             #expect(provider.checkUsesNetwork == expected[provider], "\(provider)")

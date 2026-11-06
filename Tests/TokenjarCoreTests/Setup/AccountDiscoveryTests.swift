@@ -85,6 +85,31 @@ struct AccountDiscoveryTests {
         #expect(!FileManager.default.fileExists(atPath: home.url.appending(path: "bin/gh.ran").path))
     }
 
+    /// The CLI is located, never run, and its login folder is never opened. Credits have no window, so it stays off the menu bar.
+    @Test func higgsfieldOnThePathProposesAnAccountOffTheMenuBar() throws {
+        let home = TempHome()
+        try home.write(".config/higgsfield/credentials.json", "unreadable on purpose", permissions: 0o000)
+        try home.write("bin/higgsfield", "#!/bin/sh\ntouch \"$0.ran\"\n", permissions: 0o755)
+        #expect(try discover(home) == [AccountConfig(id: "higgsfield", provider: .higgsfield, label: "Higgsfield", showInMenuBar: false)])
+        #expect(!FileManager.default.fileExists(atPath: home.url.appending(path: "bin/higgsfield.ran").path))
+    }
+
+    /// `hf` is also Hugging Face's CLI.
+    @Test func anHfCommandAloneProposesNoHiggsfieldAccount() throws {
+        let home = TempHome()
+        try home.write("bin/hf", "#!/bin/sh\n", permissions: 0o755)
+        #expect(try discover(home) == [])
+    }
+
+    @Test func higgsfieldIsHiddenWithoutItsLoginFolder() throws {
+        let home = TempHome()
+        let paths = AppPaths(home: home.url)
+        let account = AccountConfig(id: "higgsfield", provider: .higgsfield, label: "Higgsfield", showInMenuBar: false)
+        #expect(!AccountDiscovery.isAvailable(account, paths: paths, environment: [:]))
+        try home.write(".config/higgsfield/credentials.json", "unreadable on purpose", permissions: 0o000)
+        #expect(AccountDiscovery.isAvailable(account, paths: paths, environment: [:]))
+    }
+
     @Test(arguments: [
         (#"{"oauthAccount":{"organizationType":"claude_team"}}"#, "Work"),
         (#"{"oauthAccount":{"organizationType":"claude_enterprise"}}"#, "Work"),

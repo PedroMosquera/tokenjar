@@ -184,6 +184,36 @@ struct CaptureCommandTests {
         }
     }
 
+    // MARK: Higgsfield
+
+    /// The CLI has no filter of its own, so the email does reach Tokenjar and the redactor is what drops it.
+    @Test func higgsfieldCaptureKeepsCreditsAndPlanAndDropsTheEmail() async throws {
+        runner.answers = [output(#"{"credits":10,"email":"person@example.com","subscription_plan_type":"free"}"#)]
+
+        let text = try document(await capture(.higgsfield))
+
+        let response = try #require(try object(text)["response"] as? [String: Any])
+        #expect(response["credits"] as? Int == 10)
+        #expect(response["subscription_plan_type"] as? String == "free")
+        #expect(response["email"] as? String == CaptureRedactor.placeholder)
+        #expect(!text.contains("person"))
+        #expect(!text.contains("example.com"))
+        let call = try #require(runner.calls.first)
+        #expect(call.arguments == ["account", "status", "--json"])
+        #expect(call.environment["HIGGSFIELD_DISABLE_TELEMETRY"] == "1")
+    }
+
+    @Test func higgsfieldStderrBecomesPhraseHitsOnly() async throws {
+        runner.answers = [output("", stderr: "Error: Session expired. person@example.com\n", exitCode: 2)]
+
+        let text = try document(await capture(.higgsfield))
+
+        let json = try object(text)
+        #expect(json["exitCode"] as? Int == 2)
+        #expect((json["stderr"] as? [String: Any])?["phrases"] as? [String] == ["session expired"])
+        #expect(!text.contains("person"))
+    }
+
     // MARK: Antigravity
 
     @Test func agyCaptureStopsBelowTheMinimumVersion() async throws {
@@ -278,7 +308,7 @@ struct CaptureCommandTests {
 
     private func context(transport: OpenCodeFakeTransport = OpenCodeFakeTransport(HTTPResponse(status: 500, body: Data()))) -> FetchContext {
         var overrides: [String: String] = [:]
-        for name in ["claude", "codex", "gh", "agy"] {
+        for name in ["claude", "codex", "gh", "agy", "higgsfield"] {
             let file = home.appending(path: "bin/\(name)")
             try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             if !FileManager.default.fileExists(atPath: file.path) {

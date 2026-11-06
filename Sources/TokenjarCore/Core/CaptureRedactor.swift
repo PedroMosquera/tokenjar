@@ -45,6 +45,7 @@ public enum CaptureRedactor {
             .opencodeGo: ["capture", "error", "response._tag", "response.error.type", "response.**.currency"]
                 + goWindows.map { "response.\($0).status" }
                 + goWindows.map { "response.usage.\($0).status" },
+            .higgsfield: ["capture", "response.subscription_plan_type", "stderr.phrases[]"],
         ]
     }()
 

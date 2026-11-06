@@ -10,7 +10,7 @@ public enum SignInCommand {
         case .claude: ("CLAUDE_CONFIG_DIR", "~/.claude")
         case .codex: ("CODEX_HOME", "~/.codex")
         case .copilot: ("GH_CONFIG_DIR", "~/.config/gh")
-        case .opencodeGo, .opencodeZen, .antigravity, .devin, .cursor: nil
+        case .opencodeGo, .opencodeZen, .antigravity, .higgsfield, .devin, .cursor: nil
         }
     }
 
@@ -24,6 +24,7 @@ public enum SignInCommand {
         case .codex: words = [executable("codex"), "login"]
         case .opencodeGo, .opencodeZen: words = [executable("opencode"), "auth", "login"]
         case .copilot: words = [executable("gh"), "auth", "login"]
+        case .higgsfield: words = [executable("higgsfield"), "auth", "login"]
         case .antigravity, .devin, .cursor: return nil
         }
         let quotePath = abbreviatingHome ? { tildeQuote($0, home: paths.home.path) } : shellQuote

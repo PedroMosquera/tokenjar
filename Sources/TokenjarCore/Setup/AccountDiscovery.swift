@@ -34,6 +34,9 @@ public enum AccountDiscovery {
         if cli.locate("gh") != nil {
             accounts.append(AccountConfig(id: "copilot", provider: .copilot, label: "GitHub"))
         }
+        if cli.locate("higgsfield") != nil {
+            accounts.append(AccountConfig(id: "higgsfield", provider: .higgsfield, label: "Higgsfield", showInMenuBar: false))
+        }
         // Devin Desktop is the renamed Windsurf. Its app bundles and data folders are only checked for existence.
         let devinMarkers = [
             systemApplications.appending(path: "Devin.app"), paths.home.appending(path: "Applications/Devin.app"),
@@ -60,13 +63,13 @@ public enum AccountDiscovery {
     ) -> Bool {
         guard let location = location(of: account, paths: paths, environment: environment) else { return true }
         switch account.provider {
-        case .claude, .codex, .copilot: return isDirectory(location)
+        case .claude, .codex, .copilot, .higgsfield: return isDirectory(location)
         case .opencodeGo, .opencodeZen, .antigravity, .devin, .cursor: return FileManager.default.fileExists(atPath: location.path)
         }
     }
 
-    /// The profile dir or credential file the account reads on this Mac (gh's config folder for Copilot, whose files
-    /// are never opened, and opencode.db for Zen, which needs no key). nil for Antigravity, Devin and Cursor, which have
+    /// The profile dir or credential file the account reads on this Mac (gh's config folder for Copilot and the CLI's
+    /// folder for Higgsfield, whose files are never opened, and opencode.db for Zen, which needs no key). nil for Antigravity, Devin and Cursor, which have
     /// no file of their own.
     public static func location(of account: AccountConfig, paths: AppPaths, environment: [String: String]) -> URL? {
         switch account.provider {
@@ -76,6 +79,8 @@ public enum AccountDiscovery {
             account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".codex")
         case .copilot:
             account.profileDir.map(paths.expand) ?? paths.home.appending(path: ".config/gh")
+        case .higgsfield:
+            paths.home.appending(path: ".config/higgsfield")
         case .opencodeZen:
             // First run gives Zen an auth.json credential that its fetcher never reads.
             OpenCodeLocalData.databaseFile(in: OpenCodeLocalData.dataDirectory(for: account, paths: paths, environment: environment))

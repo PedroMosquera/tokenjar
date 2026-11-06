@@ -47,6 +47,7 @@ struct CaptureRedactorTests {
                 "response.rolling.status", "response.weekly.status", "response.monthly.status",
                 "response.usage.rolling.status", "response.usage.weekly.status", "response.usage.monthly.status",
             ],
+            .higgsfield: ["capture", "response.subscription_plan_type", "stderr.phrases[]"],
         ])
 
         for (provider, paths) in CaptureRedactor.allowlist {

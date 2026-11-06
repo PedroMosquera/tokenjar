@@ -6,7 +6,7 @@ Tokenjar does not use your shell `PATH`; it searches a fixed list of folders, an
 
 ## Signed out
 
-The card's Sign In... button opens the account's Settings page. Sign In in Terminal there runs the provider's own login (`claude auth login`, `codex login`, `opencode auth login`, `gh auth login`) in Terminal, and Copy Command copies it instead. Tokenjar never sees your credentials. With an older claude that has no `auth` command, run `claude` and type `/login`.
+The card's Sign In... button opens the account's Settings page. Sign In in Terminal there runs the provider's own login (`claude auth login`, `codex login`, `opencode auth login`, `gh auth login`, `higgsfield auth login`) in Terminal, and Copy Command copies it instead. Tokenjar never sees your credentials. With an older claude that has no `auth` command, run `claude` and type `/login`.
 
 ### Claude says Signed out, but Claude Code works in your terminal
 

@@ -40,6 +40,11 @@ struct SignInCommandTests {
         #expect(SignInCommand.profileVariable(for: .copilot)?.defaultPath == "~/.config/gh")
     }
 
+    @Test func higgsfieldRunsItsOwnLogin() {
+        #expect(command(AccountConfig(id: "higgsfield", provider: .higgsfield, label: "Higgsfield")) == "higgsfield auth login")
+        #expect(SignInCommand.profileVariable(for: .higgsfield) == nil)
+    }
+
     @Test func copilotSecondAccountUsesItsOwnGhConfigDir() {
         let account = AccountConfig(id: "copilot-work", provider: .copilot, label: "Work", profileDir: "~/.config/gh-work")
         #expect(command(account) { "/opt/homebrew/bin/\($0)" } == "GH_CONFIG_DIR=/Users/tester/.config/gh-work /opt/homebrew/bin/gh auth login")

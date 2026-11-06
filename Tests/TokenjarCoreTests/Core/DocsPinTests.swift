@@ -8,7 +8,7 @@ struct DocsPinTests {
     @Test func privacyNamesEveryCLICall() async throws {
         let commands = try Self.privacySection("## Commands it runs")
         let calls = try await Self.recordedCalls()
-        #expect(calls.map(\.executable.lastPathComponent) == ["claude", "codex", "agy", "agy", "gh"])
+        #expect(calls.map(\.executable.lastPathComponent) == ["claude", "codex", "agy", "agy", "gh", "higgsfield"])
 
         let passed = CLILocator.inheritedVariables + CLILocator.proxyVariables
         let everyInherited = Dictionary(uniqueKeysWithValues: passed.map { ($0, "set") })
@@ -49,7 +49,7 @@ struct DocsPinTests {
         let temp = TemporaryDirectory()
         let home = temp.url
         var overrides: [String: String] = [:]
-        for cli in ["claude", "codex", "agy", "gh"] {
+        for cli in ["claude", "codex", "agy", "gh", "higgsfield"] {
             let binary = home.appending(path: "bin/\(cli)")
             try FileManager.default.createDirectory(at: binary.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data().write(to: binary)
@@ -73,6 +73,7 @@ struct DocsPinTests {
         let codex = launcher.launches.map { Call(executable: $0.executable, arguments: $0.arguments, environment: $0.environment) }
         _ = try? await AntigravityUsageFetcher().fetch(account(.antigravity), context: context)
         _ = try? await CopilotUsageFetcher().fetch(account(.copilot), context: context)
+        _ = try? await HiggsfieldUsageFetcher().fetch(account(.higgsfield), context: context)
         let recorded = runner.calls.map { Call(executable: $0.executable, arguments: $0.arguments, environment: $0.environment) }
         // The fetchers read the fake binaries under it, so it must outlive them.
         withExtendedLifetime(temp) {}
