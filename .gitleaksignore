@@ -1,0 +1,7 @@
+# Test placeholders and fixture IDs in history. None is a real key.
+47c6b36f13695a9ddc31795c2fe0a3b5c70457e9:Tests/TokenjarCoreTests/Core/CaptureCommandTests.swift:generic-api-key:292
+81ad93380c674fff5d2c978ee0e97371ffd55325:Tests/TokenjarCoreTests/Core/CaptureCommandTests.swift:generic-api-key:269
+547a5395b54ebdbe08bc55305256a06e121438ec:Tests/TokenjarCoreTests/Core/CaptureCommandTests.swift:generic-api-key:191
+4491bbf2d2601aae3d3c64b24252501cbc6c65c2:Tests/TokenjarCoreTests/Health/ProviderHealthFeedTests.swift:generic-api-key:115
+4491bbf2d2601aae3d3c64b24252501cbc6c65c2:Tests/TokenjarCoreTests/Health/ProviderHealthFeedTests.swift:generic-api-key:119
+b648d6d0a0103a14dce713827145aeaee75a2608:Tests/TokenjarCoreTests/Core/FixtureShapeTests.swift:generic-api-key:44
