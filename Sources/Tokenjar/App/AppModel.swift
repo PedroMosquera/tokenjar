@@ -151,9 +151,6 @@ final class AppModel {
     @ObservationIgnored private(set) var readOnly = false
     /// What General shows for launch at login. Window renders replace it so they never ask macOS.
     @ObservationIgnored var launchAtLoginState: () -> LaunchAtLogin.State = { LaunchAtLogin.state }
-    /// Pasted API keys, held for the launch so the Keychain is asked once per account. Window renders replace it with
-    /// one backed by memory, so they never reach the Keychain.
-    @ObservationIgnored var secrets = SessionSecretStore(KeychainSecretStore())
     /// Asked once per launch by the Headroom move; tests replace it.
     @ObservationIgnored var legacyAppIsRunning: () -> Bool = {
         !NSRunningApplication.runningApplications(withBundleIdentifier: LegacyMigration.legacyBundleIdentifier).isEmpty
@@ -670,12 +667,10 @@ final class AppModel {
         return fetch(accounts.filter { due.contains($0.id) }, startedAt: current)
     }
 
-    /// An explicit per-account check, such as Settings > Test: it overrides the interval and a rate-limit backoff. It is
-    /// also the only check that asks the Keychain again for a pasted key it found missing or was refused.
+    /// An explicit per-account check, such as Settings > Test: it overrides the interval and a rate-limit backoff.
     @discardableResult
     func refresh(accountID: String) -> Task<Void, Never>? {
         let targets = accounts.filter { $0.id == accountID && !scheduler.inFlight.contains($0.id) }
-        for case .keychain(let name)? in targets.map(\.credential) { secrets.allowRead(account: name) }
         return fetch(targets, startedAt: clock())
     }
 
@@ -697,7 +692,7 @@ final class AppModel {
         }
         isRefreshing = true
         let startedUnusable = networkWatch.path == .unusable
-        let context = FetchContext(secrets: secrets, cli: cliLocator(for: config), paths: paths)
+        let context = FetchContext(cli: cliLocator(for: config), paths: paths)
         let jobs = targets.map { ($0, fetcher($0.provider)) }
         return Task {
             var dropped = false, stored = false
@@ -1114,14 +1109,6 @@ final class AppModel {
 
     func openStatusPage(_ account: AccountConfig) {
         if let url = account.provider.statusPageURL { NSWorkspace.shared.open(url) }
-    }
-
-    /// Settings' Save Key: stores the key, points the account at it and checks it. An account that already used a pasted
-    /// key is not edited, so without the check its card would keep the last failure until the next interval.
-    func savePastedKey(_ key: String, accountID: String) throws {
-        try secrets.write(key, account: accountID)
-        updateAccount(accountID) { $0.credential = .keychain(account: accountID) }
-        refresh(accountID: accountID)
     }
 
     func showDashboard(accountID: String? = nil) {

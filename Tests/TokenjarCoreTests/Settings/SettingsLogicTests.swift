@@ -1,5 +1,4 @@
 import Foundation
-import Security
 import Testing
 @testable import TokenjarCore
 
@@ -131,38 +130,10 @@ struct SettingsLogicTests {
         #expect(SettingsLogic.tildePath("/Volumes/x", home: "/Users/tester") == "/Volumes/x")
     }
 
-    @Test func removingAPastedKeyDeletesOnlyThatKey() throws {
-        let secrets = InMemorySecretStore(["opencode-go": "placeholder-key", "opencode-zen": "placeholder-other"])
-        let remaining = try SettingsLogic.removingPastedKey(from: .keychain(account: "opencode-go"), secrets: secrets)
-        #expect(remaining == nil)
-        #expect(try secrets.read(account: "opencode-go") == nil)
-        #expect(try secrets.read(account: "opencode-zen") == "placeholder-other")
-    }
-
-    @Test func removingAPastedKeyKeepsAFileReference() throws {
-        let secrets = InMemorySecretStore(["opencode-go": "placeholder-key"])
-        let file = CredentialRef.file(path: "~/elsewhere/auth.json", key: "opencode-go")
-        #expect(try SettingsLogic.removingPastedKey(from: file, secrets: secrets) == file)
-        #expect(try secrets.read(account: "opencode-go") == "placeholder-key")
-    }
-
-    /// The caller only clears the account's reference when this throws nothing, so a refused delete must surface.
-    @Test func aRefusedDeleteThrows() {
-        #expect(throws: SecretStoreError.self) {
-            try SettingsLogic.removingPastedKey(from: .keychain(account: "opencode-go"), secrets: RefusingSecretStore())
-        }
-    }
-
     @Test func aNewBudgetTakesTheDisplayCurrency() {
         #expect(SettingsLogic.budgetCurrency(before: nil, after: 150, current: nil, display: "EUR") == "EUR")
         #expect(SettingsLogic.budgetCurrency(before: nil, after: 150, current: nil, display: "USD") == nil)
         #expect(SettingsLogic.budgetCurrency(before: 150, after: 200, current: "EUR", display: "USD") == "EUR")
         #expect(SettingsLogic.budgetCurrency(before: 150, after: nil, current: "EUR", display: "EUR") == nil)
     }
-}
-
-private struct RefusingSecretStore: SecretStore {
-    func read(account: String) throws -> String? { nil }
-    func write(_ secret: String, account: String) throws { throw SecretStoreError.keychain(errSecAuthFailed) }
-    func delete(account: String) throws { throw SecretStoreError.keychain(errSecAuthFailed) }
 }

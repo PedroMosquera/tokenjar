@@ -13,12 +13,11 @@ enum DevCommands {
         var paths = AppPaths()
         var cli = CLILocator()
         var process: any ProcessRunning = FoundationProcessRunner()
-        var secrets: any SecretStore = KeychainSecretStore()
         var output: (String) -> Void = { print($0) }
         var errorOutput: (String) -> Void = { FileHandle.standardError.write(Data("\($0)\n".utf8)) }
 
         var fetchContext: FetchContext {
-            FetchContext(process: process, secrets: secrets, cli: cli, paths: paths)
+            FetchContext(process: process, cli: cli, paths: paths)
         }
     }
 

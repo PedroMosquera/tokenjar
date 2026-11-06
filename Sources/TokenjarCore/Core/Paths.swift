@@ -2,7 +2,6 @@ import Foundation
 
 public struct AppPaths: Sendable {
     public static let bundleIdentifier = "com.pedromosquera.tokenjar"
-    public static let keychainService = "com.pedromosquera.tokenjar.apikeys"
 
     public var home: URL
     /// Where machine-wide files such as an MDM profile's managed settings live.

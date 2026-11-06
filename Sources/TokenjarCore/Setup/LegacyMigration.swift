@@ -2,7 +2,7 @@ import Foundation
 
 /// The one-time move of what the app kept as Headroom, its old name, into Tokenjar's folders. Runs at launch before the
 /// config or the database is opened. Never touches the Keychain (hard rule 2): keys pasted under Headroom's service stay
-/// there and are pasted again.
+/// there until the user deletes them.
 public enum LegacyMigration {
     public static let legacyBundleIdentifier = "com.pedromosquera.headroom"
     public static let legacyProcessName = "Headroom"

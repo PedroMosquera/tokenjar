@@ -114,12 +114,10 @@ public enum Harness: String, Codable, CaseIterable, Sendable, Hashable {
     case opencode
 }
 
-/// Where an API key lives. The app never stores OAuth tokens; this is only for plain API keys.
+/// Where an API key lives. The app stores no key of its own: this only names a file the provider's CLI wrote.
 public enum CredentialRef: Codable, Hashable, Sendable {
     /// A JSON file whose top-level `key` entry is an object with a string field `key` (opencode's auth.json shape).
     case file(path: String, key: String)
-    /// The app's own Keychain item, service `AppPaths.keychainService`, under this account name.
-    case keychain(account: String)
 }
 
 public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
@@ -174,7 +172,13 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         label = try c.decodeIfPresent(String.self, forKey: .label) ?? provider.displayName
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
         profileDir = try c.decodeIfPresent(String.self, forKey: .profileDir)
-        credential = try c.decodeIfPresent(CredentialRef.self, forKey: .credential)
+        // Older builds wrote {"keychain": ...} for a pasted key. Tokenjar no longer touches the Keychain, so that account
+        // falls back to opencode's auth.json. Anything else malformed still fails.
+        if let retired = try? c.nestedContainer(keyedBy: RetiredCredentialKeys.self, forKey: .credential), retired.contains(.keychain) {
+            credential = nil
+        } else {
+            credential = try c.decodeIfPresent(CredentialRef.self, forKey: .credential)
+        }
         showInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showInMenuBar) ?? true
         refreshMinutes = try c.decodeIfPresent(Int.self, forKey: .refreshMinutes)
         alertThresholds = try c.decodeIfPresent([Int].self, forKey: .alertThresholds)
@@ -183,6 +187,8 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         monthlyBudget = try c.decodeIfPresent(Double.self, forKey: .monthlyBudget)
         budgetCurrency = try c.decodeIfPresent(String.self, forKey: .budgetCurrency)
     }
+
+    private enum RetiredCredentialKeys: String, CodingKey { case keychain }
 
     public var displayName: String { "\(provider.displayName) · \(label)" }
 
@@ -372,8 +378,6 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
     case timeout
     case parse(String)
     case unsupported(String)
-    /// The user refused Tokenjar's own Keychain item. Only the account's Try Again asks again.
-    case keychainDenied
     /// The CLI is older than the answer format this build reads. `minimum` is the first version known to work, when
     /// there is one.
     case cliTooOld(name: String, minimum: String?)
@@ -392,7 +396,7 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
         switch self {
         case .noSubscription: .calm
         case .network, .timeout, .rateLimited: .transient
-        case .cliNotFound, .notSignedIn, .unauthorized, .parse, .unsupported, .keychainDenied, .cliTooOld: .actionable
+        case .cliNotFound, .notSignedIn, .unauthorized, .parse, .unsupported, .cliTooOld: .actionable
         }
     }
 
@@ -408,7 +412,6 @@ public enum FetchError: Error, Codable, Hashable, Sendable {
         case .timeout: "No answer in time. Tokenjar tries again at the next refresh."
         case .parse: "Couldn't read the usage answer. An update may have changed it."
         case .unsupported(let detail): detail
-        case .keychainDenied: "Keychain access was denied. Tokenjar won't ask again on its own."
         case .cliTooOld(let name, let minimum?): "Update \(name) to \(minimum) or later."
         case .cliTooOld(let name, nil): "Update \(name): this version answers in a format Tokenjar can't read."
         }

@@ -202,7 +202,6 @@ struct DashboardSidebarFocusTests {
     /// Without focus the sidebar draws its selection in gray and ignores the arrow keys.
     @Test func theSidebarTakesFocusWhenTheWindowIsLeftWithNone() async throws {
         let model = AppModel.preview()
-        model.secrets = SessionSecretStore(InMemorySecretStore())
         let window = OffscreenWindow(contentViewController: NSHostingController(rootView: DashboardSidebar().environment(model)))
         window.isReleasedWhenClosed = false
         window.setFrameOrigin(NSPoint(x: -30_000, y: -30_000))

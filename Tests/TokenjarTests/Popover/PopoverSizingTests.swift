@@ -9,8 +9,6 @@ import TokenjarCore
 @MainActor
 private func previewModel() -> AppModel {
     let model = AppModel.preview()
-    // The cards would otherwise read the real Keychain for a pasted key.
-    model.secrets = SessionSecretStore(InMemorySecretStore())
     return model
 }
 

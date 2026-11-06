@@ -66,8 +66,8 @@ public enum AccountDiscovery {
     }
 
     /// The profile dir or credential file the account reads on this Mac (gh's config folder for Copilot, whose files
-    /// are never opened, and opencode.db for Zen, which needs no key). nil for Antigravity, Devin, Cursor and a key in the
-    /// app's own Keychain, which have no file of their own.
+    /// are never opened, and opencode.db for Zen, which needs no key). nil for Antigravity, Devin and Cursor, which have
+    /// no file of their own.
     public static func location(of account: AccountConfig, paths: AppPaths, environment: [String: String]) -> URL? {
         switch account.provider {
         case .claude:
@@ -82,7 +82,6 @@ public enum AccountDiscovery {
         case .opencodeGo:
             switch account.credential {
             case .file(let path, _): paths.expand(path)
-            case .keychain: nil
             case nil: openCodeAuthFile(paths: paths, environment: environment)
             }
         case .antigravity, .devin, .cursor:

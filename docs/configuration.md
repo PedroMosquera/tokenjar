@@ -79,7 +79,7 @@ A local entry whose `id` is not in `config.json` adds an account that exists onl
 
 ### Accounts missing on a Mac
 
-An account is hidden on a Mac that lacks what it reads, and Settings lists it there as "Not on this Mac". That covers Claude, Codex and GitHub Copilot accounts whose profile folder is missing (for Copilot, gh's config folder, `~/.config/gh` by default), OpenCode Go accounts whose credential file (else opencode's default `auth.json`) is missing, and OpenCode Zen accounts without an `opencode.db`. One shared file can therefore list a second profile folder that exists on only one of your Macs. Antigravity, Devin, Cursor and accounts with a pasted API key have no file to check. To turn one of those off on a single Mac, set `"enabled": false` in that Mac's `config.local.json`.
+An account is hidden on a Mac that lacks what it reads, and Settings lists it there as "Not on this Mac". That covers Claude, Codex and GitHub Copilot accounts whose profile folder is missing (for Copilot, gh's config folder, `~/.config/gh` by default), OpenCode Go accounts whose credential file (else opencode's default `auth.json`) is missing, and OpenCode Zen accounts without an `opencode.db`. One shared file can therefore list a second profile folder that exists on only one of your Macs. Antigravity, Devin and Cursor have no file to check. To turn one of those off on a single Mac, set `"enabled": false` in that Mac's `config.local.json`.
 
 ### What Settings saves
 
@@ -89,4 +89,4 @@ Settings keeps keys it does not know when it saves, so a setting a newer build a
 
 ### What stays on each Mac
 
-History and alert state are never synced. `tokenjar.sqlite` (usage history and limit samples), `alert-state.json` and `probe-latch.json` live in `~/Library/Application Support/Tokenjar/`. The same account `id` on two Macs keeps two separate histories, which is what lets one id stand for a different login on each. A pasted API key lives only in that Mac's Keychain, so paste it again on each Mac. Launch at login is set per Mac as well.
+History and alert state are never synced. `tokenjar.sqlite` (usage history and limit samples), `alert-state.json` and `probe-latch.json` live in `~/Library/Application Support/Tokenjar/`. The same account `id` on two Macs keeps two separate histories, which is what lets one id stand for a different login on each. Launch at login is set per Mac as well.

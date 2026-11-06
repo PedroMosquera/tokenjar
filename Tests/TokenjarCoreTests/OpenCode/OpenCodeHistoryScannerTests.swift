@@ -235,7 +235,7 @@ struct OpenCodeZenUsageFetcherTests {
 
     private func context(_ dir: TemporaryDirectory, now: Date) -> FetchContext {
         FetchContext(http: HTTPClient(transport: OpenCodeFakeTransport(HTTPResponse(status: 500, body: Data()))),
-                     secrets: InMemorySecretStore(), paths: AppPaths(home: dir.url), now: { now })
+                     paths: AppPaths(home: dir.url), now: { now })
     }
 
     @Test func reportsMonthToDateZenSpendFromTheLocalDatabase() async throws {

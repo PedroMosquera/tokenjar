@@ -43,7 +43,7 @@ struct AccountsSettingsPane: View {
         ) { account in
             Button("Remove", role: .destructive) { remove(account) }
         } message: { account in
-            Text(removeMessage(account))
+            Text("It is removed from config.json. Its history stays in the local database.")
         }
         .sheet(item: $naming) { naming in
             AccountNameSheet(naming: naming) { name in commit(naming, name: name) }
@@ -179,16 +179,7 @@ struct AccountsSettingsPane: View {
         onSelect(naming.account.id)
     }
 
-    private func removeMessage(_ account: AccountConfig) -> String {
-        var text = "It is removed from config.json. Its history stays in the local database."
-        if case .keychain = account.credential { text += " Its pasted API key is deleted from this Mac's Keychain." }
-        return text
-    }
-
     private func remove(_ account: AccountConfig) {
-        if case .keychain(let keyAccount) = account.credential {
-            try? model.secrets.delete(account: keyAccount)
-        }
         model.updateConfig { $0.accounts.removeAll { $0.id == account.id } }
         removing = nil
         onSelect(nil)

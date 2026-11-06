@@ -56,7 +56,6 @@ struct AboutSettingsPane: View {
         Item(what: "~/Library/Application Support/Tokenjar/", why: "tokenjar.sqlite: usage history. alert-state.json: which alerts already fired. probe-latch.json: accounts whose usage check spent tokens or quota, so it is not run again until that CLI (claude or agy) updates or you click Try Once More. probe: an empty folder the CLIs run in. update: the new version Update Now builds, deleted once it runs. update.log: what the last update printed."),
         Item(what: "$TMPDIR/tokenjar-update.command", why: "Only when you click Update in Terminal: the update command for Terminal to run. It deletes itself when it runs."),
         Item(what: "$TMPDIR/tokenjar-sign-in-<account>.command", why: "Only when you click Sign In in Terminal: the login command for Terminal to run. It deletes itself when it runs."),
-        Item(what: "Keychain: \(AppPaths.keychainService)", why: "Only API keys you paste here."),
         Item(what: "Preferences: \(AppPaths.bundleIdentifier)", why: "Window frames and, for this Mac only: whether provider status is on, the pinned account, the currency and its exchange rates, which API value sections are open, and the update check setting, its last check, the latest version seen, the newer versions already announced and the version an update is installing."),
     ]
 
@@ -89,7 +88,7 @@ struct AboutSettingsPane: View {
 
             Section("Never") {
                 Text("Reads, stores or refreshes an OAuth token.")
-                Text("Reads another app's Keychain items.")
+                Text("Reads or writes the Keychain.")
                 Text("Stores prompts, responses, emails or account ids.")
                 Text("Sends anything that spends credits or starts a model turn.")
             }

@@ -9,7 +9,6 @@ struct CodexUsageFetcherTests {
         let missing = temp.url.appending(path: "no-such-codex").path
         let fixedNow = now ?? self.now
         return FetchContext(
-            secrets: InMemorySecretStore(),
             cli: CLILocator(home: temp.url, overrides: ["codex": binary?.path ?? missing], searchDirectories: []),
             paths: AppPaths(home: temp.url),
             now: { fixedNow }

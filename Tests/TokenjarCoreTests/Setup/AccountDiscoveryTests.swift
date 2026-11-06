@@ -164,10 +164,8 @@ struct AccountDiscoveryTests {
         let home = TempHome()
         let paths = AppPaths(home: home.url)
         let file = AccountConfig(id: "opencode-go", provider: .opencodeGo, label: "Go", credential: .file(path: "~/keys/auth.json", key: "opencode-go"))
-        let keychain = AccountConfig(id: "opencode-go-2", provider: .opencodeGo, label: "Go", credential: .keychain(account: "opencode-go-2"))
         let implicit = AccountConfig(id: "opencode-go-3", provider: .opencodeGo, label: "Go")
         #expect(!AccountDiscovery.isAvailable(file, paths: paths, environment: [:]))
-        #expect(AccountDiscovery.isAvailable(keychain, paths: paths, environment: [:]))
         #expect(!AccountDiscovery.isAvailable(implicit, paths: paths, environment: [:]))
 
         try home.write("keys/auth.json", "{}")

@@ -23,7 +23,6 @@ enum SnapshotRenderer {
                 ("incident", AppModel.previewIncident()), ("all-clear-outage", AppModel.previewAllClearOutage()),
             ]
             for (name, outage) in outages {
-                outage.secrets = SessionSecretStore(InMemorySecretStore())
                 render(PopoverView(maxCardsHeight: 4000).environment(outage), size: nil, width: 360, appearance: appearance, to: outputDirectory.appending(path: "popover-\(name)-\(suffix).png"))
             }
 

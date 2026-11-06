@@ -8,7 +8,6 @@ struct AppPathsTests {
 
     @Test func identityIsTokenjars() {
         #expect(AppPaths.bundleIdentifier == "com.pedromosquera.tokenjar")
-        #expect(AppPaths.keychainService == "com.pedromosquera.tokenjar.apikeys")
     }
 
     @Test func foldersAreTokenjars() {

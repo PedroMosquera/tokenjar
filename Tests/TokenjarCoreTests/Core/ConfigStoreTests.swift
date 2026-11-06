@@ -55,7 +55,7 @@ struct ConfigStoreTests {
              "menuBar": {"mode": "bars", "icon": "symbol:cpu", "warnAt": 60, "criticalAt": 90, "showResetCountdownWhenFull": false},
              "alerts": {"enabled": false, "thresholds": [50], "projectedExhaustion": false, "windowResets": true, "earlyResets": false, "sourceProblems": false},
              "accounts": [{"id": "claude", "label": "Work", "enabled": false, "profileDir": "~/.claude-alt",
-                           "credential": {"keychain": {"account": "x"}}, "showInMenuBar": false, "refreshMinutes": 1,
+                           "credential": {"file": {"path": "~/x.json", "key": "x"}}, "showInMenuBar": false, "refreshMinutes": 1,
                            "alertThresholds": [50], "dashboardURL": "https://x.example"}]}
             """#, to: paths.localConfigFile)
         let store = ConfigStore(paths: paths)

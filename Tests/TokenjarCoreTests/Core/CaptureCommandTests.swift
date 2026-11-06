@@ -288,7 +288,7 @@ struct CaptureCommandTests {
             overrides[name] = file.path
         }
         return FetchContext(
-            process: runner, http: HTTPClient(transport: transport), secrets: InMemorySecretStore(),
+            process: runner, http: HTTPClient(transport: transport),
             cli: CLILocator(home: home, overrides: overrides, searchDirectories: []), paths: AppPaths(home: home, environment: [:], systemRoot: systemRoot)
         )
     }

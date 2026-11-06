@@ -11,71 +11,66 @@ struct AccountDetailView: View {
     @SettingsState private var dashboardError = false
     @SettingsState private var signInFailed = false
 
-    private static let credentialAnchor = "credential"
-
     var body: some View {
-        ScrollViewReader { scroller in
-            Form {
-                Section {
-                    statusRow(scroller)
-                    HStack {
-                        Spacer()
-                        if statusText.offersCheck, fix != .tryOnceMore, fix != .tryAgain {
-                            checkButton
-                        }
-                        Button("Open Usage Page") { model.openProviderDashboard(account) }
-                            .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
+        Form {
+            Section {
+                statusRow
+                HStack {
+                    Spacer()
+                    if statusText.offersCheck, fix != .tryOnceMore {
+                        checkButton
                     }
-                } header: {
-                    header
+                    Button("Open Usage Page") { model.openProviderDashboard(account) }
+                        .help("Open \(account.resolvedDashboardURL.host() ?? account.provider.displayName) in the browser")
                 }
-                // While config.json cannot be saved, edits would be dropped; checks, links and sign-in still work.
-                generalSection
-                    .disabled(!model.canEditConfig)
-                if let variable = SignInCommand.profileVariable(for: account.provider) {
-                    profileSection(variable: variable)
-                        .disabled(!model.canEditConfig)
-                }
-                // Zen reads only opencode's local database, so it has no key to choose and no login to run.
-                if account.provider == .opencodeGo {
-                    AccountCredentialSection(account: account, signInCommand: signInCommand, onSignIn: openSignIn)
-                        .id(Self.credentialAnchor)
-                        .disabled(!model.canEditConfig)
-                }
-                // OpenCode's login belongs to its key source, inside the Credential section.
-                if !account.provider.isLinkOnly, !account.provider.usesAPIKey {
-                    if PlanLogin.applies(snapshot: model.status(for: account).snapshot) {
-                        signInSection
-                    } else {
-                        Section {
-                            Text("Claude Code uses an API key, a gateway or a cloud provider set in its settings.json, so there is nothing to sign in to here. Change the login in that file.")
-                                .foregroundStyle(.secondary)
-                        } header: {
-                            Text("Sign in")
-                        }
-                    }
-                }
-                if account.monthlyBudget != nil || model.status(for: account).snapshot.map(MonthlyBudget.applies) == true {
-                    monthlyBudgetSection
-                        .disabled(!model.canEditConfig)
-                }
-                if let snapshot = model.status(for: account).snapshot, snapshot.spendLimitMoney != nil {
-                    dailyBudgetSection(snapshot)
-                        .disabled(!model.canEditConfig)
-                }
-                overridesSection
-                    .disabled(!model.canEditConfig)
-                Section {
-                    HStack {
-                        Spacer()
-                        Button("Remove Account\u{2026}", role: .destructive, action: onRemove)
-                    }
-                }
-                .disabled(!model.canEditConfig)
+            } header: {
+                header
             }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
+            // While config.json cannot be saved, edits would be dropped; checks, links and sign-in still work.
+            generalSection
+                .disabled(!model.canEditConfig)
+            if let variable = SignInCommand.profileVariable(for: account.provider) {
+                profileSection(variable: variable)
+                    .disabled(!model.canEditConfig)
+            }
+            // Zen reads only opencode's local database, so it has no key to choose and no login to run.
+            if account.provider == .opencodeGo {
+                AccountCredentialSection(account: account, signInCommand: signInCommand, onSignIn: openSignIn)
+                    .disabled(!model.canEditConfig)
+            }
+            // OpenCode's login belongs to its key source, inside the Credential section.
+            if !account.provider.isLinkOnly, !account.provider.usesAPIKey {
+                if PlanLogin.applies(snapshot: model.status(for: account).snapshot) {
+                    signInSection
+                } else {
+                    Section {
+                        Text("Claude Code uses an API key, a gateway or a cloud provider set in its settings.json, so there is nothing to sign in to here. Change the login in that file.")
+                            .foregroundStyle(.secondary)
+                    } header: {
+                        Text("Sign in")
+                    }
+                }
+            }
+            if account.monthlyBudget != nil || model.status(for: account).snapshot.map(MonthlyBudget.applies) == true {
+                monthlyBudgetSection
+                    .disabled(!model.canEditConfig)
+            }
+            if let snapshot = model.status(for: account).snapshot, snapshot.spendLimitMoney != nil {
+                dailyBudgetSection(snapshot)
+                    .disabled(!model.canEditConfig)
+            }
+            overridesSection
+                .disabled(!model.canEditConfig)
+            Section {
+                HStack {
+                    Spacer()
+                    Button("Remove Account\u{2026}", role: .destructive, action: onRemove)
+                }
+            }
+            .disabled(!model.canEditConfig)
         }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .alert("Couldn't open Terminal", isPresented: $signInFailed) {
             Button("OK", role: .cancel) {}
@@ -112,7 +107,7 @@ struct AccountDetailView: View {
         .accessibilityAddTraits(.isHeader)
     }
 
-    private func statusRow(_ scroller: ScrollViewProxy) -> some View {
+    private var statusRow: some View {
         let line = statusText
         let symbol = Text(Image(systemName: line.symbol)).foregroundStyle(line.tone.color)
         return LabeledContent {
@@ -121,11 +116,7 @@ struct AccountDetailView: View {
                 if let line = signInCommand {
                     Button("Sign In in Terminal\u{2026}") { openSignIn(line.command) }
                 }
-            case .changeKey:
-                Button("Change Key\u{2026}") {
-                    withAnimation { scroller.scrollTo(Self.credentialAnchor, anchor: .top) }
-                }
-            case .tryOnceMore, .tryAgain:
+            case .tryOnceMore:
                 checkButton
             case .searchedFolders, nil:
                 EmptyView()
@@ -153,7 +144,7 @@ struct AccountDetailView: View {
     private var fix: AccountFix? {
         let status = model.status(for: account)
         guard let error = status.error, account.enabled, missingPath == nil, !status.isRefreshing, !account.provider.isLinkOnly else { return nil }
-        return AccountFix.primary(for: error, provider: account.provider, credential: account.credential)
+        return AccountFix.primary(for: error, provider: account.provider)
     }
 
     private var statusText: AccountStatusText { model.statusText(for: account) }
@@ -590,7 +581,6 @@ struct AccountStatusText: Equatable {
         case .notSignedIn: "Signed out"
         case .unauthorized: account.provider.usesAPIKey ? "Key rejected" : "Login rejected"
         case .cliNotFound: "Not installed"
-        case .keychainDenied: "Keychain denied"
         case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported, .cliTooOld: "Check failed"
         }
         return Caption(text: text, isActionable: true)
@@ -598,7 +588,6 @@ struct AccountStatusText: Equatable {
 
     private static func actionableText(_ error: FetchError, account: AccountConfig) -> String {
         guard case .notSignedIn = error else { return error.userMessage }
-        if case .keychain = account.credential { return "No pasted key on this Mac." }
         guard let cli = account.provider.cliName else { return error.userMessage }
         return "Signed out of \(cli)."
     }
@@ -651,29 +640,18 @@ enum PlanLogin {
 enum AccountFix: Equatable {
     /// Sign In in Terminal, running the provider CLI's own login.
     case signIn
-    /// Change Key, which scrolls to the Credential section.
-    case changeKey
     /// Try Once More, the only way to probe again after a check spent tokens or quota.
     case tryOnceMore
     /// No button: a line saying where Tokenjar looked for the CLI.
     case searchedFolders
-    /// Try Again, which asks macOS for a pasted key once more after a Deny.
-    case tryAgain
 
-    static func primary(for error: FetchError, provider: ProviderID, credential: CredentialRef?) -> AccountFix? {
+    static func primary(for error: FetchError, provider: ProviderID) -> AccountFix? {
         if ProbeLatch.spentTokens(error) { return .tryOnceMore }
-        let pastedKey = if case .keychain = credential { true } else { false }
         switch error {
-        case .notSignedIn:
-            if provider.usesAPIKey, pastedKey { return .changeKey }
-            return provider.hasSignInCommand ? .signIn : nil
-        case .unauthorized:
-            if provider.usesAPIKey { return .changeKey }
+        case .notSignedIn, .unauthorized:
             return provider.hasSignInCommand ? .signIn : nil
         case .cliNotFound:
             return .searchedFolders
-        case .keychainDenied:
-            return .tryAgain
         case .noSubscription, .rateLimited, .network, .timeout, .parse, .unsupported, .cliTooOld:
             return nil
         }

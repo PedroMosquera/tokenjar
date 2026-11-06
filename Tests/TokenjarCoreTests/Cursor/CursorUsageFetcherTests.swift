@@ -14,7 +14,7 @@ struct CursorUsageFetcherTests {
         let now = self.now
         let transport = OpenCodeFakeTransport(HTTPResponse(status: 200, body: Data()))
         let context = FetchContext(
-            process: runner, http: HTTPClient(transport: transport), secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: [:], searchDirectories: []),
+            process: runner, http: HTTPClient(transport: transport), cli: CLILocator(home: home, overrides: [:], searchDirectories: []),
             paths: AppPaths(home: home), now: { now }
         )
         let snapshot = try await CursorUsageFetcher().fetch(AccountConfig(id: "cursor", provider: .cursor, label: "Cursor"), context: context)

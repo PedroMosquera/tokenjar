@@ -21,7 +21,7 @@ private extension TemporaryDirectory {
     /// Uses this directory as home and system root, so nothing touches the real ~/.claude.json or ~/Library.
     func context(_ runner: FakeRunner, cli: String = "/bin/sh", now: Date) -> FetchContext {
         FetchContext(
-            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: url, overrides: ["claude": cli], searchDirectories: []),
+            process: runner, cli: CLILocator(home: url, overrides: ["claude": cli], searchDirectories: []),
             paths: AppPaths(home: url, environment: [:], systemRoot: url), now: { now }
         )
     }

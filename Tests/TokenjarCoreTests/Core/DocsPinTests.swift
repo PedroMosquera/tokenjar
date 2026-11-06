@@ -61,7 +61,7 @@ struct DocsPinTests {
         let runner = FakeRunner { $0.arguments == ["--version"] ? agyVersion : output(exitCode: 1) }
         let launcher = RecordingCodexLauncher(ScriptedCodexConnection(replies: [:], finishAfter: "initialize"))
         let context = FetchContext(
-            process: runner, secrets: InMemorySecretStore(), cli: CLILocator(home: home, overrides: overrides, searchDirectories: []), paths: AppPaths(home: home)
+            process: runner, cli: CLILocator(home: home, overrides: overrides, searchDirectories: []), paths: AppPaths(home: home)
         )
         func account(_ provider: ProviderID) -> AccountConfig {
             AccountConfig(id: provider.rawValue, provider: provider, label: "Docs", profileDir: "~/profile-\(provider.rawValue)")

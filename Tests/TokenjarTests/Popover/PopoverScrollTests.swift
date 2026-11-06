@@ -24,7 +24,6 @@ struct PopoverScrollTests {
     @Test func everyOpenStartsAtTheTop() throws {
         _ = NSApplication.shared
         let model = AppModel.preview()
-        model.secrets = SessionSecretStore(InMemorySecretStore())
         model.popoverMaxHeight = 400
         let popover = NSPopover()
         popover.contentViewController = AppDelegate.popoverContent(model)

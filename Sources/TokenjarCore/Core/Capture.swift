@@ -308,7 +308,7 @@ public enum Capture {
         let dataDirectory = OpenCodeLocalData.dataDirectory(for: account, paths: context.paths, environment: environment)
         let key: String
         do {
-            key = try OpenCodeLocalData.apiKey(for: account, secrets: context.secrets, paths: context.paths, dataDirectory: dataDirectory)
+            key = try OpenCodeLocalData.apiKey(for: account, paths: context.paths, dataDirectory: dataDirectory)
         } catch {
             return .stopped("No OpenCode Go key was found in opencode's auth.json or the --credential-file entry.")
         }

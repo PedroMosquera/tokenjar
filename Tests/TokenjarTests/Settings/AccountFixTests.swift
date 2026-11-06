@@ -6,45 +6,39 @@ import TokenjarCore
 @MainActor
 struct AccountFixTests {
     @Test func signedOutOffersTheCLILogin() {
-        #expect(AccountFix.primary(for: .notSignedIn, provider: .codex, credential: nil) == .signIn)
-        #expect(AccountFix.primary(for: .notSignedIn, provider: .claude, credential: nil) == .signIn)
-        #expect(AccountFix.primary(for: .notSignedIn, provider: .opencodeGo, credential: .file(path: "~/auth.json", key: "opencode-go")) == .signIn)
+        #expect(AccountFix.primary(for: .notSignedIn, provider: .codex) == .signIn)
+        #expect(AccountFix.primary(for: .notSignedIn, provider: .claude) == .signIn)
+        #expect(AccountFix.primary(for: .notSignedIn, provider: .opencodeGo) == .signIn)
     }
 
-    @Test func aRejectedOpenCodeKeyIsChangedNotSignedInAgain() {
-        #expect(AccountFix.primary(for: .unauthorized, provider: .opencodeGo, credential: nil) == .changeKey)
-        #expect(AccountFix.primary(for: .unauthorized, provider: .opencodeGo, credential: .keychain(account: "go")) == .changeKey)
-        #expect(AccountFix.primary(for: .notSignedIn, provider: .opencodeGo, credential: .keychain(account: "go")) == .changeKey)
-    }
-
-    /// The key is still in the Keychain; changing it would not get past the prompt.
-    @Test func aDeniedKeychainReadIsTriedAgainNotChanged() {
-        #expect(AccountFix.primary(for: .keychainDenied, provider: .opencodeGo, credential: .keychain(account: "go")) == .tryAgain)
+    /// opencode's own login is the only way to replace the key it saved.
+    @Test func aRejectedOpenCodeKeySignsInAgain() {
+        #expect(AccountFix.primary(for: .unauthorized, provider: .opencodeGo) == .signIn)
     }
 
     @Test func aRejectedCLILoginSignsInAgain() {
-        #expect(AccountFix.primary(for: .unauthorized, provider: .copilot, credential: nil) == .signIn)
+        #expect(AccountFix.primary(for: .unauthorized, provider: .copilot) == .signIn)
     }
 
     @Test func aMissingCLIListsWhereTokenjarLooked() {
-        #expect(AccountFix.primary(for: .cliNotFound("agy"), provider: .antigravity, credential: nil) == .searchedFolders)
+        #expect(AccountFix.primary(for: .cliNotFound("agy"), provider: .antigravity) == .searchedFolders)
     }
 
     @Test func aLatchedProbeKeepsTryOnceMore() {
-        #expect(AccountFix.primary(for: .unsupported(ClaudeUsageFetcher.modelTurnMessage), provider: .claude, credential: nil) == .tryOnceMore)
-        #expect(AccountFix.primary(for: .unsupported(AntigravityUsageFetcher.modelTurnMessage), provider: .antigravity, credential: nil) == .tryOnceMore)
+        #expect(AccountFix.primary(for: .unsupported(ClaudeUsageFetcher.modelTurnMessage), provider: .claude) == .tryOnceMore)
+        #expect(AccountFix.primary(for: .unsupported(AntigravityUsageFetcher.modelTurnMessage), provider: .antigravity) == .tryOnceMore)
     }
 
     @Test func passingOrCalmFailuresOfferNoFix() {
-        #expect(AccountFix.primary(for: .network("offline"), provider: .claude, credential: nil) == nil)
-        #expect(AccountFix.primary(for: .noSubscription("none"), provider: .opencodeGo, credential: nil) == nil)
-        #expect(AccountFix.primary(for: .notSignedIn, provider: .antigravity, credential: nil) == nil)
+        #expect(AccountFix.primary(for: .network("offline"), provider: .claude) == nil)
+        #expect(AccountFix.primary(for: .noSubscription("none"), provider: .opencodeGo) == nil)
+        #expect(AccountFix.primary(for: .notSignedIn, provider: .antigravity) == nil)
     }
 
     /// Pinned so that giving an outdated CLI a fix later is a deliberate change.
     @Test func anOutdatedCLIHasNoFixYet() {
         for provider in ProviderID.allCases {
-            #expect(AccountFix.primary(for: .cliTooOld(name: "codex", minimum: nil), provider: provider, credential: nil) == nil, "\(provider)")
+            #expect(AccountFix.primary(for: .cliTooOld(name: "codex", minimum: nil), provider: provider) == nil, "\(provider)")
         }
     }
 

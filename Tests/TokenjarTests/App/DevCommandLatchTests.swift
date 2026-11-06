@@ -118,7 +118,6 @@ private final class DevRun {
             home: home.url, overrides: ["claude": bin.appending(path: "claude").path, "agy": bin.appending(path: "agy").path], searchDirectories: []
         )
         environment.process = cli
-        environment.secrets = InMemorySecretStore()
         environment.output = { [unowned self] in output.append($0) }
         environment.errorOutput = { [unowned self] in errors.append($0) }
         return environment

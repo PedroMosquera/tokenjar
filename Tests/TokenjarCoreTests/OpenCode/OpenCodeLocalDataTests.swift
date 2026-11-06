@@ -1,13 +1,12 @@
 import Foundation
-import Security
 import Testing
 @testable import TokenjarCore
 
 struct OpenCodeLocalDataTests {
     private let openAIOAuth = #""openai":{"type":"oauth","access":"placeholder-access","refresh":"placeholder-refresh","expires":0}"#
 
-    private func key(_ account: AccountConfig, in dir: TemporaryDirectory, secrets: any SecretStore = InMemorySecretStore()) throws -> String {
-        try OpenCodeLocalData.apiKey(for: account, secrets: secrets, paths: AppPaths(home: dir.url), dataDirectory: dir.url)
+    private func key(_ account: AccountConfig, in dir: TemporaryDirectory) throws -> String {
+        try OpenCodeLocalData.apiKey(for: account, paths: AppPaths(home: dir.url), dataDirectory: dir.url)
     }
 
     private func account(_ credential: CredentialRef?) -> AccountConfig {
@@ -53,25 +52,6 @@ struct OpenCodeLocalDataTests {
         #expect(throws: FetchError.notSignedIn) {
             try key(account(.file(path: dir.url.appending(path: "missing.json").path, key: "opencode-go")), in: dir)
         }
-    }
-
-    @Test func keychainCredentialReadsOnlyTheAppStore() throws {
-        let dir = TemporaryDirectory()
-        _ = try dir.write(#"{"opencode-go":{"type":"api","key":"sk-default"}}"#, to: "auth.json")
-        let secrets = InMemorySecretStore(["work-go": "sk-pasted"])
-        #expect(try key(account(.keychain(account: "work-go")), in: dir, secrets: secrets) == "sk-pasted")
-        #expect(throws: FetchError.notSignedIn) { try key(account(.keychain(account: "other")), in: dir, secrets: secrets) }
-    }
-
-    /// Signed out would send the user to paste a key they already have.
-    @Test func aRefusedKeychainReadIsDeniedNotSignedOut() throws {
-        let dir = TemporaryDirectory()
-        let keychain = CountingSecretStore(["go": "sk-pasted"])
-        keychain.refuse(with: errSecAuthFailed)
-        #expect(throws: FetchError.keychainDenied) { try key(account(.keychain(account: "go")), in: dir, secrets: keychain) }
-
-        keychain.refuse(with: errSecDecode)
-        #expect(throws: FetchError.notSignedIn) { try key(account(.keychain(account: "go")), in: dir, secrets: keychain) }
     }
 
     @Test func noAuthFileIsNotSignedIn() throws {

@@ -18,7 +18,7 @@ public struct OpenCodeGoUsageFetcher: UsageFetcher {
 
     public func fetch(_ account: AccountConfig, context: FetchContext) async throws -> UsageSnapshot {
         let dataDirectory = OpenCodeLocalData.dataDirectory(for: account, paths: context.paths, environment: environment)
-        let key = try OpenCodeLocalData.apiKey(for: account, secrets: context.secrets, paths: context.paths, dataDirectory: dataDirectory)
+        let key = try OpenCodeLocalData.apiKey(for: account, paths: context.paths, dataDirectory: dataDirectory)
         let response: HTTPResponse
         do {
             response = try await context.http.get(Self.usageURL, headers: ["Authorization": "Bearer \(key)"], timeout: 20)

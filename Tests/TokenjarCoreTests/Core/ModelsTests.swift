@@ -115,7 +115,6 @@ struct ModelsTests {
         (.unauthorized, .actionable),
         (.parse("shape"), .actionable),
         (.unsupported("model turn"), .actionable),
-        (.keychainDenied, .actionable),
         (.cliTooOld(name: "codex", minimum: "0.50.0"), .actionable),
         (.cliTooOld(name: "codex", minimum: nil), .actionable),
     ])
@@ -132,7 +131,6 @@ struct ModelsTests {
         (.timeout, "No answer in time. Tokenjar tries again at the next refresh."),
         (.parse("unrecognized output"), "Couldn't read the usage answer. An update may have changed it."),
         (.rateLimited(retryAfter: 60), "Checking too often. Tokenjar waits before the next check."),
-        (.keychainDenied, "Keychain access was denied. Tokenjar won't ask again on its own."),
         (.cliTooOld(name: "agy", minimum: "1.1.11"), "Update agy to 1.1.11 or later."),
         (.cliTooOld(name: "codex", minimum: nil), "Update codex: this version answers in a format Tokenjar can't read."),
     ])
@@ -169,9 +167,23 @@ struct ModelsTests {
         for provider in ProviderID.allCases where provider != .claude {
             #expect(FetchError.notSignedIn.userMessage(provider: provider) == FetchError.notSignedIn.userMessage, "\(provider)")
         }
-        let others: [FetchError] = [.unauthorized, .cliNotFound("claude"), .parse("shape"), .cliTooOld(name: "claude", minimum: nil), .keychainDenied]
+        let others: [FetchError] = [.unauthorized, .cliNotFound("claude"), .parse("shape"), .cliTooOld(name: "claude", minimum: nil)]
         for error in others {
             #expect(error.userMessage(provider: .claude) == error.userMessage, "\(error)")
+        }
+    }
+
+    /// Older builds wrote this for a pasted key. A config that fails to decode locks the whole app out of its settings.
+    @Test func anOldPastedKeyReferenceLoadsAsNoCredential() throws {
+        let json = #"{"id": "go", "provider": "opencode-go", "credential": {"keychain": {"account": "go"}}}"#
+        let account = try JSONDecoder().decode(AccountConfig.self, from: Data(json.utf8))
+        #expect(account.credential == nil)
+    }
+
+    @Test func aMalformedCredentialStillFailsToLoad() {
+        let json = #"{"id": "go", "provider": "opencode-go", "credential": {"file": {"path": "~/auth.json"}}}"#
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(AccountConfig.self, from: Data(json.utf8))
         }
     }
 

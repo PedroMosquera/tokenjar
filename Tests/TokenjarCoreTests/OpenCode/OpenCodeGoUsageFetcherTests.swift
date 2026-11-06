@@ -4,7 +4,7 @@ import Testing
 
 struct OpenCodeGoUsageFetcherTests {
     let now = DateParsing.iso8601("2026-10-10T12:00:00Z")!
-    let account = AccountConfig(id: "go", provider: .opencodeGo, label: "Go", credential: .keychain(account: "go"))
+    let account = AccountConfig(id: "go", provider: .opencodeGo, label: "Go")
 
     private func snapshot(_ fixture: String, status: Int = 200) throws -> UsageSnapshot {
         let response = HTTPResponse(status: status, body: try OpenCodeFixtures.data(fixture))
@@ -85,10 +85,9 @@ struct OpenCodeGoUsageFetcherTests {
 
     @Test func fetchSendsOneAuthorizedGetToTheUsageEndpoint() async throws {
         let transport = OpenCodeFakeTransport(HTTPResponse(status: 200, body: try OpenCodeFixtures.data("go-usage.json")))
-        let context = FetchContext(
-            http: HTTPClient(transport: transport), secrets: InMemorySecretStore(["go": "sk-test-placeholder"]),
-            paths: AppPaths(home: URL(fileURLWithPath: "/nonexistent")), now: { [now] in now }
-        )
+        let home = TemporaryDirectory()
+        _ = try home.write(#"{"opencode-go":{"type":"api","key":"sk-test-placeholder"}}"#, to: ".local/share/opencode/auth.json")
+        let context = FetchContext(http: HTTPClient(transport: transport), paths: AppPaths(home: home.url), now: { [now] in now })
         let s = try await OpenCodeGoUsageFetcher(environment: [:]).fetch(account, context: context)
         #expect(s.windows.count == 3)
         let request = try #require(transport.requests.first)
@@ -102,7 +101,7 @@ struct OpenCodeGoUsageFetcherTests {
 
     @Test func missingKeyIsNotSignedInAndSendsNothing() async throws {
         let transport = OpenCodeFakeTransport(HTTPResponse(status: 200, body: Data()))
-        let context = FetchContext(http: HTTPClient(transport: transport), secrets: InMemorySecretStore(), paths: AppPaths(home: URL(fileURLWithPath: "/nonexistent")))
+        let context = FetchContext(http: HTTPClient(transport: transport), paths: AppPaths(home: URL(fileURLWithPath: "/nonexistent")))
         await #expect(throws: FetchError.notSignedIn) {
             try await OpenCodeGoUsageFetcher(environment: [:]).fetch(account, context: context)
         }

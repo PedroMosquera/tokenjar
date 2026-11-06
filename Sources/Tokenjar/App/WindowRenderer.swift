@@ -146,9 +146,6 @@ private final class RenderSession {
         let limitHit = AppModel.previewLimitHit()
         let incident = AppModel.previewIncident(), allClearOutage = AppModel.previewAllClearOutage()
         let spendLimit = AppModel.previewSpendLimit(), apiValue = AppModel.previewAPIValue()
-        for preview in [model, states, empty, configError, short, limitHit, incident, allClearOutage, spendLimit, apiValue] + outages {
-            preview.secrets = SessionSecretStore(InMemorySecretStore())
-        }
         let slots = SnapshotRenderer.slotStates(now: model.now).map { (name: "slot-\($0.name)", state: $0.state) }
         let outageStrips: [(name: String, state: MenuBarState)] = [
             ("offline", offline.menuBarState), ("no-answer", noAnswer.menuBarState), ("partial-outage", partialOutage.menuBarState),

@@ -20,7 +20,6 @@ struct RealDataLoader {
         let model = AppModel(paths: paths)
         model.now = now
         model.popoverNow = now
-        model.secrets = SessionSecretStore(InMemorySecretStore())
         // .unavailable is what a build outside an app bundle reports; asking SMAppService is off limits here.
         model.launchAtLoginState = { .unavailable }
 

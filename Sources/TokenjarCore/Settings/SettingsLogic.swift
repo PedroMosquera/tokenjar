@@ -98,14 +98,6 @@ public enum SettingsLogic {
         return .custom(trimmed)
     }
 
-    /// The credential an account keeps once the user stops using a pasted key. The key is deleted first, so a failed
-    /// delete throws while the account still points at the item, and no key is left in the Keychain without a reference.
-    public static func removingPastedKey(from credential: CredentialRef?, secrets: any SecretStore) throws -> CredentialRef? {
-        guard case .keychain(let keyAccount) = credential else { return credential }
-        try secrets.delete(account: keyAccount)
-        return nil
-    }
-
     /// Another enabled account of the same provider reading the same profile, which would show the same login twice.
     public static func profileTwin(of account: AccountConfig, in accounts: [AccountConfig], paths: AppPaths) -> AccountConfig? {
         guard let mine = resolvedProfile(account, paths: paths) else { return nil }

@@ -43,9 +43,9 @@ The last `/usage` check ran as a model turn and spent tokens (claude) or quota (
 
 The file is not valid JSON, often because of a leftover merge conflict. Tokenjar keeps the last good settings (none, if the file was already broken at launch) and saves nothing until the file loads again. Fix it and save; the app reloads within 30 seconds, or click Reload in Settings > General. "config.json is missing or its link is broken" means the same for a missing file or a dangling stow link. "config.json lists two accounts with the id ..." means the same for two accounts that share an `id`, which a merge in the dotfiles repo can produce: give one of them a new `id`.
 
-## Keychain prompt after an update
+## A Keychain item left by an older build
 
-The ad-hoc signature changes on every build, so macOS asks again before Tokenjar can read its own Keychain item. Only API keys you pasted in Settings live there, and each is read once per launch. If you click Deny, the account says "Keychain access was denied" and nothing asks again until you click Try Again on its card or in Settings. `brew upgrade` and `brew reinstall` rebuild the app too, so the prompt comes back once `tokenjar-install-app` puts the new build in place.
+Tokenjar no longer uses the Keychain and never asks for access to it. Older builds could store a pasted OpenCode Go key in an item labelled "Tokenjar API key". Tokenjar never opens or deletes that item, so it stays until you delete it in Keychain Access. The account now reads opencode's `auth.json`; if it says signed out, run `opencode auth login`.
 
 ## `brew install` fails with "is using Swift tools version 6.2.0"
 
