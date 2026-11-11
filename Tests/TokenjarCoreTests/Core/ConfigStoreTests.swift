@@ -25,6 +25,16 @@ struct ConfigStoreTests {
         #expect(loaded.merged.accounts[0].showInMenuBar == false)
     }
 
+    /// An older Mac can leave a Keychain reference in the shared file, and the deep merge keeps it beside this Mac's key file.
+    @Test func aLocalKeyFileStillAppliesOverAnOldKeychainReference() throws {
+        let paths = AppPaths(home: temp.url)
+        try write(#"{"accounts": [{"id": "go", "provider": "opencode-go", "credential": {"keychain": {"account": "go"}}}]}"#, to: paths.configFile)
+        try write(#"{"accounts": [{"id": "go", "credential": {"file": {"path": "~/keys/auth.json", "key": "opencode"}}}]}"#, to: paths.localConfigFile)
+
+        let loaded = try #require(try ConfigStore(paths: paths).load())
+        #expect(loaded.merged.accounts[0].credential == .file(path: "~/keys/auth.json", key: "opencode"))
+    }
+
     @Test func savingAnEditDoesNotLeakLocalOverridesIntoTheSharedFile() throws {
         let home = temp.url
         let paths = AppPaths(home: home)
