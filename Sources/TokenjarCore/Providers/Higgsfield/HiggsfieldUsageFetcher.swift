@@ -13,7 +13,7 @@ public struct HiggsfieldUsageFetcher: UsageFetcher {
 
     /// The binary has Sentry built in and names both switches. Whether they stop it is unverified: no recorded run,
     /// with or without them, tried to send an event.
-    static let cliEnvironment = ["HIGGSFIELD_DISABLE_TELEMETRY": "1", "DO_NOT_TRACK": "1"]
+    static let cliEnvironment = ["HIGGSFIELD_DISABLE_TELEMETRY": "1", "DO_NOT_TRACK": "1", "HIGGSFIELD_NO_UPDATE_CHECK": "1"]
 
     public init() {}
 

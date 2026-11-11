@@ -32,7 +32,7 @@ final class HiggsfieldUsageFetcherTests {
         #expect(call.timeout == 20)
     }
 
-    @Test func environmentIsTheMinimalOneWithTelemetryOff() async throws {
+    @Test func environmentIsTheMinimalOneWithTelemetryAndUpdateChecksOff() async throws {
         let runner = FakeRunner(output(Self.answer))
         let context = try context(runner)
         _ = try await HiggsfieldUsageFetcher().fetch(account, context: context)
@@ -40,6 +40,7 @@ final class HiggsfieldUsageFetcherTests {
         var expected = context.cli.baseEnvironment()
         expected["HIGGSFIELD_DISABLE_TELEMETRY"] = "1"
         expected["DO_NOT_TRACK"] = "1"
+        expected["HIGGSFIELD_NO_UPDATE_CHECK"] = "1"
         #expect(runner.calls.first?.environment == expected)
     }
 

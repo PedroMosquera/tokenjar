@@ -174,7 +174,7 @@ gh keeps its token in its own Keychain item or config folder. Tokenjar never rea
 higgsfield account status --json
 ```
 
-It runs under its full name only. The install also creates an `hf` shortcut, which Tokenjar never runs because `hf` is also Hugging Face's CLI. The environment is the minimal one above plus `HIGGSFIELD_DISABLE_TELEMETRY=1` and `DO_NOT_TRACK=1`, the two switches the binary names. Stdin is closed at once, the timeout is 20 seconds, and at most 256 KiB each of stdout and stderr is kept.
+It runs under its full name only. The install also creates an `hf` shortcut, which Tokenjar never runs because `hf` is also Hugging Face's CLI. The environment is the minimal one above plus `HIGGSFIELD_DISABLE_TELEMETRY=1`, `DO_NOT_TRACK=1` and `HIGGSFIELD_NO_UPDATE_CHECK=1`. The binary also names `HIGGSFIELD_TELEMETRY`, which Tokenjar leaves unset because what value it expects is not documented. Stdin is closed at once, the timeout is 20 seconds, and at most 256 KiB each of stdout and stderr is kept.
 
 The answer holds `credits`, `subscription_plan_type` and your account's `email`. Tokenjar decodes `credits` (the "Credits: 10" note on the card) and `subscription_plan_type` (the plan pill). The email is never decoded, so it is not stored, logged or shown. stderr is only matched, to choose the error, and never shown or kept: exit 2 reads as signed out, 3 as no connection, and 4 as no workspace selected, whose message names the `higgsfield workspace set` command to run.
 
