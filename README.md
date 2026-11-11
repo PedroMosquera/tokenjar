@@ -180,6 +180,17 @@ That builds a release binary, wraps it in `Tokenjar.app`, signs it ad-hoc, copie
 
 To update, pull and run `make install` again. It quits the Tokenjar running from the install folder, replaces it and opens the new build. A copy started anywhere else, such as by `make run` or a `.build` binary, keeps running.
 
+### With a coding agent
+
+Paste this into Claude Code, Codex, opencode, pi or another agent that can run commands on your Mac:
+
+```text
+Install Tokenjar on this Mac with Homebrew (`brew install PedroMosquera/tap/tokenjar && tokenjar-install-app`), or with `curl -fsSL https://raw.githubusercontent.com/PedroMosquera/tokenjar/main/Scripts/get.sh | bash` if I don't use Homebrew. Stop if Tokenjar is already installed.
+Then read its README at https://github.com/PedroMosquera/tokenjar and tell me what Tokenjar can do and how it keeps my data private.
+```
+
+The agent uses one of the installs above, so update it the way that section says.
+
 ### Updates
 
 Settings > About can tell you when a new version exists. It is off until you click Check Now or switch Check for updates to Automatic, which asks GitHub once a day and sends one notification per new version, with an Update Now button. When a newer version exists, Update Now in About builds it in the background, then Tokenjar quits and opens the new version. Update in Terminal does the same in Terminal, where you can watch it. Both update the copy you are running: through Homebrew if you installed with Homebrew, otherwise the release build through the installer inside the app, which also moves a `make install` copy to release builds; then run `make clean` in that clone or delete it, so macOS does not pick that build over this one. About also shows each command with a Copy button. If an update fails, About says so, Reveal Log shows the log, and Report This Problem opens a prefilled GitHub issue in your browser for you to read and submit ([docs/privacy.md](docs/privacy.md#update-now) lists what it fills in). Tokenjar installs nothing until you click one of the two, unless you tick Install updates automatically under Automatic: then it builds each new version by itself and installs it once no Tokenjar window is open, trying each version once.
