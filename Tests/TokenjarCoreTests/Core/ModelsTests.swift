@@ -186,6 +186,13 @@ struct ModelsTests {
         #expect(account.credential == nil)
     }
 
+    @Test func aMalformedKeyFileBesideAnOldKeychainReferenceStillFailsToLoad() {
+        let json = #"{"id": "go", "provider": "opencode-go", "credential": {"keychain": {"account": "go"}, "file": {"path": "~/auth.json"}}}"#
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(AccountConfig.self, from: Data(json.utf8))
+        }
+    }
+
     @Test func aMalformedCredentialStillFailsToLoad() {
         let json = #"{"id": "go", "provider": "opencode-go", "credential": {"file": {"path": "~/auth.json"}}}"#
         #expect(throws: DecodingError.self) {

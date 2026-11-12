@@ -179,7 +179,7 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
         // Older builds wrote {"keychain": ...} for a pasted key, which now means opencode's auth.json. A key file merged in
         // beside it from config.local.json still applies. Anything else malformed still fails.
         if let retired = try? c.nestedContainer(keyedBy: CredentialKeys.self, forKey: .credential), retired.contains(.keychain) {
-            credential = try retired.decodeIfPresent(FileCredential.self, forKey: .file).map { .file(path: $0.path, key: $0.key) }
+            credential = retired.contains(.file) ? try c.decode(CredentialRef.self, forKey: .credential) : nil
         } else {
             credential = try c.decodeIfPresent(CredentialRef.self, forKey: .credential)
         }
@@ -193,8 +193,6 @@ public struct AccountConfig: Codable, Hashable, Sendable, Identifiable {
     }
 
     private enum CredentialKeys: String, CodingKey { case keychain, file }
-    /// `CredentialRef.file`'s shape, decoded alone because the synthesized enum decoder refuses an object with two keys.
-    private struct FileCredential: Decodable { let path: String, key: String }
 
     public var displayName: String { "\(provider.displayName) · \(label)" }
 
