@@ -11,8 +11,8 @@ public struct HiggsfieldUsageFetcher: UsageFetcher {
     /// Nothing else in the CLI is run, since `generate` spends credits. Full name only: `hf` is also Hugging Face's CLI.
     static let arguments = ["account", "status", "--json"]
 
-    /// The binary has Sentry built in and names both switches. Whether they stop it is unverified: no recorded run,
-    /// with or without them, tried to send an event.
+    /// The binary has Sentry built in and names both telemetry switches and the update-check one. Whether they work is
+    /// unverified: no recorded run, with or without them, tried to send anything.
     static let cliEnvironment = ["HIGGSFIELD_DISABLE_TELEMETRY": "1", "DO_NOT_TRACK": "1", "HIGGSFIELD_NO_UPDATE_CHECK": "1"]
 
     public init() {}
