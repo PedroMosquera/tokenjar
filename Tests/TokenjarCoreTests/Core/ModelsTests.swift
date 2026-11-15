@@ -24,7 +24,8 @@ struct ModelsTests {
             .cursor: "https://cursor.com/dashboard/usage",
             // Signed out, every /me path redirects to sign-in, real or not, so no account page could be confirmed.
             .higgsfield: "https://higgsfield.ai/pricing",
-            .kimi: "https://www.kimi.com/code",
+            // kimi.com is the mainland China site; accounts elsewhere live on kimi.ai.
+            .kimi: "https://www.kimi.ai/settings/subscription",
         ]
         for provider in ProviderID.allCases {
             #expect(provider.defaultDashboardURL.absoluteString == expected[provider], "\(provider)")

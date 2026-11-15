@@ -52,7 +52,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .higgsfield: URL(string: "https://higgsfield.ai/pricing")!
         case .devin: URL(string: "https://app.devin.ai/settings/usage")!
         case .cursor: URL(string: "https://cursor.com/dashboard/usage")!
-        case .kimi: URL(string: "https://www.kimi.com/code")!
+        case .kimi: URL(string: "https://www.kimi.ai/settings/subscription")!
         }
     }
 
