@@ -10,6 +10,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     case higgsfield
     case devin
     case cursor
+    case kimi
 
     public var displayName: String {
         switch self {
@@ -22,6 +23,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .higgsfield: "Higgsfield"
         case .devin: "Devin"
         case .cursor: "Cursor"
+        case .kimi: "Kimi"
         }
     }
 
@@ -36,6 +38,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .higgsfield: "higgsfield"
         case .devin: "windsurf"
         case .cursor: "cursor"
+        case .kimi: "kimi"
         }
     }
 
@@ -49,6 +52,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .higgsfield: URL(string: "https://higgsfield.ai/pricing")!
         case .devin: URL(string: "https://app.devin.ai/settings/usage")!
         case .cursor: URL(string: "https://cursor.com/dashboard/usage")!
+        case .kimi: URL(string: "https://www.kimi.com/code")!
         }
     }
 
@@ -60,7 +64,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .opencodeGo, .opencodeZen: URL(string: "https://status.opencode.ai")
         case .copilot: URL(string: "https://www.githubstatus.com")
         case .devin: URL(string: "https://www.devinstatus.com")
-        case .antigravity, .cursor, .higgsfield: nil
+        case .antigravity, .cursor, .higgsfield, .kimi: nil
         }
     }
 
@@ -71,7 +75,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: URL(string: "https://status.claude.com/api/v2/summary.json")
         case .codex: URL(string: "https://status.openai.com/proxy/status.openai.com")
         case .copilot: URL(string: "https://www.githubstatus.com/api/v2/summary.json")
-        case .opencodeGo, .opencodeZen, .antigravity, .higgsfield, .devin, .cursor: nil
+        case .opencodeGo, .opencodeZen, .antigravity, .higgsfield, .devin, .cursor, .kimi: nil
         }
     }
 
@@ -79,7 +83,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     public var isLinkOnly: Bool {
         switch self {
         case .devin, .cursor: true
-        case .claude, .codex, .opencodeGo, .opencodeZen, .antigravity, .copilot, .higgsfield: false
+        case .claude, .codex, .opencodeGo, .opencodeZen, .antigravity, .copilot, .higgsfield, .kimi: false
         }
     }
 
@@ -88,7 +92,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     public var reportsWindows: Bool {
         switch self {
         case .opencodeZen, .higgsfield, .devin, .cursor: false
-        case .claude, .codex, .opencodeGo, .antigravity, .copilot: true
+        case .claude, .codex, .opencodeGo, .antigravity, .copilot, .kimi: true
         }
     }
 
@@ -97,7 +101,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
     public var checkUsesNetwork: Bool {
         switch self {
         case .opencodeZen, .devin, .cursor: false
-        case .claude, .codex, .opencodeGo, .antigravity, .copilot, .higgsfield: true
+        case .claude, .codex, .opencodeGo, .antigravity, .copilot, .higgsfield, .kimi: true
         }
     }
 
@@ -107,6 +111,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable, Hashable {
         case .claude: .claudeCode
         case .codex: .codex
         case .opencodeGo, .opencodeZen: .opencode
+        case .kimi: .kimiCode
         case .antigravity, .copilot, .higgsfield, .devin, .cursor: nil
         }
     }
@@ -116,6 +121,7 @@ public enum Harness: String, Codable, CaseIterable, Sendable, Hashable {
     case claudeCode = "claude-code"
     case codex
     case opencode
+    case kimiCode = "kimi-code"
 }
 
 /// Where an API key lives. The app stores no key of its own: this only names a file the provider's CLI wrote.

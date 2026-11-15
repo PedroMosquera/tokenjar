@@ -38,6 +38,7 @@ public enum FetcherRegistry {
         case .higgsfield: HiggsfieldUsageFetcher()
         case .devin: DevinUsageFetcher()
         case .cursor: CursorUsageFetcher()
+        case .kimi: KimiUsageFetcher()
         }
     }
 
@@ -47,6 +48,7 @@ public enum FetcherRegistry {
         case .codex: CodexHistoryScanner()
         case .opencodeGo: OpenCodeHistoryScanner(providerIDs: ["opencode-go"])
         case .opencodeZen: OpenCodeHistoryScanner(providerIDs: ["opencode"])
+        case .kimi: KimiHistoryScanner()
         case .antigravity, .copilot, .higgsfield, .devin, .cursor: nil
         }
     }

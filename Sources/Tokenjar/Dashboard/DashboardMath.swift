@@ -348,6 +348,7 @@ nonisolated enum DashboardMath {
         case .claudeCode: "Claude Code"
         case .codex: "Codex"
         case .opencode: "OpenCode"
+        case .kimiCode: "Kimi Code"
         }
     }
 

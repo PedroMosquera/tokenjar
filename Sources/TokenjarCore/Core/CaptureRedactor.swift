@@ -46,6 +46,7 @@ public enum CaptureRedactor {
                 + goWindows.map { "response.\($0).status" }
                 + goWindows.map { "response.usage.\($0).status" },
             .higgsfield: ["capture", "response.subscription_plan_type", "stderr.phrases[]"],
+            .kimi: ["capture", "response.msg", "response.data.kind", "response.data.quota.extraUsage.currency"],
         ]
     }()
 
@@ -59,6 +60,7 @@ public enum CaptureRedactor {
         ],
         .copilot: ["response.quota_reset_date_utc", "response.quota_reset_date"],
         .opencodeGo: goWindows.map { "response.\($0).resetsAt" } + goWindows.map { "response.usage.\($0).resetsAt" },
+        .kimi: ["response.data.quota.usages.*.resetAt"],
     ]
 
     /// Balances and spend limits Codex sends as decimal strings. Kept only in `decimalPattern`'s form.

@@ -24,6 +24,7 @@ struct ModelsTests {
             .cursor: "https://cursor.com/dashboard/usage",
             // Signed out, every /me path redirects to sign-in, real or not, so no account page could be confirmed.
             .higgsfield: "https://higgsfield.ai/pricing",
+            .kimi: "https://www.kimi.com/code",
         ]
         for provider in ProviderID.allCases {
             #expect(provider.defaultDashboardURL.absoluteString == expected[provider], "\(provider)")
@@ -72,7 +73,7 @@ struct ModelsTests {
     @Test func zenHiggsfieldDevinAndCursorReportNoWindows() {
         let expected: [ProviderID: Bool] = [
             .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
-            .cursor: false, .higgsfield: false,
+            .cursor: false, .higgsfield: false, .kimi: true,
         ]
         for provider in ProviderID.allCases {
             #expect(provider.reportsWindows == expected[provider], "\(provider)")
@@ -235,7 +236,7 @@ struct ModelsTests {
     @Test func providersThatNeedTheNetworkAreTheOnesThatContactOne() {
         let expected: [ProviderID: Bool] = [
             .claude: true, .codex: true, .opencodeGo: true, .opencodeZen: false, .antigravity: true, .copilot: true, .devin: false,
-            .cursor: false, .higgsfield: true,
+            .cursor: false, .higgsfield: true, .kimi: true,
         ]
         for provider in ProviderID.allCases {
             #expect(provider.checkUsesNetwork == expected[provider], "\(provider)")

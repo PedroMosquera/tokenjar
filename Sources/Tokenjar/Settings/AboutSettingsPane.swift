@@ -21,6 +21,7 @@ struct AboutSettingsPane: View {
         Item(what: "agy -p /usage --output-format json", why: "Antigravity limits."),
         Item(what: "gh api --method GET copilot_internal/user --jq <filter>", why: "GitHub Copilot limits, through your own gh login: gh sends this GET to api.github.com with its own token. The filter keeps only the plan, the reset date and the quota numbers. gh's telemetry and update check are off for it."),
         Item(what: "higgsfield account status --json", why: "Higgsfield credits, through your own higgsfield login. The CLI asks its own server with its own token. Its answer also holds your email, which Tokenjar discards. Its telemetry switches are set."),
+        Item(what: "kimi web --no-open --port 0", why: "Kimi Code limits and plan name, through your own kimi login. The CLI starts its local server on 127.0.0.1, which asks Kimi's server with its own token. Tokenjar reads the port and the server's local token from its first lines, keeps that token in memory only, calls only its usage and account routes, and stops it. Its telemetry and auto-update are switched off. The account answer also holds your email and nickname, which Tokenjar discards."),
         Item(what: "xcode-select -p", why: "Whether the Command Line Tools are installed, when you open About, so Update Now can say when they are missing."),
         Item(what: "bash <app>/Contents/Resources/get.sh", why: "Only for Update Now, clicked or run by Install updates automatically, when Homebrew has no copy of Tokenjar. The installer inside this app, set to the new version: it downloads that release's source from github.com and builds it into the update folder below. Nothing is installed yet."),
         Item(what: "bash ~/Library/Application Support/Tokenjar/update/install.sh <folder>", why: "After that build, at once for a click, or once no Tokenjar window is open for Install updates automatically: the new version's install script replaces this copy in its folder, quits it and opens the new one."),
@@ -40,11 +41,13 @@ struct AboutSettingsPane: View {
         Item(what: "~/.local/share/opencode/auth.json", why: "The opencode-go or opencode API key, or the entry the account names, for the OpenCode Go request below. At first run and on Import from CodexBar, only which entries exist. Or $XDG_DATA_HOME/opencode, or the account's profile folder."),
         Item(what: "~/.local/share/opencode/opencode.db", why: "Read-only: cost and token counts per model. Same folder as auth.json."),
         Item(what: "~/.config/higgsfield", why: "Only whether the folder exists, to hide a Higgsfield account on a Mac without its login. Never opened: it holds that login."),
+        Item(what: "~/.kimi-code/sessions/*/*/agents/*/wire.jsonl", why: "Read-only: token counts per model from Kimi Code's session logs. Each session's state.json is read for its working folder only, never its title or prompt. Or $KIMI_CODE_HOME, given as the account's profile folder."),
         Item(what: "~/.config/tokenjar/", why: "config.json, config.local.json and pricing.json."),
         Item(what: "CodexBar's settings", why: "Only when you click Import from CodexBar, which lists the changes before applying them: enabled providers, warning thresholds, refresh interval and notification setting. Never its keys or cookies."),
     ]
 
     static let contacts = [
+        Item(what: "GET http://127.0.0.1:<port>/api/v1/oauth/usage and /api/v1/oauth/userinfo", why: "Kimi Code limits and plan name, from the kimi web server Tokenjar started on this Mac for the check. Never leaves this Mac; the server asks Kimi with its own login."),
         Item(what: "GET https://opencode.ai/zen/go/v1/usage", why: "OpenCode Go limits. The only request that carries a key. Usage and status pages open in your browser."),
         Item(what: "GET https://status.claude.com/api/v2/summary.json", why: "Claude's public status. Only with provider status on, when you open the popover or refresh."),
         Item(what: "GET https://status.openai.com/proxy/status.openai.com", why: "Codex's public status. Only with provider status on, when you open the popover or refresh."),

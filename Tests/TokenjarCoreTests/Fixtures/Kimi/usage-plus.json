@@ -1,0 +1,1 @@
+{"code":0,"msg":"success","data":{"kind":"ok","quota":{"usages":{"limit5h":{"usedRatio":0.0988,"resetAt":"2026-11-15T17:43:19Z"},"monthTotal":{"usedRatio":0.0205,"resetAt":"2026-12-10T00:00:00Z"},"monthCode":{"usedRatio":0.0122,"resetAt":"2026-12-10T00:00:00Z"}},"extraUsage":null}},"request_id":"placeholder"}

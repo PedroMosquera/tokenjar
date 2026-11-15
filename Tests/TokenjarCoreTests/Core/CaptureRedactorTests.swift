@@ -48,6 +48,7 @@ struct CaptureRedactorTests {
                 "response.usage.rolling.status", "response.usage.weekly.status", "response.usage.monthly.status",
             ],
             .higgsfield: ["capture", "response.subscription_plan_type", "stderr.phrases[]"],
+            .kimi: ["capture", "response.msg", "response.data.kind", "response.data.quota.extraUsage.currency"],
         ])
 
         for (provider, paths) in CaptureRedactor.allowlist {
@@ -74,6 +75,7 @@ struct CaptureRedactorTests {
                 "response.rolling.resetsAt", "response.weekly.resetsAt", "response.monthly.resetsAt",
                 "response.usage.rolling.resetsAt", "response.usage.weekly.resetsAt", "response.usage.monthly.resetsAt",
             ],
+            .kimi: ["response.data.quota.usages.*.resetAt"],
         ])
         #expect(CaptureRedactor.amountAllowlist == [
             .codex: codexAmounts.map { "response.result.rateLimits.\($0)" }

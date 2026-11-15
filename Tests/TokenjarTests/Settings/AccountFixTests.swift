@@ -53,7 +53,7 @@ struct AccountFixTests {
     @Test func theSearchedFoldersReadAsTildePaths() {
         let home = URL(fileURLWithPath: "/Users/someone")
         let text = AccountFix.searchedText(for: "agy", locator: CLILocator(home: home), home: home.path)
-        #expect(text == "Looked in ~/.local/bin, /opt/homebrew/bin, /usr/local/bin and 5 more")
+        #expect(text == "Looked in ~/.local/bin, /opt/homebrew/bin, /usr/local/bin and 6 more")
     }
 
     @Test func aConfiguredCLIPathIsTheOnlyPlaceLooked() {

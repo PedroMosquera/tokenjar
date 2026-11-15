@@ -601,6 +601,7 @@ extension ProviderID {
         case .codex: "codex"
         case .copilot: "gh"
         case .higgsfield: "higgsfield"
+        case .kimi: "kimi"
         case .opencodeGo, .opencodeZen: "opencode"
         case .antigravity: "agy"
         case .devin, .cursor: nil

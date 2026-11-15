@@ -14,12 +14,16 @@ public enum Capture {
     }
 
     public static func run(_ account: AccountConfig, context: FetchContext) async -> Outcome {
-        await run(account, context: context, codexLauncher: ProcessCodexAppServerLauncher(), environment: ProcessInfo.processInfo.environment)
+        await run(
+            account, context: context, codexLauncher: ProcessCodexAppServerLauncher(), kimiLauncher: ProcessCodexAppServerLauncher(),
+            environment: ProcessInfo.processInfo.environment
+        )
     }
 
     /// `environment` is Tokenjar's own, read only for opencode's `XDG_DATA_HOME`, as the fetcher does.
     static func run(
-        _ account: AccountConfig, context: FetchContext, codexLauncher: any CodexAppServerLaunching, environment: [String: String]
+        _ account: AccountConfig, context: FetchContext, codexLauncher: any CodexAppServerLaunching,
+        kimiLauncher: any CodexAppServerLaunching = ProcessCodexAppServerLauncher(), environment: [String: String]
     ) async -> Outcome {
         do {
             switch account.provider {
@@ -27,6 +31,7 @@ public enum Capture {
             case .codex: return try await codex(account, context: context, launcher: codexLauncher)
             case .copilot: return try await copilot(account, context: context)
             case .higgsfield: return try await higgsfield(context: context)
+            case .kimi: return try await kimi(account, context: context, launcher: kimiLauncher)
             case .antigravity: return try await antigravity(context: context)
             case .opencodeGo: return try await opencodeGo(account, context: context, environment: environment)
             case .opencodeZen: return .nothingToCapture("OpenCode Zen has nothing to capture: its numbers come from opencode's local database, not from a request.")
@@ -265,6 +270,23 @@ public enum Capture {
             "stderr": phraseHits(result.stderr, phrases: higgsfieldPhrases),
         ]
         return .document(try CaptureRedactor.render(document, provider: .higgsfield))
+    }
+
+    // MARK: Kimi
+
+    /// Only the usage route: the userinfo answer holds the account's email and nickname, and only its plan name is read.
+    private static func kimi(_ account: AccountConfig, context: FetchContext, launcher: any CodexAppServerLaunching) async throws -> Outcome {
+        guard context.cli.locate("kimi") != nil else { return .stopped("kimi was not found.") }
+        let body: Data
+        do {
+            body = try await KimiUsageFetcher.withServer(account, context: context, launcher: launcher, timeout: 20) { server in
+                try await KimiUsageFetcher.get(KimiUsageFetcher.usagePath, from: server, http: context.http)
+            }
+        } catch {
+            return .stopped("kimi web did not answer the usage request.")
+        }
+        let document: [String: Any] = ["capture": ProviderID.kimi.rawValue, "response": json(body)]
+        return .document(try CaptureRedactor.render(document, provider: .kimi))
     }
 
     // MARK: Antigravity

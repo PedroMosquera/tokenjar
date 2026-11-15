@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroMosquera/tokenjar/actions/workflows/ci.yml)
 
-Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity and GitHub Copilot, and shows your Higgsfield credit balance.
+Tokenjar is a macOS menu bar app that shows how much of each AI plan's usage limit you have left, and whether you will hit it before it resets. It covers Claude, Codex, OpenCode Go and Zen, Antigravity, GitHub Copilot and Kimi Code, and shows your Higgsfield credit balance.
 
 I built it because I did not want a third-party app handling my AI logins. Tokenjar asks each provider's own CLI for the numbers, except for OpenCode, where it reads opencode's key and local database. History stays on your Mac. There is no prebuilt download: you build it from source with the Command Line Tools, by hand or through Homebrew.
 
@@ -36,10 +36,11 @@ I built it because I did not want a third-party app handling my AI logins. Token
 | Antigravity | `agy -p /usage` (agy 1.1.11 or later) | No plan name. Each quota pool agy reports becomes a limit. |
 | GitHub Copilot | `gh api`, a read-only GET | Free, Pro, Pro+, Max, Business, Enterprise |
 | Higgsfield | `higgsfield account status --json`, read-only. A credit balance rather than a limit, so it stays off the menu bar. | Shows the plan name the CLI reports. Only Free has been seen. |
+| Kimi Code | `kimi web`, the CLI's own local server, started for each check and stopped after. Tokenjar asks its usage route on 127.0.0.1. | Shows the plan name Kimi reports. Only Plus has been seen. |
 
 Devin (which now includes Windsurf) and Cursor share no usage with local apps, so they have no card. Their page in Settings opens the provider's usage page.
 
-The Antigravity reader has never run against a live install. Copilot's endpoint is undocumented, and most Copilot plans have not been checked against a real account.
+The Antigravity reader has never run against a live install. The Kimi routes are undocumented. Copilot's endpoint is undocumented, and most Copilot plans have not been checked against a real account.
 
 ## A quick tour
 
@@ -139,7 +140,7 @@ On disk it keeps token counts, model ids, timestamps and project folder names, p
 - macOS 14 or later.
 - Command Line Tools with Swift 6.2 or later (`xcode-select --install`). Xcode is not needed.
 - For the Homebrew and curl installs, macOS 15.6 or later (Homebrew checks only for macOS 15).
-- The CLI for each provider you track: `claude`, `codex`, `agy` 1.1.11 or later, `gh` signed in with `gh auth login`, and `higgsfield` signed in with `higgsfield auth login`. OpenCode, Devin and Cursor need none.
+- The CLI for each provider you track: `claude`, `codex`, `agy` 1.1.11 or later, `gh` signed in with `gh auth login`, `higgsfield` signed in with `higgsfield auth login`, and `kimi` signed in with `kimi login`. OpenCode, Devin and Cursor need none.
 
 ## Install
 
@@ -207,7 +208,7 @@ To clear its data as well, delete `~/Library/Application Support/Tokenjar` (hist
 
 ## First run
 
-If there is no config file yet, Tokenjar writes one with default settings and the accounts it finds: Claude Code in `~/.claude`, a Codex login, opencode's API keys (Zen stays off the menu bar), `agy`, `gh` and `higgsfield` if they are installed, and a Devin, Windsurf or Cursor install. It looks for `gh` and `higgsfield` but does not run them. If you used CodexBar, Settings > General > Import from CodexBar shows what would change before it changes anything.
+If there is no config file yet, Tokenjar writes one with default settings and the accounts it finds: Claude Code in `~/.claude`, a Codex login, opencode's API keys (Zen stays off the menu bar), `agy`, `gh`, `higgsfield` and `kimi` if they are installed, and a Devin, Windsurf or Cursor install. It looks for `gh`, `higgsfield` and `kimi` but does not run them. If you used CodexBar, Settings > General > Import from CodexBar shows what would change before it changes anything.
 
 ## Configuration
 
@@ -228,7 +229,7 @@ The file holds no secrets, only where keys live, so it can sit in a dotfiles rep
 
 ## Troubleshooting
 
-"Can't find the claude command on this Mac" (or codex, agy, gh, higgsfield): Tokenjar does not read your shell's `PATH`. It searches a fixed list of folders, and the account's page in Settings shows which ones. If the CLI lives somewhere else, put its full path under `cliPaths` in the config. A Claude Code installed with npm under a Node version manager such as fnm or nvm is in none of those folders; `claude install` switches it to Anthropic's native build in `~/.local/bin`, which Tokenjar finds. The same goes for the Higgsfield CLI from npm, which also needs a Node that Tokenjar's fixed `PATH` may not reach; `brew install higgsfield-ai/tap/higgsfield` puts it in `/opt/homebrew/bin`.
+"Can't find the claude command on this Mac" (or codex, agy, gh, higgsfield, kimi): Tokenjar does not read your shell's `PATH`. It searches a fixed list of folders, and the account's page in Settings shows which ones. If the CLI lives somewhere else, put its full path under `cliPaths` in the config. A Claude Code installed with npm under a Node version manager such as fnm or nvm is in none of those folders; `claude install` switches it to Anthropic's native build in `~/.local/bin`, which Tokenjar finds. The same goes for the Higgsfield CLI from npm, which also needs a Node that Tokenjar's fixed `PATH` may not reach; `brew install higgsfield-ai/tap/higgsfield` puts it in `/opt/homebrew/bin`.
 
 "Signed out" while Claude Code works in your terminal: an API key, a gateway such as LiteLLM or a cloud provider exported only in your shell is invisible to Tokenjar. Put those variables in the `env` block of `~/.claude/settings.json` ([docs/troubleshooting.md](docs/troubleshooting.md#claude-says-signed-out-but-claude-code-works-in-your-terminal) has an example).
 

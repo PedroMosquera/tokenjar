@@ -23,7 +23,8 @@ public enum HTTPClientError: Error, Equatable {
     case methodNotAllowed(String)
 }
 
-/// The only way the app talks to the network. GET only, HTTPS only, allowlisted endpoints only, no redirects.
+/// The only way the app talks to the network. GET only, allowlisted endpoints only, no redirects. HTTPS only, except
+/// the exact `loopbackPaths` on 127.0.0.1, served by a CLI Tokenjar started for one check.
 /// Adding an endpoint here is a privacy decision: update docs/privacy.md and the tests that pin this set.
 public struct HTTPClient: Sendable {
     /// Exact paths per host, so a caller cannot send the OpenCode key to another path or port on its host, and a status
@@ -39,6 +40,10 @@ public struct HTTPClient: Sendable {
     ]
     public static var allowedHosts: Set<String> { Set(allowedEndpoints.keys) }
 
+    /// Routes of the `kimi web` server KimiUsageFetcher starts, on whatever port it bound. Plain HTTP is safe only
+    /// because the host is pinned to 127.0.0.1, so the request never leaves this Mac.
+    public static let loopbackPaths: Set<String> = ["/api/v1/oauth/usage", "/api/v1/oauth/userinfo"]
+
     let transport: any HTTPTransport
     public var userAgent: String
 
@@ -48,6 +53,11 @@ public struct HTTPClient: Sendable {
     }
 
     public static func validate(_ url: URL) throws {
+        if url.scheme == "http", url.host() == "127.0.0.1" {
+            guard url.port != nil, url.user() == nil, url.password() == nil, url.query() == nil, url.fragment() == nil,
+                  loopbackPaths.contains(url.path(percentEncoded: true)) else { throw HTTPClientError.endpointNotAllowed(url.path(percentEncoded: true)) }
+            return
+        }
         guard url.scheme == "https" else { throw HTTPClientError.insecureScheme }
         let host = url.host()?.lowercased() ?? ""
         guard let paths = allowedEndpoints[host] else { throw HTTPClientError.hostNotAllowed(host) }

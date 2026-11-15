@@ -25,6 +25,7 @@ public struct CLILocator: Sendable {
             URL(fileURLWithPath: "/opt/homebrew/bin"),
             URL(fileURLWithPath: "/usr/local/bin"),
             home.appending(path: ".opencode/bin"),
+            home.appending(path: ".kimi-code/bin"),
             home.appending(path: ".bun/bin"),
             home.appending(path: ".npm-global/bin"),
             home.appending(path: ".volta/bin"),

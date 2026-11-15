@@ -1,6 +1,7 @@
 import Foundation
 
-/// A running `codex app-server`: newline-delimited JSON objects over stdio. Not JSON-RPC 2.0 (no "jsonrpc" field).
+/// A long-running CLI read line by line from stdout: `codex app-server` (newline-delimited JSON, not JSON-RPC 2.0) and
+/// `kimi web`, whose banner KimiUsageFetcher reads. A change here applies to both.
 protocol CodexAppServerConnection: Sendable {
     /// Lines from stdout without the trailing newline. Finishes when the process closes stdout or `terminate()` runs.
     var lines: AsyncStream<Data> { get }
