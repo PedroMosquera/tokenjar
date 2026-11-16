@@ -55,7 +55,7 @@ struct AccountDetailView: View {
                 monthlyBudgetSection
                     .disabled(!model.canEditConfig)
             }
-            if let snapshot = model.status(for: account).snapshot, snapshot.spendLimitMoney != nil {
+            if let snapshot = model.status(for: account).snapshot, snapshot.isSpendLimitedSeat {
                 dailyBudgetSection(snapshot)
                     .disabled(!model.canEditConfig)
             }

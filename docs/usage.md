@@ -60,6 +60,15 @@ Turn on Daily budget on the account's page in Settings to add a Today bar: today
 
 The bar keeps counting past 100% to show how far over today is, and you get one notification a day when it goes over. Claude reports only the month's total, so Tokenjar works out today from its own checks: the total now, minus the total at its last check before midnight.
 
+## Claude extra usage
+
+When extra usage is on in your Claude account, a full plan limit no longer stops you: Claude bills the rest to your credits. Tokenjar reads this from Claude's own `/usage` answer, with nothing to set up.
+
+- A full limit that credits cover turns amber, not red, and reads "Week full, on extra usage". The menu bar shows its percent instead of a countdown.
+- Once credits are in play (something spent this month, or a plan limit full), the card adds an Extra usage bar: the month's spend against the monthly limit you set at Claude, such as "€0.66 of €10". It resets on the 1st, at midnight UTC, and alerts at the same thresholds as any other limit.
+- When that monthly limit is reached, credits stop, so full plan limits turn red and count down to their reset again.
+- If Claude reports the balance of credits you bought, the card shows it as a Credit balance row. Claude does not report it today, so the row stays hidden.
+
 ## Claude logins without plan limits
 
 API key, gateway (such as LiteLLM), Bedrock, Vertex and Foundry logins have no plan limits. Their card shows this month's and today's spend instead, estimated at list price from the local logs, and where the month is headed at that rate. Tokenjar finds these logins in Claude's `settings.json`, not in your shell.

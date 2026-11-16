@@ -307,15 +307,88 @@ struct ClaudeUsageFetcherTests {
         #expect(snapshot.money.first?.limit == nil)
     }
 
-    /// Extra usage starts only once a plan limit is hit, so the plan's own limits stay the account's number.
-    @Test func planLimitsKeepExtraUsageOutOfTheWindows() async throws {
-        let runner = FakeRunner(output(stdout: try fixture("Claude/stream-extra-usage-jpy.jsonl")))
+    /// The JPY capture with its spend and cap replaced, and Claude's own cap flag when given.
+    private func extraUsageStream(used: Int, cap: Int = 5000, reached: Bool? = nil, weekly: Double = 40) throws -> String {
+        var stream = try fixtureText("Claude/stream-extra-usage-jpy.jsonl")
+            .replacingOccurrences(of: #""used_credits":1234"#, with: #""used_credits":\#(used)"#)
+            .replacingOccurrences(of: #""monthly_limit":5000"#, with: #""monthly_limit":\#(cap)"#)
+            .replacingOccurrences(of: #""kind":"weekly_all","group":"weekly","percent":40"#, with: #""kind":"weekly_all","group":"weekly","percent":\#(weekly)"#)
+        if let reached { stream = stream.replacingOccurrences(of: #""currency":"JPY""#, with: #""currency":"JPY","spend_limit_reached":\#(reached)"#) }
+        return stream
+    }
+
+    /// Until credits are in play the plan's own limits are the account's number, and the money stays a row.
+    @Test func extraUsageWithNothingSpentAndNoFullLimitIsARowNotABar() async throws {
+        let runner = FakeRunner(output(try extraUsageStream(used: 0)))
 
         let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
 
-        #expect(!snapshot.money.isEmpty)
-        #expect(!snapshot.windows.isEmpty)
+        #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 0, limit: 5000, currency: "JPY")])
         #expect(!snapshot.windows.contains { $0.id == "spend-cap" })
+    }
+
+    /// A full plan limit with credits on draws on them instead of stopping, and the month's cap becomes a bar that
+    /// does stop: past it, credits end.
+    @Test(arguments: [(0, 100.0), (1234, 40.0), (1234, 100.0)])
+    func creditsInPlayShowTheCapAndTakeOverThePlanLimits(used: Int, weekly: Double) async throws {
+        let runner = FakeRunner(output(try extraUsageStream(used: used, weekly: weekly)))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        let cap = try #require(snapshot.windows.first { $0.id == "spend-cap" })
+        #expect(cap.label == "Extra usage")
+        #expect(cap.limitStyle == nil)
+        #expect(abs(cap.usedPercent - Double(used) / 50) < 0.0001)
+        #expect(cap.resetsAt == DateParsing.iso8601("2026-11-01T00:00:00Z"))
+        let plan = snapshot.windows.filter { $0.id != "spend-cap" }
+        #expect(plan.map(\.limitStyle) == Array(repeating: .credits, count: plan.count))
+        #expect(!plan.contains { $0.isFull })
+        #expect(snapshot.spendLimitMoney == MoneyLine(label: "Extra usage", amount: Double(used), limit: 5000, currency: "JPY"))
+    }
+
+    /// Spent up to the cap, or flagged by Claude as reached, credits are gone: a full plan limit stops the work again.
+    @Test(arguments: [(5000, nil as Bool?), (4990, true)])
+    func aReachedCapLeavesThePlanLimitsHard(used: Int, reached: Bool?) async throws {
+        let runner = FakeRunner(output(try extraUsageStream(used: used, reached: reached, weekly: 100)))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        let weekly = try #require(snapshot.windows.first { $0.id == "weekly" })
+        #expect(weekly.limitStyle == nil)
+        #expect(weekly.isFull)
+        let cap = try #require(snapshot.windows.first { $0.id == "spend-cap" })
+        #expect(cap.usedPercent >= 100)
+        #expect(cap.isFull)
+    }
+
+    @Test func extraUsageOffLeavesThePlanLimitsHard() throws {
+        let json = #"{"limits":[{"kind":"weekly_all","percent":100}],"extra_usage":{"is_enabled":false,"used_credits":null,"monthly_limit":null}}"#
+        let limits = try JSONDecoder().decode(ClaudeRateLimits.self, from: Data(json.utf8))
+
+        #expect(limits.windows.map(\.limitStyle) == [nil])
+        #expect(limits.spendCapWindow(now: now, planWindows: limits.windows) == nil)
+    }
+
+    /// Claude has only been seen sending `spend.balance: null`. The two shapes it uses for money elsewhere both read.
+    @Test(arguments: [
+        #"{"amount_minor":2000,"currency":"EUR","exponent":2}"#,
+        #"{"money":{"amount_minor":2000,"currency":"EUR","exponent":2},"credits":null}"#,
+    ])
+    func aCreditBalanceIsARowWhenClaudeSendsOne(_ balance: String) throws {
+        let json = #"{"limits":[],"extra_usage":{"is_enabled":true,"used_credits":66,"monthly_limit":1000,"currency":"EUR","decimal_places":2},"spend":{"balance":\#(balance)}}"#
+        let limits = try JSONDecoder().decode(ClaudeRateLimits.self, from: Data(json.utf8))
+
+        #expect(limits.money == [
+            MoneyLine(label: "Extra usage", amount: 0.66, limit: 10, currency: "EUR"),
+            MoneyLine(label: "Credit balance", amount: 20, currency: "EUR"),
+        ])
+    }
+
+    @Test func aNullBalanceAddsNoRow() throws {
+        let json = #"{"limits":[],"extra_usage":{"is_enabled":true,"used_credits":66,"monthly_limit":1000,"currency":"EUR"},"spend":{"balance":null,"auto_reload":null}}"#
+        let limits = try JSONDecoder().decode(ClaudeRateLimits.self, from: Data(json.utf8))
+
+        #expect(limits.money.map(\.label) == ["Extra usage"])
     }
 
     @Test func bedrockSettingsAreNotMistakenForSignedOut() async throws {
@@ -465,8 +538,10 @@ struct ClaudeUsageFetcherTests {
         #expect(snapshot.source == "Claude Code cache")
         #expect(snapshot.fetchedAt == Date(timeIntervalSince1970: 1_791_660_000.5))
         #expect(snapshot.plan == "Ultra")
-        #expect(snapshot.windows.map(\.id) == ["session", "weekly", "weekly:Fable"])
-        #expect(snapshot.windows.map(\.usedPercent) == [30, 40, 10])
+        // The cache has £25.50 of £50 spent, so the cap shows as a bar and credits cover the plan limits.
+        #expect(snapshot.windows.map(\.id) == ["session", "weekly", "weekly:Fable", "spend-cap"])
+        #expect(snapshot.windows.map(\.usedPercent) == [30, 40, 10, 51])
+        #expect(snapshot.windows.map(\.limitStyle) == [.credits, .credits, .credits, nil])
         #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 25.5, limit: 50, currency: "GBP")])
         #expect(snapshot.notes == ["Can't find the claude command on this Mac. Showing the last values Claude Code saved."])
     }

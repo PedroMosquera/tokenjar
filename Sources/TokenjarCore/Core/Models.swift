@@ -218,6 +218,8 @@ public enum LimitStyle: String, Codable, CaseIterable, Sendable {
     case overage
     /// The window is this seat's share of an allowance pooled across an org, so 100 % is not where the pool runs out.
     case share
+    /// At 100 % the provider bills further use to prepaid extra-usage credits, so nothing stops while they last.
+    case credits
 }
 
 public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
@@ -259,8 +261,8 @@ public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
         return Int((resetsAt.timeIntervalSince(start) / 60).rounded())
     }
 
-    /// At 100 % on a limit that stops the work there. A limit billed past 100 % (`.overage`) or a share of a pool is
-    /// never full: use goes on.
+    /// At 100 % on a limit that stops the work there. A limit billed past 100 % (`.overage`), one credits take over
+    /// or a share of a pool is never full: use goes on.
     public var isFull: Bool { usedPercent >= 100 && limitStyle == nil }
 
     /// True once the reported reset time has passed: until the next check, the used % describes a cycle that is over.
@@ -350,6 +352,11 @@ public struct UsageSnapshot: Codable, Hashable, Sendable {
     }
 
     /// The capped money a spend-limit window measures, shown with that bar rather than as a row of its own.
+    /// True for a seat billed per use, whose only limit is its spend cap. A plan account on credits has a spend cap too.
+    public var isSpendLimitedSeat: Bool {
+        spendLimitMoney != nil && !windows.contains { $0.id != UsageWindow.spendCapID }
+    }
+
     public var spendLimitMoney: MoneyLine? {
         guard windows.contains(where: { $0.id == UsageWindow.spendCapID }) else { return nil }
         return money.first { $0.limit != nil }

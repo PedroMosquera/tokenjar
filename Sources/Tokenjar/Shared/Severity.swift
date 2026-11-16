@@ -10,8 +10,14 @@ enum Severity: Int, Comparable {
     /// Warning at `warnAt`, or when the window is projected to run out at least 15 minutes before it resets (the
     /// alert engine's rule). The projection never colors a bar the verdict calls "On pace", but `warnAt` can.
     /// Ok once the reset has passed: the use shown is the old cycle's until the next check replaces it.
+    /// A limit credits take over never goes red: reaching it costs money but stops nothing.
     static func of(_ window: UsageWindow, config: MenuBarConfig, now: Date) -> Severity {
         if window.hasReset(now: now) { return .ok }
+        if window.limitStyle == .credits { return min(.warning, ofLimit(window, config: config, now: now)) }
+        return ofLimit(window, config: config, now: now)
+    }
+
+    private static func ofLimit(_ window: UsageWindow, config: MenuBarConfig, now: Date) -> Severity {
         let byUse = ofUse(window.usedPercent, config: config)
         if byUse > .ok { return byUse }
         if window.usedPercent >= 50, let pace = Pace.compute(window, now: now), pace.fractionElapsed >= 0.1,

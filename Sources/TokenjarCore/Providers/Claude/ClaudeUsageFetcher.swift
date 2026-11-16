@@ -79,7 +79,7 @@ public struct ClaudeUsageFetcher: UsageFetcher {
             // Plan limits in the answer mean the subscription is in use, such as through a proxy set as the base URL.
             if !windows.isEmpty, !output.usesAPIKey { plan = config?.plan }
             if windows.isEmpty, !outsidePlan, config?.planHasLimits == true { return try fallback(.parse("usage report has no limits")) }
-            let spendCap = limits?.spendCapWindow(now: now)
+            let spendCap = limits?.spendCapWindow(now: now, planWindows: windows)
             return snapshot(
                 windows: windows + [spendCap].compactMap { $0 }, money: limits?.money ?? [], notes: windows.isEmpty && spendCap == nil ? [Self.noLimitsNote] : []
             )

@@ -100,7 +100,9 @@ struct MenuBarState: Equatable {
     /// The verdict behind a color the tightest window's own number does not explain: a projected run-out, on that
     /// window or on another one.
     private static func cause(of severity: Severity, windows: [UsageWindow], tightest: UsageWindow?, config: MenuBarConfig, now: Date) -> PaceVerdict? {
-        guard let tightest, severity > Severity.ofUse(tightest.usedPercent, config: config) else { return nil }
+        guard let tightest else { return nil }
+        let own = Severity.ofUse(tightest.usedPercent, config: config)
+        guard severity > (tightest.limitStyle == .credits ? min(.warning, own) : own) else { return nil }
         return PaceVerdict.make(windows: windows.filter { Severity.of($0, config: config, now: now) == severity }, config: config, now: now)
     }
 }

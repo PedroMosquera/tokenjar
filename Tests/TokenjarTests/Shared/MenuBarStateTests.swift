@@ -146,6 +146,18 @@ struct MenuBarStateTests {
         #expect(color(rendered) == .systemOrange)
     }
 
+    /// A full limit on credits is amber, so its 100 % does not explain red from a cap nearly spent.
+    @Test func aFullLimitOnCreditsDoesNotExplainARedCap() {
+        let week = UsageWindow(
+            id: "weekly", label: "Week", usedPercent: 100, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(86_400), limitStyle: .credits
+        )
+        let cap = UsageWindow(id: UsageWindow.spendCapID, label: "Extra usage", usedPercent: 96, windowMinutes: 43_200, resetsAt: now.addingTimeInterval(10 * 86_400))
+        let state = MenuBarState.make(accounts: [personal], statuses: ["personal": status([week, cap])], config: AppConfig(), now: now)
+        #expect(state.entries.first?.tightest?.id == "weekly")
+        #expect(state.entries.first?.severity == .critical)
+        #expect(state.entries.first?.cause?.window.id == UsageWindow.spendCapID)
+    }
+
     /// At warnAt the number on the mark already explains the color.
     @Test func aWindowPastWarnAtNeedsNoCause() {
         let high = window("weekly", used: 85, minutes: 10_080, resetIn: 6 * 86_400)

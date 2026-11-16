@@ -401,6 +401,19 @@ struct AlertEngineTests {
         #expect(run(&state, ok(session(62, resetsAt: resetsAt)), config: AppConfig(), at: now.addingTimeInterval(600)) == AlertOutcome())
     }
 
+    @Test func aLimitCreditsTakeOverIsProjectedToMoveToExtraUsage() throws {
+        var state = AlertState()
+        let resetsAt = now.addingTimeInterval(3 * 3600)
+        let window = { (used: Double) in
+            var window = self.session(used, resetsAt: resetsAt)
+            window.limitStyle = .credits
+            return window
+        }
+        _ = run(&state, ok(window(20)), config: AppConfig(), at: now.addingTimeInterval(-3600))
+        let event = try #require(run(&state, ok(window(60)), config: AppConfig()).events.first)
+        #expect(event.body == "5-hour will move to extra usage about 1h 40m before it resets (11:00)")
+    }
+
     @Test func projectionNeedsHalfUsed() {
         #expect(projection(used: 50, resetIn: 3 * 3600).count == 1)
         #expect(projection(used: 49.9, resetIn: 3 * 3600).isEmpty)

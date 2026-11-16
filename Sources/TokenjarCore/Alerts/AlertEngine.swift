@@ -244,7 +244,11 @@ public enum AlertEngine {
            pace.secondsToReset - eta >= projectionMinimumMargin,
            state.firedKeys.insert(prefix + "projected").inserted, !silent {
             let margin = duration(pace.secondsToReset - eta)
-            let verb = window.limitStyle == .overage ? "will pass its limit" : "will run out"
+            let verb = switch window.limitStyle {
+            case .overage: "will pass its limit"
+            case .credits: "will move to extra usage"
+            case .share, nil: "will run out"
+            }
             let body = "\(window.label) \(verb) about \(margin) before it resets (\(resetsAt.formatted(clock)))"
             outcome.events.append(event(prefix + "projected", account, window, .projectedExhaustion, body))
         }

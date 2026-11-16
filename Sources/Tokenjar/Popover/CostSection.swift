@@ -59,9 +59,9 @@ enum CostSection {
     }
 
     /// Plan cards only. A plan snapshot usually carries `billing == nil`, so billing alone cannot tell: an account billed
-    /// per use has `MonthCostLine`, and one with a spend limit has its own bar.
+    /// per use has `MonthCostLine`, and a seat limited only by spend has its own bar.
     static func applies(to snapshot: UsageSnapshot) -> Bool {
-        !CostLine.applies(to: snapshot) && snapshot.spendLimitMoney == nil && snapshot.windows.contains { $0.id != UsageWindow.spendCapID }
+        !CostLine.applies(to: snapshot) && !snapshot.isSpendLimitedSeat && snapshot.windows.contains { $0.id != UsageWindow.spendCapID }
     }
 
     /// `rows` are already in `currency`; `planPrice` is converted here. nil where `applies` is false or the last 30

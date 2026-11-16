@@ -29,8 +29,13 @@ extension AppModel {
         )
         model.previewMode = true
 
-        func window(_ id: String, _ label: String, _ used: Double, _ minutes: Int, resetIn: TimeInterval, notStarted: Bool = false) -> UsageWindow {
-            UsageWindow(id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: now.addingTimeInterval(resetIn), notStarted: notStarted)
+        func window(
+            _ id: String, _ label: String, _ used: Double, _ minutes: Int, resetIn: TimeInterval, notStarted: Bool = false, limitStyle: LimitStyle? = nil
+        ) -> UsageWindow {
+            UsageWindow(
+                id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: now.addingTimeInterval(resetIn), notStarted: notStarted,
+                limitStyle: limitStyle
+            )
         }
 
         let snapshots: [UsageSnapshot] = [
@@ -46,8 +51,13 @@ extension AppModel {
             UsageSnapshot(
                 accountID: "claude-work", provider: .claude, plan: "Team",
                 windows: [
-                    window("session", "5-hour", 88, 300, resetIn: 50 * 60),
-                    window("weekly", "Week", 71, 10_080, resetIn: 3 * 86_400 + 6 * 3600),
+                    window("session", "5-hour", 88, 300, resetIn: 50 * 60, limitStyle: .credits),
+                    window("weekly", "Week", 71, 10_080, resetIn: 3 * 86_400 + 6 * 3600, limitStyle: .credits),
+                    UsageWindow(
+                        id: UsageWindow.spendCapID, label: "Extra usage", usedPercent: 18.75,
+                        windowMinutes: UsageWindow.monthMinutes(endingAt: Date(timeIntervalSince1970: 1_793_491_200)),
+                        resetsAt: Date(timeIntervalSince1970: 1_793_491_200)
+                    ),
                 ],
                 money: [MoneyLine(label: "Extra usage", amount: 18.75, limit: 100)],
                 fetchedAt: now.addingTimeInterval(-95), source: "claude CLI"

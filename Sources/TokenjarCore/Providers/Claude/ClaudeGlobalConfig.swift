@@ -54,13 +54,14 @@ struct ClaudeGlobalConfig: Decodable, Sendable {
         guard let (utilization, fetchedAt) = ownCache else { return nil }
         let windows = utilization.windows.filter { ($0.resetsAt ?? .distantFuture) > now }
         guard !windows.isEmpty else { return nil }
-        return (windows, utilization.rateLimits.money, fetchedAt)
+        let spendCap = utilization.rateLimits.spendCapWindow(now: fetchedAt, planWindows: windows).flatMap { $0.hasReset(now: now) ? nil : $0 }
+        return (windows + [spendCap].compactMap { $0 }, utilization.rateLimits.money, fetchedAt)
     }
 
     /// The spend limit of a seat without plan limits, as Claude Code last fetched it, while that fetch is still in
     /// the current month: spend from an earlier month says nothing about this month's cap.
     func cachedSpendLimit(now: Date) -> (window: UsageWindow, money: [MoneyLine], fetchedAt: Date)? {
-        guard let (utilization, fetchedAt) = ownCache, let window = utilization.rateLimits.spendCapWindow(now: fetchedAt),
+        guard let (utilization, fetchedAt) = ownCache, let window = utilization.rateLimits.spendCapWindow(now: fetchedAt, planWindows: []),
               !window.hasReset(now: now)
         else { return nil }
         return (window, utilization.rateLimits.money, fetchedAt)
@@ -132,11 +133,11 @@ struct ClaudeGlobalConfig: Decodable, Sendable {
 
         var windows: [UsageWindow] {
             if !rateLimits.limits.isEmpty { return rateLimits.windows }
-            return BucketKey.allCases.compactMap { key in
+            return rateLimits.coveredByCredits(BucketKey.allCases.compactMap { key in
                 guard let bucket = buckets[key.rawValue], let used = bucket.utilization else { return nil }
                 let limit = ClaudeRateLimits.Limit(kind: key.kind, percent: used, resetsAt: bucket.resetsAt.flatMap(DateParsing.iso8601), scopeName: key.model)
                 return ClaudeRateLimits.window(limit)
-            }
+            })
         }
     }
 

@@ -6,6 +6,8 @@ import Foundation
 struct ClaudeRateLimits: Decodable, Sendable {
     var limits: [Limit]
     var extraUsage: ExtraUsage?
+    /// Prepaid credits left, from `spend.balance`. Seen only as null so far; the shapes accepted are guesses.
+    var creditBalance: Money?
 
     struct Limit: Sendable {
         var kind: String
@@ -20,6 +22,7 @@ struct ClaudeRateLimits: Decodable, Sendable {
         var usedCredits: Double?
         var currency: String?
         var decimalPlaces: Int?
+        var spendLimitReached: Bool?
 
         enum CodingKeys: String, CodingKey {
             case isEnabled = "is_enabled"
@@ -27,12 +30,41 @@ struct ClaudeRateLimits: Decodable, Sendable {
             case usedCredits = "used_credits"
             case currency
             case decimalPlaces = "decimal_places"
+            case spendLimitReached = "spend_limit_reached"
         }
     }
 
+    /// `{"amount_minor": 1234, "currency": "EUR", "exponent": 2}`, the shape Claude Code 2026-11 caches for `spend.used`.
+    struct Money: Decodable, Sendable {
+        var amountMinor: Double
+        var currency: String
+        var exponent: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case amountMinor = "amount_minor"
+            case currency, exponent
+        }
+
+        var amount: Double { amountMinor / pow(10, Double(exponent ?? DisplayCurrency.minorUnitDigits(currency))) }
+    }
+
     enum CodingKeys: String, CodingKey {
-        case limits
+        case limits, spend
         case extraUsage = "extra_usage"
+    }
+
+    private struct Spend: Decodable {
+        var balance: Money?
+
+        enum CodingKeys: String, CodingKey { case balance }
+
+        /// `spend.cap` wraps its amount as `{"money": {...}}`, so a balance may come either way.
+        private struct Wrapped: Decodable { var money: Money? }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            balance = (try? c.decodeIfPresent(Money.self, forKey: .balance)) ?? (try? c.decodeIfPresent(Wrapped.self, forKey: .balance))?.money
+        }
     }
 
     init(limits: [Limit], extraUsage: ExtraUsage?) {
@@ -45,31 +77,61 @@ struct ClaudeRateLimits: Decodable, Sendable {
         let raw = (try? c.decodeIfPresent([Lenient<RawLimit>].self, forKey: .limits)) ?? []
         limits = raw.compactMap { $0.value?.limit }
         extraUsage = try? c.decodeIfPresent(ExtraUsage.self, forKey: .extraUsage)
+        creditBalance = (try? c.decodeIfPresent(Spend.self, forKey: .spend))?.balance
     }
 
     var windows: [UsageWindow] {
         var seen = Set<String>()
-        return limits.map(Self.window).filter { seen.insert($0.id).inserted }
+        return coveredByCredits(limits.map(Self.window).filter { seen.insert($0.id).inserted })
+    }
+
+    /// Plan limits that extra usage takes over at 100 %, while it is on and its monthly cap has room.
+    func coveredByCredits(_ windows: [UsageWindow]) -> [UsageWindow] {
+        guard let extra = extraUsage, extra.isEnabled == true, !capReached else { return windows }
+        return windows.map { window in
+            var window = window
+            window.limitStyle = .credits
+            return window
+        }
+    }
+
+    private var capReached: Bool {
+        guard let extra = extraUsage else { return false }
+        if extra.spendLimitReached == true { return true }
+        guard let used = extra.usedCredits, let cap = extra.monthlyLimit, cap > 0 else { return false }
+        return used >= cap
     }
 
     var money: [MoneyLine] {
-        guard let extra = extraUsage, extra.isEnabled == true else { return [] }
-        let currency = extra.currency ?? "USD"
-        let divisor = pow(10, Double(extra.decimalPlaces ?? DisplayCurrency.minorUnitDigits(currency)))
-        return [MoneyLine(label: "Extra usage", amount: (extra.usedCredits ?? 0) / divisor, limit: extra.monthlyLimit.map { $0 / divisor }, currency: currency)]
+        var lines: [MoneyLine] = []
+        if let extra = extraUsage, extra.isEnabled == true {
+            let currency = extra.currency ?? "USD"
+            let divisor = pow(10, Double(extra.decimalPlaces ?? DisplayCurrency.minorUnitDigits(currency)))
+            lines.append(MoneyLine(label: "Extra usage", amount: (extra.usedCredits ?? 0) / divisor, limit: extra.monthlyLimit.map { $0 / divisor }, currency: currency))
+        }
+        if let balance = creditBalance {
+            lines.append(MoneyLine(label: "Credit balance", amount: balance.amount, currency: balance.currency))
+        }
+        return lines
     }
 
-    /// A seat with no plan limits, billed per use, can only run into its monthly cap on extra usage. Uncapped spend
-    /// has no share to show. Spend past the cap is allowed, so the window is `.overage`. The report gives no reset; Claude's own usage page resets the cap at midnight UTC on the
-    /// 1st, so the window is the UTC calendar month.
-    func spendCapWindow(now: Date) -> UsageWindow? {
-        guard limits.isEmpty, let line = money.first, let cap = line.limit, cap > 0 else { return nil }
+    /// The monthly cap on extra usage as a bar. Uncapped spend has no share to show. The report gives no reset;
+    /// Claude's own usage page resets the cap at midnight UTC on the 1st, so the window is the UTC calendar month.
+    /// A seat with no plan limits, billed per use, may spend past the cap (`.overage`). On a plan, credits stop at the
+    /// cap, and the bar shows only once credits are in play (spent this month, or a plan limit full): until then
+    /// the plan's own limits are the account's number.
+    func spendCapWindow(now: Date, planWindows: [UsageWindow]) -> UsageWindow? {
+        guard let line = money.first, let cap = line.limit, cap > 0 else { return nil }
+        let onPlan = !planWindows.isEmpty
+        if onPlan, line.amount <= 0, !planWindows.contains(where: { $0.usedPercent >= 100 }) { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         let resetsAt = calendar.nextDate(after: now, matching: DateComponents(day: 1, hour: 0, minute: 0, second: 0), matchingPolicy: .strict)
+        let used = line.amount / cap * 100
         return UsageWindow(
-            id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: line.amount / cap * 100,
-            windowMinutes: UsageWindow.monthMinutes(endingAt: resetsAt), resetsAt: resetsAt, limitStyle: .overage
+            id: UsageWindow.spendCapID, label: onPlan ? "Extra usage" : "Spend limit",
+            usedPercent: extraUsage?.spendLimitReached == true ? max(used, 100) : used,
+            windowMinutes: UsageWindow.monthMinutes(endingAt: resetsAt), resetsAt: resetsAt, limitStyle: onPlan ? nil : .overage
         )
     }
 

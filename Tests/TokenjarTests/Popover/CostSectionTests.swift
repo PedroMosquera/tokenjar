@@ -182,11 +182,17 @@ struct CostSectionTests {
         #expect(make([row(day(11, 2), cost: 0), row(day(10, 30), cost: 0)], planPrice: max5x) == nil)
     }
 
-    /// An Enterprise seat's spend limit already has its own bar, so the section stays off even beside a plan window.
-    @Test func aSpendLimitKeepsItOff() {
-        let cap = UsageWindow(id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: 10)
-        var limited = snapshot(windows: [UsageWindow(id: "weekly", label: "Week", usedPercent: 40), cap])
-        limited.money = [MoneyLine(label: "Spend limit", amount: 10, limit: 100)]
-        #expect(make([row(day(11, 2), cost: 3)], snapshot: limited) == nil)
+    /// A plan on extra usage gains a cap bar beside its plan limits and stays a plan card. A seat limited only by
+    /// spend has its own bar instead.
+    @Test func aCapBesidePlanLimitsKeepsTheSectionAndACapAloneDoesNot() {
+        let cap = UsageWindow(id: UsageWindow.spendCapID, label: "Extra usage", usedPercent: 10)
+        var onCredits = snapshot(windows: [UsageWindow(id: "weekly", label: "Week", usedPercent: 100, limitStyle: .credits), cap])
+        onCredits.money = [MoneyLine(label: "Extra usage", amount: 10, limit: 100)]
+        #expect(!onCredits.isSpendLimitedSeat)
+        #expect(make([row(day(11, 2), cost: 3)], snapshot: onCredits) != nil)
+        var seat = snapshot(windows: [cap])
+        seat.money = onCredits.money
+        #expect(seat.isSpendLimitedSeat)
+        #expect(make([row(day(11, 2), cost: 3)], snapshot: seat) == nil)
     }
 }

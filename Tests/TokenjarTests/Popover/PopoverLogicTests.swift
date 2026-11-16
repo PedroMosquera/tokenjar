@@ -55,6 +55,39 @@ struct PaceVerdictTests {
         #expect(try #require(PaceVerdict.make(windows: [atLimit], config: MenuBarConfig(), now: now)).text == "At the limit")
     }
 
+    /// A full plan limit that credits took over says so, in amber, instead of "Limit reached".
+    @Test func aFullLimitOnCreditsSaysSoAndStaysAmber() throws {
+        let week = UsageWindow(
+            id: "weekly", label: "Week", usedPercent: 100, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(17 * 3_600), limitStyle: .credits
+        )
+        let verdict = try #require(PaceVerdict.make(windows: [week], config: MenuBarConfig(), now: now))
+        #expect(verdict.kind == .onCredits(17 * 3_600))
+        #expect(verdict.text == "On extra usage, resets in 17h")
+        #expect(verdict.severity(config: MenuBarConfig(), now: now) == .warning)
+        #expect(Severity.of(week, config: MenuBarConfig(), now: now) == .warning)
+        var hard = week
+        hard.limitStyle = nil
+        #expect(Severity.of(hard, config: MenuBarConfig(), now: now) == .critical)
+        var filling = week
+        filling.usedPercent = 88
+        filling.windowMinutes = 300
+        filling.resetsAt = now.addingTimeInterval(50 * 60)
+        #expect(try #require(PaceVerdict.make(windows: [filling], config: MenuBarConfig(), now: now)).text == "Extra usage from ~15m before reset")
+    }
+
+    /// Credits keep the work going, so a cap projected to run out is the line worth reading.
+    @Test func aCapRunningOutOutranksALimitOnCredits() throws {
+        let week = UsageWindow(
+            id: "weekly", label: "Week", usedPercent: 100, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(3 * 86_400), limitStyle: .credits
+        )
+        let cap = UsageWindow(
+            id: UsageWindow.spendCapID, label: "Extra usage", usedPercent: 92, windowMinutes: 43_200, resetsAt: now.addingTimeInterval(10 * 86_400)
+        )
+        let verdict = try #require(PaceVerdict.make(windows: [week, cap], config: MenuBarConfig(), now: now))
+        #expect(verdict.window.id == UsageWindow.spendCapID)
+        #expect(verdict.text.hasPrefix("Runs out"))
+    }
+
     @Test func skipsWindowsTooEarlyOrIdleToProject() throws {
         let windows = [
             window("session", "5-hour", used: 99, resetIn: 299 * 60),
@@ -182,6 +215,9 @@ struct PopoverSummaryTests {
             id: UsageWindow.spendCapID, label: "Spend limit", usedPercent: 108, windowMinutes: 44_640, resetsAt: now.addingTimeInterval(18 * 86_400),
             limitStyle: .overage
         )]], .critical, "Claude · Work: Spend limit at 108%"),
+        ("a full limit on credits is amber and says so", ["work": [UsageWindow(
+            id: "weekly", label: "Week", usedPercent: 100, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(86_400), limitStyle: .credits
+        )]], .warning, "Claude · Work: Week full, on extra usage"),
     ] as [(String, [String: [UsageWindow]], PopoverSummary.Tone, String)])
     func theTitleNamesTheWorstWindow(_ name: String, windows: [String: [UsageWindow]], tone: PopoverSummary.Tone, text: String) {
         let statuses = Dictionary(uniqueKeysWithValues: windows.map { ($0.key, AccountStatus(snapshot: snapshot($0.key, $0.value))) })

@@ -268,11 +268,13 @@ struct ModelsTests {
         let windows = [
             UsageWindow(id: "monthly", label: "AI credits", usedPercent: 120, limitStyle: .overage),
             UsageWindow(id: "share", label: "Seat share", usedPercent: 80, limitStyle: .share),
+            UsageWindow(id: "weekly", label: "Week", usedPercent: 100, limitStyle: .credits),
             UsageWindow(id: "session", label: "5-hour", usedPercent: 40),
         ]
         let decoded = try JSONDecoder().decode([UsageWindow].self, from: JSONEncoder().encode(windows))
-        #expect(decoded.map(\.limitStyle) == [.overage, .share, nil])
-        #expect(LimitStyle.allCases.map(\.rawValue) == ["overage", "share"])
+        #expect(decoded.map(\.limitStyle) == [.overage, .share, .credits, nil])
+        #expect(LimitStyle.allCases.map(\.rawValue) == ["overage", "share", "credits"])
+        #expect(!decoded[2].isFull)
     }
 
     @Test func monthLengthFollowsTheMonthEndingAtReset() {

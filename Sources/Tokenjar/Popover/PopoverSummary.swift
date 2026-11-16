@@ -120,6 +120,8 @@ struct PopoverSummary: Equatable {
             let detail: String
             if window.isFull, let countdown = Format.countdown(to: window.resetsAt, now: now) {
                 detail = "\(window.label) full, resets in \(countdown)"
+            } else if window.limitStyle == .credits, window.usedPercent >= 100 {
+                detail = "\(window.label) full, on extra usage"
             } else {
                 detail = "\(window.label) at \(Format.percent(window.usedPercent))"
             }
@@ -201,12 +203,14 @@ struct PaceVerdict: Equatable {
         case exhausted(TimeInterval)
         /// At or past 100 % of a limit that lets use go on (`.overage`); points over 100.
         case overLimit(Double)
+        /// At 100 % of a limit that extra-usage credits have taken over; seconds until the reset.
+        case onCredits(TimeInterval)
 
         fileprivate var urgency: Int {
             switch self {
             case .onPace, .under: 0
             case .ahead: 1
-            case .runsOut: 2
+            case .runsOut, .onCredits: 2
             case .exhausted, .overLimit: 3
             }
         }
@@ -240,7 +244,10 @@ struct PaceVerdict: Equatable {
     }
 
     private static func kind(of window: UsageWindow, pace: Pace) -> Kind {
-        if window.usedPercent >= 100 { return window.isFull ? .exhausted(pace.secondsToReset) : .overLimit(window.usedPercent - 100) }
+        if window.usedPercent >= 100 {
+            if window.isFull { return .exhausted(pace.secondsToReset) }
+            return window.limitStyle == .credits ? .onCredits(pace.secondsToReset) : .overLimit(window.usedPercent - 100)
+        }
         if pace.runsOutBeforeReset, window.usedPercent >= 50, pace.fractionElapsed >= 0.1,
            let eta = pace.secondsToExhaustion, pace.secondsToReset - eta >= 15 * 60 {
             return .runsOut(pace.secondsToReset - eta)
@@ -254,7 +261,7 @@ struct PaceVerdict: Equatable {
     func severity(config: MenuBarConfig, now: Date) -> Severity {
         switch kind {
         case .onPace, .ahead, .under: .ok
-        case .runsOut, .exhausted, .overLimit: max(.warning, Severity.of(window, config: config, now: now))
+        case .runsOut, .exhausted, .overLimit, .onCredits: max(.warning, Severity.of(window, config: config, now: now))
         }
     }
 
@@ -268,9 +275,11 @@ struct PaceVerdict: Equatable {
         case .onPace: "On pace"
         case .ahead(let points): "Ahead of pace +\(Format.percent(points))"
         case .under(let points): "Under pace -\(Format.percent(points))"
-        case .runsOut(let gap): "Runs out \(about)\(duration(gap)) before reset"
+        case .runsOut(let gap):
+            window.limitStyle == .credits ? "Extra usage from \(about)\(duration(gap)) before reset" : "Runs out \(about)\(duration(gap)) before reset"
         case .exhausted(let untilReset): "Limit reached, resets in \(duration(untilReset))"
         case .overLimit(let points): points < 0.5 ? "At the limit" : "Over the limit +\(Format.percent(points))"
+        case .onCredits(let untilReset): "On extra usage, resets in \(duration(untilReset))"
         }
     }
 }

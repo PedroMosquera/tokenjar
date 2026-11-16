@@ -327,8 +327,8 @@ private struct SnapshotBody: View {
     private func chart(now: Date, verdictWindowID: String?, namesWindow: Bool) -> some View {
         // A window past its reset would chart the cycle that just ended. A spend limit's bar, pace mark and verdict
         // already say what its month line would, and the dashboard charts its spend.
-        let live = snapshot.windows.filter { !$0.hasReset(now: now) }
-        if snapshot.spendLimitMoney == nil, let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
+        let live = snapshot.windows.filter { !$0.hasReset(now: now) && $0.id != UsageWindow.spendCapID }
+        if let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
             let samples = burnUps.samples(accountID: account.id, windowID: window.id, start: start, end: window.resetsAt ?? now, revision: model.historyRevision) {
                 model.samples(accountID: account.id, windowID: window.id, since: start)
             }
@@ -385,6 +385,7 @@ struct VerdictLine: View {
         case .ahead: "arrow.up.forward.circle"
         case .runsOut, .overLimit: "exclamationmark.triangle.fill"
         case .exhausted: "hourglass"
+        case .onCredits: "creditcard"
         }
     }
 }
