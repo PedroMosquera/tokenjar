@@ -327,8 +327,8 @@ struct ClaudeUsageFetcherTests {
         #expect(!snapshot.windows.contains { $0.id == "spend-cap" })
     }
 
-    /// A full plan limit with credits on draws on them instead of stopping, and the month's cap becomes a bar that
-    /// does stop: past it, credits end.
+    /// A full plan limit with credits on draws on them instead of stopping, and the month's cap becomes a bar. While
+    /// a plan limit is full the cap is what stops the work; otherwise it only limits the extras.
     @Test(arguments: [(0, 100.0), (1234, 40.0), (1234, 100.0)])
     func creditsInPlayShowTheCapAndTakeOverThePlanLimits(used: Int, weekly: Double) async throws {
         let runner = FakeRunner(output(try extraUsageStream(used: used, weekly: weekly)))
@@ -337,7 +337,7 @@ struct ClaudeUsageFetcherTests {
 
         let cap = try #require(snapshot.windows.first { $0.id == "spend-cap" })
         #expect(cap.label == "Extra usage")
-        #expect(cap.limitStyle == nil)
+        #expect(cap.limitStyle == (weekly >= 100 ? nil : .extras))
         #expect(abs(cap.usedPercent - Double(used) / 50) < 0.0001)
         #expect(cap.resetsAt == DateParsing.iso8601("2026-11-01T00:00:00Z"))
         let plan = snapshot.windows.filter { $0.id != "spend-cap" }
@@ -359,6 +359,27 @@ struct ClaudeUsageFetcherTests {
         let cap = try #require(snapshot.windows.first { $0.id == "spend-cap" })
         #expect(cap.usedPercent >= 100)
         #expect(cap.isFull)
+    }
+
+    /// With room left on the plan, the cap only stops the extras: it is never full and never the account's headroom.
+    @Test(arguments: [5000, 1000])
+    func aCapBesideAPlanWithRoomOnlyLimitsTheExtras(used: Int) async throws {
+        let runner = FakeRunner(output(try extraUsageStream(used: used, weekly: 10)))
+
+        let snapshot = try await ClaudeUsageFetcher().fetch(account, context: box.context(runner, now: now))
+
+        let cap = try #require(snapshot.windows.first { $0.id == "spend-cap" })
+        #expect(cap.limitStyle == .extras)
+        #expect(!cap.isFull)
+        #expect(snapshot.tightestWindow?.id != "spend-cap")
+    }
+
+    /// No credits left to draw on means a full plan limit stops the work, whatever the monthly cap says.
+    @Test func aZeroCreditBalanceLeavesThePlanLimitsHard() throws {
+        let json = #"{"limits":[{"kind":"weekly_all","percent":100}],"extra_usage":{"is_enabled":true,"used_credits":66,"monthly_limit":1000,"currency":"EUR"},"spend":{"balance":{"amount_minor":0,"currency":"EUR","exponent":2}}}"#
+        let limits = try JSONDecoder().decode(ClaudeRateLimits.self, from: Data(json.utf8))
+
+        #expect(limits.windows.map(\.limitStyle) == [nil])
     }
 
     @Test func extraUsageOffLeavesThePlanLimitsHard() throws {
@@ -541,7 +562,7 @@ struct ClaudeUsageFetcherTests {
         // The cache has £25.50 of £50 spent, so the cap shows as a bar and credits cover the plan limits.
         #expect(snapshot.windows.map(\.id) == ["session", "weekly", "weekly:Fable", "spend-cap"])
         #expect(snapshot.windows.map(\.usedPercent) == [30, 40, 10, 51])
-        #expect(snapshot.windows.map(\.limitStyle) == [.credits, .credits, .credits, nil])
+        #expect(snapshot.windows.map(\.limitStyle) == [.credits, .credits, .credits, .extras])
         #expect(snapshot.money == [MoneyLine(label: "Extra usage", amount: 25.5, limit: 50, currency: "GBP")])
         #expect(snapshot.notes == ["Can't find the claude command on this Mac. Showing the last values Claude Code saved."])
     }

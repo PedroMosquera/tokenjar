@@ -75,6 +75,16 @@ struct PaceVerdictTests {
         #expect(try #require(PaceVerdict.make(windows: [filling], config: MenuBarConfig(), now: now)).text == "Extra usage from ~15m before reset")
     }
 
+    @Test func aUsedUpCapBesideAPlanSaysThePlanStillServes() throws {
+        let cap = UsageWindow(
+            id: UsageWindow.spendCapID, label: "Extra usage", usedPercent: 100, windowMinutes: 43_200, resetsAt: now.addingTimeInterval(86_400),
+            limitStyle: .extras
+        )
+        let verdict = try #require(PaceVerdict.make(windows: [cap], config: MenuBarConfig(), now: now))
+        #expect(verdict.text == "Used up, plan limits still apply, resets in 1d")
+        #expect(Severity.of(cap, config: MenuBarConfig(), now: now) == .warning)
+    }
+
     /// Credits keep the work going, so a cap projected to run out is the line worth reading.
     @Test func aCapRunningOutOutranksALimitOnCredits() throws {
         let week = UsageWindow(
@@ -218,6 +228,13 @@ struct PopoverSummaryTests {
         ("a full limit on credits is amber and says so", ["work": [UsageWindow(
             id: "weekly", label: "Week", usedPercent: 100, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(86_400), limitStyle: .credits
         )]], .warning, "Claude · Work: Week full, on extra usage"),
+        ("a used-up cap beside a plan with room is amber, not blocked", ["work": [
+            window("weekly", "Week", used: 10, minutes: 10_080, resetIn: 3 * 86_400),
+            UsageWindow(
+                id: UsageWindow.spendCapID, label: "Extra usage", usedPercent: 100, windowMinutes: 43_200, resetsAt: now.addingTimeInterval(25 * 86_400),
+                limitStyle: .extras
+            ),
+        ]], .warning, "Claude · Work: Extra usage used up"),
     ] as [(String, [String: [UsageWindow]], PopoverSummary.Tone, String)])
     func theTitleNamesTheWorstWindow(_ name: String, windows: [String: [UsageWindow]], tone: PopoverSummary.Tone, text: String) {
         let statuses = Dictionary(uniqueKeysWithValues: windows.map { ($0.key, AccountStatus(snapshot: snapshot($0.key, $0.value))) })

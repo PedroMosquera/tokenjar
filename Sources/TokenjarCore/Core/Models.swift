@@ -220,6 +220,8 @@ public enum LimitStyle: String, Codable, CaseIterable, Sendable {
     case share
     /// At 100 % the provider bills further use to prepaid extra-usage credits, so nothing stops while they last.
     case credits
+    /// Caps spend beside plan limits: at 100 % the extras stop and the plan limits keep serving.
+    case extras
 }
 
 public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
@@ -261,8 +263,8 @@ public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
         return Int((resetsAt.timeIntervalSince(start) / 60).rounded())
     }
 
-    /// At 100 % on a limit that stops the work there. A limit billed past 100 % (`.overage`), one credits take over
-    /// or a share of a pool is never full: use goes on.
+    /// At 100 % on a limit that stops the work there. A limit billed past 100 % (`.overage`), one credits take over,
+    /// a cap on extras beside a plan or a share of a pool is never full: use goes on.
     public var isFull: Bool { usedPercent >= 100 && limitStyle == nil }
 
     /// True once the reported reset time has passed: until the next check, the used % describes a cycle that is over.
@@ -351,34 +353,36 @@ public struct UsageSnapshot: Codable, Hashable, Sendable {
         self.liveCheckFailure = liveCheckFailure
     }
 
-    /// The capped money a spend-limit window measures, shown with that bar rather than as a row of its own.
     /// True for a seat billed per use, whose only limit is its spend cap. A plan account on credits has a spend cap too.
     public var isSpendLimitedSeat: Bool {
         spendLimitMoney != nil && !windows.contains { $0.id != UsageWindow.spendCapID }
     }
 
+    /// The capped money a spend-limit window measures, shown with that bar rather than as a row of its own.
     public var spendLimitMoney: MoneyLine? {
         guard windows.contains(where: { $0.id == UsageWindow.spendCapID }) else { return nil }
         return money.first { $0.limit != nil }
     }
 
-    /// The window with the highest used %, ties broken by the sooner reset.
+    /// The window with the highest used %, ties broken by the sooner reset. A cap on extras (`.extras`) stands in only
+    /// when nothing else is left: it never stops the plan, so it is not the account's headroom.
     public var tightestWindow: UsageWindow? {
         Self.tightest(windows)
     }
 
-    /// `tightestWindow` among the windows that have not reset by `now`.
     /// Older than twice the refresh interval: shown faded, since it may no longer reflect the account.
     public func isStale(now: Date, refreshMinutes: Int) -> Bool {
         now.timeIntervalSince(fetchedAt) > Double(max(refreshMinutes, 1) * 2 * 60)
     }
 
+    /// `tightestWindow` among the windows that have not reset by `now`.
     public func tightestWindow(now: Date) -> UsageWindow? {
         Self.tightest(windows.filter { !$0.hasReset(now: now) })
     }
 
     private static func tightest(_ windows: [UsageWindow]) -> UsageWindow? {
-        windows.max { a, b in
+        let limits = windows.filter { $0.limitStyle != .extras }
+        return (limits.isEmpty ? windows : limits).max { a, b in
             if a.usedPercent != b.usedPercent { return a.usedPercent < b.usedPercent }
             return (a.resetsAt ?? .distantFuture) > (b.resetsAt ?? .distantFuture)
         }

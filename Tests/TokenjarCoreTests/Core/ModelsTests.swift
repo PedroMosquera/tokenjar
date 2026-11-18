@@ -273,8 +273,16 @@ struct ModelsTests {
         ]
         let decoded = try JSONDecoder().decode([UsageWindow].self, from: JSONEncoder().encode(windows))
         #expect(decoded.map(\.limitStyle) == [.overage, .share, .credits, nil])
-        #expect(LimitStyle.allCases.map(\.rawValue) == ["overage", "share", "credits"])
+        #expect(LimitStyle.allCases.map(\.rawValue) == ["overage", "share", "credits", "extras"])
         #expect(!decoded[2].isFull)
+    }
+
+    @Test func aCapOnExtrasIsTheTightestOnlyWhenNothingElseIsLeft() {
+        let week = UsageWindow(id: "weekly", label: "Week", usedPercent: 10, resetsAt: Date(timeIntervalSince1970: 2_000))
+        let cap = UsageWindow(id: UsageWindow.spendCapID, label: "Extra usage", usedPercent: 100, resetsAt: Date(timeIntervalSince1970: 5_000), limitStyle: .extras)
+        let snapshot = UsageSnapshot(accountID: "a", provider: .claude, windows: [week, cap], fetchedAt: Date(timeIntervalSince1970: 0), source: "test")
+        #expect(snapshot.tightestWindow?.id == "weekly")
+        #expect(snapshot.tightestWindow(now: Date(timeIntervalSince1970: 3_000))?.id == UsageWindow.spendCapID)
     }
 
     @Test func monthLengthFollowsTheMonthEndingAtReset() {

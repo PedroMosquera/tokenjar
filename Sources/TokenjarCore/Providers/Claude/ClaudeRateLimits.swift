@@ -98,6 +98,7 @@ struct ClaudeRateLimits: Decodable, Sendable {
     private var capReached: Bool {
         guard let extra = extraUsage else { return false }
         if extra.spendLimitReached == true { return true }
+        if let balance = creditBalance, balance.amount <= 0 { return true }
         guard let used = extra.usedCredits, let cap = extra.monthlyLimit, cap > 0 else { return false }
         return used >= cap
     }
@@ -115,15 +116,14 @@ struct ClaudeRateLimits: Decodable, Sendable {
         return lines
     }
 
-    /// The monthly cap on extra usage as a bar. Uncapped spend has no share to show. The report gives no reset;
-    /// Claude's own usage page resets the cap at midnight UTC on the 1st, so the window is the UTC calendar month.
-    /// A seat with no plan limits, billed per use, may spend past the cap (`.overage`). On a plan, credits stop at the
-    /// cap, and the bar shows only once credits are in play (spent this month, or a plan limit full): until then
-    /// the plan's own limits are the account's number.
+    /// The monthly cap as a bar for the UTC calendar month (Claude's usage page resets it at midnight UTC on the 1st).
+    /// A seat billed per use may pass it (`.overage`). On a plan it shows once credits are in play, and it is hard only
+    /// while a plan limit is full: then the cap is what stops the work. Otherwise it caps extras beside the plan.
     func spendCapWindow(now: Date, planWindows: [UsageWindow]) -> UsageWindow? {
         guard let line = money.first, let cap = line.limit, cap > 0 else { return nil }
         let onPlan = !planWindows.isEmpty
-        if onPlan, line.amount <= 0, !planWindows.contains(where: { $0.usedPercent >= 100 }) { return nil }
+        let planFull = planWindows.contains { $0.usedPercent >= 100 }
+        if onPlan, line.amount <= 0, !planFull { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         let resetsAt = calendar.nextDate(after: now, matching: DateComponents(day: 1, hour: 0, minute: 0, second: 0), matchingPolicy: .strict)
@@ -131,7 +131,7 @@ struct ClaudeRateLimits: Decodable, Sendable {
         return UsageWindow(
             id: UsageWindow.spendCapID, label: onPlan ? "Extra usage" : "Spend limit",
             usedPercent: extraUsage?.spendLimitReached == true ? max(used, 100) : used,
-            windowMinutes: UsageWindow.monthMinutes(endingAt: resetsAt), resetsAt: resetsAt, limitStyle: onPlan ? nil : .overage
+            windowMinutes: UsageWindow.monthMinutes(endingAt: resetsAt), resetsAt: resetsAt, limitStyle: onPlan ? (planFull ? nil : .extras) : .overage
         )
     }
 

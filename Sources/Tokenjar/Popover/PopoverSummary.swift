@@ -122,6 +122,8 @@ struct PopoverSummary: Equatable {
                 detail = "\(window.label) full, resets in \(countdown)"
             } else if window.limitStyle == .credits, window.usedPercent >= 100 {
                 detail = "\(window.label) full, on extra usage"
+            } else if window.limitStyle == .extras, window.usedPercent >= 100 {
+                detail = "\(window.label) used up"
             } else {
                 detail = "\(window.label) at \(Format.percent(window.usedPercent))"
             }
@@ -205,12 +207,14 @@ struct PaceVerdict: Equatable {
         case overLimit(Double)
         /// At 100 % of a limit that extra-usage credits have taken over; seconds until the reset.
         case onCredits(TimeInterval)
+        /// At 100 % of a cap on extras beside a plan, whose limits still serve; seconds until the reset.
+        case extrasUsedUp(TimeInterval)
 
         fileprivate var urgency: Int {
             switch self {
             case .onPace, .under: 0
             case .ahead: 1
-            case .runsOut, .onCredits: 2
+            case .runsOut, .onCredits, .extrasUsedUp: 2
             case .exhausted, .overLimit: 3
             }
         }
@@ -228,9 +232,9 @@ struct PaceVerdict: Equatable {
     static let tolerance = 5.0
 
     /// Judges every paced window from 1 % used and keeps the most urgent kind, then among run-outs the longer lockout
-    /// before the reset, then the higher severity, then the higher used %. "Runs out" uses the projected-exhaustion
-    /// alert thresholds in docs/design.md, so whenever that alert fires the verdict reads "Runs out" or "Limit
-    /// reached"; earlier or smaller overuse reads as "Ahead of pace".
+    /// before the reset, then the higher severity, then the higher used %. A run-out uses the projected-exhaustion
+    /// alert thresholds in docs/design.md, so whenever that alert fires the verdict names a run-out or a full limit;
+    /// earlier or smaller overuse reads as "Ahead of pace".
     static func make(windows: [UsageWindow], config: MenuBarConfig, now: Date) -> PaceVerdict? {
         let judged = windows.filter { $0.usedPercent >= 1 }.compactMap { window in
             Pace.compute(window, now: now).map { pace in
@@ -246,7 +250,11 @@ struct PaceVerdict: Equatable {
     private static func kind(of window: UsageWindow, pace: Pace) -> Kind {
         if window.usedPercent >= 100 {
             if window.isFull { return .exhausted(pace.secondsToReset) }
-            return window.limitStyle == .credits ? .onCredits(pace.secondsToReset) : .overLimit(window.usedPercent - 100)
+            switch window.limitStyle {
+            case .credits: return .onCredits(pace.secondsToReset)
+            case .extras: return .extrasUsedUp(pace.secondsToReset)
+            default: return .overLimit(window.usedPercent - 100)
+            }
         }
         if pace.runsOutBeforeReset, window.usedPercent >= 50, pace.fractionElapsed >= 0.1,
            let eta = pace.secondsToExhaustion, pace.secondsToReset - eta >= 15 * 60 {
@@ -261,7 +269,7 @@ struct PaceVerdict: Equatable {
     func severity(config: MenuBarConfig, now: Date) -> Severity {
         switch kind {
         case .onPace, .ahead, .under: .ok
-        case .runsOut, .exhausted, .overLimit, .onCredits: max(.warning, Severity.of(window, config: config, now: now))
+        case .runsOut, .exhausted, .overLimit, .onCredits, .extrasUsedUp: max(.warning, Severity.of(window, config: config, now: now))
         }
     }
 
@@ -280,6 +288,7 @@ struct PaceVerdict: Equatable {
         case .exhausted(let untilReset): "Limit reached, resets in \(duration(untilReset))"
         case .overLimit(let points): points < 0.5 ? "At the limit" : "Over the limit +\(Format.percent(points))"
         case .onCredits(let untilReset): "On extra usage, resets in \(duration(untilReset))"
+        case .extrasUsedUp(let untilReset): "Used up, plan limits still apply, resets in \(duration(untilReset))"
         }
     }
 }

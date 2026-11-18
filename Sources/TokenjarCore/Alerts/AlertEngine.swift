@@ -247,7 +247,7 @@ public enum AlertEngine {
             let verb = switch window.limitStyle {
             case .overage: "will pass its limit"
             case .credits: "will move to extra usage"
-            case .share, nil: "will run out"
+            case .share, .extras, nil: "will run out"
             }
             let body = "\(window.label) \(verb) about \(margin) before it resets (\(resetsAt.formatted(clock)))"
             outcome.events.append(event(prefix + "projected", account, window, .projectedExhaustion, body))

@@ -56,7 +56,7 @@ extension AppModel {
                     UsageWindow(
                         id: UsageWindow.spendCapID, label: "Extra usage", usedPercent: 18.75,
                         windowMinutes: UsageWindow.monthMinutes(endingAt: Date(timeIntervalSince1970: 1_793_491_200)),
-                        resetsAt: Date(timeIntervalSince1970: 1_793_491_200)
+                        resetsAt: Date(timeIntervalSince1970: 1_793_491_200), limitStyle: .extras
                     ),
                 ],
                 money: [MoneyLine(label: "Extra usage", amount: 18.75, limit: 100)],

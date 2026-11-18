@@ -385,7 +385,7 @@ struct VerdictLine: View {
         case .ahead: "arrow.up.forward.circle"
         case .runsOut, .overLimit: "exclamationmark.triangle.fill"
         case .exhausted: "hourglass"
-        case .onCredits: "creditcard"
+        case .onCredits, .extrasUsedUp: "creditcard"
         }
     }
 }

@@ -15,7 +15,7 @@ struct MenuBarState: Equatable {
         /// `AccountStatus.failureNeedsAttention`, the popover header's rule, so the menu bar and the header never
         /// disagree about a failed check.
         var failureNeedsAttention: Bool
-        /// Set when a projection, not the tightest window's own number, gives `severity`.
+        /// Set when something other than the tightest window's own number gives `severity`.
         var cause: PaceVerdict? = nil
         var fetchedAt: Date? = nil
         /// `AccountStatus.connectionFailure`: the network error or timeout behind the latest check, saved copies included.
@@ -97,12 +97,12 @@ struct MenuBarState: Equatable {
         )
     }
 
-    /// The verdict behind a color the tightest window's own number does not explain: a projected run-out, on that
-    /// window or on another one.
+    /// The verdict behind a color the tightest window's own number does not explain: a projected run-out or another
+    /// window's state.
     private static func cause(of severity: Severity, windows: [UsageWindow], tightest: UsageWindow?, config: MenuBarConfig, now: Date) -> PaceVerdict? {
         guard let tightest else { return nil }
         let own = Severity.ofUse(tightest.usedPercent, config: config)
-        guard severity > (tightest.limitStyle == .credits ? min(.warning, own) : own) else { return nil }
+        guard severity > (tightest.limitStyle == .credits || tightest.limitStyle == .extras ? min(.warning, own) : own) else { return nil }
         return PaceVerdict.make(windows: windows.filter { Severity.of($0, config: config, now: now) == severity }, config: config, now: now)
     }
 }

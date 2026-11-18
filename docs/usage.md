@@ -66,7 +66,8 @@ When extra usage is on in your Claude account, a full plan limit no longer stops
 
 - A full limit that credits cover turns amber, not red, and reads "Week full, on extra usage". The menu bar shows its percent instead of a countdown.
 - Once credits are in play (something spent this month, or a plan limit full), the card adds an Extra usage bar: the month's spend against the monthly limit you set at Claude, such as "€0.66 of €10". It resets on the 1st, at midnight UTC, and alerts at the same thresholds as any other limit.
-- When that monthly limit is reached, credits stop, so full plan limits turn red and count down to their reset again.
+- When that monthly limit is reached, credits stop. A full plan limit turns red and counts down to its reset again. With room left on the plan, the account stays amber and reads "Extra usage used up": the plan keeps working, and the menu bar keeps showing the plan's own percent.
+- While a plan limit is full and running on credits, the Extra usage bar is the one that will stop you, so it turns red near the monthly limit like any hard limit.
 - If Claude reports the balance of credits you bought, the card shows it as a Credit balance row. Claude does not report it today, so the row stays hidden.
 
 ## Claude logins without plan limits

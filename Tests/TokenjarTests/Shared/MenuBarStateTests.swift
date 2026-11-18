@@ -158,6 +158,18 @@ struct MenuBarStateTests {
         #expect(state.entries.first?.cause?.window.id == UsageWindow.spendCapID)
     }
 
+    @Test func aUsedUpCapBesidePlanRoomLeavesThePlanOnTheMark() {
+        let week = window("weekly", used: 10, minutes: 10_080, resetIn: 3 * 86_400)
+        let cap = UsageWindow(
+            id: UsageWindow.spendCapID, label: "Extra usage", usedPercent: 100, windowMinutes: 43_200, resetsAt: now.addingTimeInterval(25 * 86_400),
+            limitStyle: .extras
+        )
+        let state = MenuBarState.make(accounts: [personal], statuses: ["personal": status([week, cap])], config: AppConfig(), now: now)
+        #expect(state.entries.first?.tightest?.id == "weekly")
+        #expect(state.entries.first?.severity == .warning)
+        #expect(state.entries.first?.cause?.window.id == UsageWindow.spendCapID)
+    }
+
     /// At warnAt the number on the mark already explains the color.
     @Test func aWindowPastWarnAtNeedsNoCause() {
         let high = window("weekly", used: 85, minutes: 10_080, resetIn: 6 * 86_400)
