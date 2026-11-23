@@ -344,7 +344,7 @@ public enum Capture {
 
     private static func isAgyModelTurn(_ stdout: Data) -> Bool {
         do {
-            _ = try AntigravityUsageFetcher.windows(fromUsageOutput: stdout)
+            _ = try AntigravityUsageFetcher.windows(fromUsageOutput: stdout, now: Date())
             return false
         } catch let error as FetchError {
             return error == .unsupported(AntigravityUsageFetcher.modelTurnMessage)

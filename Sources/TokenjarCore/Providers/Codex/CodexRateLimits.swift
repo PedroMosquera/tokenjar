@@ -188,8 +188,6 @@ extension KeyedDecodingContainer {
 /// primary/secondary position, because some plans (Pro) report no 5-hour window at all.
 enum CodexRateLimitMapping {
     static let mainLimitID = "codex"
-    /// The backend reports an idle window's reset as now + window length; allow this much clock skew.
-    static let notStartedTolerance: TimeInterval = 120
 
     static func snapshot(
         from result: CodexRateLimitsResult, accountID: String, fetchedAt: Date, source: String
@@ -236,7 +234,7 @@ enum CodexRateLimitMapping {
             }
             return UsageWindow(
                 id: id, label: label, usedPercent: used, windowMinutes: minutes, resetsAt: resetsAt,
-                notStarted: isNotStarted(usedPercent: used, windowMinutes: minutes, resetsAt: resetsAt, now: now)
+                notStarted: UsageWindow.isNotStarted(usedPercent: used, windowMinutes: minutes, resetsAt: resetsAt, now: now)
             )
         }
     }
@@ -256,12 +254,6 @@ enum CodexRateLimitMapping {
             }
             return ("\(minutes)m", label)
         }
-    }
-
-    static func isNotStarted(usedPercent: Double, windowMinutes: Int?, resetsAt: Date?, now: Date) -> Bool {
-        guard usedPercent == 0, let windowMinutes, windowMinutes > 0, let resetsAt else { return false }
-        let syntheticReset = now.addingTimeInterval(Double(windowMinutes) * 60)
-        return abs(resetsAt.timeIntervalSince(syntheticReset)) <= notStartedTolerance
     }
 
     static func creditsNote(_ credits: CodexRateLimitSnapshot.Credits?) -> String? {

@@ -40,7 +40,7 @@ I built it because I did not want a third-party app handling my AI logins. Token
 
 Devin (which now includes Windsurf) and Cursor share no usage with local apps, so they have no card. Their page in Settings opens the provider's usage page.
 
-The Antigravity reader has never run against a live install. The Kimi routes are undocumented. Copilot's endpoint is undocumented, and most Copilot plans have not been checked against a real account.
+The Antigravity reader has been checked against agy 1.5.15 on one account; agy's JSON is undocumented. The Kimi routes are undocumented. Copilot's endpoint is undocumented, and most Copilot plans have not been checked against a real account.
 
 ## A quick tour
 

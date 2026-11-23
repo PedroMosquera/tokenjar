@@ -1,0 +1,39 @@
+{
+  "command": {
+    "name": "usage",
+    "data": {
+      "description": "Within each group, models share a weekly limit and a 5-hour limit.",
+      "groups": [
+        {
+          "name": "Gemini Models",
+          "description": "Synthetic group description",
+          "buckets": [
+            { "id": "bucket-1", "name": "Weekly", "window": "weekly", "remaining_fraction": 0.82, "reset_time": "2026-10-13T19:20:00Z" },
+            { "id": "bucket-2", "name": "5-hour", "window": "5h", "remaining_fraction": 1, "reset_time": "2026-10-11T00:20:00Z" }
+          ]
+        },
+        {
+          "name": "Claude and GPT models",
+          "description": "Synthetic group description",
+          "buckets": [
+            { "id": "bucket-3", "name": "Weekly", "window": "weekly", "remaining_fraction": 1, "reset_time": "2026-10-17T19:20:00Z" },
+            { "id": "bucket-4", "name": "5-hour", "window": "5h", "remaining_fraction": 0.4, "reset_time": "2026-10-10T21:20:00Z" }
+          ]
+        },
+        {
+          "name": "Gemini 4 Argon",
+          "description": "Synthetic group description",
+          "buckets": [
+            { "id": "bucket-5", "name": "Weekly", "window": "weekly", "remaining_fraction": 1, "reset_time": "2026-10-16T19:20:00Z" }
+          ]
+        }
+      ]
+    }
+  },
+  "conversation_id": "00000000-0000-0000-0000-000000000000",
+  "duration_seconds": 0,
+  "num_turns": 0,
+  "response": "Synthetic command response",
+  "status": "success",
+  "usage": { "cache_read_tokens": 0, "input_tokens": 0, "output_tokens": 0, "thinking_tokens": 0, "total_tokens": 0 }
+}

@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import TokenjarCore
 
-/// The fixtures are synthetic. No answer from a real agy account has been captured, so they follow the field names
-/// of CodexBar's agy test fixture.
+/// `usage-1.5.15.stdout.json` has the shape of a real agy 1.5.15 answer with made-up values. The other fixtures follow
+/// the field names of CodexBar's agy test fixture.
 final class AntigravityUsageFetcherTests {
     let temp = TemporaryDirectory()
     var home: URL { temp.url }
@@ -128,6 +128,20 @@ final class AntigravityUsageFetcherTests {
             "claude-and-gpt:session | Claude and GPT · 5-hour | 100.0 | 300 | 2026-10-11T00:00:00Z",
             "claude-and-gpt:weekly | Claude and GPT · Week | 60.0 | 10080 | -",
         ])
+    }
+
+    /// An idle pool's reset is now + its window, which moves every check; a pool at 0 % with a fixed reset has started.
+    @Test func agy1_5_15ReportMarksIdlePoolsNotStarted() async throws {
+        let snapshot = try await fetch(agy(usage: output(fixtureText("Antigravity/usage-1.5.15.stdout.json"))))
+        #expect(summary(snapshot.windows) == [
+            "gemini:weekly | Gemini · Week | 18.0 | 10080 | 2026-10-13T19:20:00Z",
+            "gemini:session | Gemini · 5-hour | 0.0 | 300 | 2026-10-11T00:20:00Z",
+            "claude-and-gpt:weekly | Claude and GPT · Week | 0.0 | 10080 | 2026-10-17T19:20:00Z",
+            "claude-and-gpt:session | Claude and GPT · 5-hour | 60.0 | 300 | 2026-10-10T21:20:00Z",
+            "gemini-4-argon:weekly | Gemini 4 Argon · Week | 0.0 | 10080 | 2026-10-16T19:20:00Z",
+        ])
+        #expect(snapshot.windows.map(\.notStarted) == [false, true, true, false, false])
+        #expect(snapshot.notes.isEmpty)
     }
 
     @Test func findsGroupsNestedInsideArraysPastABannerLine() async throws {

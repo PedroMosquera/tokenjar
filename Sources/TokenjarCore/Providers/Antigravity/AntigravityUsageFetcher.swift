@@ -38,9 +38,10 @@ public struct AntigravityUsageFetcher: UsageFetcher {
             if Self.mentionsSignIn(Self.text(usageRun.stdout + usageRun.stderr)) { throw FetchError.notSignedIn }
             throw FetchError.parse("agy exited with status \(usageRun.exitCode)")
         }
-        let windows = try Self.windows(fromUsageOutput: usageRun.stdout)
+        let now = context.now()
+        let windows = try Self.windows(fromUsageOutput: usageRun.stdout, now: now)
         return UsageSnapshot(
-            accountID: account.id, provider: .antigravity, windows: windows, fetchedAt: context.now(),
+            accountID: account.id, provider: .antigravity, windows: windows, fetchedAt: now,
             source: "agy CLI", notes: windows.isEmpty ? ["No usage limits reported for this account"] : []
         )
     }
@@ -63,13 +64,12 @@ extension AntigravityUsageFetcher {
         !version.lexicographicallyPrecedes(minimumVersion)
     }
 
-    // Unverified live: no answer from a real agy account has been captured. The shape comes from CodexBar's synthetic
-    // agy test fixture, {"command":{"data":{"groups":[{"name","buckets":[{"window","remaining_fraction",
-    // "reset_time","disabled"}]}]}}}, so `groups` is looked up at any depth and both key casings are accepted.
+    // agy 1.5.15 answers {"command":{"data":{"groups":[{"name","buckets":[{"window","remaining_fraction","reset_time"}]}]}}}.
+    // Older builds are unverified, so `groups` is looked up at any depth and both key casings are accepted.
     /// An empty result means agy reported no limits: a `groups` array with no enabled buckets, or a `data.message`
     /// saying usage is not available. Anything else without `groups` throws, so a renamed field shows up as a broken
     /// source rather than as an account without limits, and a model reply says the probe spent quota.
-    static func windows(fromUsageOutput data: Data) throws -> [UsageWindow] {
+    static func windows(fromUsageOutput data: Data, now: Date) throws -> [UsageWindow] {
         guard let root = jsonRoot(data) else { throw FetchError.parse("agy /usage output is not JSON") }
         guard let groups = firstValue(forKey: "groups", in: root, as: [[String: Any]].self) else {
             if let error = firstValue(forKey: "error", in: root, as: Any.self).flatMap(errorText) {
@@ -102,9 +102,11 @@ extension AntigravityUsageFetcher {
                 }
                 let id = "\(slug(pool)):\(kind.id)"
                 guard seen.insert(id).inserted else { continue }
+                let used = (1 - remaining) * 100
+                let resetsAt = date(bucket, "reset_time", "resetTime", "resetsAt", "resets_at")
                 windows.append(UsageWindow(
-                    id: id, label: "\(pool) · \(kind.label)", usedPercent: (1 - remaining) * 100,
-                    windowMinutes: kind.minutes, resetsAt: date(bucket, "reset_time", "resetTime", "resetsAt", "resets_at")
+                    id: id, label: "\(pool) · \(kind.label)", usedPercent: used, windowMinutes: kind.minutes, resetsAt: resetsAt,
+                    notStarted: UsageWindow.isNotStarted(usedPercent: used, windowMinutes: kind.minutes, resetsAt: resetsAt, now: now)
                 ))
             }
         }

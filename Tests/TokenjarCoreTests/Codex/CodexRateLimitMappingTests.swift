@@ -119,7 +119,7 @@ struct CodexRateLimitMappingTests {
 
     @Test(arguments: idleCases)
     func notStartedOnlyWhenIdleAndResetIsSynthetic(used: Double, resetIn: TimeInterval, expected: Bool) {
-        #expect(CodexRateLimitMapping.isNotStarted(usedPercent: used, windowMinutes: 300, resetsAt: now.addingTimeInterval(resetIn), now: now) == expected)
+        #expect(UsageWindow.isNotStarted(usedPercent: used, windowMinutes: 300, resetsAt: now.addingTimeInterval(resetIn), now: now) == expected)
     }
 
     /// The `plan_type` values codex 0.162.0 declares (`hc` aside, its meaning is unknown), plus a made-up one for the fallback.

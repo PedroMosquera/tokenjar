@@ -253,6 +253,15 @@ public struct UsageWindow: Codable, Hashable, Sendable, Identifiable {
 
     public static let spendCapID = "spend-cap"
 
+    /// Some backends report an idle window's reset as now + window length; allow this much clock skew.
+    static let notStartedTolerance: TimeInterval = 120
+
+    static func isNotStarted(usedPercent: Double, windowMinutes: Int?, resetsAt: Date?, now: Date) -> Bool {
+        guard usedPercent == 0, let windowMinutes, windowMinutes > 0, let resetsAt else { return false }
+        let syntheticReset = now.addingTimeInterval(Double(windowMinutes) * 60)
+        return abs(resetsAt.timeIntervalSince(syntheticReset)) <= notStartedTolerance
+    }
+
     /// A monthly allowance follows its billing month, so its window is the UTC calendar month ending at the reported
     /// reset: 28 to 31 days. Pace needs that length; nil only when the reset is unknown.
     public static func monthMinutes(endingAt resetsAt: Date?) -> Int? {
