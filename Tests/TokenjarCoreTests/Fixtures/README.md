@@ -2,7 +2,7 @@ Redacted fixtures. Every string that could identify a person or account (emails,
 prompts) is replaced with a placeholder before it lands here. Field names and shapes come from real answers, and the
 numbers in them are made up. Where no real answer could be captured, the fixture is written by hand:
 
-- `Antigravity/`: no answer from a real agy account has been captured, so all five files are written by hand. `usage-camel.json` and `usage-snake.json` follow the field names of CodexBar's agy test fixture.
+- `Antigravity/`: written by hand. `usage-1.5.15.stdout.json` has the shape of a real agy 1.5.15 `/usage` answer with made-up values. `usage-camel.json` and `usage-snake.json` follow the field names of CodexBar's agy test fixture.
 - `Copilot/`: the fixtures follow the shape of gh's filtered answer. Most Copilot plans have not been checked against a
   real account, so their fields follow what VS Code's Copilot extension and CodexBar read.
 - `ProviderHealth/`: public status page answers, which hold no personal data. `claude-console-only.json` is
