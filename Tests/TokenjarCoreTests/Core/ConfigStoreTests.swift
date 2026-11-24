@@ -440,6 +440,18 @@ struct ConfigStoreTests {
         #expect(loaded.merged.accounts[0].showInMenuBar == false)
     }
 
+    /// Removing an account in Settings rewrites config.json only, so this Mac's override for it is left with nothing to apply to.
+    @Test func aLocalOverrideForAnAccountTheSharedFileNoLongerHasIsIgnored() throws {
+        let home = temp.url
+        let paths = AppPaths(home: home)
+        try write(#"{"accounts": [{"id": "claude", "provider": "claude"}]}"#, to: paths.configFile)
+        try write(#"{"accounts": [{"id": "claude", "label": "Personal"}, {"id": "claude-personal", "enabled": false}]}"#, to: paths.localConfigFile)
+
+        let loaded = try #require(try ConfigStore(paths: paths).load())
+        #expect(loaded.merged.accounts.map(\.id) == ["claude"])
+        #expect(loaded.merged.accounts[0].label == "Personal")
+    }
+
     @Test func anOldConfigReadsBudgetsAsUSD() throws {
         let old = try JSONDecoder().decode(AccountConfig.self, from: Data(#"{"id": "claude", "provider": "claude", "monthlyBudget": 100}"#.utf8))
         #expect(old.budgetCurrency == nil)

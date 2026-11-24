@@ -354,6 +354,8 @@ public struct ConfigStore: Sendable {
     }
 
     /// Deep merge, `overlay` wins. `accounts` arrays merge by `id`: matching entries merge field by field, new ones append.
+    /// A new entry without a `provider` is dropped: it overrides an account config.json no longer lists (removed in
+    /// Settings on some Mac), and keeping it would fail the whole load.
     static func merge(_ base: [String: Any], _ overlay: [String: Any]) -> [String: Any] {
         var out = base
         for (key, value) in overlay {
@@ -364,7 +366,7 @@ public struct ConfigStore: Sendable {
                 for account in overlayAccounts {
                     if let id = account["id"] as? String, let index = merged.firstIndex(where: { ($0["id"] as? String) == id }) {
                         merged[index] = merge(merged[index], account)
-                    } else {
+                    } else if account["provider"] != nil {
                         merged.append(account)
                     }
                 }
