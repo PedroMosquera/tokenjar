@@ -32,13 +32,69 @@ struct PaceVerdictTests {
     @Test func projectedExhaustionPastHalfReportsTheGap() throws {
         // 88 % after 250 of 300 minutes: 100 % lands at about 34 m, the reset is in 50 m.
         let verdict = try #require(PaceVerdict.make(windows: [window("session", "5-hour", used: 88, resetIn: 50 * 60)], config: MenuBarConfig(), now: now))
-        guard case .runsOut(let gap) = verdict.kind else {
+        guard case .runsOut(let gap, let at) = verdict.kind else {
             Issue.record("expected runsOut, got \(verdict.kind)")
             return
         }
         #expect(abs(gap - 954.5) < 1)
-        #expect(verdict.text == "Runs out ~15m before reset")
+        #expect(verdict.text == "Runs out \(Format.clockTime(at, now: now)), ~15m before reset")
         #expect(verdict.window.label == "5-hour")
+    }
+
+    @Test func runsOutNamesClockTime_AC_1() throws {
+        let session = window("session", "5-hour", used: 88, resetIn: 50 * 60)
+        let verdict = try #require(PaceVerdict.make(windows: [session], config: MenuBarConfig(), now: now))
+        guard case .runsOut(let gap, let at) = verdict.kind else {
+            Issue.record("expected runsOut, got \(verdict.kind)")
+            return
+        }
+        let exhaustion = try #require(Pace.compute(session, now: now)?.secondsToExhaustion)
+        #expect(at == now.addingTimeInterval(exhaustion))
+        #expect(verdict.now == now)
+        let clock = Format.clockTime(at, now: verdict.now)
+        #expect(verdict.text == "Runs out \(clock), ~\(Format.duration(gap)) before reset")
+    }
+
+    @Test func runsOutFarAheadNamesTheWeekdayClock_AC_1() throws {
+        let week = window("weekly", "Week", used: 71, minutes: 10_080, resetIn: 3 * 86_400 + 6 * 3_600)
+        let verdict = try #require(PaceVerdict.make(windows: [week], config: MenuBarConfig(), now: now))
+        guard case .runsOut(let gap, let at) = verdict.kind else {
+            Issue.record("expected runsOut, got \(verdict.kind)")
+            return
+        }
+        #expect(at > now.addingTimeInterval(86_400))
+        #expect(verdict.text == "Runs out \(Format.clockTime(at, now: now)), ~\(Format.duration(gap)) before reset")
+    }
+
+    /// Noon local time keeps the 34-minute run-out on today's date in any time zone the suite runs in.
+    @Test func sameDayRunOutReadsRunsOutAtButExtraUsageFrom_AC_1() throws {
+        let noon = try #require(Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: now))
+        func session(_ style: LimitStyle?) -> UsageWindow {
+            UsageWindow(id: "session", label: "5-hour", usedPercent: 88, windowMinutes: 300, resetsAt: noon.addingTimeInterval(50 * 60), limitStyle: style)
+        }
+        func verdict(_ style: LimitStyle?) throws -> PaceVerdict {
+            try #require(PaceVerdict.make(windows: [session(style)], config: MenuBarConfig(), now: noon))
+        }
+        let eta = try #require(Pace.compute(session(nil), now: noon)?.secondsToExhaustion)
+        let time = DateFormatter()
+        time.dateStyle = .none
+        time.timeStyle = .short
+        let clock = time.string(from: noon.addingTimeInterval(eta))
+        let runsOut = try verdict(nil), credits = try verdict(.credits)
+        #expect(runsOut.text == "Runs out at \(clock), ~15m before reset")
+        #expect(runsOut.spokenText == "Runs out at \(clock), about 15 minutes before reset")
+        #expect(credits.text == "Extra usage from \(clock), ~15m before reset")
+        #expect(credits.spokenText == "Extra usage from \(clock), about 15 minutes before reset")
+    }
+
+    @Test func spokenRunOutSpeaksTheClockTime_AC_2() throws {
+        let verdict = try #require(PaceVerdict.make(windows: [window("session", "5-hour", used: 88, resetIn: 50 * 60)], config: MenuBarConfig(), now: now))
+        guard case .runsOut(let gap, let at) = verdict.kind else {
+            Issue.record("expected runsOut, got \(verdict.kind)")
+            return
+        }
+        let clock = Format.clockTime(at, now: now, spoken: true)
+        #expect(verdict.spokenText == "Runs out \(clock), about \(Format.spokenDuration(gap)) before reset")
     }
 
     /// A spend limit can be passed: past 100 % it says how far over, not that the limit stops the work.
@@ -72,7 +128,8 @@ struct PaceVerdictTests {
         filling.usedPercent = 88
         filling.windowMinutes = 300
         filling.resetsAt = now.addingTimeInterval(50 * 60)
-        #expect(try #require(PaceVerdict.make(windows: [filling], config: MenuBarConfig(), now: now)).text == "Extra usage from ~15m before reset")
+        let fillingText = try #require(PaceVerdict.make(windows: [filling], config: MenuBarConfig(), now: now)).text
+        #expect(fillingText.hasPrefix("Extra usage from ") && fillingText.hasSuffix(", ~15m before reset"))
     }
 
     @Test func aUsedUpCapBesideAPlanSaysThePlanStillServes() throws {
@@ -117,7 +174,7 @@ struct PaceVerdictTests {
         ]
         let verdict = try #require(PaceVerdict.make(windows: windows, config: MenuBarConfig(), now: now))
         #expect(verdict.window.label == "5-hour")
-        #expect(verdict.text == "Runs out ~50m before reset")
+        #expect(verdict.text.hasPrefix("Runs out ") && verdict.text.hasSuffix(", ~50m before reset"))
     }
 
     @Test func aFullWindowOutranksOneThatRunsOut() throws {
@@ -151,7 +208,7 @@ struct PaceVerdictTests {
         ]
         let verdict = try #require(PaceVerdict.make(windows: windows, config: MenuBarConfig(), now: now))
         #expect(verdict.window.label == "5-hour")
-        #expect(verdict.text == "Runs out ~50m before reset")
+        #expect(verdict.text.hasPrefix("Runs out ") && verdict.text.hasSuffix(", ~50m before reset"))
     }
 
     /// A week locked out for 41 hours explains an orange Week bar; a 5-hour that runs out 15 minutes early does not.
@@ -162,7 +219,7 @@ struct PaceVerdictTests {
         ]
         let verdict = try #require(PaceVerdict.make(windows: windows, config: MenuBarConfig(), now: now))
         #expect(verdict.window.label == "Week")
-        guard case .runsOut(let gap) = verdict.kind else {
+        guard case .runsOut(let gap, _) = verdict.kind else {
             Issue.record("expected runsOut, got \(verdict.kind)")
             return
         }
@@ -171,10 +228,10 @@ struct PaceVerdictTests {
 
     @Test func aRunOutVerdictIsAtLeastAWarning() {
         let calm = window("session", "5-hour", used: 40, resetIn: 150 * 60)
-        #expect(PaceVerdict(window: calm, kind: .runsOut(1_000)).severity(config: MenuBarConfig(), now: now) == .warning)
-        #expect(PaceVerdict(window: calm, kind: .ahead(20)).severity(config: MenuBarConfig(), now: now) == .ok)
+        #expect(PaceVerdict(window: calm, kind: .runsOut(1_000, at: now), now: now).severity(config: MenuBarConfig(), now: now) == .warning)
+        #expect(PaceVerdict(window: calm, kind: .ahead(20), now: now).severity(config: MenuBarConfig(), now: now) == .ok)
         let full = window("session", "5-hour", used: 100, resetIn: 25 * 60)
-        #expect(PaceVerdict(window: full, kind: .exhausted(1_500)).severity(config: MenuBarConfig(), now: now) == .critical)
+        #expect(PaceVerdict(window: full, kind: .exhausted(1_500), now: now).severity(config: MenuBarConfig(), now: now) == .critical)
     }
 
     /// A card with one window already names it in the row above; with several the name leads, so a wrap never starts
@@ -769,6 +826,48 @@ struct BurnUpChartTests {
         #expect(BurnUpChart.blockedSpan(window: nearly, points: points) == nil)
     }
 
+    private func runOutFixture() -> (week: UsageWindow, points: [BurnUpChart.Point], exhaustion: Date) {
+        let week = window("weekly", "Week", used: 60, minutes: 10_080, resetIn: 3 * 86_400)
+        let points = [BurnUpChart.Point(date: now.addingTimeInterval(-4 * 86_400), used: 0), BurnUpChart.Point(date: now, used: 60)]
+        return (week, points, now.addingTimeInterval(2 * 86_400))
+    }
+
+    @Test func runOutProjectionDrawsToExhaustion_AC_4() {
+        let (week, points, exhaustion) = runOutFixture()
+        let verdict = PaceVerdict(window: week, kind: .runsOut(86_400, at: exhaustion), now: now)
+        #expect(BurnUpChart.projection(verdict: verdict, window: week, points: points)
+            == BurnUpChart.Projection(from: points[1], exhaustion: exhaustion, resetsAt: week.resetsAt!))
+    }
+
+    @Test func noProjectionUnlessTheVerdictRunsOut_AC_4() {
+        let (week, points, _) = runOutFixture()
+        for kind in [PaceVerdict.Kind.ahead(10), .onPace, .exhausted(3 * 86_400)] {
+            #expect(BurnUpChart.projection(verdict: PaceVerdict(window: week, kind: kind, now: now), window: week, points: points) == nil)
+        }
+        #expect(BurnUpChart.projection(verdict: nil, window: week, points: points) == nil)
+    }
+
+    @Test func noProjectionForAnotherWindowsRunOut_AC_4() {
+        let (week, points, exhaustion) = runOutFixture()
+        let session = window("session", "Session", used: 60, minutes: 300, resetIn: 3_600)
+        let verdict = PaceVerdict(window: session, kind: .runsOut(1_800, at: exhaustion), now: now)
+        #expect(BurnUpChart.projection(verdict: verdict, window: week, points: points) == nil)
+    }
+
+    @Test func noProjectionWithoutPoints_AC_4() {
+        let (week, _, exhaustion) = runOutFixture()
+        let verdict = PaceVerdict(window: week, kind: .runsOut(86_400, at: exhaustion), now: now)
+        #expect(BurnUpChart.projection(verdict: verdict, window: week, points: []) == nil)
+    }
+
+    @Test func noProjectionWhenExhaustionIsNotBeforeTheReset_AC_4() {
+        let (week, points, _) = runOutFixture()
+        for at in [week.resetsAt!, week.resetsAt!.addingTimeInterval(3_600)] {
+            let verdict = PaceVerdict(window: week, kind: .runsOut(86_400, at: at), now: now)
+            #expect(BurnUpChart.projection(verdict: verdict, window: week, points: points) == nil)
+        }
+    }
+
     @Test func aWeekNamesEveryDayAndAMonthOnlyEnoughToFit() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
@@ -903,16 +1002,26 @@ struct StatusIconRendererTests {
 
     /// The number is the tightest window's, so an amber mark at 75 % needs the window whose projection colored it.
     @Test func aProjectionNamesTheWindowThatColorsTheMark() {
+        let at = now.addingTimeInterval(100 * 60)
         var projected = entry("a", used: 75, severity: .warning)
         projected.tightest = window("weekly", "Week", used: 75, minutes: 10_080, resetIn: 86_400)
-        projected.cause = PaceVerdict(window: window("session", "5-hour", used: 60, resetIn: 150 * 60), kind: .runsOut(50 * 60))
+        projected.cause = PaceVerdict(window: window("session", "5-hour", used: 60, resetIn: 150 * 60), kind: .runsOut(50 * 60, at: at), now: now)
         let rendered = StatusIconRenderer.render(state([projected]))
-        #expect(rendered.image?.accessibilityDescription == "Tokenjar, Claude Week 75% used, 5-hour runs out about 50 minutes before reset")
-        #expect(rendered.toolTip == "Claude · a: Week 75%, resets in 1d; 5-hour runs out ~50m before reset")
+        #expect(rendered.image?.accessibilityDescription == "Tokenjar, Claude Week 75% used, 5-hour runs out \(Format.clockTime(at, now: now, spoken: true)), about 50 minutes before reset")
+        #expect(rendered.toolTip == "Claude · a: Week 75%, resets in 1d; 5-hour runs out \(Format.clockTime(at, now: now)), ~50m before reset")
 
         var itself = entry("a", used: 60, severity: .warning, resetIn: 150 * 60)
-        itself.cause = PaceVerdict(window: itself.tightest!, kind: .runsOut(50 * 60))
-        #expect(StatusIconRenderer.render(state([itself])).toolTip == "Claude · a: 5-hour 60%, resets in 2h 30m; runs out ~50m before reset")
+        itself.cause = PaceVerdict(window: itself.tightest!, kind: .runsOut(50 * 60, at: at), now: now)
+        #expect(StatusIconRenderer.render(state([itself])).toolTip == "Claude · a: 5-hour 60%, resets in 2h 30m; runs out \(Format.clockTime(at, now: now)), ~50m before reset")
+    }
+
+    @Test func theMenuBarTooltipAndLabelNameTheClockTime_AC_3() {
+        let at = now.addingTimeInterval(100 * 60)
+        var itself = entry("a", used: 60, severity: .warning, resetIn: 150 * 60)
+        itself.cause = PaceVerdict(window: itself.tightest!, kind: .runsOut(50 * 60, at: at), now: now)
+        let rendered = StatusIconRenderer.render(state([itself]))
+        #expect(rendered.toolTip == "Claude · a: 5-hour 60%, resets in 2h 30m; runs out \(Format.clockTime(at, now: now)), ~50m before reset")
+        #expect(rendered.image?.accessibilityDescription?.contains("runs out \(Format.clockTime(at, now: now, spoken: true)), about 50 minutes before reset") == true)
     }
 
     @Test(arguments: [MenuBarIcon.markMana, .logoClaude, .symbolBrain])

@@ -140,7 +140,7 @@ struct MenuBarStateTests {
         #expect(state.entries.first?.severity == .warning)
         #expect(state.entries.first?.cause?.window.id == "session")
         let tip = StatusIconRenderer.toolTip(for: state)
-        #expect(tip == "Claude · Personal: weekly 75%, resets in 1d; session runs out ~50m before reset")
+        #expect(tip.hasPrefix("Claude · Personal: weekly 75%, resets in 1d; session runs out ") && tip.hasSuffix(", ~50m before reset"))
         let rendered = StatusIconRenderer.render(state)
         #expect(rendered.title == "75%")
         #expect(color(rendered) == .systemOrange)

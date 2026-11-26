@@ -40,7 +40,7 @@ struct MonthCostLineTests {
         let rows = [row(day(10, 1), cost: 4.5), row(day(10, 10), cost: 7.9), row(day(9, 30), cost: 100)]
         // 9 days 15.5 hours of October's 31 days have passed: $12.40 at that rate is about $40 by the 31st.
         #expect(text(.payAsYouGo, rows) == MonthCostLine.Lines(
-            amounts: "$12.40 this month · $7.90 today", detail: "On pace for ~$40 this month, estimate at list price"
+            amounts: "$12.40 this month · $7.90 today", detail: "On pace for ~$40 this month, this Mac's estimate at list price"
         ))
     }
 
@@ -49,7 +49,7 @@ struct MonthCostLineTests {
         let rows = [row(day(10, 1), cost: 4.5), row(day(10, 10), cost: 7.9)]
         // $12.40, $7.90 and the ~$40 pace at 0.92 euro per dollar.
         #expect(text(.payAsYouGo, rows, currency: euro) == MonthCostLine.Lines(
-            amounts: "€11.41 this month · €7.27 today", detail: "On pace for ~€37 this month, estimate at list price"
+            amounts: "€11.41 this month · €7.27 today", detail: "On pace for ~€37 this month, this Mac's estimate at list price"
         ))
     }
 
@@ -61,7 +61,7 @@ struct MonthCostLineTests {
     @Test func theFirstHoursOfAMonthMakeNoProjection() {
         let early = Self.calendar.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: 10))!
         #expect(text(.payAsYouGo, [row(day(10, 1), cost: 3)], now: early) == MonthCostLine.Lines(
-            amounts: "$3 this month · $3 today", detail: "Estimate at list price"
+            amounts: "$3 this month · $3 today", detail: "This Mac's estimate at list price"
         ))
     }
 
@@ -70,9 +70,27 @@ struct MonthCostLineTests {
         let budgeted = MonthlyBudget.apply(200, spent: 12.4, to: snapshot(billing: .payAsYouGo), now: now, calendar: Self.calendar)
         let rows = [row(day(10, 1), cost: 4.5), row(day(10, 10), cost: 7.9)]
         #expect(MonthCostLine.text(snapshot: budgeted, rows: rows, now: now, calendar: Self.calendar, locale: locale)
-            == MonthCostLine.Lines(amounts: "$7.90 today", detail: "Estimate at list price"))
+            == MonthCostLine.Lines(amounts: "$7.90 today", detail: "This Mac's estimate at list price"))
         #expect(MonthCostLine.text(snapshot: budgeted, rows: [row(day(10, 1), cost: 4.5)], now: now, calendar: Self.calendar, locale: locale)
-            == MonthCostLine.Lines(amounts: nil, detail: "Estimate at list price"))
+            == MonthCostLine.Lines(amounts: nil, detail: "This Mac's estimate at list price"))
+    }
+
+    @Test func theEstimateSaysItIsThisMacsAndOnPaceCarriesTheSame_AC_7() {
+        let rows = [row(day(10, 1), cost: 4.5), row(day(10, 10), cost: 7.9)]
+        #expect(text(.payAsYouGo, rows)?.detail == "On pace for ~$40 this month, this Mac's estimate at list price")
+        let early = Self.calendar.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: 10))!
+        #expect(text(.payAsYouGo, [row(day(10, 1), cost: 3)], now: early)?.detail == "This Mac's estimate at list price")
+    }
+
+    @Test func theEstimateKeptUnderAMonthlyBudgetSaysItIsThisMacs_AC_7() {
+        let budgeted = MonthlyBudget.apply(200, spent: 12.4, to: snapshot(billing: .payAsYouGo), now: now, calendar: Self.calendar)
+        let lines = MonthCostLine.text(snapshot: budgeted, rows: [row(day(10, 10), cost: 7.9)], now: now, calendar: Self.calendar, locale: locale)
+        #expect(lines?.detail == "This Mac's estimate at list price")
+    }
+
+    @Test func unpricedModelsStayNamedAfterThisMacsEstimate_AC_7() {
+        #expect(text(.payAsYouGo, [row(day(10, 2), cost: 2), row(day(10, 3), cost: nil)])?.detail
+            == "On pace for ~$6 this month, this Mac's estimate at list price, some models unpriced")
     }
 
     @Test func aPlanLoginShowsNoCostLine() {
@@ -86,7 +104,7 @@ struct MonthCostLineTests {
 
     @Test func unpricedModelsAreNamedNotCountedAsFree() {
         #expect(text(.payAsYouGo, [row(day(10, 2), cost: 2), row(day(10, 3), cost: nil)])?.detail
-            == "On pace for ~$6 this month, estimate at list price, some models unpriced")
+            == "On pace for ~$6 this month, this Mac's estimate at list price, some models unpriced")
         #expect(text(.payAsYouGo, [row(day(10, 3), cost: nil)]) == MonthCostLine.Lines(
             amounts: "No list price for the models used this month", detail: nil
         ))

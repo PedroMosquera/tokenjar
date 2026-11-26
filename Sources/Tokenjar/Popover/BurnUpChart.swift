@@ -4,9 +4,9 @@ import TokenjarCore
 
 /// Used % over the current cycle of one window against the even-pace diagonal from 0 at the cycle
 /// start to 100 at the reset. Points above the dashed line are ahead of pace. At the limit a band covers the time left
-/// until the reset.
+/// until the reset; a window projected to run out gets a dotted line to 100 % and the same band from then on.
 struct BurnUpChart: View {
-    struct Point: Identifiable {
+    struct Point: Identifiable, Equatable {
         var date: Date
         var used: Double
         var id: Date { date }
@@ -19,6 +19,7 @@ struct BurnUpChart: View {
     /// The window's name, only where nothing nearby names it.
     var caption: String?
     var isDimmed = false
+    var projection: Projection?
 
     /// Explicit State storage: the SDK's @State is a macro whose plugin ships only with Xcode.
     private let hoverState = State<Date?>(initialValue: nil)
@@ -72,6 +73,18 @@ struct BurnUpChart: View {
         return from...resetsAt
     }
 
+    struct Projection: Equatable {
+        var from: Point
+        var exhaustion: Date
+        var resetsAt: Date
+    }
+
+    static func projection(verdict: PaceVerdict?, window: UsageWindow, points: [Point]) -> Projection? {
+        guard let verdict, verdict.window.id == window.id, case .runsOut(_, let at) = verdict.kind,
+              let from = points.last, let resetsAt = window.resetsAt, resetsAt > at else { return nil }
+        return Projection(from: from, exhaustion: at, resetsAt: resetsAt)
+    }
+
     /// What fits under a popover-wide plot without labels touching.
     static let maxAxisLabels = 8
 
@@ -119,21 +132,23 @@ struct BurnUpChart: View {
     private var plot: some View {
         let end = window.resetsAt ?? start
         let top = max(100, points.map(\.used).max() ?? 0)
-        let blocked = Self.blockedSpan(window: window, points: points)
+        // At most one applies: a run-out verdict needs the window under its limit.
+        let band = Self.blockedSpan(window: window, points: points) ?? projection.map { $0.exhaustion...$0.resetsAt }
         let axis = Self.timeAxis(start: start, end: end)
         return Chart {
             RuleMark(y: .value("Used", 100))
                 .foregroundStyle(Color(nsColor: .separatorColor))
                 .lineStyle(StrokeStyle(lineWidth: 0.5))
-            if let blocked {
+            if let band {
                 RectangleMark(
-                    xStart: .value("Time", blocked.lowerBound), xEnd: .value("Time", blocked.upperBound),
+                    xStart: .value("Time", band.lowerBound), xEnd: .value("Time", band.upperBound),
                     yStart: .value("Used", 0), yEnd: .value("Used", top)
                 )
                 .foregroundStyle(tint.opacity(0.1))
                 .annotation(position: .overlay) {
-                    // Under about a seventh of the cycle the band is narrower than the word.
-                    if blocked.upperBound.timeIntervalSince(blocked.lowerBound) >= end.timeIntervalSince(start) / 7 {
+                    // Under about a seventh of the cycle the band is narrower than the word. A credits window moves onto
+                    // extra usage at its limit instead of stopping.
+                    if window.limitStyle != .credits, band.upperBound.timeIntervalSince(band.lowerBound) >= end.timeIntervalSince(start) / 7 {
                         Text("Blocked")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -146,6 +161,14 @@ struct BurnUpChart: View {
             LineMark(x: .value("Time", end), y: .value("Used", 100), series: .value("Series", "pace"))
                 .foregroundStyle(Color.secondary)
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            if let projection {
+                LineMark(x: .value("Time", projection.from.date), y: .value("Used", projection.from.used), series: .value("Series", "projection"))
+                    .foregroundStyle(tint)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0, 3.5]))
+                LineMark(x: .value("Time", projection.exhaustion), y: .value("Used", 100), series: .value("Series", "projection"))
+                    .foregroundStyle(tint)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0, 3.5]))
+            }
             ForEach(points) { point in
                 AreaMark(x: .value("Time", point.date), y: .value("Used", point.used))
                     .foregroundStyle(LinearGradient(colors: [tint.opacity(0.28), tint.opacity(0.04)], startPoint: .top, endPoint: .bottom))

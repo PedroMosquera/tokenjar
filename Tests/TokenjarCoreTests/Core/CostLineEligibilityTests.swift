@@ -60,8 +60,8 @@ struct CostLineEligibilityTests {
         #expect(CostLine.source(for: snapshot(.codex, .payAsYouGo)) == .history)
         #expect(CostLine.source(for: snapshot(.claude, .payAsYouGo)) == .history)
         #expect(CostLine.source(for: snapshot(.claude, .usageBased, money: spend)) == .history)
-        #expect(CostLine.label(for: snapshot(.claude, .payAsYouGo)) == "estimate at list price")
-        #expect(CostLine.label(for: snapshot(.codex, .payAsYouGo)) == "estimate at list price")
+        #expect(CostLine.label(for: snapshot(.claude, .payAsYouGo)) == "this Mac's estimate at list price")
+        #expect(CostLine.label(for: snapshot(.codex, .payAsYouGo)) == "this Mac's estimate at list price")
     }
 
     /// History is summed per local calendar month; a provider's own figure covers whatever cycle it bills on.

@@ -8,7 +8,7 @@ enum MonthCostLine {
         /// "$12.40 this month · $7.90 today", or why there is no amount. Beside a budget bar only today's amount, nil
         /// with nothing priced today.
         var amounts: String?
-        /// "On pace for ~$40 this month, estimate at list price"; nil when `amounts` has no amount.
+        /// "On pace for ~$40 this month, this Mac's estimate at list price"; nil when `amounts` has no amount.
         var detail: String?
     }
 

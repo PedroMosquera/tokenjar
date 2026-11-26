@@ -50,6 +50,10 @@ struct CostSectionTests {
         ]
     }
 
+    @Test func theCollapsedRowSaysTheValueIsThisMacs_AC_7() {
+        #expect(CostSectionText.collapsedLabel == "API value · this Mac")
+    }
+
     @Test func theRowShowsTodayAndThePlanMultiple() throws {
         let content = try #require(make(month, planPrice: max5x))
         #expect(content.today == "$20.25")

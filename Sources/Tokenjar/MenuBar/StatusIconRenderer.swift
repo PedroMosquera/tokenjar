@@ -111,7 +111,7 @@ enum StatusIconRenderer {
             + notes.map { ", " + $0 }.joined()
     }
 
-    /// "5-hour runs out ~50m before reset", without the window's name when it is the one whose number is shown.
+    /// "5-hour runs out at 14:30, ~50m before reset", without the window's name when it is the one whose number is shown.
     private static func causeClause(_ cause: PaceVerdict, tightest: UsageWindow?, spoken: Bool) -> String {
         let text = spoken ? cause.spokenText : cause.text
         let clause = text.prefix(1).lowercased() + text.dropFirst()

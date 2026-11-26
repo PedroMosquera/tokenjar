@@ -199,8 +199,8 @@ struct PaceVerdict: Equatable {
         case ahead(Double)
         /// Points of used % below an even pace.
         case under(Double)
-        /// Seconds between projected exhaustion and the reset.
-        case runsOut(TimeInterval)
+        /// Seconds between projected exhaustion and the reset, and the projected exhaustion date.
+        case runsOut(TimeInterval, at: Date)
         /// Already at 100 %; seconds until the reset.
         case exhausted(TimeInterval)
         /// At or past 100 % of a limit that lets use go on (`.overage`); points over 100.
@@ -220,13 +220,15 @@ struct PaceVerdict: Equatable {
         }
 
         fileprivate var lockout: TimeInterval {
-            if case .runsOut(let gap) = self { return gap }
+            if case .runsOut(let gap, _) = self { return gap }
             return 0
         }
     }
 
     var window: UsageWindow
     var kind: Kind
+    /// The reference for "today" when the verdict names a clock time.
+    var now: Date
 
     /// Deltas inside this band read as "On pace"; smaller ones are noise from sampling and rounding.
     static let tolerance = 5.0
@@ -238,7 +240,7 @@ struct PaceVerdict: Equatable {
     static func make(windows: [UsageWindow], config: MenuBarConfig, now: Date) -> PaceVerdict? {
         let judged = windows.filter { $0.usedPercent >= 1 }.compactMap { window in
             Pace.compute(window, now: now).map { pace in
-                (verdict: PaceVerdict(window: window, kind: kind(of: window, pace: pace)), severity: Severity.of(window, config: config, now: now))
+                (verdict: PaceVerdict(window: window, kind: kind(of: window, pace: pace, now: now), now: now), severity: Severity.of(window, config: config, now: now))
             }
         }
         return judged.max { a, b in
@@ -247,7 +249,7 @@ struct PaceVerdict: Equatable {
         }?.verdict
     }
 
-    private static func kind(of window: UsageWindow, pace: Pace) -> Kind {
+    private static func kind(of window: UsageWindow, pace: Pace, now: Date) -> Kind {
         if window.usedPercent >= 100 {
             if window.isFull { return .exhausted(pace.secondsToReset) }
             switch window.limitStyle {
@@ -258,7 +260,7 @@ struct PaceVerdict: Equatable {
         }
         if pace.runsOutBeforeReset, window.usedPercent >= 50, pace.fractionElapsed >= 0.1,
            let eta = pace.secondsToExhaustion, pace.secondsToReset - eta >= 15 * 60 {
-            return .runsOut(pace.secondsToReset - eta)
+            return .runsOut(pace.secondsToReset - eta, at: now.addingTimeInterval(eta))
         }
         if pace.delta >= tolerance { return .ahead(pace.delta) }
         if pace.delta <= -tolerance { return .under(-pace.delta) }
@@ -273,18 +275,18 @@ struct PaceVerdict: Equatable {
         }
     }
 
-    var text: String { phrase(duration: Format.duration, about: "~") }
+    var text: String { phrase(duration: Format.duration, about: "~", spoken: false) }
 
-    /// `text` with the units spelled out, for VoiceOver.
-    var spokenText: String { phrase(duration: Format.spokenDuration, about: "about ") }
+    /// `text` with the units, weekday and month spelled out, for VoiceOver.
+    var spokenText: String { phrase(duration: Format.spokenDuration, about: "about ", spoken: true) }
 
-    private func phrase(duration: (TimeInterval) -> String, about: String) -> String {
+    private func phrase(duration: (TimeInterval) -> String, about: String, spoken: Bool) -> String {
         switch kind {
         case .onPace: "On pace"
         case .ahead(let points): "Ahead of pace +\(Format.percent(points))"
         case .under(let points): "Under pace -\(Format.percent(points))"
-        case .runsOut(let gap):
-            window.limitStyle == .credits ? "Extra usage from \(about)\(duration(gap)) before reset" : "Runs out \(about)\(duration(gap)) before reset"
+        case .runsOut(let gap, let at):
+            "\(window.limitStyle == .credits ? "Extra usage from" : "Runs out") \(Format.clockTime(at, now: now, spoken: spoken, atToday: window.limitStyle != .credits)), \(about)\(duration(gap)) before reset"
         case .exhausted(let untilReset): "Limit reached, resets in \(duration(untilReset))"
         case .overLimit(let points): points < 0.5 ? "At the limit" : "Over the limit +\(Format.percent(points))"
         case .onCredits(let untilReset): "On extra usage, resets in \(duration(untilReset))"

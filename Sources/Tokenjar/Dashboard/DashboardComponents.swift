@@ -71,7 +71,7 @@ struct KPITile: View {
 }
 
 extension PaceVerdict {
-    /// `text` as the second clause of a sentence: "runs out ~15m before reset".
+    /// `text` as the second clause of a sentence: "runs out at 14:30, ~15m before reset".
     var clause: String { text.prefix(1).lowercased() + text.dropFirst() }
 }
 

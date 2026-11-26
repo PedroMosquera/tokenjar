@@ -106,7 +106,7 @@ private struct AccountRow: View {
 struct SidebarBadge: Equatable {
     var percent: String
     var severity: Severity
-    /// The most urgent window and its verdict, for the tooltip and VoiceOver: "Month 61%, runs out ~11h 48m before reset".
+    /// The most urgent window and its verdict, for the tooltip and VoiceOver: "Month 61%, runs out Sat 01:47, ~11h 48m before reset".
     var detail: String
 
     /// nil when no window is live, so the row can show the account's error instead.

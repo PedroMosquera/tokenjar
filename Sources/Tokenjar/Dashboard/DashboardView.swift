@@ -189,7 +189,7 @@ private struct DashboardDetail: View {
         } else {
             value = Format.money(0, currency: content.currency.code)
         }
-        return KPITile(title: "Cost · \(title)", value: value, caption: detail, isEstimate: cost.isEstimate, valueStyle: style)
+        return KPITile(title: "Cost · \(title)", value: value, caption: detail, isEstimate: cost.isEstimate, valueStyle: style, help: CostTileHelp.logs())
     }
 
     /// Says "estimate" wherever the cost tiles do, so a subscription's projection never reads as a bill.
@@ -201,11 +201,12 @@ private struct DashboardDetail: View {
             monthToDate: content.costThisMonth.amount, lastMonth: lastMonth.hasCost ? lastMonth.amount : nil,
             now: periods.now, calendar: periods.calendar
         )
-        var help = "API-equivalent estimate, not a bill: \(month)'s cost so far at its average daily rate, over the whole month"
         // History that begins partway through last month makes the change look larger, so the base is named.
-        if lastMonth.hasCost {
-            help += ". \(periods.lastMonth.formatted(.dateTime.month(.wide))) in Tokenjar's history: \(Format.money(lastMonth.amount, currency: content.currency.code))"
-        }
+        let help = CostTileHelp.projected(
+            month: month,
+            lastMonth: lastMonth.hasCost
+                ? "\(periods.lastMonth.formatted(.dateTime.month(.wide))) in Tokenjar's history: \(Format.money(lastMonth.amount, currency: content.currency.code))" : nil
+        )
         let cost = content.costThisMonth
         if cost.hasUsage, !cost.hasCost {
             return KPITile(title: "Cost · Projected", value: "No prices", caption: "models unpriced", valueStyle: .secondary, help: help)
@@ -632,7 +633,7 @@ enum DailySplit: Hashable {
 
 /// What a window tile says beyond what it draws: its VoiceOver value and its tooltip.
 enum WindowTileText {
-    /// "88% used, resets in 50 minutes, runs out ~15m before reset".
+    /// "88% used, resets in 50 minutes, runs out at 14:30, ~15m before reset".
     static func accessibilityValue(_ window: UsageWindow, config: MenuBarConfig, now: Date) -> String {
         if window.notStarted { return "not started" }
         if window.hasReset(now: now) { return "reset, updating" }
@@ -657,5 +658,17 @@ enum WindowTileText {
         guard let verdict = PaceVerdict.make(windows: [window], config: config, now: now) else { return nil }
         if case .exhausted = verdict.kind { return nil }
         return verdict
+    }
+}
+
+/// The cost tiles' tooltips. They name this Mac because its logs alone are priced, so another Mac shows other figures.
+enum CostTileHelp {
+    static func logs() -> String { "From this Mac's logs at API list price." }
+
+    /// `lastMonth` is the formatted note on last month's cost, such as "September in Tokenjar's history: $90.00".
+    static func projected(month: String, lastMonth: String?) -> String {
+        var help = "API-equivalent estimate, not a bill: \(month)'s cost so far at its average daily rate, over the whole month."
+        if let lastMonth { help += " \(lastMonth)." }
+        return help + " " + logs()
     }
 }

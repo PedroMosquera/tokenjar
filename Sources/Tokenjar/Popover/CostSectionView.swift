@@ -2,6 +2,11 @@ import Charts
 import SwiftUI
 import TokenjarCore
 
+enum CostSectionText {
+    /// Names this Mac because the figure comes from its logs alone, so another Mac shows a different one.
+    static let collapsedLabel = "API value · this Mac"
+}
+
 /// The API value section of a plan card: one clickable line, and inside it tiles, 30 daily bars and the footer.
 struct CostSectionView: View {
     @Environment(AppModel.self) private var model
@@ -23,7 +28,7 @@ struct CostSectionView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(isOpen ? 90 : 0))
-                    Text("API value")
+                    Text(CostSectionText.collapsedLabel)
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 8)
                     trailing
@@ -35,7 +40,7 @@ struct CostSectionView: View {
             }
             .buttonStyle(.plain)
             .help(isOpen ? "Hide the API value details" : "Show the API value details")
-            .accessibilityLabel("API value")
+            .accessibilityLabel("API value, this Mac")
             .accessibilityValue("\(content.today) today, \(content.trailing)")
             .accessibilityHint(isOpen ? "Hides the details" : "Shows the details")
 

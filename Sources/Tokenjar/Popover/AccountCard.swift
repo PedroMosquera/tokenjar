@@ -272,7 +272,7 @@ private struct SnapshotBody: View {
                 VerdictLine(verdict: verdict, severity: verdict.severity(config: model.config.menuBar, now: now), showsWindow: namesWindow)
                     .font(.callout)
             }
-            chart(now: now, verdictWindowID: verdict?.window.id, namesWindow: namesWindow)
+            chart(now: now, verdict: verdict, namesWindow: namesWindow)
             if !moneyRows.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(moneyRows.enumerated()), id: \.offset) { _, line in
@@ -324,11 +324,11 @@ private struct SnapshotBody: View {
     }
 
     @ViewBuilder
-    private func chart(now: Date, verdictWindowID: String?, namesWindow: Bool) -> some View {
+    private func chart(now: Date, verdict: PaceVerdict?, namesWindow: Bool) -> some View {
         // A window past its reset would chart the cycle that just ended. A spend limit's bar, pace mark and verdict
         // already say what its month line would, and the dashboard charts its spend.
         let live = snapshot.windows.filter { !$0.hasReset(now: now) && $0.id != UsageWindow.spendCapID }
-        if let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdictWindowID), let start = BurnUpChart.cycleStart(of: window) {
+        if let window = BurnUpChart.chartWindow(in: live, verdictWindowID: verdict?.window.id), let start = BurnUpChart.cycleStart(of: window) {
             let samples = burnUps.samples(accountID: account.id, windowID: window.id, start: start, end: window.resetsAt ?? now, revision: model.historyRevision) {
                 model.samples(accountID: account.id, windowID: window.id, since: start)
             }
@@ -336,7 +336,8 @@ private struct SnapshotBody: View {
             if BurnUpChart.isWorthDrawing(points, start: start, end: window.resetsAt ?? now) {
                 BurnUpChart(
                     window: window, start: start, points: points, tint: Severity.of(window, config: model.config.menuBar, now: now).color,
-                    caption: namesWindow && window.id != verdictWindowID ? window.label : nil, isDimmed: isStale
+                    caption: namesWindow && window.id != verdict?.window.id ? window.label : nil, isDimmed: isStale,
+                    projection: BurnUpChart.projection(verdict: verdict, window: window, points: points)
                 )
             }
         }

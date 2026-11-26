@@ -9,6 +9,27 @@ enum Format {
         return "\(Int(value.rounded()))%"
     }
 
+    /// "at 14:30" on `now`'s calendar day (bare "14:30" without `atToday`), "Sat 01:47" up to six days on, "30 Nov 01:47"
+    /// from seven. The time follows the locale's 12h or 24h clock and the calendar's time zone; `spoken` spells out the weekday and month.
+    static func clockTime(
+        _ date: Date, now: Date, spoken: Bool = false, atToday: Bool = true, locale: Locale = .current, calendar: Calendar = .current
+    ) -> String {
+        let time = DateFormatter()
+        time.locale = locale
+        time.timeZone = calendar.timeZone
+        time.dateStyle = .none
+        time.timeStyle = .short
+        let clock = time.string(from: date)
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? 0
+        guard days > 0 else { return atToday ? "at \(clock)" : clock }
+        let day = DateFormatter()
+        day.locale = locale
+        day.timeZone = calendar.timeZone
+        let template = days < 7 ? (spoken ? "EEEE" : "EEE") : (spoken ? "MMMMd" : "MMMd")
+        day.dateFormat = DateFormatter.dateFormat(fromTemplate: template, options: 0, locale: locale)
+        return "\(day.string(from: date)) \(clock)"
+    }
+
     /// "3d 4h", "3d", "1h 48m", "2h", "12m", "<1m".
     static func duration(_ seconds: TimeInterval) -> String {
         let s = max(0, Int(seconds))

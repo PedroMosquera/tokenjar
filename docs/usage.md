@@ -37,7 +37,7 @@ Right-click the item, or Control-click it, for Refresh Now, Open Dashboard, Sett
 Clicking the menu bar item opens the popover, with one card per account.
 
 - Each limit window gets a bar with a tick where an even pace would be, and the time until it resets.
-- The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out ~1d 17h before reset". A chart below it shows how the window filled up this cycle against that even pace.
+- The line under the bars says how you are tracking, such as "Under pace -6%" or "Runs out Mon 08:05, ~1d 17h before reset". A chart below it shows how the window filled up this cycle against that even pace; when the window is set to run out, a dotted line carries it on to 100 % and a shaded band covers the time from then until the reset.
 - A failed check says what went wrong and offers the fix.
 - When a limit is full, the header also names the account with the most room left, such as "Codex has room: 5-hour 2% used".
 - When the Mac is offline or no provider answers, the header says so once, and the cards keep their last numbers with their age.
@@ -78,7 +78,7 @@ Set a Monthly budget on the account's page in Settings to turn that spend into a
 
 ## API value
 
-On the card of an account on a plan, a collapsed API value row answers "is the subscription paying for itself?". It shows what today's usage would have cost at API list prices. When the plan has a known list price, it also shows how many times that price the last 30 days came to, such as "7.8x plan". Without a known price, it shows the 30-day total instead, such as "$780 30d".
+On the card of an account on a plan, a collapsed "API value · this Mac" row answers "is the subscription paying for itself?". It shows what today's usage would have cost at API list prices. When the plan has a known list price, it also shows how many times that price the last 30 days came to, such as "7.8x plan". Without a known price, it shows the 30-day total instead, such as "$780 30d".
 
 Click the row to open it. Inside are:
 

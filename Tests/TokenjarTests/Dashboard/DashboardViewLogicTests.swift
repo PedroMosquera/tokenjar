@@ -20,7 +20,7 @@ private func status(_ windows: [UsageWindow]) -> AccountStatus {
 struct SidebarBadgeTests {
     private let config = MenuBarConfig()
 
-    @Test func theNumberIsTheTightestWindowAndTheTintTheWorst() {
+    @Test func theNumberIsTheTightestWindowAndTheTintTheWorst() throws {
         // Week is the tightest and on pace; the 5-hour window is lower but projected to run out.
         let badge = SidebarBadge.make(
             status: status([window("Week", used: 70, minutes: 10_080, elapsed: 0.7), window("5-hour", used: 55, minutes: 300, elapsed: 0.4)]),
@@ -28,7 +28,18 @@ struct SidebarBadgeTests {
         )
         #expect(badge?.percent == "70%")
         #expect(badge?.severity == .warning)
-        #expect(badge?.detail == "5-hour 55%, runs out ~1h 21m before reset")
+        let detail = try #require(badge?.detail)
+        #expect(detail.hasPrefix("5-hour 55%, runs out ") && detail.hasSuffix(", ~1h 21m before reset"))
+    }
+
+    @Test func theBadgeDetailNamesTheClockTime_AC_3() throws {
+        let verdict = try #require(PaceVerdict.make(windows: [window("5-hour", used: 55, minutes: 300, elapsed: 0.4)], config: config, now: now))
+        guard case .runsOut(let gap, let at) = verdict.kind else {
+            Issue.record("expected runsOut, got \(verdict.kind)")
+            return
+        }
+        let badge = SidebarBadge.make(status: status([window("5-hour", used: 55, minutes: 300, elapsed: 0.4)]), config: config, now: now)
+        #expect(badge?.detail == "5-hour 55%, runs out \(Format.clockTime(at, now: now)), ~\(Format.duration(gap)) before reset")
     }
 
     @Test func aWindowWithoutPaceSaysHowMuchIsUsed() {
@@ -92,10 +103,23 @@ struct SidebarErrorIconTests {
 struct WindowTileTextTests {
     private let config = MenuBarConfig()
 
+    @Test func theTileClauseAndVoiceOverValueNameTheClockTime_AC_3() throws {
+        let session = UsageWindow(id: "session", label: "5-hour", usedPercent: 88, windowMinutes: 300, resetsAt: now.addingTimeInterval(50 * 60))
+        let verdict = try #require(PaceVerdict.make(windows: [session], config: config, now: now))
+        guard case .runsOut(let gap, let at) = verdict.kind else {
+            Issue.record("expected runsOut, got \(verdict.kind)")
+            return
+        }
+        let clause = "runs out \(Format.clockTime(at, now: now)), ~\(Format.duration(gap)) before reset"
+        #expect(verdict.clause == clause)
+        #expect(WindowTileText.accessibilityValue(session, config: config, now: now) == "88% used, resets in 50 minutes, \(clause)")
+    }
+
     @Test func voiceOverHearsUseCountdownAndVerdict() {
         // 88 % with 50 minutes left of a 5-hour window runs out about 15 minutes early.
         let session = UsageWindow(id: "session", label: "5-hour", usedPercent: 88, windowMinutes: 300, resetsAt: now.addingTimeInterval(50 * 60))
-        #expect(WindowTileText.accessibilityValue(session, config: config, now: now) == "88% used, resets in 50 minutes, runs out ~15m before reset")
+        let value = WindowTileText.accessibilityValue(session, config: config, now: now)
+        #expect(value.hasPrefix("88% used, resets in 50 minutes, runs out ") && value.hasSuffix(", ~15m before reset"))
     }
 
     @Test func aWindowPastItsResetSaysItIsUpdating() {
@@ -266,5 +290,21 @@ struct TileRowsLayoutTests {
         #expect(layout.rows(width: 600, count: 8) == [0..<4, 4..<8])
         #expect(layout.rows(width: 600, count: 3) == [0..<3])
         #expect(layout.rows(width: 2_000, count: 7) == [0..<7])
+    }
+}
+
+struct CostTileHelpTests {
+    static let sentence = "From this Mac's logs at API list price."
+
+    @Test func theTodaySevenDayAndMonthTilesSayTheirFigureIsFromThisMacsLogs_AC_7() {
+        #expect(CostTileHelp.logs().contains(Self.sentence))
+    }
+
+    @Test func theProjectedTileKeepsItsLastMonthNoteAndAddsThisMacsLogs_AC_7() {
+        let help = CostTileHelp.projected(month: "October", lastMonth: "September in Tokenjar's history: $90.00")
+        #expect(help.contains(Self.sentence))
+        #expect(help.contains("September in Tokenjar's history: $90.00"))
+        #expect(help.hasPrefix("API-equivalent estimate, not a bill: October's cost so far"))
+        #expect(CostTileHelp.projected(month: "October", lastMonth: nil).contains(Self.sentence))
     }
 }

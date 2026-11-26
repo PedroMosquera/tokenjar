@@ -19,7 +19,7 @@ I built it because I did not want a third-party app handling my AI logins. Token
 ## Highlights
 
 - **Every limit at a glance.** One card per account, a bar per limit window, and the time until each resets.
-- **Pace, not just percent.** Each card says whether you will run out before the reset, such as "Runs out ~1d 17h before reset".
+- **Pace, not just percent.** Each card says whether you will run out before the reset, and when, such as "Runs out Mon 08:05, ~1d 17h before reset".
 - **Is the plan paying for itself?** An API value row prices your usage at API list rates and compares it with the plan, such as "4.3x plan".
 - **Spend limits.** Seats billed per use show money spent against the monthly limit, with an optional daily budget.
 - **A dashboard** with limits over time, API-equivalent cost by model, project or account, and a 12-month activity calendar.

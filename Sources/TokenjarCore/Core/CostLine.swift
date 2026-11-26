@@ -40,10 +40,10 @@ public enum CostLine {
     }
 
     /// The wording after the amount, as in "about $4.00 list value of the org's credits". Never says "billed": an
-    /// estimate or pooled credits are not this person's bill. nil for a provider's own figure, whose money line
-    /// already names it.
+    /// estimate or pooled credits are not this person's bill. Names this Mac because another Mac's logs price
+    /// differently. nil for a provider's own figure, whose money line already names it.
     public static func label(for snapshot: UsageSnapshot) -> String? {
         if snapshot.billing == .pooled { return "list value of the org's credits" }
-        return source(for: snapshot) == .history ? "estimate at list price" : nil
+        return source(for: snapshot) == .history ? "this Mac's estimate at list price" : nil
     }
 }
