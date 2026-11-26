@@ -55,15 +55,22 @@ struct PaceVerdictTests {
         #expect(verdict.text == "Runs out \(clock), ~\(Format.duration(gap)) before reset")
     }
 
-    @Test func runsOutFarAheadNamesTheWeekdayClock_AC_1() throws {
+    /// About 37 hours out, so the run-out lands on a later calendar day in any zone, even across a 25-hour DST day.
+    @Test func runsOutFarAheadNamesTheWeekdayClock_AC_1_AC_2() throws {
         let week = window("weekly", "Week", used: 71, minutes: 10_080, resetIn: 3 * 86_400 + 6 * 3_600)
         let verdict = try #require(PaceVerdict.make(windows: [week], config: MenuBarConfig(), now: now))
         guard case .runsOut(let gap, let at) = verdict.kind else {
             Issue.record("expected runsOut, got \(verdict.kind)")
             return
         }
-        #expect(at > now.addingTimeInterval(86_400))
+        #expect(at > now.addingTimeInterval(25 * 3_600))
         #expect(verdict.text == "Runs out \(Format.clockTime(at, now: now)), ~\(Format.duration(gap)) before reset")
+        let weekday = DateFormatter()
+        weekday.setLocalizedDateFormatFromTemplate("EEEE")
+        let time = DateFormatter()
+        time.dateStyle = .none
+        time.timeStyle = .short
+        #expect(verdict.spokenText == "Runs out \(weekday.string(from: at)) \(time.string(from: at)), about \(Format.spokenDuration(gap)) before reset")
     }
 
     /// Noon local time keeps the 34-minute run-out on today's date in any time zone the suite runs in.

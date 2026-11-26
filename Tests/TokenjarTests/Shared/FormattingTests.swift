@@ -7,52 +7,53 @@ struct FormattingTests {
     private let us = Locale(identifier: "en_US")
     private let decimalComma = Locale(identifier: "de_DE")
 
-    private var madrid: Calendar {
+    /// A +5:45 zone no dev Mac runs in, so a formatter that falls back to the system zone goes red.
+    private var kathmandu: Calendar {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Europe/Madrid")!
+        calendar.timeZone = TimeZone(identifier: "Asia/Kathmandu")!
         return calendar
     }
 
-    private func madridDate(_ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
-        madrid.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour, minute: minute))!
+    private func kathmanduDate(_ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
+        kathmandu.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour, minute: minute))!
     }
 
     private func clock(_ date: Date, now: Date, spoken: Bool = false, locale: String) -> String {
-        Format.clockTime(date, now: now, spoken: spoken, locale: Locale(identifier: locale), calendar: madrid)
+        Format.clockTime(date, now: now, spoken: spoken, locale: Locale(identifier: locale), calendar: kathmandu)
     }
 
     @Test func clockTimeSameDayReadsAtTheTime_AC_1() {
-        let now = madridDate(11, 26, 12, 0)
-        #expect(clock(madridDate(11, 26, 14, 30), now: now, locale: "en_GB") == "at 14:30")
-        #expect(clock(madridDate(11, 26, 14, 30), now: now, locale: "en_US") == "at 2:30\u{202F}PM")
-        #expect(Format.clockTime(madridDate(11, 26, 14, 30), now: now, atToday: false, locale: Locale(identifier: "en_GB"), calendar: madrid) == "14:30")
+        let now = kathmanduDate(11, 26, 12, 0)
+        #expect(clock(kathmanduDate(11, 26, 14, 30), now: now, locale: "en_GB") == "at 14:30")
+        #expect(clock(kathmanduDate(11, 26, 14, 30), now: now, locale: "en_US") == "at 2:30\u{202F}PM")
+        #expect(Format.clockTime(kathmanduDate(11, 26, 14, 30), now: now, atToday: false, locale: Locale(identifier: "en_GB"), calendar: kathmandu) == "14:30")
     }
 
     @Test func clockTimeWithinSixDaysLeadsWithTheWeekday_AC_1() {
-        let now = madridDate(11, 26, 12, 0)
-        #expect(clock(madridDate(11, 28, 1, 47), now: now, locale: "en_GB") == "Sat 01:47")
-        #expect(clock(madridDate(11, 28, 1, 47), now: now, locale: "en_US") == "Sat 1:47\u{202F}AM")
-        #expect(clock(madridDate(12, 2, 23, 59), now: now, locale: "en_GB") == "Wed 23:59")
+        let now = kathmanduDate(11, 26, 12, 0)
+        #expect(clock(kathmanduDate(11, 28, 1, 47), now: now, locale: "en_GB") == "Sat 01:47")
+        #expect(clock(kathmanduDate(11, 28, 1, 47), now: now, locale: "en_US") == "Sat 1:47\u{202F}AM")
+        #expect(clock(kathmanduDate(12, 2, 23, 59), now: now, locale: "en_GB") == "Wed 23:59")
     }
 
     @Test func clockTimeFromSevenDaysLeadsWithTheDate_AC_1() {
-        let now = madridDate(11, 26, 12, 0)
-        #expect(clock(madridDate(11, 30, 1, 47), now: madridDate(11, 23, 12, 0), locale: "en_GB") == "30 Nov 01:47")
-        #expect(clock(madridDate(11, 30, 1, 47), now: madridDate(11, 23, 12, 0), locale: "en_US") == "Nov 30 1:47\u{202F}AM")
-        #expect(clock(madridDate(12, 3, 9, 15), now: now, locale: "en_GB") == "3 Dec 09:15")
+        let now = kathmanduDate(11, 26, 12, 0)
+        #expect(clock(kathmanduDate(11, 30, 1, 47), now: kathmanduDate(11, 23, 12, 0), locale: "en_GB") == "30 Nov 01:47")
+        #expect(clock(kathmanduDate(11, 30, 1, 47), now: kathmanduDate(11, 23, 12, 0), locale: "en_US") == "Nov 30 1:47\u{202F}AM")
+        #expect(clock(kathmanduDate(12, 3, 9, 15), now: now, locale: "en_GB") == "3 Dec 09:15")
     }
 
     @Test func clockTimeCountsCalendarDaysNotElapsedHours_AC_1() {
-        let lateNow = madridDate(11, 26, 23, 50)
-        #expect(clock(madridDate(11, 27, 0, 10), now: lateNow, locale: "en_GB") == "Fri 00:10")
-        #expect(clock(madridDate(11, 26, 23, 59), now: lateNow, locale: "en_GB") == "at 23:59")
+        let lateNow = kathmanduDate(11, 26, 23, 50)
+        #expect(clock(kathmanduDate(11, 27, 0, 10), now: lateNow, locale: "en_GB") == "Fri 00:10")
+        #expect(clock(kathmanduDate(11, 26, 23, 59), now: lateNow, locale: "en_GB") == "at 23:59")
     }
 
     @Test func clockTimeSpokenSpellsOutWeekdayAndMonth_AC_2() {
-        let now = madridDate(11, 26, 12, 0)
-        #expect(clock(madridDate(11, 26, 14, 30), now: now, spoken: true, locale: "en_GB") == "at 14:30")
-        #expect(clock(madridDate(11, 28, 1, 47), now: now, spoken: true, locale: "en_GB") == "Saturday 01:47")
-        #expect(clock(madridDate(12, 3, 9, 15), now: now, spoken: true, locale: "en_US") == "December 3 9:15\u{202F}AM")
+        let now = kathmanduDate(11, 26, 12, 0)
+        #expect(clock(kathmanduDate(11, 26, 14, 30), now: now, spoken: true, locale: "en_GB") == "at 14:30")
+        #expect(clock(kathmanduDate(11, 28, 1, 47), now: now, spoken: true, locale: "en_GB") == "Saturday 01:47")
+        #expect(clock(kathmanduDate(12, 3, 9, 15), now: now, spoken: true, locale: "en_US") == "December 3 9:15\u{202F}AM")
     }
 
     /// Requests and money follow the locale, so token counts beside them must too, or "1.506" and "164.6M" share a row.
